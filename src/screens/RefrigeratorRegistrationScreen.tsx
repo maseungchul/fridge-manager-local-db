@@ -1,9 +1,10 @@
 /**
  * @file
- * 냉장고 최초 등록에서 문 개수에 맞는 구조를 선택하고 본체·문 연결의 기본 구성을 만든다.
+ * 냉장고 최초 등록을 기본 정보·구조 선택과 내부 설정의 두 단계로 나눈다.
  * 간소화 JSON을 입력 초안으로 복사하고 본체별 보관 모드를 설정하며, 이름과 구성값은 화면 상태로만 관리한다.
- * 취소 시 이전 홈 화면으로 돌아가며 문 수납·내부 칸 편집과 저장은 별도로 연결한다.
+ * 단계 이동 시 입력을 유지하고 취소 시 홈으로 돌아가며, 문 수납·내부 칸 편집과 저장은 별도로 연결한다.
  */
+import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -22,7 +23,10 @@ type RefrigeratorRegistrationScreenProps = NativeStackScreenProps<
   'RefrigeratorRegistration'
 >;
 
-const doorCounts = [...new Set(fridgeLayoutPresets.map(preset => preset.doorCount))].sort((a, b) => a - b);
+// 보류한 구조는 JSON에 남기고 문 개수와 구조 선택지에서는 함께 제외한다.
+const availablePresets = fridgeLayoutPresets.filter(preset => preset.enabled !== false);
+const doorCounts = [...new Set(availablePresets.map(preset => preset.doorCount))].sort((a, b) => a - b);
+type RegistrationStep = 'basic' | 'configuration';
 
 export function RefrigeratorRegistrationScreen({
   navigation,
@@ -30,9 +34,19 @@ export function RefrigeratorRegistrationScreen({
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(createRefrigeratorDraft);
   const [doorCount, setDoorCount] = useState<number | null>(null);
+  const [step, setStep] = useState<RegistrationStep>('basic');
   const selectedPresetId = draft.presetId;
-  const visiblePresets = fridgeLayoutPresets.filter(preset => preset.doorCount === doorCount);
+  const visiblePresets = availablePresets.filter(preset => preset.doorCount === doorCount);
   const selectedPreset = visiblePresets.find(preset => preset.id === selectedPresetId);
+
+  // 기기의 뒤로가기도 내부 설정에서 기본 정보로 돌아가도록 맞춘다.
+  usePreventRemove(step === 'configuration', () => changeStep('basic'));
+
+  // 입력 초안은 유지하고, 단계별 스크롤은 새로 시작한다.
+  function changeStep(nextStep: RegistrationStep) {
+    Keyboard.dismiss();
+    setStep(nextStep);
+  }
 
   // 다른 문 개수를 고르면 기존 유형이 새 선택지에 남지 않도록 초기화한다.
   function selectDoorCount(count: number) {
@@ -55,81 +69,96 @@ export function RefrigeratorRegistrationScreen({
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      {/* 스크롤이 화면 하단까지 표시되도록 하단 안전 영역은 내용의 여백에만 적용한다. */}
+      {/* 단계마다 스크롤을 초기화하고 이동 버튼은 내용 길이와 관계없이 하단에 표시한다. */}
       <ScrollView
+        key={step}
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}
-        scrollIndicatorInsets={{ bottom: insets.bottom }}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text accessibilityRole="header" style={styles.title}>냉장고 최초 등록</Text>
-        <View style={styles.sections}>
-          <FormTextInput
-            label="냉장고 이름"
-            accessibilityLabel="냉장고 이름"
-            value={draft.name}
-            onChangeText={name => setDraft(current => ({ ...current, name }))}
-            maxLength={50}
-            containerStyle={styles.nameField}
-          />
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.label}>문 개수</Text>
-              <Text style={styles.description}>외부 서랍과 뚜껑도 문 개수에 포함해 주세요.</Text>
-            </View>
-            <View accessibilityRole="radiogroup" style={styles.row}>
-              {doorCounts.map(count => (
-                <Pressable
-                  key={count}
-                  accessibilityRole="radio"
-                  accessibilityLabel={`${count}도어`}
-                  accessibilityState={{ checked: doorCount === count }}
-                  onPress={() => selectDoorCount(count)}
-                  style={({ pressed }) => [styles.choice, doorCount === count && styles.selected, pressed && styles.pressed]}
-                >
-                  <Text style={styles.label}>{doorCount === count ? '✓ ' : ''}{count}도어</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-          {doorCount !== null ? (
+        <View style={styles.header}>
+          <Text accessibilityRole="header" style={styles.title}>냉장고 최초 등록</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.description}>
+            {step === 'basic' ? '1 / 2 · 기본 정보' : '2 / 2 · 내부 설정'}
+          </Text>
+        </View>
+        {step === 'basic' ? (
+          <View style={styles.sections}>
+            <FormTextInput
+              label="냉장고 이름"
+              accessibilityLabel="냉장고 이름"
+              value={draft.name}
+              onChangeText={name => setDraft(current => ({ ...current, name }))}
+              maxLength={50}
+              containerStyle={styles.nameField}
+            />
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.label}>냉장고 구조</Text>
-                <Text style={styles.description}>본체와 문 배치를 보고 같은 구조를 선택해 주세요.</Text>
+                <Text style={styles.label}>문 개수</Text>
+                <Text style={styles.description}>외부 서랍도 문 개수에 포함해 주세요.</Text>
               </View>
-              <View accessibilityRole="radiogroup" style={styles.structureList}>
-                {visiblePresets.map(preset => (
+              <View accessibilityRole="radiogroup" style={styles.row}>
+                {doorCounts.map(count => (
                   <Pressable
-                    key={preset.id}
+                    key={count}
                     accessibilityRole="radio"
-                    accessibilityLabel={`${preset.name}, 본체 ${preset.compartments.length}개, ${preset.view === 'TOP' ? '위에서 본 모습' : '정면'}`}
-                    accessibilityState={{ checked: selectedPresetId === preset.id }}
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      // 같은 구조를 다시 누르면 입력을 유지하고, 다른 구조는 이름만 이어받는다.
-                      setDraft(current => current.presetId === preset.id ? current : {
-                        ...createRefrigeratorDraft(preset),
-                        name: current.name,
-                      });
-                    }}
-                    style={({ pressed }) => [styles.structure, selectedPresetId === preset.id && styles.selected, pressed && styles.pressed]}
+                    accessibilityLabel={`${count}도어`}
+                    accessibilityState={{ checked: doorCount === count }}
+                    onPress={() => selectDoorCount(count)}
+                    style={({ pressed }) => [styles.choice, doorCount === count && styles.selected, pressed && styles.pressed]}
                   >
-                    <FridgeStructurePreview preset={preset} />
-                    <View style={styles.structureInfo}>
-                      <Text style={styles.label}>{selectedPresetId === preset.id ? '✓ ' : ''}{preset.name}</Text>
-                      <Text style={styles.description}>본체 {preset.compartments.length}개 · {preset.view === 'TOP' ? '위에서 본 모습' : '정면'}</Text>
-                    </View>
+                    <Text style={styles.label}>{doorCount === count ? '✓ ' : ''}{count}도어</Text>
                   </Pressable>
                 ))}
               </View>
             </View>
-          ) : null}
-          {selectedPreset ? (
+            {doorCount !== null ? (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.label}>냉장고 구조</Text>
+                  <Text style={styles.description}>본체와 문 배치를 보고 같은 구조를 선택해 주세요.</Text>
+                </View>
+                <View accessibilityRole="radiogroup" style={styles.structureList}>
+                  {visiblePresets.map(preset => (
+                    <Pressable
+                      key={preset.id}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`${preset.name}, 본체 ${preset.compartments.length}개, ${preset.view === 'TOP' ? '위에서 본 모습' : '정면'}`}
+                      accessibilityState={{ checked: selectedPresetId === preset.id }}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        // 같은 구조를 다시 누르면 입력을 유지하고, 다른 구조는 이름만 이어받는다.
+                        setDraft(current => current.presetId === preset.id ? current : {
+                          ...createRefrigeratorDraft(preset),
+                          name: current.name,
+                        });
+                      }}
+                      style={({ pressed }) => [styles.structure, selectedPresetId === preset.id && styles.selected, pressed && styles.pressed]}
+                    >
+                      <FridgeStructurePreview preset={preset} showLabels={false} />
+                      <View style={styles.structureInfo}>
+                        <Text style={styles.label}>{selectedPresetId === preset.id ? '✓ ' : ''}{preset.name}</Text>
+                        <Text style={styles.description}>본체 {preset.compartments.length}개 · {preset.view === 'TOP' ? '위에서 본 모습' : '정면'}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : selectedPreset ? (
+          <View style={styles.sections}>
+            <View style={styles.structure}>
+              <FridgeStructurePreview preset={selectedPreset} />
+              <View style={styles.structureInfo}>
+                <Text style={styles.label}>{selectedPreset.name}</Text>
+                <Text style={styles.description}>본체 {draft.compartments.length}개 · 외부 문 {draft.openings.length}개</Text>
+              </View>
+            </View>
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text accessibilityLiveRegion="polite" style={styles.label}>기본 구성</Text>
-                <Text style={styles.description}>본체 {draft.compartments.length}개 · 외부 문 {draft.openings.length}개</Text>
+                <Text style={styles.label}>보관 모드</Text>
+                <Text style={styles.description}>각 본체의 보관 모드를 선택해 주세요.</Text>
               </View>
               {draft.compartments.map(compartment => (
                 <View key={compartment.position} style={styles.section}>
@@ -156,10 +185,24 @@ export function RefrigeratorRegistrationScreen({
                 </View>
               ))}
             </View>
-          ) : null}
-        </View>
-        <PrimaryButton label="취소" onPress={() => navigation.goBack()} />
+          </View>
+        ) : null}
       </ScrollView>
+      <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+        {step === 'basic' ? (
+          <>
+            <PrimaryButton label="취소" onPress={() => navigation.goBack()} style={styles.actionButton} />
+            <PrimaryButton
+              label="다음"
+              disabled={!draft.name.trim() || !selectedPreset}
+              onPress={() => changeStep('configuration')}
+              style={styles.actionButton}
+            />
+          </>
+        ) : (
+          <PrimaryButton label="이전" onPress={() => changeStep('basic')} style={styles.actionButton} />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -176,8 +219,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
   },
-  title: {
+  header: {
+    gap: spacing.xs,
     marginBottom: spacing.sm,
+  },
+  title: {
     color: colors.text,
     fontSize: 20,
     fontWeight: '700',
@@ -189,6 +235,15 @@ const styles = StyleSheet.create({
   },
   sections: {
     gap: spacing.lg,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
   },
   section: {
     gap: spacing.md,

@@ -52,6 +52,8 @@
   {
     "id": "two-door-bottom-drawer",
     "name": "2도어 하단 서랍형",
+    "enabled": false,
+    "disabledReason": "문 여는 방식만 다른 중복 선택지로, 현재는 two-door-stacked에서 함께 설정한다.",
     "doorCount": 2,
     "view": "FRONT",
     "layout": [
@@ -221,6 +223,8 @@
   {
     "id": "four-door-split-upper",
     "name": "4도어 상단 좌우 분리·중하단 서랍형",
+    "enabled": false,
+    "disabledReason": "김치냉장고 전용 구조는 지원 범위를 확장할 때 다시 활성화한다.",
     "doorCount": 4,
     "view": "FRONT",
     "layout": [
@@ -244,6 +248,8 @@
   {
     "id": "two-lid-side-by-side",
     "name": "뚜껑 2개 좌우 분리형",
+    "enabled": false,
+    "disabledReason": "뚜껑형 김치냉장고는 지원 범위를 확장할 때 다시 활성화한다.",
     "doorCount": 2,
     "view": "TOP",
     "layout": [
@@ -261,6 +267,8 @@
   {
     "id": "one-lid-single-body",
     "name": "뚜껑 1개 단일 본체형",
+    "enabled": false,
+    "disabledReason": "뚜껑형 냉동고는 현재 일반 냉장고 지원 범위에서 제외하고 원본 구조를 보관한다.",
     "doorCount": 1,
     "view": "TOP",
     "layout": [
@@ -276,6 +284,8 @@
   {
     "id": "two-door-stacked-drawers",
     "name": "서랍 2단 분리형",
+    "enabled": false,
+    "disabledReason": "문 여는 방식만 다른 중복 선택지로, 현재는 two-door-stacked에서 함께 설정한다.",
     "doorCount": 2,
     "view": "FRONT",
     "layout": [

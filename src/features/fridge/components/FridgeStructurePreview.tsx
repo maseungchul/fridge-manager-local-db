@@ -1,6 +1,6 @@
 /**
  * @file
- * 구조 선택 카드에서 JSON의 본체 배치와 공용 본체의 문 경계를 작은 도식으로 표시한다.
+ * 구조 선택과 내부 설정에서 JSON의 본체 배치와 공용 본체의 문 경계를 작은 도식으로 표시한다.
  * 같은 실 ID가 차지하는 셀을 하나로 합치며, 내부 칸 편집과 선택 상태는 호출자가 관리한다.
  */
 import { StyleSheet, Text, View } from 'react-native';
@@ -9,12 +9,13 @@ import { colors } from '@/theme/tokens';
 
 interface FridgeStructurePreviewProps {
   preset: (typeof fridgeLayoutPresets)[number];
+  showLabels?: boolean;
 }
 
 const BORDER_WIDTH = 2;
 
 /** 본체와 문 경계를 같은 도식 좌표로 계산해 맞닿는 선의 위치를 일치시킨다. */
-export function FridgeStructurePreview({ preset }: FridgeStructurePreviewProps) {
+export function FridgeStructurePreview({ preset, showLabels = true }: FridgeStructurePreviewProps) {
   const rowCount = preset.layout.length;
   const columnCount = preset.layout[0].length;
   const compartments = preset.compartments.map(compartment => {
@@ -71,9 +72,11 @@ export function FridgeStructurePreview({ preset }: FridgeStructurePreviewProps) 
             },
           ]}
         >
-          <View style={styles.body}>
-            <Text style={[styles.name, compartment.doors.length > 1 && styles.sharedName]}>{compartment.name}</Text>
-          </View>
+          {showLabels ? (
+            <View style={styles.body}>
+              <Text style={[styles.name, compartment.doors.length > 1 && styles.sharedName]}>{compartment.name}</Text>
+            </View>
+          ) : null}
         </View>
       ))}
     </View>
