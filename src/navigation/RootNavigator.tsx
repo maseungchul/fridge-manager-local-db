@@ -5,10 +5,12 @@
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { HomeScreen } from '@/screens/HomeScreen';
+import { RefrigeratorRegistrationScreen } from '@/screens/RefrigeratorRegistrationScreen';
 
-// 화면 이름과 전달할 매개변수의 타입을 정의한다. Home은 별도 매개변수가 없다.
+// 화면 이름과 전달할 매개변수의 타입을 정의한다. 두 화면 모두 별도 매개변수가 없다.
 export type RootStackParamList = {
   Home: undefined;
+  RefrigeratorRegistration: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -23,6 +25,10 @@ export function RootNavigator() {
       }}
     >
       <Stack.Screen component={HomeScreen} name="Home" />
+      <Stack.Screen
+        component={RefrigeratorRegistrationScreen}
+        name="RefrigeratorRegistration"
+      />
     </Stack.Navigator>
   );
 }

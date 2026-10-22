@@ -1,0 +1,294 @@
+[
+  {
+    "id": "one-door-single-body",
+    "name": "1도어 단일 본체형",
+    "doorCount": 1,
+    "view": "FRONT",
+    "layout": [
+      ["main", "main"]
+    ],
+    "compartments": [
+      {"id": "main", "name": "전체"}
+    ],
+    "openings": [
+      {"id": "main-door", "kind": "HINGED", "compartmentIds": ["main"]}
+    ]
+  },
+  {
+    "id": "one-door-inner-compartment",
+    "name": "1도어 내부 칸 분리형",
+    "doorCount": 1,
+    "view": "FRONT",
+    "layout": [
+      ["inner", "inner"],
+      ["main", "main"]
+    ],
+    "compartments": [
+      {"id": "inner", "name": "내부 위칸"},
+      {"id": "main", "name": "아래 본체"}
+    ],
+    "openings": [
+      {"id": "outer-door", "kind": "HINGED", "compartmentIds": ["inner", "main"]}
+    ]
+  },
+  {
+    "id": "two-door-stacked",
+    "name": "2도어 상하 분리형",
+    "doorCount": 2,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["lower", "lower"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "상단"},
+      {"id": "lower", "name": "하단"}
+    ],
+    "openings": [
+      {"id": "upper-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "lower-door", "kind": "HINGED", "compartmentIds": ["lower"]}
+    ]
+  },
+  {
+    "id": "two-door-bottom-drawer",
+    "name": "2도어 하단 서랍형",
+    "doorCount": 2,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["lower", "lower"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "상단"},
+      {"id": "lower", "name": "하단"}
+    ],
+    "openings": [
+      {"id": "upper-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "lower-drawer", "kind": "DRAWER", "compartmentIds": ["lower"]}
+    ]
+  },
+  {
+    "id": "two-door-side-by-side",
+    "name": "2도어 좌우 분리형",
+    "doorCount": 2,
+    "view": "FRONT",
+    "layout": [
+      ["left", "right"]
+    ],
+    "compartments": [
+      {"id": "left", "name": "왼쪽"},
+      {"id": "right", "name": "오른쪽"}
+    ],
+    "openings": [
+      {"id": "left-door", "kind": "HINGED", "compartmentIds": ["left"]},
+      {"id": "right-door", "kind": "HINGED", "compartmentIds": ["right"]}
+    ]
+  },
+  {
+    "id": "three-door-shared-upper",
+    "name": "3도어 상단 공용·하단 서랍형",
+    "doorCount": 3,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["lower", "lower"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "상단 공용"},
+      {"id": "lower", "name": "하단"}
+    ],
+    "openings": [
+      {"id": "upper-left-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "upper-right-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "lower-drawer", "kind": "DRAWER", "compartmentIds": ["lower"]}
+    ]
+  },
+  {
+    "id": "four-door-split-lower",
+    "name": "4도어 상단 공용·하단 좌우형",
+    "doorCount": 4,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["lower-left", "lower-right"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "상단 공용"},
+      {"id": "lower-left", "name": "하단 왼쪽"},
+      {"id": "lower-right", "name": "하단 오른쪽"}
+    ],
+    "openings": [
+      {"id": "upper-left-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "upper-right-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "lower-left-door", "kind": "HINGED", "compartmentIds": ["lower-left"]},
+      {"id": "lower-right-door", "kind": "HINGED", "compartmentIds": ["lower-right"]}
+    ]
+  },
+  {
+    "id": "four-door-stacked-drawers",
+    "name": "4도어 상단 공용·중하단 서랍형",
+    "doorCount": 4,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["middle", "middle"],
+      ["lower", "lower"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "상단 공용"},
+      {"id": "middle", "name": "중단"},
+      {"id": "lower", "name": "하단"}
+    ],
+    "openings": [
+      {"id": "upper-left-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "upper-right-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "middle-drawer", "kind": "DRAWER", "compartmentIds": ["middle"]},
+      {"id": "lower-drawer", "kind": "DRAWER", "compartmentIds": ["lower"]}
+    ]
+  },
+  {
+    "id": "five-door-split-middle",
+    "name": "5도어 상단 공용·중단 좌우 서랍형",
+    "doorCount": 5,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["middle-left", "middle-right"],
+      ["lower", "lower"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "상단 공용"},
+      {"id": "middle-left", "name": "중단 왼쪽"},
+      {"id": "middle-right", "name": "중단 오른쪽"},
+      {"id": "lower", "name": "하단"}
+    ],
+    "openings": [
+      {"id": "upper-left-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "upper-right-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "middle-left-drawer", "kind": "DRAWER", "compartmentIds": ["middle-left"]},
+      {"id": "middle-right-drawer", "kind": "DRAWER", "compartmentIds": ["middle-right"]},
+      {"id": "lower-drawer", "kind": "DRAWER", "compartmentIds": ["lower"]}
+    ]
+  },
+  {
+    "id": "three-door-stacked",
+    "name": "3도어 상중하 분리형",
+    "doorCount": 3,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["middle", "middle"],
+      ["lower", "lower"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "상단"},
+      {"id": "middle", "name": "중단"},
+      {"id": "lower", "name": "하단"}
+    ],
+    "openings": [
+      {"id": "upper-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "middle-drawer", "kind": "DRAWER", "compartmentIds": ["middle"]},
+      {"id": "lower-drawer", "kind": "DRAWER", "compartmentIds": ["lower"]}
+    ]
+  },
+  {
+    "id": "six-door-multi-drawer",
+    "name": "6도어 상단 공용·다단 서랍형",
+    "doorCount": 6,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["middle-left", "middle-right"],
+      ["lower-upper", "lower-upper"],
+      ["lower-bottom", "lower-bottom"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "상단 공용"},
+      {"id": "middle-left", "name": "중단 왼쪽"},
+      {"id": "middle-right", "name": "중단 오른쪽"},
+      {"id": "lower-upper", "name": "하단 위 서랍"},
+      {"id": "lower-bottom", "name": "하단 아래 서랍"}
+    ],
+    "openings": [
+      {"id": "upper-left-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "upper-right-door", "kind": "HINGED", "compartmentIds": ["upper"]},
+      {"id": "middle-left-drawer", "kind": "DRAWER", "compartmentIds": ["middle-left"]},
+      {"id": "middle-right-drawer", "kind": "DRAWER", "compartmentIds": ["middle-right"]},
+      {"id": "lower-upper-drawer", "kind": "DRAWER", "compartmentIds": ["lower-upper"]},
+      {"id": "lower-bottom-drawer", "kind": "DRAWER", "compartmentIds": ["lower-bottom"]}
+    ]
+  },
+  {
+    "id": "four-door-split-upper",
+    "name": "4도어 상단 좌우 분리·중하단 서랍형",
+    "doorCount": 4,
+    "view": "FRONT",
+    "layout": [
+      ["upper-left", "upper-right"],
+      ["middle", "middle"],
+      ["lower", "lower"]
+    ],
+    "compartments": [
+      {"id": "upper-left", "name": "상단 왼쪽"},
+      {"id": "upper-right", "name": "상단 오른쪽"},
+      {"id": "middle", "name": "중단"},
+      {"id": "lower", "name": "하단"}
+    ],
+    "openings": [
+      {"id": "upper-left-door", "kind": "HINGED", "compartmentIds": ["upper-left"]},
+      {"id": "upper-right-door", "kind": "HINGED", "compartmentIds": ["upper-right"]},
+      {"id": "middle-drawer", "kind": "DRAWER", "compartmentIds": ["middle"]},
+      {"id": "lower-drawer", "kind": "DRAWER", "compartmentIds": ["lower"]}
+    ]
+  },
+  {
+    "id": "two-lid-side-by-side",
+    "name": "뚜껑 2개 좌우 분리형",
+    "doorCount": 2,
+    "view": "TOP",
+    "layout": [
+      ["left", "right"]
+    ],
+    "compartments": [
+      {"id": "left", "name": "왼쪽"},
+      {"id": "right", "name": "오른쪽"}
+    ],
+    "openings": [
+      {"id": "left-lid", "kind": "LID", "compartmentIds": ["left"]},
+      {"id": "right-lid", "kind": "LID", "compartmentIds": ["right"]}
+    ]
+  },
+  {
+    "id": "one-lid-single-body",
+    "name": "뚜껑 1개 단일 본체형",
+    "doorCount": 1,
+    "view": "TOP",
+    "layout": [
+      ["main", "main"]
+    ],
+    "compartments": [
+      {"id": "main", "name": "전체"}
+    ],
+    "openings": [
+      {"id": "main-lid", "kind": "LID", "compartmentIds": ["main"]}
+    ]
+  },
+  {
+    "id": "two-door-stacked-drawers",
+    "name": "서랍 2단 분리형",
+    "doorCount": 2,
+    "view": "FRONT",
+    "layout": [
+      ["upper", "upper"],
+      ["lower", "lower"]
+    ],
+    "compartments": [
+      {"id": "upper", "name": "위 서랍"},
+      {"id": "lower", "name": "아래 서랍"}
+    ],
+    "openings": [
+      {"id": "upper-drawer", "kind": "DRAWER", "compartmentIds": ["upper"]},
+      {"id": "lower-drawer", "kind": "DRAWER", "compartmentIds": ["lower"]}
+    ]
+  }
+]

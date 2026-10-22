@@ -1,0 +1,1848 @@
+{
+  "schemaVersion": 1,
+  "catalogRevision": 1,
+  "researchedOn": "2026-10-22",
+  "description": "가정용 냉장·냉동 보관 기기의 물리적 배치 유형 조사 자료. 제품 전체 목록이나 현재 앱의 지원 목록은 아니다.",
+  "coverage": {
+    "complete": false,
+    "scope": "일반 냉장고·냉동고·김치냉장고·가정용 하부장 서랍형의 확인된 대표 구조",
+    "excluded": [
+      "업소용·차량용·캠핑용·연구용 기기",
+      "와인 전용·음료 전용 기기의 온도 구역"
+    ],
+    "pendingCases": [
+      {
+        "id": "japanese-five-door",
+        "name": "일본형 5도어 다단 서랍",
+        "sourceIds": [
+          "toshiba-five"
+        ],
+        "nextCheck": "5개 문과 냉장·채소·제빙·상단 냉동·하단 냉동 공간의 위치 및 연결을 설명서 도식으로 확인한다."
+      },
+      {
+        "id": "three-door-side-by-side",
+        "name": "3도어 양문형",
+        "sourceIds": [
+          "haier-three-sbs"
+        ],
+        "nextCheck": "긴 문과 분할 문의 좌우 배치, 내부 분리벽 및 전환 공간을 확인한다."
+      },
+      {
+        "id": "one-lid-multiple-chambers",
+        "name": "뚜껑 하나 아래 복수 내부 공간",
+        "sourceIds": [],
+        "nextCheck": "뚜껑 개수와 내부 실 수가 다른 김치냉장고의 대표 모델과 내부 도식을 확인한다."
+      },
+      {
+        "id": "four-independent-quadrants",
+        "name": "상하좌우 네 공간이 모두 독립된 구조",
+        "sourceIds": [],
+        "nextCheck": "4도어 외관만 보고 독립 4실로 가정하지 않는다. 실제 분리벽과 실별 제어를 설명서로 확인한다."
+      }
+    ]
+  },
+  "conventions": {
+    "layout": "행마다 열 수가 같은 격자. 현재 유형은 2열로 표현한다. 같은 실 ID가 반복되면 하나의 본체가 여러 셀을 차지한다. 실제 크기 비율을 뜻하지 않는다.",
+    "openings": "외부 여닫이 문·서랍·뚜껑만 기록한다. 한 실에 문이 여러 개이거나 문 하나가 여러 보관 구역을 열 수 있다.",
+    "compartments": "식재료 위치를 구분하기 위한 물리적 공간이다. 별도 실이라는 이유만으로 독립 온도 제어를 가정하지 않는다.",
+    "body": "모든 실에 본체를 기본 포함한다. 선반 수·내부 서랍 수·문 수납칸은 실제 제품에 맞춰 별도로 구성한다.",
+    "doorBins": "CONFIGURABLE은 문 수납 영역을 선택 가능하게 한다는 뜻이다. 해당 제품의 모든 문에 수납칸이 있다는 보장은 아니다.",
+    "referenceRole": "대표 제품의 용도이며 위치 식별자로 사용하지 않는다. 위치 ID는 모드 변경 후에도 유지한다.",
+    "modeOptions": "대표 제품에서 확인한 보관 모드의 앱 분류이다. null은 미확인, 배열도 제조사의 전체 세부 모드를 망라하지 않는다. 다른 모델의 허용 모드로 그대로 적용하지 않는다.",
+    "integration": "현재 화면·SQLite에 연결하지 않은 조사 카탈로그이다. 특수 모드와 다단 배치는 별도 구현이 필요하다."
+  },
+  "referenceRoles": {
+    "CHILLED": "냉장",
+    "FROZEN": "냉동",
+    "CONVERTIBLE": "전환 보관",
+    "VEGETABLE": "채소",
+    "SOFT_FREEZE": "특수 냉동",
+    "ICE": "제빙",
+    "KIMCHI": "김치"
+  },
+  "storageModes": {
+    "CHILLED": "냉장",
+    "FROZEN": "냉동",
+    "KIMCHI": "김치",
+    "SOFT_FREEZE": "특수 냉동"
+  },
+  "sources": [
+    {
+      "id": "samsung-types",
+      "publisher": "Samsung",
+      "title": "냉장고 구조별 구매 안내",
+      "url": "https://www.samsung.com/africa_en/home-appliances/buying-guide/what-is-the-best-type-of-fridge-freezer/",
+      "checkedOn": "2026-10-22",
+      "evidence": "단일 실, 양문형, 상하형, 프렌치도어 및 모듈 조합을 구분한다."
+    },
+    {
+      "id": "mitsubishi-top",
+      "publisher": "Mitsubishi Electric",
+      "title": "상부 냉동실형 제품군",
+      "url": "https://www.mitsubishielectric.com.au/products/residential/fridges/top-mount/",
+      "checkedOn": "2026-10-22",
+      "evidence": "냉동실이 위, 냉장실이 아래인 제품군이다."
+    },
+    {
+      "id": "lg-single",
+      "publisher": "LG",
+      "title": "1도어 냉장고 제품군",
+      "url": "https://www.lg.com/africa/single-door-refrigerators",
+      "checkedOn": "2026-10-22",
+      "evidence": "냉장 전용, 냉동 전용 및 외부 문 하나 안에 냉동칸이 있는 제품이 함께 존재한다."
+    },
+    {
+      "id": "lg-internal-freezer",
+      "publisher": "LG",
+      "title": "GL-D201ASCD 사양",
+      "url": "https://www.lg.com/in/refrigerators/single-door-refrigerators/gl-d201ascd/",
+      "checkedOn": "2026-10-22",
+      "evidence": "외부 1도어 제품에 냉동 구역과 냉장 구역을 구분한다."
+    },
+    {
+      "id": "samsung-flex",
+      "publisher": "Samsung",
+      "title": "RF23DG9600SRAC 구조와 CoolSelect+",
+      "url": "https://www.samsung.com/ca/refrigerators/french-door/counter-depth-4-door-flex-refrigerator-with-beverage-center-23-cu-ft-stainless-steel-rf23dg9600srac/",
+      "checkedOn": "2026-10-22",
+      "evidence": "3개 공간을 별도로 냉각하며 하단 좌우 사양을 나눈다. 하단 오른쪽은 FlexZone 전환 공간이다."
+    },
+    {
+      "id": "lg-full-convert",
+      "publisher": "LG",
+      "title": "LF30H8210S 사양서",
+      "url": "https://www.lg.com/us/support/products/documents/LF30H8210S_spec_sheet.pdf",
+      "checkedOn": "2026-10-22",
+      "evidence": "상단 냉장실, 중간 Full-Convert 서랍, 하단 냉동실을 구분한다."
+    },
+    {
+      "id": "lg-convert-guide",
+      "publisher": "LG",
+      "title": "4도어 구매 안내",
+      "url": "https://www.lg.com/us/4-door-refrigerator-buying-guide",
+      "checkedOn": "2026-10-22",
+      "evidence": "Full-Convert 외부 서랍을 냉장 또는 냉동으로 전환할 수 있다. Door-in-Door는 문 안쪽 보관함에 접근하는 기능이다."
+    },
+    {
+      "id": "lg-double-freezer",
+      "publisher": "LG",
+      "title": "LMX28983 사양서",
+      "url": "https://www.lg.com/us/products/documents/LMX28983ss.pdf",
+      "checkedOn": "2026-10-22",
+      "evidence": "프렌치도어 냉장실 아래에 외부 냉동 서랍 두 개가 위아래로 배치된다. 독립 온도 제어 여부는 단정하지 않는다."
+    },
+    {
+      "id": "kitchenaid-five",
+      "publisher": "KitchenAid",
+      "title": "KRMF706ESS 5도어 제품",
+      "url": "https://www.kitchenaid.ca/en_ca/major-appliances/refrigeration/refrigerators/double-drawer-refrigerators/p.KRMF706ESS.html",
+      "checkedOn": "2026-10-22",
+      "evidence": "상단 양쪽 문, 중간 좌우 서랍, 하단 냉동 서랍으로 구성한다. 중간 왼쪽은 온도 선택, 오른쪽은 채소 보관 용도이다."
+    },
+    {
+      "id": "mitsubishi-three",
+      "publisher": "Mitsubishi Electric",
+      "title": "CX 3도어 제품군",
+      "url": "https://www.mitsubishielectric.com.au/products/residential/fridges/bottom-mount/cx-series/",
+      "checkedOn": "2026-10-22",
+      "evidence": "위 냉장실, 중간 채소 서랍, 아래 냉동 서랍을 설명한다."
+    },
+    {
+      "id": "mitsubishi-six",
+      "publisher": "Mitsubishi Electric",
+      "title": "MR-WX700C-W-A 제품 구조",
+      "url": "https://www.mitsubishielectric.com.au/product/700l-multi-drawer-white-fridge/",
+      "checkedOn": "2026-10-22",
+      "evidence": "위 공용 냉장실과 제빙·특수 냉동·냉동·채소의 외부 서랍을 구분한다. 냉장실 안쪽의 작은 케이스는 별도 외부 실로 세지 않는다."
+    },
+    {
+      "id": "lg-kimchi-guide",
+      "publisher": "LG",
+      "title": "냉장고·김치냉장고 FAQ",
+      "url": "https://www.lge.co.kr/story/faq/refrigerators-faq",
+      "checkedOn": "2026-10-22",
+      "evidence": "4도어 상단 분리벽형과 상단 오픈형을 별도로 안내한다."
+    },
+    {
+      "id": "lg-kimchi-three",
+      "publisher": "LG",
+      "title": "Z334SKV161S 사양",
+      "url": "https://www.lge.co.kr/product/kimchi-refrigerators/z334skv161s",
+      "checkedOn": "2026-10-22",
+      "evidence": "상·중·하칸을 구분하며 냉장·냉동 전환은 상칸에 적용된다."
+    },
+    {
+      "id": "lg-kimchi-divided",
+      "publisher": "LG",
+      "title": "Z495GBB271 사양",
+      "url": "https://www.lge.co.kr/product/kimchi-refrigerators/z495gbb271",
+      "checkedOn": "2026-10-22",
+      "evidence": "상좌·상우·중·하칸을 구분한다. 상좌·상우 각각 냉장·냉동 전환 기능이 있다."
+    },
+    {
+      "id": "lg-kimchi-open",
+      "publisher": "LG",
+      "title": "Z484GBB172 사양",
+      "url": "https://www.lge.co.kr/product/kimchi-refrigerators/z484gbb172",
+      "checkedOn": "2026-10-22",
+      "evidence": "4도어 김치냉장고의 상단 오픈형 대표 모델이다. FAQ의 오픈형 설명과 함께 확인한다."
+    },
+    {
+      "id": "lg-kimchi-lid",
+      "publisher": "LG",
+      "title": "K221LW121 사양",
+      "url": "https://www.lge.co.kr/product/kimchi-refrigerators/k221lw121",
+      "checkedOn": "2026-10-22",
+      "evidence": "뚜껑식 좌·우칸이 있고 양쪽 칸에 냉동 전환 기능이 있다. 단종 제품도 구조 사례로 유지한다."
+    },
+    {
+      "id": "ge-freezers",
+      "publisher": "GE Appliances",
+      "title": "직립형·상부 뚜껑형 냉동고 설명서",
+      "url": "https://www.geappliances.com/content/older-pdfs/49-60172.PDF",
+      "checkedOn": "2026-10-22",
+      "evidence": "직립형과 체스트형 냉동고를 구분한다. 오래된 설명서로 구조 확인에만 사용한다."
+    },
+    {
+      "id": "kitchenaid-drawers",
+      "publisher": "KitchenAid",
+      "title": "2단 서랍형 제품 설명서",
+      "url": "https://www.kitchenaid.com/content/dam/global/documents/202105/owners-manual-w11533205-reva.pdf",
+      "checkedOn": "2026-10-22",
+      "evidence": "KUDR은 냉장 서랍 두 개, KUDF는 위 냉장·아래 냉동 서랍으로 구분한다. 검색 색인의 설명서 본문으로 확인했다."
+    },
+    {
+      "id": "kitchenaid-drawer-dimensions",
+      "publisher": "KitchenAid",
+      "title": "2단 서랍형 배치도",
+      "url": "https://www.kitchenaid.com/content/dam/global/documents/202105/dimension-guide-w11533207-reva.pdf",
+      "checkedOn": "2026-10-22",
+      "evidence": "위아래 두 외부 서랍 배치와 KUDR·KUDF 모델을 확인한다."
+    },
+    {
+      "id": "toshiba-five",
+      "publisher": "Toshiba Lifestyle",
+      "title": "GR-A41GXH 제품 안내",
+      "url": "https://www.toshiba-lifestyle.com/jp/refrigerators/gr-a41gxh/",
+      "checkedOn": "2026-10-22",
+      "evidence": "5도어 유형의 존재를 확인했다. 이번 조사에서는 실별 실제 배치와 문 연결을 추가 확인 대상으로 남긴다."
+    },
+    {
+      "id": "haier-three-sbs",
+      "publisher": "Haier",
+      "title": "HRT-683ISU1 3도어 양문형",
+      "url": "https://www.haier.com/in/refrigerators/haier-598l-3-door-convertible-side-by-side-refrigerator-with-wifi-enabled-smart-sense-ai.shtml",
+      "checkedOn": "2026-10-22",
+      "evidence": "3도어 양문형의 존재를 확인했다. 외부 문과 내부 분리벽의 대응 관계는 추가 확인이 필요하다."
+    },
+    {
+      "id": "lg-bottom-drawer",
+      "publisher": "LG",
+      "title": "LRDCS2603S 하단 냉동 서랍형 사양",
+      "url": "https://www.lg.com/us/business/refrigerators/lg-lrdcs2603s",
+      "checkedOn": "2026-10-22",
+      "evidence": "하단 냉동실의 문 형태를 Pull Drawer로 명시한다. 외부 서랍 안의 2단 내부 수납은 별도 문으로 세지 않는다."
+    },
+    {
+      "id": "lg-bottom-types",
+      "publisher": "LG",
+      "title": "하단 냉동실 여닫이·서랍 변형 안내",
+      "url": "https://www.lg.com/ca_en/refrigerators/bottom-freezer/lrdcs2603s/",
+      "checkedOn": "2026-10-22",
+      "evidence": "하단 냉동실의 Swing-door와 Pull-drawer 설계를 구분한다."
+    },
+    {
+      "id": "danby-hinge",
+      "publisher": "Danby",
+      "title": "DCR044B1SLM 문 방향 변경 사양",
+      "url": "https://www.danby.com/en-us/shop/dcr044b1slm/",
+      "checkedOn": "2026-10-22",
+      "evidence": "경첩 방향을 바꿔 좌우로 열도록 설치할 수 있다."
+    }
+  ],
+  "templates": [
+    {
+      "id": "single-chilled",
+      "revision": 1,
+      "name": "1도어 냉장 전용",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "main",
+          "main"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "main",
+          "name": "전체",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "main-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "main"
+          ],
+          "doorBins": "CONFIGURABLE"
+        }
+      ],
+      "sourceIds": [
+        "samsung-types",
+        "lg-single"
+      ],
+      "examples": [
+        "LG GC-F411ELDM"
+      ],
+      "notes": []
+    },
+    {
+      "id": "single-frozen",
+      "revision": 1,
+      "name": "1도어 냉동 전용",
+      "category": "FREEZER",
+      "view": "FRONT",
+      "layout": [
+        [
+          "main",
+          "main"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "main",
+          "name": "전체",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "main-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "main"
+          ],
+          "doorBins": "CONFIGURABLE"
+        }
+      ],
+      "sourceIds": [
+        "lg-single",
+        "ge-freezers"
+      ],
+      "examples": [
+        "LG GC-B414ELFM"
+      ],
+      "notes": []
+    },
+    {
+      "id": "single-internal-freezer",
+      "revision": 1,
+      "name": "1도어 내부 냉동칸형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "inner-freezer",
+          "inner-freezer"
+        ],
+        [
+          "main",
+          "main"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "inner-freezer",
+          "name": "내부 냉동칸",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "main",
+          "name": "냉장 본체",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "outer-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "inner-freezer",
+            "main"
+          ],
+          "doorBins": "CONFIGURABLE"
+        }
+      ],
+      "sourceIds": [
+        "lg-internal-freezer"
+      ],
+      "examples": [
+        "LG GL-D201ASCD"
+      ],
+      "notes": [
+        "외부 문 하나로 두 보관 구역에 접근한다. 내부 덮개는 외부 문 개수에 포함하지 않는다.",
+        "내부 냉동칸의 모양과 온도 등급은 모델마다 다르며 정규 냉동실과 같다고 가정하지 않는다."
+      ]
+    },
+    {
+      "id": "top-freezer",
+      "revision": 1,
+      "name": "2도어 상단 냉동형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하단",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "lower-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "CONFIGURABLE"
+        }
+      ],
+      "sourceIds": [
+        "mitsubishi-top"
+      ],
+      "examples": [
+        "Mitsubishi Electric Top Mount 제품군"
+      ],
+      "notes": []
+    },
+    {
+      "id": "bottom-freezer-hinged",
+      "revision": 1,
+      "name": "2도어 하단 냉동형 · 여닫이",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하단",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "lower-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "CONFIGURABLE"
+        }
+      ],
+      "sourceIds": [
+        "samsung-types",
+        "lg-bottom-types"
+      ],
+      "examples": [
+        "Samsung Bottom Mount 제품군"
+      ],
+      "notes": [
+        "하단 문 안쪽의 내부 서랍은 외부 서랍 문과 구분한다."
+      ]
+    },
+    {
+      "id": "bottom-freezer-drawer",
+      "revision": 1,
+      "name": "2도어 하단 냉동형 · 서랍",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하단",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "lg-bottom-drawer"
+      ],
+      "examples": [
+        "LG LRDCS2603S"
+      ],
+      "notes": [
+        "외부 냉동 서랍 안의 내부 수납 서랍은 외부 문 개수에 포함하지 않는다."
+      ]
+    },
+    {
+      "id": "side-by-side",
+      "revision": 1,
+      "name": "2도어 좌우 분리형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "left",
+          "right"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "left",
+          "name": "왼쪽",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "right",
+          "name": "오른쪽",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "left"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "right"
+          ],
+          "doorBins": "CONFIGURABLE"
+        }
+      ],
+      "sourceIds": [
+        "samsung-types"
+      ],
+      "examples": [
+        "Samsung Side-by-Side 제품군"
+      ],
+      "notes": [
+        "왼쪽 냉동·오른쪽 냉장은 대표 배치이며 모든 모델의 보관 모드를 의미하지 않는다."
+      ]
+    },
+    {
+      "id": "french-three",
+      "revision": 1,
+      "name": "3도어 프렌치도어형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단 공용",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하단",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "upper-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "samsung-types"
+      ],
+      "examples": [
+        "Samsung 3-Door French Door 제품군"
+      ],
+      "notes": [
+        "상단 문 두 개가 하나의 본체에 연결된다."
+      ]
+    },
+    {
+      "id": "french-four-split-lower",
+      "revision": 1,
+      "name": "4도어 상단 공용·하단 좌우형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "lower-left",
+          "lower-right"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단 공용",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "lower-left",
+          "name": "하단 왼쪽",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "lower-right",
+          "name": "하단 오른쪽",
+          "referenceRole": "CONVERTIBLE",
+          "modeOptions": [
+            "CHILLED",
+            "FROZEN",
+            "SOFT_FREEZE"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "upper-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "lower-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "lower-left"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "lower-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "lower-right"
+          ],
+          "doorBins": "CONFIGURABLE"
+        }
+      ],
+      "sourceIds": [
+        "samsung-flex"
+      ],
+      "examples": [
+        "Samsung RF23DG9600SRAC"
+      ],
+      "notes": [
+        "modeOptions는 대표 모델에서 확인한 앱 분류이며 제조사의 모든 세부 온도 모드를 나열한 값은 아니다.",
+        "하단 두 칸의 모드를 강제로 같게 설정하지 않는다. 전환 위치는 모델별로 확인해야 한다."
+      ]
+    },
+    {
+      "id": "french-four-convert-drawer",
+      "revision": 1,
+      "name": "4도어 중간 전환 서랍형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "middle",
+          "middle"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단 공용",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "middle",
+          "name": "중간 서랍",
+          "referenceRole": "CONVERTIBLE",
+          "modeOptions": [
+            "CHILLED",
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하단",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "upper-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "middle-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "middle"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "lg-full-convert",
+        "lg-convert-guide"
+      ],
+      "examples": [
+        "LG LF30H8210S"
+      ],
+      "notes": []
+    },
+    {
+      "id": "french-four-two-freezer-drawers",
+      "revision": 1,
+      "name": "4도어 하단 냉동 서랍 2단형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "middle",
+          "middle"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단 공용",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "middle",
+          "name": "냉동 위 서랍",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "냉동 아래 서랍",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "upper-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "middle-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "middle"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "lg-double-freezer"
+      ],
+      "examples": [
+        "LG LMX28983"
+      ],
+      "notes": [
+        "보관 위치로 두 외부 서랍을 구분한다. 각 서랍의 독립 온도 제어를 뜻하지 않는다."
+      ]
+    },
+    {
+      "id": "french-five",
+      "revision": 1,
+      "name": "5도어 중간 좌우 서랍형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "middle-left",
+          "middle-right"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단 공용",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "middle-left",
+          "name": "중간 왼쪽 서랍",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "middle-right",
+          "name": "중간 오른쪽 서랍",
+          "referenceRole": "VEGETABLE",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하단",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "upper-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "middle-left-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "middle-left"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "middle-right-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "middle-right"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "kitchenaid-five"
+      ],
+      "examples": [
+        "KitchenAid KRMF706ESS"
+      ],
+      "notes": [
+        "중간 왼쪽의 온도 선택 기능을 냉동 전환 기능으로 간주하지 않는다."
+      ]
+    },
+    {
+      "id": "vertical-three",
+      "revision": 1,
+      "name": "3도어 냉장·채소·냉동형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "middle",
+          "middle"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "middle",
+          "name": "중간 채소 서랍",
+          "referenceRole": "VEGETABLE",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하단",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "middle-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "middle"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "mitsubishi-three"
+      ],
+      "examples": [
+        "Mitsubishi Electric MR-CX450ER"
+      ],
+      "notes": []
+    },
+    {
+      "id": "multi-drawer-six",
+      "revision": 1,
+      "name": "6도어 제빙·특수 냉동 서랍형",
+      "category": "GENERAL",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "ice",
+          "soft-freeze"
+        ],
+        [
+          "freezer",
+          "freezer"
+        ],
+        [
+          "vegetable",
+          "vegetable"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단 공용",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "ice",
+          "name": "제빙 서랍",
+          "referenceRole": "ICE",
+          "modeOptions": null
+        },
+        {
+          "id": "soft-freeze",
+          "name": "특수 냉동 서랍",
+          "referenceRole": "SOFT_FREEZE",
+          "modeOptions": [
+            "SOFT_FREEZE"
+          ]
+        },
+        {
+          "id": "freezer",
+          "name": "냉동 서랍",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "vegetable",
+          "name": "채소 서랍",
+          "referenceRole": "VEGETABLE",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "upper-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "ice-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "ice"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "soft-freeze-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "soft-freeze"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "freezer-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "freezer"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "vegetable-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "vegetable"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "mitsubishi-six"
+      ],
+      "examples": [
+        "Mitsubishi Electric MR-WX700C-W-A"
+      ],
+      "notes": [
+        "제빙은 전용 공간의 역할이다. 일반 식재료 저장 가능 여부와 보관 모드는 확인하지 않았다.",
+        "특수 냉동을 일반 냉동으로 강제 변환하지 않는다. 좌우 문 폭은 도식에서 단순화한다."
+      ]
+    },
+    {
+      "id": "kimchi-three",
+      "revision": 1,
+      "name": "김치냉장고 3도어 상중하형",
+      "category": "KIMCHI",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "middle",
+          "middle"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상칸",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI",
+            "CHILLED",
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "middle",
+          "name": "중칸",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하칸",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "middle-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "middle"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "lg-kimchi-three"
+      ],
+      "examples": [
+        "LG Z334SKV161S"
+      ],
+      "notes": [
+        "중·하칸의 채소·육류 등 세부 모드는 앱 보관 모드에 아직 대응시키지 않았다."
+      ]
+    },
+    {
+      "id": "kimchi-four-divided",
+      "revision": 1,
+      "name": "김치냉장고 4도어 상단 좌우 분리형",
+      "category": "KIMCHI",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper-left",
+          "upper-right"
+        ],
+        [
+          "middle",
+          "middle"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper-left",
+          "name": "상단 왼쪽",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI",
+            "CHILLED",
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "upper-right",
+          "name": "상단 오른쪽",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI",
+            "CHILLED",
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "middle",
+          "name": "중칸",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "하칸",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper-left"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "upper-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper-right"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "middle-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "middle"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "lg-kimchi-guide",
+        "lg-kimchi-divided"
+      ],
+      "examples": [
+        "LG Z495GBB271"
+      ],
+      "notes": [
+        "상단 분리벽을 설치한 구조이다. 분리벽을 뺀 상태의 온도 운용은 별도로 확인해야 한다."
+      ]
+    },
+    {
+      "id": "kimchi-four-open",
+      "revision": 1,
+      "name": "김치냉장고 4도어 상단 공용형",
+      "category": "KIMCHI",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "middle",
+          "middle"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "상단 공용",
+          "referenceRole": "KIMCHI",
+          "modeOptions": null
+        },
+        {
+          "id": "middle",
+          "name": "중칸",
+          "referenceRole": "KIMCHI",
+          "modeOptions": null
+        },
+        {
+          "id": "lower",
+          "name": "하칸",
+          "referenceRole": "KIMCHI",
+          "modeOptions": null
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-left-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "upper-right-door",
+          "kind": "HINGED",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "CONFIGURABLE"
+        },
+        {
+          "id": "middle-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "middle"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "lg-kimchi-guide",
+        "lg-kimchi-open"
+      ],
+      "examples": [
+        "LG Z484GBB172"
+      ],
+      "notes": [
+        "이번 조사에서는 실별 전체 전환 모드를 확정하지 않았다."
+      ]
+    },
+    {
+      "id": "kimchi-two-lids",
+      "revision": 1,
+      "name": "김치냉장고 뚜껑 2개·좌우 분리형",
+      "category": "KIMCHI",
+      "view": "TOP",
+      "layout": [
+        [
+          "left",
+          "right"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "left",
+          "name": "왼쪽",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI",
+            "FROZEN"
+          ]
+        },
+        {
+          "id": "right",
+          "name": "오른쪽",
+          "referenceRole": "KIMCHI",
+          "modeOptions": [
+            "KIMCHI",
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "left-lid",
+          "kind": "LID",
+          "compartmentIds": [
+            "left"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "right-lid",
+          "kind": "LID",
+          "compartmentIds": [
+            "right"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "lg-kimchi-lid"
+      ],
+      "examples": [
+        "LG K221LW121"
+      ],
+      "notes": [
+        "위에서 본 도식이다. 모든 뚜껑형 제품에 양쪽 냉동 전환 기능이 있는 것은 아니다."
+      ]
+    },
+    {
+      "id": "chest-freezer",
+      "revision": 1,
+      "name": "상부 뚜껑형 냉동고",
+      "category": "FREEZER",
+      "view": "TOP",
+      "layout": [
+        [
+          "main",
+          "main"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "main",
+          "name": "전체",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "main-lid",
+          "kind": "LID",
+          "compartmentIds": [
+            "main"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "ge-freezers"
+      ],
+      "examples": [
+        "GE FCM5 계열"
+      ],
+      "notes": [
+        "내부 이동식 바구니는 별도 실이 아닌 내부 보관 칸으로 구성한다."
+      ]
+    },
+    {
+      "id": "undercounter-double-chilled",
+      "revision": 1,
+      "name": "하부장 냉장 서랍 2단형",
+      "category": "UNDERCOUNTER",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "위 서랍",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "아래 서랍",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "kitchenaid-drawers",
+        "kitchenaid-drawer-dimensions"
+      ],
+      "examples": [
+        "KitchenAid KUDR204KSB"
+      ],
+      "notes": [
+        "외부 서랍 두 개를 보관 위치로 구분하며 냉각계통 수를 뜻하지 않는다."
+      ]
+    },
+    {
+      "id": "undercounter-chilled-frozen",
+      "revision": 1,
+      "name": "하부장 냉장·냉동 서랍형",
+      "category": "UNDERCOUNTER",
+      "view": "FRONT",
+      "layout": [
+        [
+          "upper",
+          "upper"
+        ],
+        [
+          "lower",
+          "lower"
+        ]
+      ],
+      "compartments": [
+        {
+          "id": "upper",
+          "name": "위 서랍",
+          "referenceRole": "CHILLED",
+          "modeOptions": [
+            "CHILLED"
+          ]
+        },
+        {
+          "id": "lower",
+          "name": "아래 서랍",
+          "referenceRole": "FROZEN",
+          "modeOptions": [
+            "FROZEN"
+          ]
+        }
+      ],
+      "openings": [
+        {
+          "id": "upper-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "upper"
+          ],
+          "doorBins": "NONE"
+        },
+        {
+          "id": "lower-drawer",
+          "kind": "DRAWER",
+          "compartmentIds": [
+            "lower"
+          ],
+          "doorBins": "NONE"
+        }
+      ],
+      "sourceIds": [
+        "kitchenaid-drawers",
+        "kitchenaid-drawer-dimensions"
+      ],
+      "examples": [
+        "KitchenAid KUDF204KSB"
+      ],
+      "notes": []
+    }
+  ],
+  "variations": [
+    {
+      "id": "door-hinge",
+      "name": "좌우 경첩 변경",
+      "handling": "단일 문 방향과 문 수납 영역 선택으로 처리하며 냉장·냉동 모드를 좌우 위치에 고정하지 않는다.",
+      "sourceIds": [
+        "danby-hinge"
+      ]
+    },
+    {
+      "id": "convertible-mode",
+      "name": "냉장·냉동 전환",
+      "handling": "물리적 배치는 유지하고 해당 실의 모드를 바꾼다. 전환 가능 위치와 범위는 모델별로 확인한다.",
+      "sourceIds": [
+        "samsung-flex",
+        "lg-convert-guide",
+        "lg-kimchi-divided"
+      ]
+    },
+    {
+      "id": "door-in-door",
+      "name": "홈바·Door-in-Door",
+      "handling": "주 문에 딸린 보조 접근 패널이다. 독립 본체나 외부 주 문 개수에 중복 추가하지 않는다.",
+      "sourceIds": [
+        "lg-convert-guide"
+      ]
+    },
+    {
+      "id": "internal-drawers",
+      "name": "내부 서랍·선반·제빙기",
+      "handling": "외부 문 뒤의 보관 칸으로 구성한다. 별도 외부 서랍 문이 있는 경우에만 배치 유형의 실로 분리한다.",
+      "sourceIds": [
+        "lg-double-freezer",
+        "mitsubishi-six"
+      ]
+    },
+    {
+      "id": "modular-combination",
+      "name": "1도어 기기 여러 대 조합",
+      "handling": "여러 기기의 조합이며 단일 냉장고 구조와 구분한다. 현재 앱의 냉장고 1대 정책과 함께 별도 검토한다.",
+      "sourceIds": [
+        "samsung-types"
+      ]
+    },
+    {
+      "id": "removable-partition",
+      "name": "분리벽 설치·제거",
+      "handling": "분리형과 공용형은 물리적 본체 수가 다르다. 제거 시 온도 제어 조건은 모델별로 확인한다.",
+      "sourceIds": [
+        "lg-kimchi-guide",
+        "lg-kimchi-divided"
+      ]
+    }
+  ]
+}
