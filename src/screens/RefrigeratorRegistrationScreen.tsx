@@ -1,8 +1,8 @@
 /**
  * @file
  * 냉장고 최초 등록에서 문 개수에 맞는 구조를 선택하고 본체·문 연결의 기본 구성을 만든다.
- * 간소화 JSON을 입력 초안으로 복사하며 이름과 구성값은 화면 상태로만 관리한다.
- * 취소 시 이전 홈 화면으로 돌아가며 보관 모드·문 수납·내부 칸 편집과 저장은 별도로 연결한다.
+ * 간소화 JSON을 입력 초안으로 복사하고 본체별 보관 모드를 설정하며, 이름과 구성값은 화면 상태로만 관리한다.
+ * 취소 시 이전 홈 화면으로 돌아가며 문 수납·내부 칸 편집과 저장은 별도로 연결한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
@@ -11,7 +11,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FormTextInput } from '@/components/FormTextInput';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
-import { createRefrigeratorDraft } from '@/features/fridge/model/fridgeLayout';
+import { createRefrigeratorDraft, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
+import type { StorageMode } from '@/features/fridge/model/fridgeLayout';
 import fridgeLayoutPresets from '@/features/fridge/model/fridgeLayoutPresets.json';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { colors, spacing } from '@/theme/tokens';
@@ -39,6 +40,17 @@ export function RefrigeratorRegistrationScreen({
     if (doorCount === count) return;
     setDoorCount(count);
     setDraft(current => ({ ...createRefrigeratorDraft(), name: current.name }));
+  }
+
+  // 보관 모드가 같은 실이 여러 개여도 각 실의 위치와 기존 칸 구성은 유지한다.
+  function selectStorageMode(position: string, storageMode: StorageMode) {
+    Keyboard.dismiss();
+    setDraft(current => ({
+      ...current,
+      compartments: current.compartments.map(compartment => (
+        compartment.position === position ? { ...compartment, storageMode } : compartment
+      )),
+    }));
   }
 
   return (
@@ -84,7 +96,7 @@ export function RefrigeratorRegistrationScreen({
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.label}>냉장고 구조</Text>
-                <Text style={styles.description}>그림은 본체가 나뉜 모습이에요. 같은 배치를 선택해 주세요.</Text>
+                <Text style={styles.description}>본체와 문 배치를 보고 같은 구조를 선택해 주세요.</Text>
               </View>
               <View accessibilityRole="radiogroup" style={styles.structureList}>
                 {visiblePresets.map(preset => (
@@ -120,11 +132,27 @@ export function RefrigeratorRegistrationScreen({
                 <Text style={styles.description}>본체 {draft.compartments.length}개 · 외부 문 {draft.openings.length}개</Text>
               </View>
               {draft.compartments.map(compartment => (
-                <View key={compartment.position} style={styles.sectionHeader}>
-                  <Text style={styles.label}>{compartment.name}</Text>
-                  <Text style={styles.description}>
-                    본체 기본 포함 · 외부 문 {draft.openings.filter(opening => opening.compartmentIds.includes(compartment.position)).length}개 연결
-                  </Text>
+                <View key={compartment.position} style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.label}>{compartment.name}</Text>
+                    <Text style={styles.description}>
+                      본체 기본 포함 · 외부 문 {draft.openings.filter(opening => opening.compartmentIds.includes(compartment.position)).length}개 연결
+                    </Text>
+                  </View>
+                  <View accessibilityRole="radiogroup" accessibilityLabel={`${compartment.name} 보관 모드`} style={styles.row}>
+                    {storageModeOptions.map(mode => (
+                      <Pressable
+                        key={mode.value}
+                        accessibilityRole="radio"
+                        accessibilityLabel={`${compartment.name} ${mode.label}`}
+                        accessibilityState={{ checked: compartment.storageMode === mode.value }}
+                        onPress={() => selectStorageMode(compartment.position, mode.value)}
+                        style={({ pressed }) => [styles.choice, compartment.storageMode === mode.value && styles.selected, pressed && styles.pressed]}
+                      >
+                        <Text style={styles.label}>{compartment.storageMode === mode.value ? '✓ ' : ''}{mode.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
               ))}
             </View>

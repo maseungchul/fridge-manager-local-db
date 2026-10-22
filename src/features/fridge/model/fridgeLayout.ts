@@ -10,6 +10,11 @@ export type StorageMode = 'CHILLED' | 'FROZEN';
 export type AreaType = 'LEFT_DOOR' | 'BODY' | 'RIGHT_DOOR';
 export type DrawerCount = 0 | 1 | 2;
 
+export const storageModeOptions: { value: StorageMode; label: string }[] = [
+  { value: 'CHILLED', label: '냉장' },
+  { value: 'FROZEN', label: '냉동' },
+];
+
 export const areaNames: Record<AreaType, string> = {
   LEFT_DOOR: '왼쪽 문',
   BODY: '본체',
