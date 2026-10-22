@@ -1,17 +1,14 @@
 /**
  * @file
  * 냉장고 등록·편집과 배치도에서 사용하는 타입·표시 이름·기본값·변환 함수를 정의한다.
- * 상단·하단의 물리적 위치와 냉장·냉동 보관 모드를 분리하고, 화면 상태와 DB 저장은 호출자가 관리한다.
+ * 선택한 구조의 물리적 위치와 보관 모드를 분리하고, 화면 상태와 DB 저장은 호출자가 관리한다.
  */
-export type CompartmentPosition = 'UPPER' | 'LOWER';
+import type fridgeLayoutPresets from './fridgeLayoutPresets.json';
+
+export type RefrigeratorStructurePreset = (typeof fridgeLayoutPresets)[number];
 export type StorageMode = 'CHILLED' | 'FROZEN';
 export type AreaType = 'LEFT_DOOR' | 'BODY' | 'RIGHT_DOOR';
 export type DrawerCount = 0 | 1 | 2;
-
-export const compartmentNames: Record<CompartmentPosition, string> = {
-  UPPER: '냉장고 상단',
-  LOWER: '냉장고 하단',
-};
 
 export const areaNames: Record<AreaType, string> = {
   LEFT_DOOR: '왼쪽 문',
@@ -24,7 +21,7 @@ export interface SlotConfiguration {
   drawerCount: DrawerCount;
 }
 
-/** 배치도에서 상단·하단별로 표시하는 본체·문 영역이다. */
+/** 배치도에서 각 실별로 표시하는 본체·문 영역이다. */
 export interface StorageArea {
   id: string;
   compartment: string;
@@ -58,34 +55,42 @@ export interface FridgeLayout {
   ingredients: FridgeIngredient[];
 }
 
-/** 제외한 문도 입력을 보관하고, 최종 저장할 때 enabled로 걸러 낸다. */
+/** 구조 원본을 복사한 입력 초안이다. 보관 모드는 선택 전까지 비워 두며 DB 저장값과 구분한다. */
 export interface RefrigeratorDraft {
   name: string;
+  presetId: string | null;
+  view: RefrigeratorStructurePreset['view'] | null;
+  layout: string[][];
+  openings: RefrigeratorStructurePreset['openings'];
   compartments: {
-    position: CompartmentPosition;
-    storageMode: StorageMode;
+    position: string;
+    name: string;
+    storageMode: StorageMode | null;
     areas: { type: AreaType; enabled: boolean; slots: SlotConfiguration[] }[];
   }[];
 }
 
-/** 기존 등록 폼의 이름·문·칸 기본값을 사용하고 본체는 항상 포함한다. */
-export function createRefrigeratorDraft(): RefrigeratorDraft {
+/** 본체마다 기본 칸 하나를 만들고, 외부 문 연결은 문 수납 영역과 구분해 복사한다. */
+export function createRefrigeratorDraft(preset?: RefrigeratorStructurePreset): RefrigeratorDraft {
   return {
     name: '우리 집 냉장고',
-    compartments: (['UPPER', 'LOWER'] as const).map(position => ({
-      position,
-      storageMode: position === 'UPPER' ? 'CHILLED' : 'FROZEN',
-      areas: (['LEFT_DOOR', 'BODY', 'RIGHT_DOOR'] as const).map(type => ({
-        type,
+    presetId: preset?.id ?? null,
+    view: preset?.view ?? null,
+    layout: preset?.layout.map(row => [...row]) ?? [],
+    openings: preset?.openings.map(opening => ({
+      ...opening,
+      compartmentIds: [...opening.compartmentIds],
+    })) ?? [],
+    compartments: preset?.compartments.map<RefrigeratorDraft['compartments'][number]>(compartment => ({
+      position: compartment.id,
+      name: compartment.name,
+      storageMode: null,
+      areas: [{
+        type: 'BODY',
         enabled: true,
-        slots: (type === 'BODY'
-          ? (position === 'UPPER' ? ['위 선반', '가운데 선반', '채소 서랍'] : ['위 서랍', '아래 서랍'])
-          : ['위칸', '아래칸']).map(name => ({
-          name,
-          drawerCount: type === 'BODY' && name.includes('서랍') ? 1 : 0,
-        })),
-      })),
-    })),
+        slots: [{ name: '1번째 칸', drawerCount: 0 }],
+      }],
+    })) ?? [],
   };
 }
 
@@ -99,7 +104,7 @@ export function getDraftLayout(draft: RefrigeratorDraft): FridgeLayout {
       const id = `${room.position}-${area.type}`;
       areas.push({
         id,
-        compartment: compartmentNames[room.position],
+        compartment: room.name,
         name: areaNames[area.type],
         isBody: area.type === 'BODY',
       });
@@ -112,7 +117,7 @@ export function getDraftLayout(draft: RefrigeratorDraft): FridgeLayout {
   return { areas, positions, ingredients: [] };
 }
 
-/** 배치도의 접근성 라벨에 사용할 상단·하단과 영역·칸 경로를 조합한다. */
+/** 배치도의 접근성 라벨에 사용할 실과 영역·칸 경로를 조합한다. */
 export function getPositionPath(area: StorageArea, position: SlotPosition) {
   return `${area.compartment} → ${area.name} → ${getPositionName(position)}`;
 }

@@ -1,8 +1,8 @@
 /**
  * @file
- * 냉장고 최초 등록에서 문 개수에 맞는 구조를 보여주고 선택한 유형을 보관한다.
- * 구조 선택지는 간소화 JSON에서 읽으며 이름과 선택값은 화면 상태로만 관리한다.
- * 취소 시 이전 홈 화면으로 돌아가며, 실제 구성 생성과 저장은 다음 등록 처리에서 연결한다.
+ * 냉장고 최초 등록에서 문 개수에 맞는 구조를 선택하고 본체·문 연결의 기본 구성을 만든다.
+ * 간소화 JSON을 입력 초안으로 복사하며 이름과 구성값은 화면 상태로만 관리한다.
+ * 취소 시 이전 홈 화면으로 돌아가며 보관 모드·문 수납·내부 칸 편집과 저장은 별도로 연결한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
@@ -29,7 +29,7 @@ export function RefrigeratorRegistrationScreen({
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(createRefrigeratorDraft);
   const [doorCount, setDoorCount] = useState<number | null>(null);
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const selectedPresetId = draft.presetId;
   const visiblePresets = fridgeLayoutPresets.filter(preset => preset.doorCount === doorCount);
   const selectedPreset = visiblePresets.find(preset => preset.id === selectedPresetId);
 
@@ -38,7 +38,7 @@ export function RefrigeratorRegistrationScreen({
     Keyboard.dismiss();
     if (doorCount === count) return;
     setDoorCount(count);
-    setSelectedPresetId(null);
+    setDraft(current => ({ ...createRefrigeratorDraft(), name: current.name }));
   }
 
   return (
@@ -95,7 +95,11 @@ export function RefrigeratorRegistrationScreen({
                     accessibilityState={{ checked: selectedPresetId === preset.id }}
                     onPress={() => {
                       Keyboard.dismiss();
-                      setSelectedPresetId(preset.id);
+                      // 같은 구조를 다시 누르면 입력을 유지하고, 다른 구조는 이름만 이어받는다.
+                      setDraft(current => current.presetId === preset.id ? current : {
+                        ...createRefrigeratorDraft(preset),
+                        name: current.name,
+                      });
                     }}
                     style={({ pressed }) => [styles.structure, selectedPresetId === preset.id && styles.selected, pressed && styles.pressed]}
                   >
@@ -109,10 +113,23 @@ export function RefrigeratorRegistrationScreen({
               </View>
             </View>
           ) : null}
+          {selectedPreset ? (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text accessibilityLiveRegion="polite" style={styles.label}>기본 구성</Text>
+                <Text style={styles.description}>본체 {draft.compartments.length}개 · 외부 문 {draft.openings.length}개</Text>
+              </View>
+              {draft.compartments.map(compartment => (
+                <View key={compartment.position} style={styles.sectionHeader}>
+                  <Text style={styles.label}>{compartment.name}</Text>
+                  <Text style={styles.description}>
+                    본체 기본 포함 · 외부 문 {draft.openings.filter(opening => opening.compartmentIds.includes(compartment.position)).length}개 연결
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
-        {selectedPreset ? (
-          <Text accessibilityLiveRegion="polite" style={styles.label}>선택한 구조: {selectedPreset.name}</Text>
-        ) : null}
         <PrimaryButton label="취소" onPress={() => navigation.goBack()} />
       </ScrollView>
     </SafeAreaView>
