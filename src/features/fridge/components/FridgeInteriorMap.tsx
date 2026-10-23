@@ -4,7 +4,8 @@
  * 수납 없는 문은 전체 X 표시로 남기며, 칸과 선택 강조는 기존 FridgeMap을 재사용한다.
  */
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { areaNames, getDraftLayout } from '@/features/fridge/model/fridgeLayout';
 import type { AreaType, RefrigeratorDraft } from '@/features/fridge/model/fridgeLayout';
@@ -22,7 +23,7 @@ function DoorWithoutStorage({ label, selected, onPress }: { label: string; selec
   const length = Math.hypot(size.width, size.height);
   const angle = Math.atan2(size.height, size.width) * 180 / Math.PI;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
+    <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
       onPress={onPress} onLayout={({ nativeEvent }) => {
         const { width, height } = nativeEvent.layout;
         setSize(current => current.width === width && current.height === height ? current : { width, height });
@@ -36,7 +37,7 @@ function DoorWithoutStorage({ label, selected, onPress }: { label: string; selec
         ))}
       </View>
       <Text style={styles.noStorageLabel}>수납 없음</Text>
-    </Pressable>
+    </FeedbackPressable>
   );
 }
 

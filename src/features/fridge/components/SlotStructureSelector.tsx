@@ -4,7 +4,8 @@
  * 선택값·저장 중 입력 제한은 부모가 관리하며, 이 컴포넌트는 선택 결과만 부모에게 전달한다.
  * 입력 상태 갱신과 칸 이름 변경은 호출자가 담당한다.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, spacing } from '@/theme/tokens';
 import type { DrawerCount } from '../model/fridgeLayout';
 
@@ -37,11 +38,11 @@ export function SlotStructureSelector({ label, accessibilityLabel = label, value
         {([0, 1, 2] as const).map(count => {
           const name = count === 0 ? '일반 칸' : `서랍 ${count}개`;
           return (
-            <Pressable key={count} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${name}`}
+            <FeedbackPressable key={count} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${name}`}
               accessibilityState={{ checked: value === count, disabled: !!disabled }} disabled={disabled}
               onPress={() => onChange(count)} style={[styles.option, value === count && styles.selected]}>
               <Text style={styles.label}>{name}</Text>
-            </Pressable>
+            </FeedbackPressable>
           );
         })}
       </View>

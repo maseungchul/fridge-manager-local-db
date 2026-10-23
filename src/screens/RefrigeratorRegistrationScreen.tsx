@@ -6,11 +6,13 @@
  */
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { SecondaryButton } from '@/components/SecondaryButton';
+import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
@@ -38,6 +40,7 @@ export function RefrigeratorRegistrationScreen({
   const [draft, setDraft] = useState(createRefrigeratorDraft);
   const [step, setStep] = useState<RegistrationStep>('basic');
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const cancelRequested = useRef(false);
   const selectedRow = draft.rows.find(row => [...row.doors, ...row.compartments].some(area => area.id === selectedAreaId)) ?? draft.rows[0];
   const selectedDoor = selectedRow.doors.find(door => door.id === selectedAreaId && door.kind !== 'DRAWER');
   const selectedBody = selectedRow.compartments.find(body => body.id === selectedAreaId
@@ -50,8 +53,21 @@ export function RefrigeratorRegistrationScreen({
   const rightBody = selectedRow.compartments[selectedRow.compartments.indexOf(selectedBody) + 1];
   const storageEnabled = !selectedDoor || selectedDoor.storageEnabled;
 
-  // 기기의 뒤로가기도 내부 설정에서 기본 정보로 돌아가도록 맞춘다.
-  usePreventRemove(step === 'configuration', () => changeStep('basic'));
+  // 기기 뒤로가기는 이전 단계로 이동하고, 명시적인 취소는 차단된 화면 닫기를 이어서 실행한다.
+  usePreventRemove(step === 'configuration', ({ data }) => {
+    if (cancelRequested.current) {
+      cancelRequested.current = false;
+      navigation.dispatch(data.action);
+    } else {
+      changeStep('basic');
+    }
+  });
+
+  function cancelRegistration() {
+    Keyboard.dismiss();
+    cancelRequested.current = true;
+    navigation.goBack();
+  }
 
   // 입력 초안은 유지하고, 단계별 스크롤은 새로 시작한다.
   function changeStep(nextStep: RegistrationStep) {
@@ -109,6 +125,11 @@ export function RefrigeratorRegistrationScreen({
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+      {/* 제목·취소는 스크롤 바깥에 두어 두 단계 모두 같은 위치에서 닫을 수 있게 한다. */}
+      <View style={styles.header}>
+        <Text accessibilityRole="header" style={styles.title}>냉장고 최초 등록</Text>
+        <SecondaryButton label="취소" icon="close" accessibilityLabel="냉장고 등록 취소" onPress={cancelRegistration} />
+      </View>
       {/* 단계마다 스크롤을 초기화하고 이동 버튼은 내용 길이와 관계없이 하단에 표시한다. */}
       <ScrollView
         key={step}
@@ -118,8 +139,7 @@ export function RefrigeratorRegistrationScreen({
         bounces={step !== 'basic'}
         overScrollMode={step === 'basic' ? 'never' : 'auto'}
       >
-        <View style={styles.header}>
-          <Text accessibilityRole="header" style={styles.title}>냉장고 최초 등록</Text>
+        <View style={styles.stepHeader}>
           <View
             accessible
             accessibilityLiveRegion="polite"
@@ -167,23 +187,23 @@ export function RefrigeratorRegistrationScreen({
                     {draft.rows.map((row, index) => (
                       <View key={row.id} style={styles.structureRow}>
                         <View style={styles.counterGroup}>
-                          <Pressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 줄이기`} disabled={row.doors.length <= 1}
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 줄이기`} disabled={row.doors.length <= 1}
                             onPress={() => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, -1)); }}
-                            style={({ pressed }) => [styles.counterButton, row.doors.length <= 1 && styles.disabled, pressed && styles.counterPressed]}>
+                            style={styles.counterButton}>
                             <MaterialDesignIcons name="minus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
-                          </Pressable>
+                          </FeedbackPressable>
                           <Text accessibilityLiveRegion="polite" style={styles.structureCount}>문 {row.doors.length}개</Text>
-                          <Pressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 늘리기`} disabled={row.doors.length >= MAX_DOORS_PER_ROW}
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 늘리기`} disabled={row.doors.length >= MAX_DOORS_PER_ROW}
                             onPress={() => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, 1)); }}
-                            style={({ pressed }) => [styles.counterButton, row.doors.length >= MAX_DOORS_PER_ROW && styles.disabled, pressed && styles.counterPressed]}>
+                            style={styles.counterButton}>
                             <MaterialDesignIcons name="plus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
-                          </Pressable>
+                          </FeedbackPressable>
                         </View>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 삭제`} disabled={draft.rows.length <= 1}
+                        <FeedbackPressable feedback="danger" accessibilityRole="button" accessibilityLabel={`${index + 1}단 삭제`} disabled={draft.rows.length <= 1}
                           onPress={() => { Keyboard.dismiss(); setDraft(current => removeDraftRow(current, row.id)); }}
-                          style={({ pressed }) => [styles.deleteRowButton, draft.rows.length <= 1 && styles.disabled, pressed && styles.deleteRowPressed]}>
+                          style={styles.deleteRowButton}>
                           <MaterialDesignIcons name="trash-can-outline" size={18} color={colors.error} accessible={false} style={styles.controlIcon} />
-                        </Pressable>
+                        </FeedbackPressable>
                       </View>
                     ))}
                   </View>
@@ -191,7 +211,7 @@ export function RefrigeratorRegistrationScreen({
                 <View style={styles.structureEditor}>
                   <View style={styles.structureLabels} />
                   <PrimaryButton label="단 추가" icon="plus" variant="secondary" style={styles.addRowButton}
-                    pressedStyle={styles.addRowPressed} disabled={draft.rows.length >= MAX_ROWS}
+                    disabled={draft.rows.length >= MAX_ROWS}
                     onPress={() => { Keyboard.dismiss(); setDraft(addDraftRow); }} />
                   <View style={styles.structureControls} />
                 </View>
@@ -220,11 +240,11 @@ export function RefrigeratorRegistrationScreen({
                       {openingDoors.length > 1 ? <Text style={styles.description}>{doorLocation} 문</Text> : null}
                       <View accessibilityRole="radiogroup" accessibilityLabel={`${doorLocation} 여는 방식`} style={styles.row}>
                         {doorOpeningOptions.map(option => (
-                          <Pressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${doorLocation} ${option.label}`}
+                          <FeedbackPressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${doorLocation} ${option.label}`}
                             accessibilityState={{ checked: currentOpening === option.value }} onPress={() => selectDoorOpening(door.id, option.value)}
                             style={[styles.choice, currentOpening === option.value && styles.selected]}>
                             <Text style={styles.label}>{currentOpening === option.value ? '✓ ' : ''}{option.label}</Text>
-                          </Pressable>
+                          </FeedbackPressable>
                         ))}
                       </View>
                     </View>
@@ -232,28 +252,28 @@ export function RefrigeratorRegistrationScreen({
                 })}
               </View>
               {selectedDoor ? (
-                <Pressable accessibilityRole="switch" accessibilityLabel={`${location} 문 수납 사용`}
+                <FeedbackPressable accessibilityRole="switch" accessibilityLabel={`${location} 문 수납 사용`}
                   accessibilityState={{ checked: selectedDoor.storageEnabled }} onPress={() => updateDoorStorage(!selectedDoor.storageEnabled)}
                   style={[styles.choice, selectedDoor.storageEnabled && styles.selected]}>
                   <Text style={styles.label}>{selectedDoor.storageEnabled ? '✓ 수납 사용' : '수납 없음'}</Text>
-                </Pressable>
+                </FeedbackPressable>
               ) : selectedRow.doors.length > 1 ? (
                 <View style={styles.sectionHeader}>
                   <Text style={styles.label}>본체 연결</Text>
                   <View style={styles.row}>
                     {rightBody ? (
-                      <Pressable accessibilityRole="button" accessibilityLabel="오른쪽 본체와 합치기"
+                      <FeedbackPressable accessibilityRole="button" accessibilityLabel="오른쪽 본체와 합치기"
                         disabled={selectedBody.slots.length + rightBody.slots.length > MAX_SLOTS}
                         onPress={() => { Keyboard.dismiss(); setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id)); }}
-                        style={[styles.choice, selectedBody.slots.length + rightBody.slots.length > MAX_SLOTS && styles.disabled]}>
+                        style={styles.choice}>
                         <Text style={styles.label}>오른쪽 본체와 합치기</Text>
-                      </Pressable>
+                      </FeedbackPressable>
                     ) : null}
                     {selectedBody.doorIds.length > 1 ? (
-                      <Pressable accessibilityRole="button" accessibilityLabel="문별로 본체 분리"
+                      <FeedbackPressable accessibilityRole="button" accessibilityLabel="문별로 본체 분리"
                         onPress={() => { Keyboard.dismiss(); setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id)); }} style={styles.choice}>
                         <Text style={styles.label}>문별로 본체 분리</Text>
-                      </Pressable>
+                      </FeedbackPressable>
                     ) : null}
                   </View>
                   <Text style={styles.description}>{selectedBody.doorIds.length > 1
@@ -267,17 +287,17 @@ export function RefrigeratorRegistrationScreen({
               {storageEnabled ? (
                 <>
                   <View style={styles.row}>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 줄이기`}
+                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 줄이기`}
                       disabled={selectedArea.slots.length <= 1} onPress={() => changeSlotCount(-1)}
-                      style={[styles.choice, selectedArea.slots.length <= 1 && styles.disabled]}>
+                      style={styles.choice}>
                       <Text style={styles.label}>−</Text>
-                    </Pressable>
+                    </FeedbackPressable>
                     <Text accessibilityLiveRegion="polite" style={styles.count}>칸 {selectedArea.slots.length}개</Text>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 늘리기`}
+                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 늘리기`}
                       disabled={selectedArea.slots.length >= MAX_SLOTS} onPress={() => changeSlotCount(1)}
-                      style={[styles.choice, selectedArea.slots.length >= MAX_SLOTS && styles.disabled]}>
+                      style={styles.choice}>
                       <Text style={styles.label}>＋</Text>
-                    </Pressable>
+                    </FeedbackPressable>
                   </View>
                   <View>
                     {selectedArea.slots.map((slot, index) => (
@@ -296,11 +316,11 @@ export function RefrigeratorRegistrationScreen({
                 <Text style={styles.label}>보관 모드{selectedDoor ? ` · 본체 ${bodyLocation}` : ''}</Text>
                 <View accessibilityRole="radiogroup" accessibilityLabel={`${bodyLocation} 보관 모드`} style={styles.row}>
                   {storageModeOptions.map(mode => (
-                    <Pressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${bodyLocation} ${mode.label}`}
+                    <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${bodyLocation} ${mode.label}`}
                       accessibilityState={{ checked: selectedBody.storageMode === mode.value }} onPress={() => selectStorageMode(mode.value)}
-                      style={({ pressed }) => [styles.choice, selectedBody.storageMode === mode.value && styles.selected, pressed && styles.pressed]}>
+                      style={[styles.choice, selectedBody.storageMode === mode.value && styles.selected]}>
                       <Text style={styles.label}>{selectedBody.storageMode === mode.value ? '✓ ' : ''}{mode.label}</Text>
-                    </Pressable>
+                    </FeedbackPressable>
                   ))}
                 </View>
               </View>
@@ -310,15 +330,12 @@ export function RefrigeratorRegistrationScreen({
       </ScrollView>
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
         {step === 'basic' ? (
-          <>
-            <PrimaryButton label="취소" variant="secondary" onPress={() => navigation.goBack()} style={styles.actionButton} />
-            <PrimaryButton
-              label="다음"
-              disabled={!draft.name.trim()}
-              onPress={() => changeStep('configuration')}
-              style={styles.actionButton}
-            />
-          </>
+          <PrimaryButton
+            label="다음"
+            disabled={!draft.name.trim()}
+            onPress={() => changeStep('configuration')}
+            style={styles.actionButton}
+          />
         ) : (
           <PrimaryButton label="이전" onPress={() => changeStep('basic')} style={styles.actionButton} />
         )}
@@ -340,10 +357,17 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  stepHeader: {
     marginBottom: spacing.sm,
   },
   title: {
+    flex: 1,
     color: colors.text,
     fontSize: 20,
     fontWeight: '700',
@@ -555,18 +579,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
   },
-  counterPressed: {
-    backgroundColor: colors.sageLight,
-  },
   deleteRowButton: {
     width: 32,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-  },
-  deleteRowPressed: {
-    backgroundColor: colors.rose,
   },
   addRowButton: {
     flex: 1,
@@ -575,13 +593,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 0,
     backgroundColor: 'transparent',
-  },
-  addRowPressed: {
-    backgroundColor: colors.sageLight,
-  },
-  disabled: { opacity: 0.42 },
-  pressed: {
-    opacity: 0.7,
   },
   label: {
     color: colors.text,

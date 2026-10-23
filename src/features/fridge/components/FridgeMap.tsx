@@ -4,7 +4,8 @@
  * 칸을 누르면 식별자를 부모에 전달하고, 홈은 개별 칸·등록 미리보기는 영역 전체를 강조한다.
  * 홈과 최초 등록 미리보기에서 공유하며 선택 상태와 데이터 변경은 호출자가 관리한다.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, spacing } from '@/theme/tokens';
 import { getPositionName, getPositionPath } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -65,16 +66,16 @@ export function FridgeMap({
                       {slotPositions.map(position => {
                         const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
                         return (
-                          <Pressable key={position.id} accessibilityRole="button" accessibilityLabel={getPositionPath(area, position)}
+                          <FeedbackPressable key={position.id} accessibilityRole="button" accessibilityLabel={getPositionPath(area, position)}
                             accessibilityHint={position.drawerCount > 0 ? '서랍' : undefined}
                             accessibilityState={{ selected, disabled }} disabled={disabled} onPress={() => onSelectPosition(position.id)}
-                            style={({ pressed }) => [styles.position, compact && styles.compactPosition, selected && styles.positionSelected, pressed && styles.pressed]}>
+                            style={[styles.position, compact && styles.compactPosition, selected && styles.positionSelected]}>
                             <Text numberOfLines={compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
                             {/* 좌우 서랍은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                             {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
                             {/* 자체 서랍은 손잡이로 표시해 일반 칸과 구분한다. */}
                             {position.drawerCount > 0 ? <View pointerEvents="none" style={styles.drawerHandle} /> : null}
-                          </Pressable>
+                          </FeedbackPressable>
                         );
                       })}
                     </View>
@@ -139,7 +140,7 @@ const styles = StyleSheet.create({
     borderColor: colors.surface,
     backgroundColor: colors.surface,
   },
-  // 선택한 칸은 테두리와 배경색을 함께 바꾸고 누름 상태는 별도 투명도로 표현한다.
+  // 선택한 칸은 테두리와 배경색을 함께 바꿔 일시적인 호버·누름 상태와 구분한다.
   positionSelected: {
     borderColor: colors.button,
     backgroundColor: colors.sageLight,
@@ -174,8 +175,5 @@ const styles = StyleSheet.create({
   positionCount: {
     color: colors.textMuted,
     fontSize: 11,
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });
