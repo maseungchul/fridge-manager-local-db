@@ -115,6 +115,8 @@ export function RefrigeratorRegistrationScreen({
         style={styles.scroll}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        bounces={step !== 'basic'}
+        overScrollMode={step === 'basic' ? 'never' : 'auto'}
       >
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.title}>냉장고 최초 등록</Text>
