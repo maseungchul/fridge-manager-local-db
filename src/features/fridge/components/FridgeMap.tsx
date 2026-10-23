@@ -7,6 +7,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing } from '@/theme/tokens';
 import { getPositionName, getPositionPath } from '../model/fridgeLayout';
+import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotPosition } from '../model/fridgeLayout';
 
 interface FridgeMapProps {
@@ -22,6 +23,13 @@ interface FridgeMapProps {
   selectedAreaId?: string;
   // 최초 등록에는 재료 정보가 없으므로 개수 표시를 숨길 수 있다. 홈은 기본값을 사용한다.
   showIngredientCounts?: boolean;
+  // 전체 도면에서 영역 제목을 맨 위에 한 번만 표시할 때 개별 제목은 숨긴다.
+  showAreaLabels?: boolean;
+  // 전체 도면의 행 높이에 맞춰 표시하며, 단독 사용 시 기존 최소 높이를 유지한다.
+  minAreaHeight?: number;
+  // 문이 많은 등록 도면의 좁은 영역은 여백을 줄이고 이름을 두 줄까지 표시한다.
+  compact?: boolean;
+  style?: StyleProp<ViewStyle>;
   // 구조 저장 중에는 다른 칸을 선택하지 못하도록 터치와 접근성 상태를 함께 제한한다.
   disabled?: boolean;
   // 홈은 선택 칸을 변경하고, 등록 미리보기는 해당 칸이 속한 영역의 구성 폼을 선택한다.
@@ -30,21 +38,22 @@ interface FridgeMapProps {
 
 /** 칸·개별 서랍의 전체 경로와 선택 상태를 접근성 정보로 함께 제공한다. */
 export function FridgeMap({
-  areas, positions, ingredients, selectedPositionId, selectedAreaId, showIngredientCounts = true, disabled = false, onSelectPosition,
+  areas, positions, ingredients, selectedPositionId, selectedAreaId, showIngredientCounts = true,
+  showAreaLabels = true, minAreaHeight = 240, compact = false, style, disabled = false, onSelectPosition,
 }: FridgeMapProps) {
   // 본체는 1, 문 전체의 합도 1로 배분한다. 문 2개는 각각 0.5, 문 1개는 1이다.
   const doorCount = areas.filter(area => !area.isBody).length;
   const doorFlex = doorCount > 0 ? 1 / doorCount : 1;
   return (
     // 등록 가능한 최대 세 영역을 부모 너비 안에서 배분해 내용 길이가 전체 폭을 바꾸지 않게 한다.
-    <View style={styles.map}>
+    <View style={[styles.map, style]}>
       {areas.map(area => {
         const areaSelected = selectedAreaId === area.id;
         return (
           <View key={area.id} style={[styles.area, { flex: area.isBody ? 1 : doorFlex }]}>
             {/* 터치는 칸에서 받고 등록 미리보기에서는 해당 영역의 프레임·칸 전체를 강조한다. */}
-            <Text style={styles.areaLabel}>{area.name}</Text>
-            <View style={[styles.areaInterior, areaSelected && styles.areaSelected]}>
+            {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
+            <View style={[styles.areaInterior, { minHeight: minAreaHeight }, compact && styles.compactAreaInterior, areaSelected && styles.areaSelected]}>
               {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
               {positions.filter(position => position.areaId === area.id)
                 .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map(firstPosition => {
@@ -52,15 +61,15 @@ export function FridgeMap({
                 const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
                 return (
                   <View key={firstPosition.slotId} style={styles.slot}>
-                    <View style={styles.slotRow}>
+                    <View style={[styles.slotRow, compact && styles.compactSlotRow]}>
                       {slotPositions.map(position => {
                         const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
                         return (
                           <Pressable key={position.id} accessibilityRole="button" accessibilityLabel={getPositionPath(area, position)}
                             accessibilityHint={position.drawerCount > 0 ? '서랍' : undefined}
                             accessibilityState={{ selected, disabled }} disabled={disabled} onPress={() => onSelectPosition(position.id)}
-                            style={({ pressed }) => [styles.position, selected && styles.positionSelected, pressed && styles.pressed]}>
-                            <Text style={styles.positionLabel}>{getPositionName(position)}</Text>
+                            style={({ pressed }) => [styles.position, compact && styles.compactPosition, selected && styles.positionSelected, pressed && styles.pressed]}>
+                            <Text numberOfLines={compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
                             {/* 좌우 서랍은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                             {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
                             {/* 자체 서랍은 손잡이로 표시해 일반 칸과 구분한다. */}
@@ -148,6 +157,19 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 12,
     fontWeight: '600',
+  },
+  compactAreaInterior: {
+    padding: 2,
+    gap: 2,
+  },
+  compactSlotRow: {
+    gap: 2,
+  },
+  compactPosition: {
+    padding: 2,
+  },
+  compactPositionLabel: {
+    fontSize: 11,
   },
   positionCount: {
     color: colors.textMuted,
