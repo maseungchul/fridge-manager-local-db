@@ -1,6 +1,6 @@
 /**
  * @file
- * PrimaryButton은 주요 동작에 사용하는 공통 버튼이다.
+ * PrimaryButton은 주요·보조 동작의 색상을 구분하는 공통 버튼이다.
  * 비활성화·로딩·누름 상태에 따라 표시를 바꾸고, 로딩 중에는 추가 입력을 막는다.
  * 클릭 시 처리와 로딩 상태 관리는 호출하는 화면이 담당한다.
  */
@@ -12,6 +12,7 @@ import { colors } from '@/theme/tokens';
 interface PrimaryButtonProps {
   label: string;
   onPress: PressableProps['onPress'];
+  variant?: 'primary' | 'secondary';
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -21,6 +22,7 @@ interface PrimaryButtonProps {
 export function PrimaryButton({
   label,
   onPress,
+  variant = 'primary',
   disabled = false,
   loading = false,
   style,
@@ -36,16 +38,18 @@ export function PrimaryButton({
       // 뒤의 스타일이 앞의 값을 덮어쓴다. 상태별 스타일은 호출자가 전달한 스타일보다 나중에 적용한다.
       style={({ pressed }) => [
         styles.button,
+        variant === 'secondary' && styles.secondary,
         style,
         isDisabled && styles.disabled,
         pressed && !isDisabled && styles.pressed,
+        pressed && !isDisabled && variant === 'secondary' && styles.secondaryPressed,
       ]}
     >
       {/* 로딩 중에는 문구 대신 진행 표시를 보여준다. */}
       {loading ? (
-        <ActivityIndicator color={colors.buttonText} />
+        <ActivityIndicator color={variant === 'secondary' ? colors.text : colors.buttonText} />
       ) : (
-        <Text style={styles.text}>{label}</Text>
+        <Text style={[styles.text, variant === 'secondary' && styles.secondaryText]}>{label}</Text>
       )}
     </Pressable>
   );
@@ -60,6 +64,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.button,
     borderRadius: 10,
   },
+  secondary: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   // 비활성 상태를 흐리게 표시한다. 클릭 차단은 Pressable의 disabled가 담당한다.
   disabled: {
     opacity: 0.42,
@@ -69,9 +78,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.buttonPressed,
     transform: [{ scale: 0.99 }],
   },
+  secondaryPressed: {
+    backgroundColor: colors.background,
+  },
   text: {
     color: colors.buttonText,
     fontSize: 16,
     fontWeight: '700',
+  },
+  secondaryText: {
+    color: colors.text,
   },
 });

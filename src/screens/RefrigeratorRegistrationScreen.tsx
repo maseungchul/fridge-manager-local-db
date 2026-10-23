@@ -191,7 +191,7 @@ export function RefrigeratorRegistrationScreen({
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
         {step === 'basic' ? (
           <>
-            <PrimaryButton label="취소" onPress={() => navigation.goBack()} style={styles.actionButton} />
+            <PrimaryButton label="취소" variant="secondary" onPress={() => navigation.goBack()} style={styles.actionButton} />
             <PrimaryButton
               label="다음"
               disabled={!draft.name.trim() || !selectedPreset}
