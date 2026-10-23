@@ -362,6 +362,9 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   stepHeader: {
     marginBottom: spacing.sm,
