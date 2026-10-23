@@ -78,9 +78,28 @@ export function RefrigeratorRegistrationScreen({
       >
         <View style={styles.header}>
           <Text accessibilityRole="header" style={styles.title}>냉장고 최초 등록</Text>
-          <Text accessibilityLiveRegion="polite" style={styles.description}>
-            {step === 'basic' ? '1 / 2 · 기본 정보' : '2 / 2 · 내부 설정'}
-          </Text>
+          <View
+            accessible
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={step === 'basic' ? '전체 2단계 중 1단계, 기본 정보 입력 중' : '기본 정보 완료, 전체 2단계 중 2단계, 내부 설정 중'}
+            style={styles.stepIndicator}
+          >
+            <View style={styles.stepItem}>
+              <View style={[styles.stepBadge, step === 'basic' ? styles.stepBadgeActive : styles.stepBadgeCompleted]}>
+                <Text style={[styles.stepNumber, step === 'basic' ? styles.stepNumberActive : styles.stepNumberCompleted]}>
+                  {step === 'basic' ? '1' : '✓'}
+                </Text>
+              </View>
+              <Text style={[styles.stepLabel, step === 'basic' ? styles.stepLabelActive : styles.stepLabelCompleted]}>기본 정보</Text>
+            </View>
+            <View style={[styles.stepConnector, step === 'configuration' && styles.stepConnectorCompleted]} />
+            <View style={styles.stepItem}>
+              <View style={[styles.stepBadge, step === 'configuration' && styles.stepBadgeActive]}>
+                <Text style={[styles.stepNumber, step === 'configuration' && styles.stepNumberActive]}>2</Text>
+              </View>
+              <Text style={[styles.stepLabel, step === 'configuration' && styles.stepLabelActive]}>내부 설정</Text>
+            </View>
+          </View>
         </View>
         {step === 'basic' ? (
           <View style={styles.sections}>
@@ -214,13 +233,76 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   header: {
-    gap: spacing.xs,
+    gap: spacing.md,
     marginBottom: spacing.sm,
   },
   title: {
     color: colors.text,
     fontSize: 20,
     fontWeight: '700',
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexShrink: 1,
+  },
+  stepBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBadgeActive: {
+    backgroundColor: colors.button,
+    borderColor: colors.button,
+  },
+  stepBadgeCompleted: {
+    backgroundColor: colors.sageLight,
+    borderColor: colors.sageLight,
+  },
+  stepNumber: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stepNumberActive: {
+    color: colors.buttonText,
+  },
+  stepNumberCompleted: {
+    color: colors.chilled,
+  },
+  stepLabel: {
+    flexShrink: 1,
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  stepLabelActive: {
+    color: colors.button,
+    fontWeight: '700',
+  },
+  stepLabelCompleted: {
+    color: colors.chilled,
+  },
+  stepConnector: {
+    flex: 1,
+    minWidth: spacing.sm,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.border,
+  },
+  stepConnectorCompleted: {
+    backgroundColor: colors.sage,
   },
   description: {
     color: colors.textMuted,
