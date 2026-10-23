@@ -17,6 +17,8 @@
   {
     "id": "one-door-inner-compartment",
     "name": "1도어 내부 칸 분리형",
+    "enabled": false,
+    "disabledReason": "1도어는 one-door-single-body로 통일하고 내부 구분은 이후 사용자 설정으로 처리한다.",
     "doorCount": 1,
     "view": "FRONT",
     "layout": [

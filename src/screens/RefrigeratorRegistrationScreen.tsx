@@ -123,7 +123,7 @@ export function RefrigeratorRegistrationScreen({
                     <Pressable
                       key={preset.id}
                       accessibilityRole="radio"
-                      accessibilityLabel={`${preset.name}, 본체 ${preset.compartments.length}개, ${preset.view === 'TOP' ? '위에서 본 모습' : '정면'}`}
+                      accessibilityLabel={`${preset.name}, 본체 ${preset.compartments.length}개`}
                       accessibilityState={{ checked: selectedPresetId === preset.id }}
                       onPress={() => {
                         Keyboard.dismiss();
@@ -138,7 +138,7 @@ export function RefrigeratorRegistrationScreen({
                       <FridgeStructurePreview preset={preset} showLabels={false} />
                       <View style={styles.structureInfo}>
                         <Text style={styles.label}>{selectedPresetId === preset.id ? '✓ ' : ''}{preset.name}</Text>
-                        <Text style={styles.description}>본체 {preset.compartments.length}개 · {preset.view === 'TOP' ? '위에서 본 모습' : '정면'}</Text>
+                        <Text style={styles.description}>본체 {preset.compartments.length}개</Text>
                       </View>
                     </Pressable>
                   ))}
@@ -152,7 +152,7 @@ export function RefrigeratorRegistrationScreen({
               <FridgeStructurePreview preset={selectedPreset} />
               <View style={styles.structureInfo}>
                 <Text style={styles.label}>{selectedPreset.name}</Text>
-                <Text style={styles.description}>본체 {draft.compartments.length}개 · 외부 문 {draft.openings.length}개</Text>
+                <Text style={styles.description}>본체 {draft.compartments.length}개</Text>
               </View>
             </View>
             <View style={styles.section}>
