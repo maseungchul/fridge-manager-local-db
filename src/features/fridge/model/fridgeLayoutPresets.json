@@ -1,7 +1,7 @@
 [
   {
     "id": "one-door-single-body",
-    "name": "1도어 단일 본체형",
+    "name": "단일형",
     "doorCount": 1,
     "view": "FRONT",
     "layout": [
@@ -35,7 +35,7 @@
   },
   {
     "id": "two-door-stacked",
-    "name": "2도어 상하 분리형",
+    "name": "상하형",
     "doorCount": 2,
     "view": "FRONT",
     "layout": [
@@ -73,7 +73,7 @@
   },
   {
     "id": "two-door-side-by-side",
-    "name": "2도어 좌우 분리형",
+    "name": "좌우형",
     "doorCount": 2,
     "view": "FRONT",
     "layout": [
@@ -90,7 +90,7 @@
   },
   {
     "id": "three-door-shared-upper",
-    "name": "3도어 상단 공용·하단 서랍형",
+    "name": "상하형",
     "doorCount": 3,
     "view": "FRONT",
     "layout": [
@@ -109,7 +109,7 @@
   },
   {
     "id": "four-door-split-lower",
-    "name": "4도어 상단 공용·하단 좌우형",
+    "name": "2단·하단 분리형",
     "doorCount": 4,
     "view": "FRONT",
     "layout": [
@@ -130,7 +130,7 @@
   },
   {
     "id": "four-door-stacked-drawers",
-    "name": "4도어 상단 공용·중하단 서랍형",
+    "name": "3단형",
     "doorCount": 4,
     "view": "FRONT",
     "layout": [
@@ -152,7 +152,7 @@
   },
   {
     "id": "five-door-split-middle",
-    "name": "5도어 상단 공용·중단 좌우 서랍형",
+    "name": "3단·중단 분리형",
     "doorCount": 5,
     "view": "FRONT",
     "layout": [
@@ -176,7 +176,7 @@
   },
   {
     "id": "three-door-stacked",
-    "name": "3도어 상중하 분리형",
+    "name": "3단형",
     "doorCount": 3,
     "view": "FRONT",
     "layout": [
@@ -197,7 +197,7 @@
   },
   {
     "id": "six-door-multi-drawer",
-    "name": "6도어 상단 공용·다단 서랍형",
+    "name": "4단형",
     "doorCount": 6,
     "view": "FRONT",
     "layout": [

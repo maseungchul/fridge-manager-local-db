@@ -94,10 +94,10 @@ export function RefrigeratorRegistrationScreen({
             />
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.label}>문 개수</Text>
-                <Text style={styles.description}>외부 서랍도 문 개수에 포함해 주세요.</Text>
+                <Text style={styles.label}>냉장고 구조</Text>
+                <Text style={styles.description}>본체와 문 배치를 보고 같은 구조를 선택해 주세요.</Text>
               </View>
-              <View accessibilityRole="radiogroup" style={styles.row}>
+              <View accessibilityRole="radiogroup" accessibilityLabel="문 개수" style={styles.row}>
                 {doorCounts.map(count => (
                   <Pressable
                     key={count}
@@ -111,14 +111,8 @@ export function RefrigeratorRegistrationScreen({
                   </Pressable>
                 ))}
               </View>
-            </View>
-            {doorCount !== null ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.label}>냉장고 구조</Text>
-                  <Text style={styles.description}>본체와 문 배치를 보고 같은 구조를 선택해 주세요.</Text>
-                </View>
-                <View accessibilityRole="radiogroup" style={styles.structureList}>
+              {doorCount !== null ? (
+                <View accessibilityRole="radiogroup" accessibilityLabel="냉장고 구조" style={styles.structureList}>
                   {visiblePresets.map(preset => (
                     <Pressable
                       key={preset.id}
@@ -143,8 +137,8 @@ export function RefrigeratorRegistrationScreen({
                     </Pressable>
                   ))}
                 </View>
-              </View>
-            ) : null}
+              ) : null}
+            </View>
           </View>
         ) : selectedPreset ? (
           <View style={styles.sections}>
