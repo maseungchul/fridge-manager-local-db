@@ -87,15 +87,19 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
       <View style={{ height: rowHeights.reduce((sum, height) => sum + height, 0) }}>
         {draft.rows.flatMap((row, rowIndex) => {
           const hingedDoors = row.doors.filter(door => door.kind !== 'DRAWER');
-          const totalColumns = row.doors.length + hingedDoors.length;
-          let nextColumn = 0;
+          const totalColumns = row.doors.length;
+          let nextGroupColumn = 0;
           // 같은 방향의 문을 단 전체에서 모으지 않고, 연결된 본체와 한 묶음으로 배치한다.
           return row.compartments.flatMap(body => {
             const bodyDoors = hingedDoors.filter(door => body.doorIds.includes(door.id));
             const leftDoors = bodyDoors.filter(door => door.side === 'LEFT_DOOR');
             const rightDoors = bodyDoors.filter(door => door.side === 'RIGHT_DOOR');
-            const groupStart = nextColumn;
-            const bodyColumn = groupStart + leftDoors.length;
+            // 여는 방식과 관계없이 그룹 폭을 먼저 정하고 그 안에서 문·본체 폭을 나눈다.
+            const groupStart = nextGroupColumn;
+            nextGroupColumn += body.doorIds.length;
+            const columnWidth = body.doorIds.length / (body.doorIds.length + bodyDoors.length);
+            const bodyColumn = groupStart + leftDoors.length * columnWidth;
+            let nextColumn = 0;
             const rowTop = rowHeights.slice(0, rowIndex).reduce((sum, height) => sum + height, 0);
             const configurations = [...leftDoors, body, ...rightDoors];
             const areas = configurations.map((configuration, index) => {
@@ -103,9 +107,10 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
               const hasDrawer = !isDoor && row.doors.some(door => door.kind === 'DRAWER' && body.doorIds.includes(door.id));
               const paddingLeft = (index === 0 ? GROUP_GAP : HINGE_LENGTH) / 2;
               const paddingRight = (index === configurations.length - 1 ? GROUP_GAP : HINGE_LENGTH) / 2;
-              const column = nextColumn;
-              const columnSpan = isDoor ? 1 : body.doorIds.length;
-              nextColumn += columnSpan;
+              const column = groupStart + nextColumn * columnWidth;
+              const columns = isDoor ? 1 : body.doorIds.length;
+              const columnSpan = columns * columnWidth;
+              nextColumn += columns;
               const compact = columnSpan / totalColumns <= 1 / 6;
               const area = preview.areas.find(candidate => candidate.id === configuration.id)!;
               return (
@@ -136,9 +141,9 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
             const hinges = bodyDoors.map(door => {
               const isLeft = door.side === 'LEFT_DOOR';
               const doorBoundary = isLeft
-                ? groupStart + leftDoors.indexOf(door) + 1
-                : bodyColumn + body.doorIds.length + rightDoors.indexOf(door);
-              const bodyBoundary = bodyColumn + (isLeft ? 0 : body.doorIds.length);
+                ? groupStart + (leftDoors.indexOf(door) + 1) * columnWidth
+                : bodyColumn + (body.doorIds.length + rightDoors.indexOf(door)) * columnWidth;
+              const bodyBoundary = bodyColumn + (isLeft ? 0 : body.doorIds.length * columnWidth);
               return <DoorHinges key={`hinges-${door.id}`} fromColumn={doorBoundary} toColumn={bodyBoundary}
                 totalColumns={totalColumns} top={rowTop} height={rowHeights[rowIndex]} />;
             });
