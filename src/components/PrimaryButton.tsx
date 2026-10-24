@@ -7,7 +7,7 @@
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import type { ComponentProps } from 'react';
-import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
+import type { PressableProps, StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { colors } from '@/theme/tokens';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 
@@ -18,8 +18,10 @@ interface PrimaryButtonProps {
   onPress: PressableProps['onPress'];
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
+  interactionBlocked?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
+  labelStyle?: StyleProp<TextStyle>;
 }
 
 /** 전달받은 상태에 맞춰 버튼 문구 또는 로딩 표시를 렌더링한다. */
@@ -29,8 +31,10 @@ export function PrimaryButton({
   onPress,
   variant = 'primary',
   disabled = false,
+  interactionBlocked = false,
   loading = false,
   style,
+  labelStyle,
 }: PrimaryButtonProps) {
   // 명시적인 비활성화뿐 아니라 처리 중인 상태에서도 중복 클릭을 막는다.
   const isDisabled = disabled || loading;
@@ -38,9 +42,10 @@ export function PrimaryButton({
   return (
     <FeedbackPressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: isDisabled }}
+      accessibilityState={{ disabled: isDisabled || interactionBlocked }}
       feedback={variant === 'primary' ? 'primary' : 'default'}
       disabled={isDisabled}
+      interactionBlocked={interactionBlocked}
       onPress={onPress}
       style={[
         styles.button,
@@ -55,7 +60,7 @@ export function PrimaryButton({
         <>
           {icon ? <MaterialDesignIcons name={icon} size={20} color={variant === 'secondary' ? colors.text : colors.buttonText}
             accessible={false} style={styles.icon} /> : null}
-          <Text style={[styles.text, variant === 'secondary' && styles.secondaryText]}>{label}</Text>
+          <Text style={[styles.text, variant === 'secondary' && styles.secondaryText, labelStyle]}>{label}</Text>
         </>
       )}
     </FeedbackPressable>
