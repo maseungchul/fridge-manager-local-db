@@ -298,7 +298,7 @@ export function RefrigeratorRegistrationScreen({
                 ) : (
                   <View style={styles.sections}>
                     <View style={styles.section}>
-                      <Text style={styles.description}>문이나 본체를 누르면 아래에서 설정 패널이 열려요.</Text>
+                      <Text style={styles.description}>도면을 누르면 아래에서 설정 패널이 열려요.</Text>
                       <FridgeInteriorMap draft={draft} selectedAreaId={selectedAreaId ?? undefined}
                         onSelectArea={openAreaSettings} />
                     </View>

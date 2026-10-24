@@ -24,7 +24,7 @@ interface FridgeMapProps {
   selectedAreaId?: string;
   // 최초 등록에는 재료 정보가 없으므로 개수 표시를 숨길 수 있다. 홈은 기본값을 사용한다.
   showIngredientCounts?: boolean;
-  // 전체 도면에서 영역 제목을 맨 위에 한 번만 표시할 때 개별 제목은 숨긴다.
+  // 연결 관계를 도식으로 표시하는 전체 도면이나 축소 미리보기에서는 영역 제목을 숨긴다.
   showAreaLabels?: boolean;
   // 전체 도면의 행 높이에 맞춰 표시하며, 단독 사용 시 기존 최소 높이를 유지한다.
   minAreaHeight?: number;
