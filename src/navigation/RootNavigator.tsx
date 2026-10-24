@@ -28,6 +28,7 @@ export function RootNavigator() {
       <Stack.Screen
         component={RefrigeratorRegistrationScreen}
         name="RefrigeratorRegistration"
+        options={{ gestureEnabled: false }}
       />
     </Stack.Navigator>
   );

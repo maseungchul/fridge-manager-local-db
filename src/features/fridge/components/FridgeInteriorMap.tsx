@@ -93,7 +93,7 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
                   ) : (
                     <FridgeMap areas={[area]} positions={preview.positions.filter(position => position.areaId === area.id)}
                       ingredients={preview.ingredients} selectedAreaId={selectedAreaId} showIngredientCounts={false}
-                      showAreaLabels={false} minAreaHeight={0} compact={compact} style={styles.areaMap} onSelectPosition={() => onSelectArea(area.id)} />
+                      showAreaLabels={false} minAreaHeight={0} compact={compact} style={styles.areaMap} onSelectArea={onSelectArea} />
                   )}
                 </View>
               );
