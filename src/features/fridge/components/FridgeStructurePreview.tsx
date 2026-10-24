@@ -33,7 +33,7 @@ const styles = StyleSheet.create({
     width: 144,
     aspectRatio: 3 / 5,
     alignSelf: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 6,
     overflow: 'hidden',
@@ -44,14 +44,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   rowBorder: {
-    borderTopWidth: 2,
+    borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   door: {
     flex: 1,
   },
   doorBorder: {
-    borderLeftWidth: 2,
+    borderLeftWidth: 1,
     borderLeftColor: colors.border,
   },
 });

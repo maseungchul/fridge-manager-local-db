@@ -18,13 +18,15 @@ interface FridgeInteriorMapProps {
 }
 
 /** 실제 프레임 크기로 두 대각선을 계산해 가로·세로 비율과 관계없이 문 전체를 가린다. */
-function DoorWithoutStorage({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+export function DoorWithoutStorage({ label, selected, readOnly = false, onPress }: {
+  label: string; selected: boolean; readOnly?: boolean; onPress?: () => void;
+}) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const length = Math.hypot(size.width, size.height);
   const angle = Math.atan2(size.height, size.width) * 180 / Math.PI;
   return (
-    <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
-      onPress={onPress} onLayout={({ nativeEvent }) => {
+    <FeedbackPressable accessibilityRole={readOnly ? 'image' : 'button'} accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
+      pointerEvents={readOnly ? 'none' : 'auto'} onPress={readOnly ? undefined : onPress} onLayout={({ nativeEvent }) => {
         const { width, height } = nativeEvent.layout;
         setSize(current => current.width === width && current.height === height ? current : { width, height });
       }} style={[styles.noStorage, selected && styles.selected]}>
@@ -132,6 +134,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 6,
     backgroundColor: colors.surface,
   },
   selected: {

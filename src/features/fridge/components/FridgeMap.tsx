@@ -30,6 +30,8 @@ interface FridgeMapProps {
   minAreaHeight?: number;
   // 문이 많은 등록 도면의 좁은 영역은 여백을 줄이고 이름을 두 줄까지 표시한다.
   compact?: boolean;
+  // 패널의 읽기 전용 축소 미리보기에서는 칸의 최소 터치 높이를 적용하지 않는다.
+  preview?: boolean;
   style?: StyleProp<ViewStyle>;
   // 구조 저장 중에는 다른 칸을 선택하지 못하도록 터치와 접근성 상태를 함께 제한한다.
   disabled?: boolean;
@@ -40,8 +42,9 @@ interface FridgeMapProps {
 /** 칸·개별 서랍의 전체 경로와 선택 상태를 접근성 정보로 함께 제공한다. */
 export function FridgeMap({
   areas, positions, ingredients, selectedPositionId, selectedAreaId, showIngredientCounts = true,
-  showAreaLabels = true, minAreaHeight = 240, compact = false, style, disabled = false, onSelectPosition,
+  showAreaLabels = true, minAreaHeight = 240, compact = false, preview = false, style, disabled = false, onSelectPosition,
 }: FridgeMapProps) {
+  const Position = preview ? View : FeedbackPressable;
   // 본체는 1, 문 전체의 합도 1로 배분한다. 문 2개는 각각 0.5, 문 1개는 1이다.
   const doorCount = areas.filter(area => !area.isBody).length;
   const doorFlex = doorCount > 0 ? 1 / doorCount : 1;
@@ -54,28 +57,28 @@ export function FridgeMap({
           <View key={area.id} style={[styles.area, { flex: area.isBody ? 1 : doorFlex }]}>
             {/* 터치는 칸에서 받고 등록 미리보기에서는 해당 영역의 프레임·칸 전체를 강조한다. */}
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
-            <View style={[styles.areaInterior, { minHeight: minAreaHeight }, compact && styles.compactAreaInterior, areaSelected && styles.areaSelected]}>
+            <View style={[styles.areaInterior, { minHeight: minAreaHeight }, areaSelected && styles.areaSelected]}>
               {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
               {positions.filter(position => position.areaId === area.id)
-                .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map(firstPosition => {
+                .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
                 // 위→아래 칸 순서를 유지하고 같은 칸의 좌우 서랍만 한 행에 묶는다.
                 const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
                 return (
-                  <View key={firstPosition.slotId} style={styles.slot}>
-                    <View style={[styles.slotRow, compact && styles.compactSlotRow]}>
-                      {slotPositions.map(position => {
+                  <View key={firstPosition.slotId} style={[styles.slot, slotIndex > 0 && styles.slotSeparator]}>
+                    <View style={styles.slotRow}>
+                      {slotPositions.map((position, positionIndex) => {
                         const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
                         return (
-                          <FeedbackPressable key={position.id} accessibilityRole="button" accessibilityLabel={getPositionPath(area, position)}
+                          <Position key={position.id} accessibilityRole={preview ? 'image' : 'button'} accessibilityLabel={getPositionPath(area, position)}
                             accessibilityHint={position.drawerCount > 0 ? '서랍' : undefined}
-                            accessibilityState={{ selected, disabled }} disabled={disabled} onPress={() => onSelectPosition(position.id)}
-                            style={[styles.position, compact && styles.compactPosition, selected && styles.positionSelected]}>
-                            <Text numberOfLines={compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
+                            accessibilityState={{ selected, disabled }} disabled={disabled} onPress={preview ? undefined : () => onSelectPosition(position.id)}
+                            style={[styles.position, positionIndex > 0 && styles.positionSeparator, compact && styles.compactPosition, preview && styles.previewPosition, selected && styles.positionSelected]}>
+                            <Text numberOfLines={preview ? 1 : compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
                             {/* 좌우 서랍은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                             {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
                             {/* 자체 서랍은 손잡이로 표시해 일반 칸과 구분한다. */}
                             {position.drawerCount > 0 ? <View pointerEvents="none" style={styles.drawerHandle} /> : null}
-                          </FeedbackPressable>
+                          </Position>
                         );
                       })}
                     </View>
@@ -108,25 +111,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  // 탭과 같은 프레임 여백을 사용하며 칸 수·내용에 따라 높이가 커질 수 있다.
+  // 기본 정보 도면과 같은 얇은 외곽선을 쓰고, 내부 경계는 한쪽에서만 그린다.
   areaInterior: {
     flex: 1,
     minHeight: 240,
-    gap: 4,
-    padding: 4,
-    backgroundColor: colors.border,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
   },
-  // 등록 미리보기에서는 칸 사이 간격까지 같은 배경으로 연결해 영역 전체의 선택을 나타낸다.
+  // 등록 미리보기의 선택은 영역 외곽선과 칸 배경을 함께 강조한다.
   areaSelected: {
+    borderColor: colors.button,
     backgroundColor: colors.sageLight,
   },
   slot: {
     flex: 1,
   },
+  slotSeparator: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
   slotRow: {
     flex: 1,
     flexDirection: 'row',
-    gap: 4,
   },
   // 각 칸은 영역 안의 남는 세로 공간을 나눠 가지며 최소 터치 높이를 유지한다.
   position: {
@@ -136,13 +145,14 @@ const styles = StyleSheet.create({
     padding: 8,
     justifyContent: 'center',
     gap: 5,
-    borderWidth: 1,
-    borderColor: colors.surface,
     backgroundColor: colors.surface,
   },
-  // 선택한 칸은 테두리와 배경색을 함께 바꿔 일시적인 호버·누름 상태와 구분한다.
+  positionSeparator: {
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  // 개별 칸의 선택 배경은 입력을 마친 뒤에도 유지하며, 외곽선은 영역에서 한 번만 그린다.
   positionSelected: {
-    borderColor: colors.button,
     backgroundColor: colors.sageLight,
   },
   drawerHandle: {
@@ -159,15 +169,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  compactAreaInterior: {
-    padding: 2,
-    gap: 2,
-  },
-  compactSlotRow: {
-    gap: 2,
-  },
   compactPosition: {
     padding: 2,
+  },
+  previewPosition: {
+    minHeight: 0,
+    padding: 2,
+    gap: 0,
   },
   compactPositionLabel: {
     fontSize: 11,
