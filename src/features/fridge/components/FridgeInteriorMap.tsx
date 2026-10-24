@@ -100,6 +100,9 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
             const configurations = [...leftDoors, body, ...rightDoors];
             const areas = configurations.map((configuration, index) => {
               const isDoor = 'side' in configuration;
+              const hasDrawer = !isDoor && row.doors.some(door => door.kind === 'DRAWER' && body.doorIds.includes(door.id));
+              const paddingLeft = (index === 0 ? GROUP_GAP : HINGE_LENGTH) / 2;
+              const paddingRight = (index === configurations.length - 1 ? GROUP_GAP : HINGE_LENGTH) / 2;
               const column = nextColumn;
               const columnSpan = isDoor ? 1 : body.doorIds.length;
               nextColumn += columnSpan;
@@ -111,8 +114,8 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
                   left: `${column / totalColumns * 100}%`,
                   width: `${columnSpan / totalColumns * 100}%`,
                   height: rowHeights[rowIndex],
-                  paddingLeft: (index === 0 ? GROUP_GAP : HINGE_LENGTH) / 2,
-                  paddingRight: (index === configurations.length - 1 ? GROUP_GAP : HINGE_LENGTH) / 2,
+                  paddingLeft,
+                  paddingRight,
                 }]}>
                   {isDoor && !configuration.storageEnabled ? (
                     <DoorWithoutStorage label={`${area.name} → ${area.compartment}`} selected={area.id === selectedAreaId}
@@ -121,6 +124,11 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
                     <FridgeMap areas={[area]} positions={preview.positions.filter(position => position.areaId === area.id)}
                       ingredients={preview.ingredients} selectedAreaId={selectedAreaId} showIngredientCounts={false}
                       showAreaLabels={false} minAreaHeight={0} compact={compact} style={styles.areaMap} onSelectArea={onSelectArea} />
+                  )}
+                  {/* 내부 칸의 서랍과 구분되도록 본체 상단 전체 폭에 파인 손잡이를 표시한다. */}
+                  {hasDrawer && (
+                    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                      style={[styles.drawerHandle, { left: paddingLeft + 2, right: paddingRight + 2 }]} />
                   )}
                 </View>
               );
@@ -174,6 +182,15 @@ const styles = StyleSheet.create({
   },
   areaMap: {
     flex: 1,
+  },
+  drawerHandle: {
+    position: 'absolute',
+    top: 5,
+    height: 5,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+    borderWidth: 1,
+    borderColor: '#B0ACA3',
   },
   noStorage: {
     flex: 1,
