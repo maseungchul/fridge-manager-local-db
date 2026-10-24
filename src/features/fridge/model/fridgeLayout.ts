@@ -94,8 +94,8 @@ export interface RefrigeratorDraft {
   rows: DraftRow[];
 }
 
-export const MAX_ROWS = 5;
-export const MAX_DOORS_PER_ROW = 4;
+export const MAX_ROWS = 3;
+export const MAX_DOORS_PER_ROW = 3;
 export const MAX_SLOTS = 5;
 
 function createDraftDoor(id: number, side: DraftDoor['side'] = 'LEFT_DOOR'): DraftDoor {
