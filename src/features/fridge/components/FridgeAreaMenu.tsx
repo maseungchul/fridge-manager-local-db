@@ -25,6 +25,12 @@ interface FridgeAreaMenuProps {
   onOpenSettings: () => void;
 }
 
+const openingIcons = {
+  LEFT_DOOR: 'dock-left',
+  RIGHT_DOOR: 'dock-right',
+  DRAWER: 'window-open',
+} as const;
+
 /** 도면의 스크롤·영역 선택을 막지 않고, 세부 선택지만 높이를 제한해 펼친다. */
 export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEnabled, mergeDisabled = false,
   onOpeningChange, onOpeningsChange, onToggleStorage, onMerge, onSplit, onOpenSettings }: FridgeAreaMenuProps) {
@@ -51,6 +57,8 @@ export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEn
                       accessibilityState={{ checked: door.opening === option.value, disabled }}
                       onPress={() => onOpeningChange(door.id, option.value)}
                       style={[styles.openingChoice, door.opening === option.value && styles.selected]}>
+                      <MaterialDesignIcons name={openingIcons[option.value]} size={18} color={colors.text}
+                        accessible={false} style={styles.actionIcon} />
                       <Text style={styles.choiceLabel}>{door.opening === option.value ? '✓ ' : ''}{option.label}</Text>
                     </FeedbackPressable>
                   ))}
@@ -198,14 +206,18 @@ const styles = StyleSheet.create({
   openingChoice: {
     flex: 1,
     minHeight: 44,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.xs,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
   choiceLabel: {
+    flexShrink: 1,
     color: colors.text,
     fontSize: 12,
     textAlign: 'center',
