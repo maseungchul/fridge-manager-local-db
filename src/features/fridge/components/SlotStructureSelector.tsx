@@ -6,6 +6,7 @@
  */
 import { StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { SelectionCheck } from '@/components/SelectionCheck';
 import { colors, spacing } from '@/theme/tokens';
 import type { DrawerCount } from '../model/fridgeLayout';
 
@@ -41,7 +42,8 @@ export function SlotStructureSelector({ label, accessibilityLabel = label, value
             <FeedbackPressable key={count} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${name}`}
               accessibilityState={{ checked: value === count, disabled: !!disabled }} disabled={disabled}
               onPress={() => onChange(count)} style={[styles.option, value === count && styles.selected]}>
-              <Text style={styles.label}>{name}</Text>
+              <Text numberOfLines={1} style={[styles.label, styles.optionLabel]}>{name}</Text>
+              <SelectionCheck selected={value === count} />
             </FeedbackPressable>
           );
         })}
@@ -64,8 +66,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
     minHeight: 44,
     padding: spacing.xs,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 10,
@@ -78,6 +82,10 @@ const styles = StyleSheet.create({
   label: {
     color: colors.text,
     fontSize: 12,
+  },
+  optionLabel: {
+    flex: 1,
+    textAlign: 'center',
   },
   description: {
     color: colors.textMuted,

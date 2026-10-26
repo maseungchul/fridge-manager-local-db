@@ -106,7 +106,7 @@ function createDraftDoor(id: number, side: DraftDoor['side'] = 'LEFT_DOOR'): Dra
 }
 
 function createDraftCompartment(id: number, doorIds: string[]): DraftCompartment {
-  return { id: `body-${id}`, doorIds, storageMode: null, slots: [{ name: '1번째 칸', drawerCount: 0 }] };
+  return { id: `body-${id}`, doorIds, storageMode: 'CHILLED', slots: [{ name: '1번째 칸', drawerCount: 0 }] };
 }
 
 /** 2단에 각각 문·본체 하나로 시작하고, 유형 JSON 대신 단별 문 개수로 배치를 구성한다. */

@@ -15,6 +15,7 @@ import { colors, spacing } from '@/theme/tokens';
 interface FridgeAreaMenuProps {
   disabled: boolean;
   openingsOpen: boolean;
+  showOpeningAction: boolean;
   openingDoors: { id: string; label: string; opening: DoorOpening }[];
   storageEnabled?: boolean;
   mergeDisabled?: boolean;
@@ -33,10 +34,11 @@ const openingIcons = {
 } as const;
 
 /** 도면의 스크롤·영역 선택을 막지 않고, 세부 선택지만 높이를 제한해 펼친다. */
-export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEnabled, mergeDisabled = false,
+export function FridgeAreaMenu({ disabled, openingsOpen, showOpeningAction, openingDoors, storageEnabled, mergeDisabled = false,
   onOpeningChange, onOpeningsChange, onToggleStorage, onMerge, onSplit, onOpenSettings }: FridgeAreaMenuProps) {
   const { height } = useWindowDimensions();
   const settingsDisabled = disabled || storageEnabled === false;
+  const openingsDisabled = disabled || !showOpeningAction;
 
   return (
     <View style={styles.toolbar}>
@@ -48,15 +50,15 @@ export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEn
               onPress={() => onOpeningsChange(false)} />
           </View>
           <ScrollView style={[styles.openingsScroll, { maxHeight: Math.min(220, height * 0.28) }]}
+            bounces={false} overScrollMode="never"
             keyboardShouldPersistTaps="handled" contentContainerStyle={styles.openingsContent}>
             {openingDoors.map(door => (
               <View key={door.id} style={styles.openingGroup}>
-                <Text style={styles.description}>{door.label}</Text>
                 <View accessibilityRole="radiogroup" accessibilityLabel={`${door.label} 여는 방식`} style={styles.openingChoices}>
                   {doorOpeningOptions.map(option => (
-                    <FeedbackPressable key={option.value} accessibilityRole="radio" disabled={disabled}
+                    <FeedbackPressable key={option.value} accessibilityRole="radio" disabled={openingsDisabled}
                       accessibilityLabel={`${door.label} ${option.label}`}
-                      accessibilityState={{ checked: door.opening === option.value, disabled }}
+                      accessibilityState={{ checked: door.opening === option.value, disabled: openingsDisabled }}
                       onPress={() => onOpeningChange(door.id, option.value)}
                       style={[styles.openingChoice, door.opening === option.value && styles.selected]}>
                       <MaterialDesignIcons name={openingIcons[option.value]} size={18} color={colors.text}
@@ -73,7 +75,7 @@ export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEn
       ) : null}
       {mergeDisabled ? <Text style={styles.description}>합친 칸이 {MAX_SLOTS}개를 넘어서 연결할 수 없어요.</Text> : null}
       <View style={styles.actions}>
-        {openingDoors.length > 0 ? (
+        {showOpeningAction && openingDoors.length > 0 ? (
           <FeedbackPressable accessibilityRole="button" accessibilityState={{ disabled, expanded: openingsOpen }}
             disabled={disabled} onPress={() => onOpeningsChange(!openingsOpen)}
             style={[styles.action, openingsOpen && styles.selected]}>
@@ -96,7 +98,7 @@ export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEn
         {onMerge ? (
           <FeedbackPressable accessibilityRole="button" accessibilityLabel="오른쪽 본체와 합치기"
             accessibilityState={{ disabled: disabled || mergeDisabled }} disabled={disabled || mergeDisabled}
-            onPress={() => { onOpeningsChange(false); onMerge(); }} style={styles.action}>
+            onPress={onMerge} style={styles.action}>
             <MaterialDesignIcons name="arrow-collapse-horizontal" size={16} color={colors.text} accessible={false} style={styles.actionIcon} />
             <Text style={styles.label}>합치기</Text>
           </FeedbackPressable>
@@ -104,7 +106,7 @@ export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEn
         {onSplit ? (
           <FeedbackPressable accessibilityRole="button" accessibilityLabel="문별로 본체 분리"
             accessibilityState={{ disabled }} disabled={disabled}
-            onPress={() => { onOpeningsChange(false); onSplit(); }} style={styles.action}>
+            onPress={onSplit} style={styles.action}>
             <MaterialDesignIcons name="arrow-expand-horizontal" size={16} color={colors.text} accessible={false} style={styles.actionIcon} />
             <Text style={styles.label}>분리</Text>
           </FeedbackPressable>
@@ -134,6 +136,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.xs,
+    marginBottom: spacing.xs,
   },
   title: {
     flex: 1,
