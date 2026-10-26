@@ -137,6 +137,7 @@ export function RefrigeratorRegistrationScreen({
   }
 
   function openAreaSettings(id: string) {
+    if (!storageEnabled) return;
     Keyboard.dismiss();
     setIsOpeningSettingsOpen(false);
     settingsAnimation.stopAnimation();
@@ -197,8 +198,9 @@ export function RefrigeratorRegistrationScreen({
     updateSlots(slots => slots.map((slot, slotIndex) => slotIndex === index ? { ...slot, ...changes } : slot));
   }
 
-  // 문의 수납을 선택 중이어도 보관 모드는 연결된 본체에만 기록한다.
+  // 보관 모드는 본체를 선택한 경우에만 기록한다.
   function selectStorageMode(storageMode: StorageMode) {
+    if (selectedDoor) return;
     Keyboard.dismiss();
     setDraft(current => ({ ...current, rows: current.rows.map(row => row.id !== selectedRow.id ? row : {
       ...row, compartments: row.compartments.map(body => body.id === selectedBody.id ? { ...body, storageMode } : body),
@@ -418,19 +420,21 @@ export function RefrigeratorRegistrationScreen({
                     </View>
                   </>
                 ) : null}
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.label}>보관 모드{selectedDoor ? ` · 본체 ${bodyLocation}` : ''}</Text>
-                  <View accessibilityRole="radiogroup" accessibilityLabel={`${bodyLocation} 보관 모드`} style={styles.row}>
-                    {storageModeOptions.map(mode => (
-                      <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${bodyLocation} ${mode.label}`}
-                        accessibilityState={{ checked: selectedBody.storageMode === mode.value }} onPress={() => selectStorageMode(mode.value)}
-                        style={[styles.choice, styles.selectionChoice, selectedBody.storageMode === mode.value && styles.selected]}>
-                        <Text style={[styles.label, styles.selectionLabel]}>{mode.label}</Text>
-                        <SelectionCheck selected={selectedBody.storageMode === mode.value} />
-                      </FeedbackPressable>
-                    ))}
+                {!selectedDoor ? (
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.label}>보관 모드</Text>
+                    <View accessibilityRole="radiogroup" accessibilityLabel={`${bodyLocation} 보관 모드`} style={styles.row}>
+                      {storageModeOptions.map(mode => (
+                        <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${bodyLocation} ${mode.label}`}
+                          accessibilityState={{ checked: selectedBody.storageMode === mode.value }} onPress={() => selectStorageMode(mode.value)}
+                          style={[styles.choice, styles.selectionChoice, selectedBody.storageMode === mode.value && styles.selected]}>
+                          <Text style={[styles.label, styles.selectionLabel]}>{mode.label}</Text>
+                          <SelectionCheck selected={selectedBody.storageMode === mode.value} />
+                        </FeedbackPressable>
+                      ))}
+                    </View>
                   </View>
-                </View>
+                ) : null}
               </ScrollView>
             </Animated.View>
           </KeyboardAvoidingView>

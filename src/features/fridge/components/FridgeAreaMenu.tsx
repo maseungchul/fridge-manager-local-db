@@ -36,6 +36,7 @@ const openingIcons = {
 export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEnabled, mergeDisabled = false,
   onOpeningChange, onOpeningsChange, onToggleStorage, onMerge, onSplit, onOpenSettings }: FridgeAreaMenuProps) {
   const { height } = useWindowDimensions();
+  const settingsDisabled = disabled || storageEnabled === false;
 
   return (
     <View style={styles.toolbar}>
@@ -108,7 +109,7 @@ export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEn
             <Text style={styles.label}>분리</Text>
           </FeedbackPressable>
         ) : null}
-        <FeedbackPressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled}
+        <FeedbackPressable accessibilityRole="button" accessibilityState={{ disabled: settingsDisabled }} disabled={settingsDisabled}
           onPress={onOpenSettings} style={styles.action}>
           <MaterialDesignIcons name="tune-variant" size={16} color={colors.text} accessible={false} style={styles.actionIcon} />
           <Text style={styles.label}>내부 설정</Text>
