@@ -38,11 +38,10 @@ export function FridgeAreaMenu({ disabled, openingsOpen, showOpeningAction, open
   onOpeningChange, onOpeningsChange, onToggleStorage, onMerge, onSplit, onOpenSettings }: FridgeAreaMenuProps) {
   const { height } = useWindowDimensions();
   const settingsDisabled = disabled || storageEnabled === false;
-  const openingsDisabled = disabled || !showOpeningAction;
 
   return (
     <View style={styles.toolbar}>
-      {openingsOpen && openingDoors.length > 0 ? (
+      {showOpeningAction && openingsOpen && openingDoors.length > 0 ? (
         <View onAccessibilityEscape={() => onOpeningsChange(false)}>
           <View style={styles.header}>
             <Text accessibilityRole="header" style={styles.title}>여는 방식</Text>
@@ -56,9 +55,9 @@ export function FridgeAreaMenu({ disabled, openingsOpen, showOpeningAction, open
               <View key={door.id} style={styles.openingGroup}>
                 <View accessibilityRole="radiogroup" accessibilityLabel={`${door.label} 여는 방식`} style={styles.openingChoices}>
                   {doorOpeningOptions.map(option => (
-                    <FeedbackPressable key={option.value} accessibilityRole="radio" disabled={openingsDisabled}
+                    <FeedbackPressable key={option.value} accessibilityRole="radio" disabled={disabled}
                       accessibilityLabel={`${door.label} ${option.label}`}
-                      accessibilityState={{ checked: door.opening === option.value, disabled: openingsDisabled }}
+                      accessibilityState={{ checked: door.opening === option.value, disabled }}
                       onPress={() => onOpeningChange(door.id, option.value)}
                       style={[styles.openingChoice, door.opening === option.value && styles.selected]}>
                       <MaterialDesignIcons name={openingIcons[option.value]} size={18} color={colors.text}

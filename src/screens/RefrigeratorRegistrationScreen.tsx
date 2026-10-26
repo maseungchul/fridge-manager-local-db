@@ -88,7 +88,7 @@ export function RefrigeratorRegistrationScreen({
       return;
     } else if (isSettingsOpen) {
       closeAreaSettings();
-    } else if (isOpeningSettingsOpen) {
+    } else if (isOpeningSettingsOpen && !selectedDoor) {
       setIsOpeningSettingsOpen(false);
     } else {
       changeStep('basic');
