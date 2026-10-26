@@ -19,6 +19,9 @@ export const colors = {
   // 냉장고 경로의 실 이름과 아이콘을 등록·편집·홈에서 같은 색상으로 구분한다.
   chilled: '#487044',
   frozen: '#2F6C9D',
+  // 등록 도면의 보관 모드 배지와 선택 영역에 사용하는 옅은 배경색이다.
+  chilledBackground: '#E4EDDE',
+  frozenBackground: '#E0EDF6',
   // 입력 필드 등의 테두리에 사용한다.
   border: '#D9D5CC',
   // 인증 시작 화면의 브랜드 장식에 사용하는 색상이다.

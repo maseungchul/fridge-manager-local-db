@@ -9,7 +9,7 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, spacing } from '@/theme/tokens';
 import { getPositionName, getPositionPath } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
-import type { FridgeIngredient, StorageArea, SlotPosition } from '../model/fridgeLayout';
+import type { FridgeIngredient, StorageArea, SlotPosition, StorageMode } from '../model/fridgeLayout';
 
 interface FridgeMapProps {
   // 호출자가 현재 실에 맞게 추린 표시 대상 영역이며 전달 순서대로 배치한다.
@@ -22,6 +22,8 @@ interface FridgeMapProps {
   selectedPositionId?: string;
   // 등록 미리보기에서 사용한다. 지정하면 개별 칸 대신 해당 영역의 모든 칸을 선택 표시한다.
   selectedAreaId?: string;
+  // 등록 도면의 선택 배경과 본체 접근성 라벨에 보관 모드를 반영한다.
+  storageMode?: StorageMode | null;
   // 최초 등록에는 재료 정보가 없으므로 개수 표시를 숨길 수 있다. 홈은 기본값을 사용한다.
   showIngredientCounts?: boolean;
   // 연결 관계를 도식으로 표시하는 전체 도면이나 축소 미리보기에서는 영역 제목을 숨긴다.
@@ -45,7 +47,7 @@ interface FridgeMapProps {
 
 /** 칸·개별 서랍의 전체 경로와 선택 상태를 접근성 정보로 함께 제공한다. */
 export function FridgeMap({
-  areas, positions, ingredients, selectedPositionId, selectedAreaId, showIngredientCounts = true,
+  areas, positions, ingredients, selectedPositionId, selectedAreaId, storageMode, showIngredientCounts = true,
   showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, preview = false, style, disabled = false, onSelectPosition, onSelectArea,
 }: FridgeMapProps) {
   const groupInteraction = !!onSelectArea && !preview;
@@ -64,10 +66,15 @@ export function FridgeMap({
             {/* 홈은 칸별로, 등록 도면은 문·본체 전체를 한 번에 눌러 선택한다. */}
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
             <Area accessibilityRole={groupInteraction ? 'button' : undefined}
-              accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}` : undefined}
+              accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}${area.isBody && storageMode
+                ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
               accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
               disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
-              style={[styles.areaInterior, { minHeight: minAreaHeight }, areaSelected && styles.areaSelected]}>
+              style={[styles.areaInterior, { minHeight: minAreaHeight },
+                areaSelected && groupInteraction && storageMode && {
+                  backgroundColor: storageMode === 'CHILLED' ? colors.chilledBackground : colors.frozenBackground,
+                },
+                areaSelected && !groupInteraction && styles.areaSelected]}>
               {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
               {positions.filter(position => position.areaId === area.id)
                 .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
@@ -132,7 +139,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.surface,
   },
-  // 등록 미리보기의 선택은 영역 외곽선과 칸 배경을 함께 강조한다.
   areaSelected: {
     borderColor: colors.button,
     backgroundColor: colors.sageLight,
@@ -166,7 +172,7 @@ const styles = StyleSheet.create({
   positionSelected: {
     backgroundColor: colors.sageLight,
   },
-  // 칸 배경이 부모 영역의 선택 색상을 가리지 않도록 한다.
+  // 등록 도면의 칸은 부모 영역의 배경을 그대로 사용한다.
   groupPosition: {
     backgroundColor: 'transparent',
   },

@@ -3,12 +3,13 @@
  * 사용자가 구성한 모든 단의 문·본체를 펼쳐 표시하고 연결 관계는 경첩으로 나타낸다.
  * 수납 없는 문은 전체 X 표시로 남기며, 칸과 선택 강조는 기존 FridgeMap을 재사용한다.
  */
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { ViewStyle } from 'react-native';
 import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
-import type { FridgeLayout, RefrigeratorDraft, StorageArea } from '@/features/fridge/model/fridgeLayout';
+import type { FridgeLayout, RefrigeratorDraft, StorageArea, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors } from '@/theme/tokens';
 
 interface FridgeInteriorMapProps {
@@ -24,8 +25,9 @@ const GROUP_GAP = 6;
 const MAP_HEIGHT = 540;
 
 /** 실제 프레임 크기로 두 대각선을 계산해 가로·세로 비율과 관계없이 문 전체를 가린다. */
-export function DoorWithoutStorage({ label, selected, readOnly = false, onPress }: {
+export function DoorWithoutStorage({ label, selected, storageMode, readOnly = false, onPress }: {
   label: string; selected: boolean; readOnly?: boolean; onPress?: () => void;
+  storageMode?: StorageMode | null;
 }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const length = Math.hypot(size.width, size.height);
@@ -35,7 +37,9 @@ export function DoorWithoutStorage({ label, selected, readOnly = false, onPress 
       pointerEvents={readOnly ? 'none' : 'auto'} onPress={readOnly ? undefined : onPress} onLayout={({ nativeEvent }) => {
         const { width, height } = nativeEvent.layout;
         setSize(current => current.width === width && current.height === height ? current : { width, height });
-      }} style={[styles.noStorage, selected && styles.selected]}>
+      }} style={[styles.noStorage, selected && storageMode && {
+        backgroundColor: storageMode === 'CHILLED' ? colors.chilledBackground : colors.frozenBackground,
+      }]}>
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         {[angle, -angle].map((rotation, index) => (
           <View key={index} style={[styles.cross, {
@@ -75,22 +79,26 @@ function DoorHinges({ fromColumn, toColumn, totalColumns, top, height }: {
 }
 
 /** 문·본체 전체를 선택 대상으로 묶고, 식별자를 호출자에게 전달한다. */
-function InteriorArea({ area, layout, style, compact, selected, storageEnabled, hasDrawer, onSelectArea }: {
+function InteriorArea({ area, layout, style, compact, selected, storageEnabled, storageMode, hasDrawer, onSelectArea }: {
   area: StorageArea; layout: FridgeLayout; style: ViewStyle & { paddingLeft: number; paddingRight: number }; compact: boolean; selected: boolean;
   storageEnabled: boolean; hasDrawer: boolean;
+  storageMode: StorageMode | null;
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
 }) {
+  const selectionColor = storageMode === 'CHILLED' ? colors.chilled
+    : storageMode === 'FROZEN' ? colors.frozen : colors.button;
   function selectArea() {
     onSelectArea(area.id);
   }
   return (
-    <View style={[styles.area, style]}>
+    <View style={[styles.area, style, selected && styles.selectedArea]}>
       {!storageEnabled ? (
-        <DoorWithoutStorage label={`${area.compartment} → ${area.name}`} selected={selected} onPress={selectArea} />
+        <DoorWithoutStorage label={`${area.compartment} → ${area.name}`} selected={selected}
+          storageMode={storageMode} onPress={selectArea} />
       ) : (
         <FridgeMap areas={[area]} positions={layout.positions.filter(position => position.areaId === area.id)}
           ingredients={layout.ingredients} selectedAreaId={selected ? area.id : undefined} showIngredientCounts={false}
-          showAreaLabels={false} minAreaHeight={0} fitHeight
+          showAreaLabels={false} minAreaHeight={0} fitHeight storageMode={storageMode}
           compact={compact} style={styles.areaMap} onSelectArea={selectArea} />
       )}
       {/* 내부 칸의 서랍과 구분되도록 본체 상단 전체 폭에 파인 손잡이를 표시한다. */}
@@ -98,6 +106,31 @@ function InteriorArea({ area, layout, style, compact, selected, storageEnabled, 
         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           style={[styles.drawerHandle, { left: style.paddingLeft + 2, right: style.paddingRight + 2 }]} />
       )}
+      {/* 선택 효과는 프레임 밖에 겹쳐 그려 칸 높이와 배경을 유지한다. */}
+      {selected ? (
+        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+          style={[styles.selectionFrame, {
+            left: style.paddingLeft,
+            right: style.paddingRight,
+            borderColor: selectionColor,
+            boxShadow: [
+              { offsetX: 0, offsetY: 0, blurRadius: 4, spreadDistance: 1, color: `${selectionColor}66` },
+              { offsetX: 0, offsetY: 0, blurRadius: 10, spreadDistance: 2, color: `${selectionColor}26` },
+            ],
+          }]} />
+      ) : null}
+      {/* 배지는 본체 테두리 위에 겹쳐 표시해 내부 칸의 높이를 차지하지 않는다. */}
+      {area.isBody && storageMode ? (
+        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+          style={[styles.modeBadge, {
+            right: style.paddingRight + 6,
+            backgroundColor: storageMode === 'CHILLED' ? colors.chilledBackground : colors.frozenBackground,
+            borderColor: storageMode === 'CHILLED' ? colors.chilled : colors.frozen,
+          }]}>
+          <MaterialDesignIcons name={storageMode === 'CHILLED' ? 'thermometer-low' : 'snowflake'} size={14}
+            color={storageMode === 'CHILLED' ? colors.chilled : colors.frozen} accessible={false} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -143,7 +176,7 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
               const area = preview.areas.find(candidate => candidate.id === configuration.id)!;
               return (
                 <InteriorArea key={area.id} area={area} layout={preview} compact={compact} selected={area.id === selectedAreaId}
-                  storageEnabled={!isDoor || configuration.storageEnabled} hasDrawer={hasDrawer}
+                  storageEnabled={!isDoor || configuration.storageEnabled} storageMode={body.storageMode} hasDrawer={hasDrawer}
                   onSelectArea={onSelectArea}
                   style={{
                     top: rowTop,
@@ -205,6 +238,28 @@ const styles = StyleSheet.create({
   areaMap: {
     flex: 1,
   },
+  selectedArea: {
+    zIndex: 1,
+  },
+  selectionFrame: {
+    position: 'absolute',
+    top: 3,
+    bottom: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    zIndex: 1,
+  },
+  modeBadge: {
+    position: 'absolute',
+    top: -6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
   drawerHandle: {
     position: 'absolute',
     top: 5,
@@ -224,10 +279,6 @@ const styles = StyleSheet.create({
     borderColor: '#B0ACA3',
     borderRadius: 6,
     backgroundColor: colors.surface,
-  },
-  selected: {
-    borderColor: colors.button,
-    backgroundColor: colors.sageLight,
   },
   cross: {
     position: 'absolute',

@@ -391,21 +391,21 @@ export function RefrigeratorRegistrationScreen({
                   )}
                 </View>
                 {storageEnabled ? (
-                  <View style={[styles.settingsPreviewControls, { justifyContent: selectedDoor ? 'center' : 'space-between' }]}>
-                    {!selectedDoor ? (
-                      <View accessibilityRole="radiogroup" accessibilityLabel={`${bodyLocation} 보관 모드`} style={styles.row}>
-                        {storageModeOptions.map(mode => (
-                          <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${bodyLocation} ${mode.label}`}
-                            accessibilityState={{ checked: selectedBody.storageMode === mode.value }} onPress={() => selectStorageMode(mode.value)}
-                            style={[styles.choice, selectedBody.storageMode === mode.value && styles.selected]}>
-                            <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'thermometer-low' : 'snowflake'} size={18}
-                              color={mode.value === 'CHILLED' ? colors.chilled : colors.frozen} accessible={false} style={styles.controlIcon} />
-                            <Text numberOfLines={1} style={styles.selectionLabel}>{mode.label}</Text>
-                            <SelectionCheck selected={selectedBody.storageMode === mode.value} />
-                          </FeedbackPressable>
-                        ))}
-                      </View>
-                    ) : null}
+                  <View style={styles.settingsPreviewControls}>
+                    <View accessibilityRole="radiogroup" accessibilityLabel={`${bodyLocation} 보관 모드`}
+                      accessibilityState={{ disabled: !!selectedDoor }} style={styles.row}>
+                      {storageModeOptions.map(mode => (
+                        <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${bodyLocation} ${mode.label}`}
+                          disabled={!!selectedDoor} accessibilityState={{ checked: selectedBody.storageMode === mode.value, disabled: !!selectedDoor }}
+                          onPress={() => selectStorageMode(mode.value)}
+                          style={[styles.choice, selectedBody.storageMode === mode.value && styles.selected]}>
+                          <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'thermometer-low' : 'snowflake'} size={18}
+                            color={mode.value === 'CHILLED' ? colors.chilled : colors.frozen} accessible={false} style={styles.controlIcon} />
+                          <Text numberOfLines={1} style={styles.selectionLabel}>{mode.label}</Text>
+                          <SelectionCheck selected={selectedBody.storageMode === mode.value} />
+                        </FeedbackPressable>
+                      ))}
+                    </View>
                     <View style={styles.sectionHeader}>
                       <View style={styles.counterGroup}>
                         <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 줄이기`}
@@ -645,6 +645,7 @@ const styles = StyleSheet.create({
   settingsPreviewControls: {
     flexShrink: 0,
     alignSelf: 'stretch',
+    justifyContent: 'space-between',
     gap: spacing.xs,
   },
   slotForm: {
