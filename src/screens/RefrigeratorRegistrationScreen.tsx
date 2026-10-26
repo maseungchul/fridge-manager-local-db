@@ -383,10 +383,10 @@ export function RefrigeratorRegistrationScreen({
               <View style={[styles.settingsPreview, { minHeight: Math.min(168, windowHeight * 0.22) }]}>
                 <View style={styles.structurePreview}>
                   {selectedDoor && !storageEnabled ? (
-                    <DoorWithoutStorage label={`${location} → ${areaNames[selectedType]}`} selected readOnly />
+                    <DoorWithoutStorage label={`${location} → ${areaNames[selectedType]}`} selected={false} readOnly />
                   ) : (
                     <FridgeMap areas={[previewArea]} positions={preview.positions.filter(position => position.areaId === selectedArea.id)}
-                      ingredients={preview.ingredients} selectedAreaId={selectedArea.id} showIngredientCounts={false}
+                      ingredients={preview.ingredients} showIngredientCounts={false}
                       showAreaLabels={false} minAreaHeight={0} compact preview style={styles.scroll} onSelectPosition={openAreaSettings} />
                   )}
                 </View>

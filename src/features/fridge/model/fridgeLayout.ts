@@ -94,7 +94,7 @@ export interface RefrigeratorDraft {
   rows: DraftRow[];
 }
 
-export const MAX_ROWS = 3;
+export const MAX_ROWS = 4;
 export const MAX_DOORS_PER_ROW = 3;
 export const MAX_SLOTS = 5;
 

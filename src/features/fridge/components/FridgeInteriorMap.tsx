@@ -4,9 +4,8 @@
  * 수납 없는 문은 전체 X 표시로 남기며, 칸과 선택 강조는 기존 FridgeMap을 재사용한다.
  */
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { ViewStyle } from 'react-native';
-import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
 import type { FridgeLayout, RefrigeratorDraft, StorageArea } from '@/features/fridge/model/fridgeLayout';
@@ -22,6 +21,7 @@ interface FridgeInteriorMapProps {
 const HINGE_LENGTH = 3;
 const HINGE_HEIGHT = 15;
 const GROUP_GAP = 6;
+const MAP_HEIGHT = 540;
 
 /** 실제 프레임 크기로 두 대각선을 계산해 가로·세로 비율과 관계없이 문 전체를 가린다. */
 export function DoorWithoutStorage({ label, selected, readOnly = false, onPress }: {
@@ -31,7 +31,7 @@ export function DoorWithoutStorage({ label, selected, readOnly = false, onPress 
   const length = Math.hypot(size.width, size.height);
   const angle = Math.atan2(size.height, size.width) * 180 / Math.PI;
   return (
-    <FeedbackPressable accessibilityRole={readOnly ? 'image' : 'button'} accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
+    <Pressable accessibilityRole={readOnly ? 'image' : 'button'} accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
       pointerEvents={readOnly ? 'none' : 'auto'} onPress={readOnly ? undefined : onPress} onLayout={({ nativeEvent }) => {
         const { width, height } = nativeEvent.layout;
         setSize(current => current.width === width && current.height === height ? current : { width, height });
@@ -44,7 +44,7 @@ export function DoorWithoutStorage({ label, selected, readOnly = false, onPress 
           }]} />
         ))}
       </View>
-    </FeedbackPressable>
+    </Pressable>
   );
 }
 
@@ -90,7 +90,8 @@ function InteriorArea({ area, layout, style, compact, selected, storageEnabled, 
       ) : (
         <FridgeMap areas={[area]} positions={layout.positions.filter(position => position.areaId === area.id)}
           ingredients={layout.ingredients} selectedAreaId={selected ? area.id : undefined} showIngredientCounts={false}
-          showAreaLabels={false} minAreaHeight={0} compact={compact} style={styles.areaMap} onSelectArea={selectArea} />
+          showAreaLabels={false} minAreaHeight={0} fitHeight
+          compact={compact} style={styles.areaMap} onSelectArea={selectArea} />
       )}
       {/* 내부 칸의 서랍과 구분되도록 본체 상단 전체 폭에 파인 손잡이를 표시한다. */}
       {hasDrawer && (
@@ -104,14 +105,12 @@ function InteriorArea({ area, layout, style, compact, selected, storageEnabled, 
 /** 본체마다 연결된 여닫이 문을 좌우에 붙이고, 각 단은 다른 단과 관계없이 전체 폭을 쓴다. */
 export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: FridgeInteriorMapProps) {
   const preview = getDraftLayout(draft);
-  // 칸의 최소 터치 높이 72와 칸 사이 간격·프레임 여백을 확보한다.
-  const rowHeights = draft.rows.map(row => Math.max(180, ...[
-    ...row.compartments, ...row.doors.filter(door => door.kind !== 'DRAWER' && door.storageEnabled),
-  ].map(area => area.slots.length * 76 + 20)));
+  // 단 수·칸 수와 관계없이 전체 높이를 유지하고, 각 단은 같은 높이로 나눈다.
+  const rowHeight = MAP_HEIGHT / draft.rows.length;
 
   return (
     <View>
-      <View style={{ height: rowHeights.reduce((sum, height) => sum + height, 0) }}>
+      <View style={{ height: MAP_HEIGHT }}>
         {draft.rows.flatMap((row, rowIndex) => {
           const hingedDoors = row.doors.filter(door => door.kind !== 'DRAWER');
           const totalColumns = row.doors.length;
@@ -127,7 +126,7 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
             const columnWidth = body.doorIds.length / (body.doorIds.length + bodyDoors.length);
             const bodyColumn = groupStart + leftDoors.length * columnWidth;
             let nextColumn = 0;
-            const rowTop = rowHeights.slice(0, rowIndex).reduce((sum, height) => sum + height, 0);
+            const rowTop = rowIndex * rowHeight;
             const configurations = [...leftDoors, body, ...rightDoors];
             const areas = configurations.map((configuration, index) => {
               const isDoor = 'side' in configuration;
@@ -150,7 +149,7 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
                     top: rowTop,
                     left: `${column / totalColumns * 100}%`,
                     width: `${columnSpan / totalColumns * 100}%`,
-                    height: rowHeights[rowIndex],
+                    height: rowHeight,
                     paddingLeft,
                     paddingRight,
                   }} />
@@ -163,7 +162,7 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
                 : bodyColumn + (body.doorIds.length + rightDoors.indexOf(door)) * columnWidth;
               const bodyBoundary = bodyColumn + (isLeft ? 0 : body.doorIds.length * columnWidth);
               return <DoorHinges key={`hinges-${door.id}`} fromColumn={doorBoundary} toColumn={bodyBoundary}
-                totalColumns={totalColumns} top={rowTop} height={rowHeights[rowIndex]} />;
+                totalColumns={totalColumns} top={rowTop} height={rowHeight} />;
             });
             return [...areas, ...hinges];
           });

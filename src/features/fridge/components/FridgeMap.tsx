@@ -4,7 +4,7 @@
  * 칸을 누르면 식별자를 부모에 전달하고, 홈은 개별 칸·등록 미리보기는 영역 전체를 강조한다.
  * 홈과 최초 등록 미리보기에서 공유하며 선택 상태와 데이터 변경은 호출자가 관리한다.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, spacing } from '@/theme/tokens';
 import { getPositionName, getPositionPath } from '../model/fridgeLayout';
@@ -28,6 +28,8 @@ interface FridgeMapProps {
   showAreaLabels?: boolean;
   // 전체 도면의 행 높이에 맞춰 표시하며, 단독 사용 시 기존 최소 높이를 유지한다.
   minAreaHeight?: number;
+  // 고정 높이의 등록 도면에서는 칸을 균등 분배하고 이름을 한 줄로 제한한다.
+  fitHeight?: boolean;
   // 문이 많은 등록 도면의 좁은 영역은 여백을 줄이고 이름을 두 줄까지 표시한다.
   compact?: boolean;
   // 패널의 읽기 전용 축소 미리보기에서는 칸의 최소 터치 높이를 적용하지 않는다.
@@ -44,10 +46,10 @@ interface FridgeMapProps {
 /** 칸·개별 서랍의 전체 경로와 선택 상태를 접근성 정보로 함께 제공한다. */
 export function FridgeMap({
   areas, positions, ingredients, selectedPositionId, selectedAreaId, showIngredientCounts = true,
-  showAreaLabels = true, minAreaHeight = 240, compact = false, preview = false, style, disabled = false, onSelectPosition, onSelectArea,
+  showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, preview = false, style, disabled = false, onSelectPosition, onSelectArea,
 }: FridgeMapProps) {
   const groupInteraction = !!onSelectArea && !preview;
-  const Area = groupInteraction ? FeedbackPressable : View;
+  const Area = groupInteraction ? Pressable : View;
   const Position = preview || groupInteraction ? View : FeedbackPressable;
   // 본체는 1, 문 전체의 합도 1로 배분한다. 문 2개는 각각 0.5, 문 1개는 1이다.
   const doorCount = areas.filter(area => !area.isBody).length;
@@ -81,8 +83,8 @@ export function FridgeMap({
                             accessibilityRole={preview ? 'image' : groupInteraction ? undefined : 'button'} accessibilityLabel={getPositionPath(area, position)}
                             accessibilityHint={position.drawerCount > 0 ? '서랍' : undefined}
                             accessibilityState={{ selected, disabled }} disabled={disabled} onPress={preview || groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
-                            style={[styles.position, positionIndex > 0 && styles.positionSeparator, compact && styles.compactPosition, preview && styles.previewPosition, selected && styles.positionSelected, groupInteraction && styles.groupPosition]}>
-                            <Text numberOfLines={preview ? 1 : compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
+                            style={[styles.position, positionIndex > 0 && styles.positionSeparator, (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, selected && styles.positionSelected, groupInteraction && styles.groupPosition]}>
+                            <Text numberOfLines={preview || fitHeight ? 1 : compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
                             {/* 좌우 서랍은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                             {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
                             {/* 자체 서랍은 손잡이로 표시해 일반 칸과 구분한다. */}
@@ -164,7 +166,7 @@ const styles = StyleSheet.create({
   positionSelected: {
     backgroundColor: colors.sageLight,
   },
-  // 칸 배경이 부모 영역의 눌림·선택 색상을 가리지 않도록 한다.
+  // 칸 배경이 부모 영역의 선택 색상을 가리지 않도록 한다.
   groupPosition: {
     backgroundColor: 'transparent',
   },
@@ -185,10 +187,13 @@ const styles = StyleSheet.create({
   compactPosition: {
     padding: 2,
   },
-  previewPosition: {
+  fittedPosition: {
     minHeight: 0,
-    padding: 2,
+    paddingVertical: 2,
     gap: 0,
+  },
+  previewPosition: {
+    paddingHorizontal: 4,
   },
   compactPositionLabel: {
     fontSize: 11,
