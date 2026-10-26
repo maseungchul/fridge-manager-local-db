@@ -3,18 +3,20 @@
  * 사용자가 구성한 모든 단의 문·본체를 펼쳐 표시하고 연결 관계는 경첩으로 나타낸다.
  * 수납 없는 문은 전체 X 표시로 남기며, 칸과 선택 강조는 기존 FridgeMap을 재사용한다.
  */
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import type { LayoutRectangle, ViewStyle } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
-import type { RefrigeratorDraft } from '@/features/fridge/model/fridgeLayout';
-import { colors, spacing } from '@/theme/tokens';
+import type { FridgeLayout, RefrigeratorDraft, StorageArea } from '@/features/fridge/model/fridgeLayout';
+import { colors } from '@/theme/tokens';
 
 interface FridgeInteriorMapProps {
   draft: RefrigeratorDraft;
   selectedAreaId?: string;
-  onSelectArea: (id: string) => void;
+  onSelectArea: (id: string, frame: LayoutRectangle) => void;
+  onSelectedAreaLayout?: (frame: LayoutRectangle) => void;
 }
 
 // 그룹 내부는 경첩 길이에 맞추고, 그룹 바깥은 기존 간격을 유지한다.
@@ -43,7 +45,6 @@ export function DoorWithoutStorage({ label, selected, readOnly = false, onPress 
           }]} />
         ))}
       </View>
-      <Text style={styles.noStorageLabel}>수납 없음</Text>
     </FeedbackPressable>
   );
 }
@@ -74,8 +75,41 @@ function DoorHinges({ fromColumn, toColumn, totalColumns, top, height }: {
   );
 }
 
+/** 영역의 실제 화면 좌표를 전달해 스크롤·구조 변경 후에도 메뉴를 해당 영역 가까이에 놓는다. */
+function InteriorArea({ area, layout, style, compact, selected, storageEnabled, hasDrawer, onSelectArea, onSelectedAreaLayout }: {
+  area: StorageArea; layout: FridgeLayout; style: ViewStyle & { paddingLeft: number; paddingRight: number }; compact: boolean; selected: boolean;
+  storageEnabled: boolean; hasDrawer: boolean;
+  onSelectArea: FridgeInteriorMapProps['onSelectArea'];
+  onSelectedAreaLayout: FridgeInteriorMapProps['onSelectedAreaLayout'];
+}) {
+  const frameRef = useRef<View>(null);
+  function measureFrame(onMeasured: (frame: LayoutRectangle) => void) {
+    frameRef.current?.measureInWindow((x, y, width, height) => onMeasured({ x, y, width, height }));
+  }
+  function selectArea() {
+    measureFrame(frame => onSelectArea(area.id, frame));
+  }
+  return (
+    <View ref={frameRef} collapsable={false} style={[styles.area, style]}
+      onLayout={selected && onSelectedAreaLayout ? () => measureFrame(onSelectedAreaLayout) : undefined}>
+      {!storageEnabled ? (
+        <DoorWithoutStorage label={`${area.name} → ${area.compartment}`} selected={selected} onPress={selectArea} />
+      ) : (
+        <FridgeMap areas={[area]} positions={layout.positions.filter(position => position.areaId === area.id)}
+          ingredients={layout.ingredients} selectedAreaId={selected ? area.id : undefined} showIngredientCounts={false}
+          showAreaLabels={false} minAreaHeight={0} compact={compact} style={styles.areaMap} onSelectArea={selectArea} />
+      )}
+      {/* 내부 칸의 서랍과 구분되도록 본체 상단 전체 폭에 파인 손잡이를 표시한다. */}
+      {hasDrawer && (
+        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+          style={[styles.drawerHandle, { left: style.paddingLeft + 2, right: style.paddingRight + 2 }]} />
+      )}
+    </View>
+  );
+}
+
 /** 본체마다 연결된 여닫이 문을 좌우에 붙이고, 각 단은 다른 단과 관계없이 전체 폭을 쓴다. */
-export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: FridgeInteriorMapProps) {
+export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, onSelectedAreaLayout }: FridgeInteriorMapProps) {
   const preview = getDraftLayout(draft);
   // 칸의 최소 터치 높이 72와 칸 사이 간격·프레임 여백을 확보한다.
   const rowHeights = draft.rows.map(row => Math.max(180, ...[
@@ -114,28 +148,17 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: Fridg
               const compact = columnSpan / totalColumns <= 1 / 6;
               const area = preview.areas.find(candidate => candidate.id === configuration.id)!;
               return (
-                <View key={area.id} style={[styles.area, {
-                  top: rowTop,
-                  left: `${column / totalColumns * 100}%`,
-                  width: `${columnSpan / totalColumns * 100}%`,
-                  height: rowHeights[rowIndex],
-                  paddingLeft,
-                  paddingRight,
-                }]}>
-                  {isDoor && !configuration.storageEnabled ? (
-                    <DoorWithoutStorage label={`${area.name} → ${area.compartment}`} selected={area.id === selectedAreaId}
-                      onPress={() => onSelectArea(area.id)} />
-                  ) : (
-                    <FridgeMap areas={[area]} positions={preview.positions.filter(position => position.areaId === area.id)}
-                      ingredients={preview.ingredients} selectedAreaId={selectedAreaId} showIngredientCounts={false}
-                      showAreaLabels={false} minAreaHeight={0} compact={compact} style={styles.areaMap} onSelectArea={onSelectArea} />
-                  )}
-                  {/* 내부 칸의 서랍과 구분되도록 본체 상단 전체 폭에 파인 손잡이를 표시한다. */}
-                  {hasDrawer && (
-                    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-                      style={[styles.drawerHandle, { left: paddingLeft + 2, right: paddingRight + 2 }]} />
-                  )}
-                </View>
+                <InteriorArea key={area.id} area={area} layout={preview} compact={compact} selected={area.id === selectedAreaId}
+                  storageEnabled={!isDoor || configuration.storageEnabled} hasDrawer={hasDrawer}
+                  onSelectArea={onSelectArea} onSelectedAreaLayout={onSelectedAreaLayout}
+                  style={{
+                    top: rowTop,
+                    left: `${column / totalColumns * 100}%`,
+                    width: `${columnSpan / totalColumns * 100}%`,
+                    height: rowHeights[rowIndex],
+                    paddingLeft,
+                    paddingRight,
+                  }} />
               );
             });
             const hinges = bodyDoors.map(door => {
@@ -204,7 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#B0ACA3',
     borderRadius: 6,
     backgroundColor: colors.surface,
   },
@@ -215,13 +238,6 @@ const styles = StyleSheet.create({
   cross: {
     position: 'absolute',
     height: 2,
-    backgroundColor: colors.textMuted,
-  },
-  noStorageLabel: {
-    padding: spacing.xs,
-    color: colors.textMuted,
-    fontSize: 11,
-    backgroundColor: colors.surface,
-    textAlign: 'center',
+    backgroundColor: '#B0ACA3',
   },
 });
