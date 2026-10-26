@@ -160,12 +160,23 @@ export function setDraftDoorOpening(draft: RefrigeratorDraft, rowId: string, doo
   }) };
 }
 
-/** 오른쪽 이웃과 본체만 합친다. 문은 유지하고 칸은 왼쪽부터 이어 붙이며 모드가 다르면 재선택한다. */
+/** 도면에서 본체 사이에 여닫이 문이 없는 경우에만 오른쪽 이웃을 반환한다. */
+export function getAdjacentRightCompartment(row: DraftRow, bodyId: string): DraftCompartment | undefined {
+  const index = row.compartments.findIndex(body => body.id === bodyId);
+  const left = row.compartments[index], right = row.compartments[index + 1];
+  if (!left || !right) return undefined;
+  const hasDoorBetween = row.doors.some(door => door.kind !== 'DRAWER'
+    && ((left.doorIds.includes(door.id) && door.side === 'RIGHT_DOOR')
+      || (right.doorIds.includes(door.id) && door.side === 'LEFT_DOOR')));
+  return hasDoorBetween ? undefined : right;
+}
+
+/** 맞닿은 오른쪽 본체만 합친다. 칸은 왼쪽부터 이어 붙이며 모드가 다르면 재선택한다. */
 export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, bodyId: string): RefrigeratorDraft {
   return { ...draft, rows: draft.rows.map(row => {
     if (row.id !== rowId) return row;
     const index = row.compartments.findIndex(body => body.id === bodyId);
-    const left = row.compartments[index], right = row.compartments[index + 1];
+    const left = row.compartments[index], right = getAdjacentRightCompartment(row, bodyId);
     if (!left || !right || left.slots.length + right.slots.length > MAX_SLOTS) return row;
     const merged = { ...left, doorIds: [...left.doorIds, ...right.doorIds], slots: [...left.slots, ...right.slots],
       storageMode: left.storageMode === right.storageMode ? left.storageMode : null };
@@ -173,13 +184,22 @@ export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, 
   }) };
 }
 
-/** 문별 본체로 분리할 때 기존 칸은 첫 본체에 남겨 입력을 복제하거나 버리지 않는다. */
+/** 문별 본체로 분리할 때 기존 칸을 순서대로 나누고, 칸이 부족한 본체에만 기본 칸을 만든다. */
 export function splitDraftCompartment(draft: RefrigeratorDraft, rowId: string, bodyId: string): RefrigeratorDraft {
   let nextId = draft.nextId;
   const rows = draft.rows.map(row => row.id !== rowId ? row : { ...row,
-    compartments: row.compartments.flatMap(body => body.id !== bodyId || body.doorIds.length === 1 ? [body]
-      : body.doorIds.map((doorId, index) => index === 0 ? { ...body, doorIds: [doorId] }
-        : { ...createDraftCompartment(nextId++, [doorId]), storageMode: body.storageMode })),
+    compartments: row.compartments.flatMap(body => {
+      if (body.id !== bodyId || body.doorIds.length === 1) return [body];
+      let slotIndex = 0;
+      return body.doorIds.map((doorId, index) => {
+        const slotCount = Math.ceil((body.slots.length - slotIndex) / (body.doorIds.length - index));
+        const slots = body.slots.slice(slotIndex, slotIndex + slotCount);
+        slotIndex += slots.length;
+        const compartment = index === 0 ? { ...body, doorIds: [doorId] }
+          : createDraftCompartment(nextId++, [doorId]);
+        return { ...compartment, storageMode: body.storageMode, slots: slots.length ? slots : compartment.slots };
+      });
+    }),
   });
   return { ...draft, nextId, rows };
 }

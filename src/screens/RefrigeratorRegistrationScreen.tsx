@@ -24,7 +24,7 @@ import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import {
   addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft,
-  getDraftAreaLocation, getDraftLayout, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
+  getAdjacentRightCompartment, getDraftAreaLocation, getDraftLayout, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
   removeDraftRow, setDraftDoorOpening, splitDraftCompartment, storageModeOptions,
 } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
@@ -63,11 +63,13 @@ export function RefrigeratorRegistrationScreen({
   const selectedBody = selectedRow.compartments.find(body => body.id === selectedAreaId
     || body.doorIds.some(id => id === selectedAreaId)) ?? selectedRow.compartments[0];
   const openingDoors = selectedRow.doors.filter(door => selectedBody.doorIds.includes(door.id));
+  const isMergedBody = selectedBody.doorIds.length > 1;
   const selectedArea = selectedDoor ?? selectedBody;
   const selectedType = selectedDoor?.side ?? 'BODY';
   const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id);
   const bodyLocation = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedBody.id);
-  const rightBody = selectedRow.compartments[selectedRow.compartments.indexOf(selectedBody) + 1];
+  const rightBody = getAdjacentRightCompartment(selectedRow, selectedBody.id);
+  const mergeLimitExceeded = !!rightBody && selectedBody.slots.length + rightBody.slots.length > MAX_SLOTS;
   const storageEnabled = !selectedDoor || selectedDoor.storageEnabled;
   const preview = getDraftLayout(draft);
   const previewArea = preview.areas.find(area => area.id === selectedArea.id)!;
@@ -88,7 +90,7 @@ export function RefrigeratorRegistrationScreen({
       return;
     } else if (isSettingsOpen) {
       closeAreaSettings();
-    } else if (isOpeningSettingsOpen && !selectedDoor) {
+    } else if (isOpeningSettingsOpen && !selectedDoor && !isMergedBody) {
       setIsOpeningSettingsOpen(false);
     } else {
       changeStep('basic');
@@ -168,6 +170,7 @@ export function RefrigeratorRegistrationScreen({
 
   // 본체에 연결된 문의 여는 방식만 바꾸고 선택한 본체는 유지한다.
   function selectDoorOpening(doorId: string, opening: DoorOpening) {
+    if (isMergedBody) return;
     Keyboard.dismiss();
     setDraft(current => setDraftDoorOpening(current, selectedRow.id, doorId, opening));
   }
@@ -338,6 +341,7 @@ export function RefrigeratorRegistrationScreen({
                 <View style={[styles.configurationToolbar, { paddingBottom: insets.bottom }]}>
                   <FridgeAreaMenu disabled={!selectedAreaId || isStepChanging} openingsOpen={isOpeningSettingsOpen}
                     showOpeningAction={!selectedDoor}
+                    openingDisabled={isMergedBody}
                     onOpeningsChange={setIsOpeningSettingsOpen}
                     openingDoors={openingDoors.map(door => ({ id: door.id,
                       label: `${getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), door.id)} 문`,
@@ -345,11 +349,11 @@ export function RefrigeratorRegistrationScreen({
                     storageEnabled={selectedAreaId ? selectedDoor?.storageEnabled : false}
                     onToggleStorage={() => updateDoorStorage(!storageEnabled)}
                     onOpeningChange={selectDoorOpening}
-                    onMerge={selectedAreaId && !selectedDoor && rightBody
+                    onMerge={selectedAreaId && !selectedDoor && !isMergedBody
                       ? () => setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id)) : undefined}
-                    mergeDisabled={!!selectedAreaId && !selectedDoor && !!rightBody
-                      && selectedBody.slots.length + rightBody.slots.length > MAX_SLOTS}
-                    onSplit={selectedAreaId && !selectedDoor && selectedBody.doorIds.length > 1
+                    mergeDisabled={!rightBody || mergeLimitExceeded}
+                    mergeLimitExceeded={mergeLimitExceeded}
+                    onSplit={selectedAreaId && !selectedDoor && isMergedBody
                       ? () => setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id)) : undefined}
                     onOpenSettings={() => openAreaSettings(selectedArea.id)} />
                 </View>
