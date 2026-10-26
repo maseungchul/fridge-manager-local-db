@@ -454,7 +454,9 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   content: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
     gap: spacing.md,
   },
   header: {
@@ -468,7 +470,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   stepHeader: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   title: {
     flex: 1,

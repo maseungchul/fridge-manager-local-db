@@ -139,8 +139,10 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, onSelec
             const areas = configurations.map((configuration, index) => {
               const isDoor = 'side' in configuration;
               const hasDrawer = !isDoor && row.doors.some(door => door.kind === 'DRAWER' && body.doorIds.includes(door.id));
-              const paddingLeft = (index === 0 ? GROUP_GAP : HINGE_LENGTH) / 2;
-              const paddingRight = (index === configurations.length - 1 ? GROUP_GAP : HINGE_LENGTH) / 2;
+              // 그룹 사이 간격은 유지하고, 도면 양끝은 본문 시작·끝에 맞춘다.
+              const paddingLeft = index === 0 ? (groupStart === 0 ? 0 : GROUP_GAP / 2) : HINGE_LENGTH / 2;
+              const paddingRight = index === configurations.length - 1
+                ? (nextGroupColumn === totalColumns ? 0 : GROUP_GAP / 2) : HINGE_LENGTH / 2;
               const column = groupStart + nextColumn * columnWidth;
               const columns = isDoor ? 1 : body.doorIds.length;
               const columnSpan = columns * columnWidth;
