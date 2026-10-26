@@ -2,7 +2,8 @@
  * @file
  * 냉장고 최초 등록을 기본 정보·구조 선택과 내부 설정의 두 단계로 나눈다.
  * 단별 문 개수로 배치를 만들고 문 수납·본체 연결·내부 칸 설정을 제공한다.
- * 구조는 도면 옆 메뉴에서, 칸·보관 모드는 하단 패널에서 편집하고 초안에 즉시 반영한다.
+ * 구조는 하단 툴바에서, 칸·보관 모드는 하단 패널에서 편집하고 초안에 즉시 반영한다.
+ * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
  * 단계 이동 시 입력을 유지하고 취소 시 홈으로 돌아가며, DB 저장은 별도로 연결한다.
  */
 import { usePreventRemove } from '@react-navigation/native';
@@ -10,7 +11,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import type { LayoutRectangle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
@@ -45,7 +45,7 @@ export function RefrigeratorRegistrationScreen({
   const [draft, setDraft] = useState(createRefrigeratorDraft);
   const [step, setStep] = useState<RegistrationStep>('basic');
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
-  const [areaMenuAnchor, setAreaMenuAnchor] = useState<LayoutRectangle | null>(null);
+  const [isOpeningSettingsOpen, setIsOpeningSettingsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isStepChanging, setIsStepChanging] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
@@ -53,12 +53,15 @@ export function RefrigeratorRegistrationScreen({
   const settingsAnimation = useRef(new Animated.Value(0)).current;
   const stepAnimation = useRef(new Animated.Value(0)).current;
   const stepChanging = useRef(false);
-  const stepScrolls = useRef<Partial<Record<RegistrationStep, ScrollView | null>>>({});
+  const stepScrolls = {
+    basic: useRef<ScrollView>(null),
+    configuration: useRef<ScrollView>(null),
+  };
   const selectedRow = draft.rows.find(row => [...row.doors, ...row.compartments].some(area => area.id === selectedAreaId)) ?? draft.rows[0];
   const selectedDoor = selectedRow.doors.find(door => door.id === selectedAreaId && door.kind !== 'DRAWER');
   const selectedBody = selectedRow.compartments.find(body => body.id === selectedAreaId
     || body.doorIds.some(id => id === selectedAreaId)) ?? selectedRow.compartments[0];
-  const openingDoors = selectedDoor ? [selectedDoor] : selectedRow.doors.filter(door => selectedBody.doorIds.includes(door.id));
+  const openingDoors = selectedDoor ? [] : selectedRow.doors.filter(door => selectedBody.doorIds.includes(door.id));
   const selectedArea = selectedDoor ?? selectedBody;
   const selectedType = selectedDoor?.side ?? 'BODY';
   const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id);
@@ -75,7 +78,7 @@ export function RefrigeratorRegistrationScreen({
     settingsAnimation.stopAnimation();
   }, [settingsAnimation, stepAnimation]);
 
-  // 기기 뒤로가기는 패널·메뉴·이전 단계 순서로 닫고, 명시적인 취소는 등록을 종료한다.
+  // 기기 뒤로가기는 내부 설정·여는 방식·이전 단계 순서로 닫고, 명시적인 취소는 등록을 종료한다.
   usePreventRemove(step === 'configuration' || isStepChanging, ({ data }) => {
     if (cancelRequested.current) {
       cancelRequested.current = false;
@@ -84,8 +87,8 @@ export function RefrigeratorRegistrationScreen({
       return;
     } else if (isSettingsOpen) {
       closeAreaSettings();
-    } else if (areaMenuAnchor) {
-      setAreaMenuAnchor(null);
+    } else if (isOpeningSettingsOpen) {
+      setIsOpeningSettingsOpen(false);
     } else {
       changeStep('basic');
     }
@@ -108,8 +111,9 @@ export function RefrigeratorRegistrationScreen({
     settingsAnimation.stopAnimation();
     settingsAnimation.setValue(0);
     setIsSettingsOpen(false);
-    setAreaMenuAnchor(null);
-    stepScrolls.current[nextStep]?.scrollTo({ y: 0, animated: false });
+    setIsOpeningSettingsOpen(false);
+    setSelectedAreaId(null);
+    stepScrolls[nextStep].current?.scrollTo({ y: 0, animated: false });
     stepChanging.current = true;
     setIsStepChanging(true);
     Animated.timing(stepAnimation, {
@@ -125,15 +129,15 @@ export function RefrigeratorRegistrationScreen({
     });
   }
 
-  function openAreaMenu(id: string, frame: LayoutRectangle) {
+  function selectArea(id: string) {
     Keyboard.dismiss();
     setSelectedAreaId(id);
-    setAreaMenuAnchor(frame);
+    setIsOpeningSettingsOpen(false);
   }
 
   function openAreaSettings(id: string) {
     Keyboard.dismiss();
-    setAreaMenuAnchor(null);
+    setIsOpeningSettingsOpen(false);
     settingsAnimation.stopAnimation();
     settingsAnimation.setValue(0);
     setSelectedAreaId(id);
@@ -162,11 +166,10 @@ export function RefrigeratorRegistrationScreen({
     }) }));
   }
 
-  // 서랍형으로 바꾸면 숨겨진 문 대신 연결된 본체를 선택해 여는 방식을 다시 바꿀 수 있게 한다.
+  // 본체에 연결된 문의 여는 방식만 바꾸고 선택한 본체는 유지한다.
   function selectDoorOpening(doorId: string, opening: DoorOpening) {
     Keyboard.dismiss();
     setDraft(current => setDraftDoorOpening(current, selectedRow.id, doorId, opening));
-    if (opening === 'DRAWER' && selectedDoor?.id === doorId) setSelectedAreaId(selectedBody.id);
   }
 
   function updateSlots(update: (slots: SlotConfiguration[]) => SlotConfiguration[]) {
@@ -203,17 +206,25 @@ export function RefrigeratorRegistrationScreen({
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      {/* 제목·취소는 스크롤 바깥에 두어 두 단계 모두 같은 위치에서 닫을 수 있게 한다. */}
+      {/* 왼쪽은 취소·이전, 오른쪽은 다음·등록으로 고정해 단계마다 같은 위치에서 조작한다. */}
       <View style={styles.header}>
-        <Text accessibilityRole="header" style={styles.title}>냉장고 최초 등록</Text>
-        <SecondaryButton label="취소" icon="close" accessibilityLabel="냉장고 등록 취소" onPress={cancelRegistration} />
+        <View style={styles.headerNavigation}>
+          <SecondaryButton label={step === 'basic' ? '취소' : '이전'} icon={step === 'basic' ? 'close' : 'chevron-left'}
+            accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : '기본 정보로 돌아가기'} disabled={isStepChanging}
+            onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')} />
+        </View>
+        <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
+          style={styles.title}>냉장고 등록</Text>
+        {/* DB 저장이 연결되기 전까지 등록 버튼은 비활성화한다. */}
+        <PrimaryButton label={step === 'basic' ? '다음' : '등록'}
+          disabled={step === 'basic' ? !draft.name.trim() : true} interactionBlocked={isStepChanging}
+          onPress={step === 'basic' ? () => changeStep('configuration') : undefined}
+          style={styles.headerAction} labelStyle={styles.headerActionLabel} />
       </View>
-      {/* 제목·하단 버튼은 고정하고, 비활성 단계의 터치·접근성 탐색은 막는다. */}
+      {/* 단계별 스크롤·하단 도구를 함께 이동하며, 비활성 단계의 터치·접근성 탐색은 막는다. */}
       <View style={styles.stepViewport} pointerEvents={isStepChanging ? 'none' : 'auto'}
         onLayout={({ nativeEvent }) => setStepWidth(nativeEvent.layout.width)}>
-        <Animated.View accessibilityElementsHidden={!!areaMenuAnchor}
-          importantForAccessibility={areaMenuAnchor ? 'no-hide-descendants' : 'auto'}
-          style={[styles.stepTrack, { width: stepWidth * 2, transform: [{
+        <Animated.View style={[styles.stepTrack, { width: stepWidth * 2, transform: [{
           translateX: stepAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, -stepWidth] }),
         }] }]}>
           {(['basic', 'configuration'] as const).map(pageStep => (
@@ -222,14 +233,13 @@ export function RefrigeratorRegistrationScreen({
               accessibilityElementsHidden={pageStep !== step || isStepChanging}
               importantForAccessibility={pageStep === step && !isStepChanging ? 'auto' : 'no-hide-descendants'}>
               <ScrollView
-                ref={node => { stepScrolls.current[pageStep] = node; }}
+                ref={stepScrolls[pageStep]}
                 scrollEnabled={!isStepChanging && pageStep === step}
                 style={styles.scroll}
                 contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
                 bounces={pageStep !== 'basic'}
                 overScrollMode={pageStep === 'basic' ? 'never' : 'auto'}
-                onScrollBeginDrag={() => setAreaMenuAnchor(null)}
               >
                 <View style={styles.stepHeader}>
                   <View
@@ -314,43 +324,37 @@ export function RefrigeratorRegistrationScreen({
                 ) : (
                   <View style={styles.sections}>
                     <View style={styles.section}>
-                      <Text style={styles.description}>도면을 누르면 변경할 수 있는 메뉴가 열려요.</Text>
+                      <Text accessibilityLiveRegion="polite" style={styles.description}>
+                        {selectedAreaId ? `${location} → ${areaNames[selectedType]}` : '변경할 문·본체를 선택해 주세요.'}
+                      </Text>
                       <FridgeInteriorMap draft={draft} selectedAreaId={selectedAreaId ?? undefined}
-                        onSelectArea={openAreaMenu} onSelectedAreaLayout={areaMenuAnchor
-                          ? frame => setAreaMenuAnchor(current => current ? frame : null) : undefined} />
+                        onSelectArea={selectArea} />
                     </View>
                   </View>
                 )}
               </ScrollView>
+              {pageStep === 'configuration' ? (
+                <View style={[styles.configurationToolbar, { paddingBottom: insets.bottom }]}>
+                  <FridgeAreaMenu disabled={!selectedAreaId || isStepChanging} openingsOpen={isOpeningSettingsOpen}
+                    onOpeningsChange={setIsOpeningSettingsOpen}
+                    openingDoors={openingDoors.map(door => ({ id: door.id,
+                      label: `${getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), door.id)} 문`,
+                      opening: door.kind === 'DRAWER' ? 'DRAWER' : door.side }))}
+                    storageEnabled={selectedAreaId ? selectedDoor?.storageEnabled : false}
+                    onToggleStorage={() => updateDoorStorage(!storageEnabled)}
+                    onOpeningChange={selectDoorOpening}
+                    onMerge={selectedAreaId && !selectedDoor && rightBody
+                      ? () => setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id)) : undefined}
+                    mergeDisabled={!!selectedAreaId && !selectedDoor && !!rightBody
+                      && selectedBody.slots.length + rightBody.slots.length > MAX_SLOTS}
+                    onSplit={selectedAreaId && !selectedDoor && selectedBody.doorIds.length > 1
+                      ? () => setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id)) : undefined}
+                    onOpenSettings={() => openAreaSettings(selectedArea.id)} />
+                </View>
+              ) : null}
             </View>
           ))}
         </Animated.View>
-        {step === 'configuration' && areaMenuAnchor ? (
-          <FridgeAreaMenu key={selectedArea.id} anchor={areaMenuAnchor} title={`${areaNames[selectedType]} → ${location}`}
-            openingDoors={openingDoors.map(door => ({ id: door.id,
-              label: `${getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), door.id)} 문`,
-              opening: door.kind === 'DRAWER' ? 'DRAWER' : door.side }))}
-            storageEnabled={selectedDoor?.storageEnabled} onToggleStorage={() => updateDoorStorage(!storageEnabled)}
-            onOpeningChange={selectDoorOpening}
-            onMerge={!selectedDoor && rightBody ? () => setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id)) : undefined}
-            mergeDisabled={!selectedDoor && !!rightBody && selectedBody.slots.length + rightBody.slots.length > MAX_SLOTS}
-            onSplit={!selectedDoor && selectedBody.doorIds.length > 1
-              ? () => setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id)) : undefined}
-            onOpenSettings={() => openAreaSettings(selectedArea.id)} onClose={() => setAreaMenuAnchor(null)} />
-        ) : null}
-      </View>
-      <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
-        {step === 'basic' ? (
-          <PrimaryButton
-            label="다음"
-            disabled={!draft.name.trim()}
-            interactionBlocked={isStepChanging}
-            onPress={() => changeStep('configuration')}
-            style={styles.actionButton}
-          />
-        ) : (
-          <PrimaryButton label="이전" interactionBlocked={isStepChanging} onPress={() => changeStep('basic')} style={styles.actionButton} />
-        )}
       </View>
       {/* 설정값은 화면의 draft에 반영하므로 패널을 닫아도 입력은 유지한다. */}
       <Modal visible={step === 'configuration' && isSettingsOpen} transparent animationType="none"
@@ -365,7 +369,7 @@ export function RefrigeratorRegistrationScreen({
             }] }]} accessibilityViewIsModal onAccessibilityEscape={closeAreaSettings}>
               <View style={styles.settingsHeader}>
                 <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.settingsTitle}>
-                  {areaNames[selectedType]} → {location}
+                  {location} → {areaNames[selectedType]}
                 </Text>
                 <SecondaryButton label="닫기" icon="close" accessibilityLabel="내부 설정 패널 닫기" onPress={closeAreaSettings} />
               </View>
@@ -373,7 +377,7 @@ export function RefrigeratorRegistrationScreen({
               <View style={[styles.settingsPreview, { height: Math.min(168, windowHeight * 0.22) }]}>
                 <View style={styles.settingsPreviewMap}>
                   {selectedDoor && !storageEnabled ? (
-                    <DoorWithoutStorage label={`${areaNames[selectedType]} → ${location}`} selected readOnly />
+                    <DoorWithoutStorage label={`${location} → ${areaNames[selectedType]}`} selected readOnly />
                   ) : (
                     <FridgeMap areas={[previewArea]} positions={preview.positions.filter(position => position.areaId === selectedArea.id)}
                       ingredients={preview.ingredients} selectedAreaId={selectedArea.id} showIngredientCounts={false}
@@ -459,15 +463,31 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
   },
+  configurationToolbar: {
+    flexShrink: 0,
+    backgroundColor: colors.toolbar,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.xs,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+  },
+  headerNavigation: {
+    width: 64,
+    alignItems: 'flex-start',
+  },
+  headerAction: {
+    width: 64,
+    height: 44,
+    borderRadius: 8,
+  },
+  headerActionLabel: {
+    fontSize: 13,
   },
   stepHeader: {
     marginBottom: spacing.md,
@@ -477,6 +497,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 20,
     fontWeight: '700',
+    textAlign: 'center',
   },
   stepIndicator: {
     flexDirection: 'row',
@@ -548,15 +569,6 @@ const styles = StyleSheet.create({
   },
   sections: {
     gap: spacing.lg,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-  },
-  actionButton: {
-    flex: 1,
   },
   section: {
     gap: spacing.md,

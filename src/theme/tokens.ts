@@ -11,6 +11,8 @@ export const colors = {
   // background는 화면 전체 배경, surface는 폼 카드 등 콘텐츠 영역의 배경이다.
   background: '#F4F0E8',
   surface: '#FFFCF7',
+  // 하단 편집 도구와 안전 영역을 같은 배경으로 연결한다.
+  toolbar: '#F9F6F0',
   // text는 기본 글자, textMuted는 보조 설명과 입력 안내 문구에 사용한다.
   text: '#22231F',
   textMuted: '#77776F',

@@ -3,9 +3,9 @@
  * 사용자가 구성한 모든 단의 문·본체를 펼쳐 표시하고 연결 관계는 경첩으로 나타낸다.
  * 수납 없는 문은 전체 X 표시로 남기며, 칸과 선택 강조는 기존 FridgeMap을 재사용한다.
  */
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { LayoutRectangle, ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
@@ -15,8 +15,7 @@ import { colors } from '@/theme/tokens';
 interface FridgeInteriorMapProps {
   draft: RefrigeratorDraft;
   selectedAreaId?: string;
-  onSelectArea: (id: string, frame: LayoutRectangle) => void;
-  onSelectedAreaLayout?: (frame: LayoutRectangle) => void;
+  onSelectArea: (id: string) => void;
 }
 
 // 그룹 내부는 경첩 길이에 맞추고, 그룹 바깥은 기존 간격을 유지한다.
@@ -75,25 +74,19 @@ function DoorHinges({ fromColumn, toColumn, totalColumns, top, height }: {
   );
 }
 
-/** 영역의 실제 화면 좌표를 전달해 스크롤·구조 변경 후에도 메뉴를 해당 영역 가까이에 놓는다. */
-function InteriorArea({ area, layout, style, compact, selected, storageEnabled, hasDrawer, onSelectArea, onSelectedAreaLayout }: {
+/** 문·본체 전체를 선택 대상으로 묶고, 식별자를 호출자에게 전달한다. */
+function InteriorArea({ area, layout, style, compact, selected, storageEnabled, hasDrawer, onSelectArea }: {
   area: StorageArea; layout: FridgeLayout; style: ViewStyle & { paddingLeft: number; paddingRight: number }; compact: boolean; selected: boolean;
   storageEnabled: boolean; hasDrawer: boolean;
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
-  onSelectedAreaLayout: FridgeInteriorMapProps['onSelectedAreaLayout'];
 }) {
-  const frameRef = useRef<View>(null);
-  function measureFrame(onMeasured: (frame: LayoutRectangle) => void) {
-    frameRef.current?.measureInWindow((x, y, width, height) => onMeasured({ x, y, width, height }));
-  }
   function selectArea() {
-    measureFrame(frame => onSelectArea(area.id, frame));
+    onSelectArea(area.id);
   }
   return (
-    <View ref={frameRef} collapsable={false} style={[styles.area, style]}
-      onLayout={selected && onSelectedAreaLayout ? () => measureFrame(onSelectedAreaLayout) : undefined}>
+    <View style={[styles.area, style]}>
       {!storageEnabled ? (
-        <DoorWithoutStorage label={`${area.name} → ${area.compartment}`} selected={selected} onPress={selectArea} />
+        <DoorWithoutStorage label={`${area.compartment} → ${area.name}`} selected={selected} onPress={selectArea} />
       ) : (
         <FridgeMap areas={[area]} positions={layout.positions.filter(position => position.areaId === area.id)}
           ingredients={layout.ingredients} selectedAreaId={selected ? area.id : undefined} showIngredientCounts={false}
@@ -109,7 +102,7 @@ function InteriorArea({ area, layout, style, compact, selected, storageEnabled, 
 }
 
 /** 본체마다 연결된 여닫이 문을 좌우에 붙이고, 각 단은 다른 단과 관계없이 전체 폭을 쓴다. */
-export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, onSelectedAreaLayout }: FridgeInteriorMapProps) {
+export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea }: FridgeInteriorMapProps) {
   const preview = getDraftLayout(draft);
   // 칸의 최소 터치 높이 72와 칸 사이 간격·프레임 여백을 확보한다.
   const rowHeights = draft.rows.map(row => Math.max(180, ...[
@@ -152,7 +145,7 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, onSelec
               return (
                 <InteriorArea key={area.id} area={area} layout={preview} compact={compact} selected={area.id === selectedAreaId}
                   storageEnabled={!isDoor || configuration.storageEnabled} hasDrawer={hasDrawer}
-                  onSelectArea={onSelectArea} onSelectedAreaLayout={onSelectedAreaLayout}
+                  onSelectArea={onSelectArea}
                   style={{
                     top: rowTop,
                     left: `${column / totalColumns * 100}%`,
