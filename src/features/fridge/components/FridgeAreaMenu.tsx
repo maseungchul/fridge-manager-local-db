@@ -7,6 +7,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SecondaryButton } from '@/components/SecondaryButton';
+import { SelectionCheck } from '@/components/SelectionCheck';
 import { doorOpeningOptions, MAX_SLOTS } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening } from '@/features/fridge/model/fridgeLayout';
 import { colors, spacing } from '@/theme/tokens';
@@ -45,8 +46,8 @@ export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEn
             <SecondaryButton label="닫기" icon="close" accessibilityLabel="여는 방식 선택 닫기"
               onPress={() => onOpeningsChange(false)} />
           </View>
-          <ScrollView style={{ maxHeight: Math.min(220, height * 0.28) }} keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.openingsContent}>
+          <ScrollView style={[styles.openingsScroll, { maxHeight: Math.min(220, height * 0.28) }]}
+            keyboardShouldPersistTaps="handled" contentContainerStyle={styles.openingsContent}>
             {openingDoors.map(door => (
               <View key={door.id} style={styles.openingGroup}>
                 <Text style={styles.description}>{door.label}</Text>
@@ -59,7 +60,8 @@ export function FridgeAreaMenu({ disabled, openingsOpen, openingDoors, storageEn
                       style={[styles.openingChoice, door.opening === option.value && styles.selected]}>
                       <MaterialDesignIcons name={openingIcons[option.value]} size={18} color={colors.text}
                         accessible={false} style={styles.actionIcon} />
-                      <Text style={styles.choiceLabel}>{door.opening === option.value ? '✓ ' : ''}{option.label}</Text>
+                      <Text numberOfLines={1} style={styles.choiceLabel}>{option.label}</Text>
+                      <SelectionCheck selected={door.opening === option.value} />
                     </FeedbackPressable>
                   ))}
                 </View>
@@ -138,6 +140,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  openingsScroll: {
+    flexGrow: 0,
+  },
   openingsContent: {
     gap: spacing.sm,
     paddingBottom: spacing.sm,
@@ -201,10 +206,11 @@ const styles = StyleSheet.create({
   },
   openingChoices: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 4,
   },
   openingChoice: {
-    flex: 1,
+    flexGrow: 1,
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,7 +223,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   choiceLabel: {
-    flexShrink: 1,
+    flexShrink: 0,
     color: colors.text,
     fontSize: 12,
     textAlign: 'center',

@@ -14,6 +14,7 @@ import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, S
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
+import { SelectionCheck } from '@/components/SelectionCheck';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
@@ -209,7 +210,7 @@ export function RefrigeratorRegistrationScreen({
       {/* 왼쪽은 취소·이전, 오른쪽은 다음·등록으로 고정해 단계마다 같은 위치에서 조작한다. */}
       <View style={styles.header}>
         <View style={styles.headerNavigation}>
-          <SecondaryButton label={step === 'basic' ? '취소' : '이전'} icon={step === 'basic' ? 'close' : 'chevron-left'}
+          <SecondaryButton label={step === 'basic' ? '취소' : '이전'} icon={step === 'basic' ? 'close' : 'arrow-left'}
             accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : '기본 정보로 돌아가기'} disabled={isStepChanging}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')} />
         </View>
@@ -423,8 +424,9 @@ export function RefrigeratorRegistrationScreen({
                     {storageModeOptions.map(mode => (
                       <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${bodyLocation} ${mode.label}`}
                         accessibilityState={{ checked: selectedBody.storageMode === mode.value }} onPress={() => selectStorageMode(mode.value)}
-                        style={[styles.choice, selectedBody.storageMode === mode.value && styles.selected]}>
-                        <Text style={styles.label}>{selectedBody.storageMode === mode.value ? '✓ ' : ''}{mode.label}</Text>
+                        style={[styles.choice, styles.selectionChoice, selectedBody.storageMode === mode.value && styles.selected]}>
+                        <Text style={[styles.label, styles.selectionLabel]}>{mode.label}</Text>
+                        <SelectionCheck selected={selectedBody.storageMode === mode.value} />
                       </FeedbackPressable>
                     ))}
                   </View>
@@ -674,6 +676,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.sm,
+  },
+  selectionChoice: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  selectionLabel: {
+    flex: 1,
+    textAlign: 'center',
   },
   selected: {
     backgroundColor: colors.sageLight,
