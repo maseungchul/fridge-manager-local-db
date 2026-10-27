@@ -35,7 +35,7 @@ const openingIcons = {
   DRAWER: 'window-open',
 } as const;
 
-/** 도면의 스크롤·영역 선택을 막지 않고, 세부 선택지만 높이를 제한해 펼친다. */
+/** 도면 위치와 툴바 높이를 유지하고, 세부 선택지만 툴바 위에 겹쳐 펼친다. */
 export function FridgeAreaMenu({ disabled, openingsOpen, showOpeningAction, openingDisabled = false, openingDoors, storageEnabled, mergeDisabled = false,
   mergeLimitExceeded = false,
   onOpeningChange, onOpeningsChange, onToggleStorage, onMerge, onSplit, onOpenSettings }: FridgeAreaMenuProps) {
@@ -47,7 +47,7 @@ export function FridgeAreaMenu({ disabled, openingsOpen, showOpeningAction, open
   return (
     <View style={styles.toolbar}>
       {showOpenings ? (
-        <View onAccessibilityEscape={() => onOpeningsChange(false)}>
+        <View style={styles.openingsPanel} onAccessibilityEscape={() => onOpeningsChange(false)}>
           <View style={styles.header}>
             <Text accessibilityRole="header" style={styles.title}>여는 방식</Text>
             <SecondaryButton label="닫기" icon="close" accessibilityLabel="여는 방식 선택 닫기"
@@ -129,6 +129,18 @@ const styles = StyleSheet.create({
   toolbar: {
     flexShrink: 0,
     gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: colors.toolbar,
+  },
+  // 선택지의 높이는 도면의 중앙 기준을 바꾸지 않도록 툴바 레이아웃에서 제외한다.
+  openingsPanel: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 0,
+    right: 0,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth,

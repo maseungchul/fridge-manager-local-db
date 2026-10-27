@@ -8,9 +8,10 @@
  */
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import type { LayoutChangeEvent, LayoutRectangle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
@@ -18,7 +19,8 @@ import { SelectionCheck } from '@/components/SelectionCheck';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
-import { DoorWithoutStorage, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
+import { DoorWithoutStorage, FridgeFocusView, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
+import type { FridgeFocusPhase, FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
 import { FridgeAreaMenu } from '@/features/fridge/components/FridgeAreaMenu';
 import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
@@ -50,6 +52,12 @@ export function RefrigeratorRegistrationScreen({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isStepChanging, setIsStepChanging] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
+  const [stepHeight, setStepHeight] = useState(0);
+  const [focusTarget, setFocusTarget] = useState<FridgeFocusTarget | null>(null);
+  const [focusPhase, setFocusPhase] = useState<FridgeFocusPhase>('closed');
+  const [focusBounds, setFocusBounds] = useState<LayoutRectangle | null>(null);
+  const focusViewport = useRef<View>(null);
+  const focusViewportSize = useRef<{ width: number; height: number } | null>(null);
   const cancelRequested = useRef(false);
   const settingsAnimation = useRef(new Animated.Value(0)).current;
   const stepAnimation = useRef(new Animated.Value(0)).current;
@@ -74,6 +82,12 @@ export function RefrigeratorRegistrationScreen({
   const preview = getDraftLayout(draft);
   const previewArea = preview.areas.find(area => area.id === selectedArea.id)!;
   const panelHeight = windowHeight * 0.75;
+  const activeFocus = focusPhase === 'closed' ? null : focusTarget;
+  const isFocusMoving = focusPhase === 'opening' || focusPhase === 'closing';
+  const finishFocusTransition = useCallback((phase: FridgeFocusPhase) => {
+    setFocusPhase(phase);
+    if (phase === 'closed' && focusTarget) setSelectedAreaId(focusTarget.returnAreaId);
+  }, [focusTarget]);
 
   useEffect(() => () => {
     stepChanging.current = false;
@@ -81,17 +95,19 @@ export function RefrigeratorRegistrationScreen({
     settingsAnimation.stopAnimation();
   }, [settingsAnimation, stepAnimation]);
 
-  // 기기 뒤로가기는 내부 설정·여는 방식·이전 단계 순서로 닫고, 명시적인 취소는 등록을 종료한다.
+  // 기기 뒤로가기는 내부 설정·중앙 보기·여는 방식·이전 단계 순서로 닫는다.
   usePreventRemove(step === 'configuration' || isStepChanging, ({ data }) => {
     if (cancelRequested.current) {
       cancelRequested.current = false;
       navigation.dispatch(data.action);
-    } else if (stepChanging.current) {
+    } else if (stepChanging.current || isFocusMoving) {
       return;
     } else if (isSettingsOpen) {
       closeAreaSettings();
     } else if (isOpeningSettingsOpen && !selectedDoor && !isMergedBody) {
       setIsOpeningSettingsOpen(false);
+    } else if (activeFocus) {
+      closeFocusedArea();
     } else {
       changeStep('basic');
     }
@@ -116,6 +132,7 @@ export function RefrigeratorRegistrationScreen({
     setIsSettingsOpen(false);
     setIsOpeningSettingsOpen(false);
     setSelectedAreaId(null);
+    setFocusPhase('closed');
     stepScrolls[nextStep].current?.scrollTo({ y: 0, animated: false });
     stepChanging.current = true;
     setIsStepChanging(true);
@@ -135,6 +152,32 @@ export function RefrigeratorRegistrationScreen({
   function selectArea(id: string) {
     Keyboard.dismiss();
     setSelectedAreaId(id);
+  }
+
+  // 툴바 전후의 확정된 레이아웃 크기를 사용해 늦게 도착한 네이티브 측정값이 중앙 위치를 덮지 않게 한다.
+  function layoutFocusViewport({ nativeEvent }: LayoutChangeEvent) {
+    const { width, height } = nativeEvent.layout;
+    if (width <= 0 || height <= 0) return;
+    focusViewportSize.current = { width, height };
+    setFocusBounds(current => !current || (current.width === width && current.height === height)
+      ? current : { ...current, width, height });
+  }
+
+  function openFocusedArea(target: FridgeFocusTarget) {
+    if (activeFocus || stepChanging.current) return;
+    Keyboard.dismiss();
+    focusViewport.current?.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0 || stepChanging.current) return;
+      setFocusBounds({ x, y, ...(focusViewportSize.current ?? { width, height }) });
+      setFocusTarget(target);
+      setSelectedAreaId(target.areaId);
+      setFocusPhase('opening');
+    });
+  }
+
+  function closeFocusedArea() {
+    if (!activeFocus || focusPhase !== 'open') return;
+    setFocusPhase('closing');
   }
 
   function openAreaSettings(id: string) {
@@ -214,8 +257,9 @@ export function RefrigeratorRegistrationScreen({
       <View style={styles.header}>
         <View style={styles.headerNavigation}>
           <SecondaryButton label={step === 'basic' ? '취소' : '이전'} icon={step === 'basic' ? 'close' : 'arrow-left'}
-            accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : '기본 정보로 돌아가기'} disabled={isStepChanging}
-            onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')} />
+            accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : activeFocus ? '전체 도면으로 돌아가기' : '기본 정보로 돌아가기'}
+            disabled={isStepChanging || isFocusMoving}
+            onPress={step === 'basic' ? cancelRegistration : activeFocus ? closeFocusedArea : () => changeStep('basic')} />
         </View>
         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
           style={styles.title}>냉장고 등록</Text>
@@ -226,120 +270,138 @@ export function RefrigeratorRegistrationScreen({
           style={styles.headerAction} labelStyle={styles.headerActionLabel} />
       </View>
       {/* 단계별 스크롤·하단 도구를 함께 이동하며, 비활성 단계의 터치·접근성 탐색은 막는다. */}
-      <View style={styles.stepViewport} pointerEvents={isStepChanging ? 'none' : 'auto'}
-        onLayout={({ nativeEvent }) => setStepWidth(nativeEvent.layout.width)}>
+      <View style={[styles.stepViewport, activeFocus && styles.focusStepViewport]} pointerEvents={isStepChanging ? 'none' : 'auto'}
+        onLayout={({ nativeEvent }) => {
+          setStepWidth(nativeEvent.layout.width);
+          setStepHeight(nativeEvent.layout.height);
+        }}>
         <Animated.View style={[styles.stepTrack, { width: stepWidth * 2, transform: [{
           translateX: stepAnimation.interpolate({ inputRange: [0, 1], outputRange: [0, -stepWidth] }),
         }] }]}>
           {(['basic', 'configuration'] as const).map(pageStep => (
-            <View key={pageStep} style={[styles.stepPage, { width: stepWidth }]}
+            <View key={pageStep} style={[styles.stepPage, { width: stepWidth }, activeFocus && pageStep !== step && { opacity: 0 }]}
               pointerEvents={pageStep === step && !isStepChanging ? 'auto' : 'none'}
               accessibilityElementsHidden={pageStep !== step || isStepChanging}
               importantForAccessibility={pageStep === step && !isStepChanging ? 'auto' : 'no-hide-descendants'}>
-              <ScrollView
-                ref={stepScrolls[pageStep]}
-                scrollEnabled={!isStepChanging && pageStep === step}
-                style={styles.scroll}
-                contentContainerStyle={styles.content}
-                keyboardShouldPersistTaps="handled"
-                bounces={pageStep !== 'basic'}
-                overScrollMode={pageStep === 'basic' ? 'never' : 'auto'}
-              >
-                <View style={styles.stepHeader}>
-                  <View
-                    accessible
-                    accessibilityLiveRegion="polite"
-                    accessibilityLabel={pageStep === 'basic' ? '전체 2단계 중 1단계, 기본 정보 입력 중' : '기본 정보 완료, 전체 2단계 중 2단계, 내부 설정 중'}
-                    style={styles.stepIndicator}
-                  >
-                    <View style={styles.stepItem}>
-                      <View style={[styles.stepBadge, pageStep === 'basic' ? styles.stepBadgeActive : styles.stepBadgeCompleted]}>
-                        <Text style={[styles.stepNumber, pageStep === 'basic' ? styles.stepNumberActive : styles.stepNumberCompleted]}>
-                          {pageStep === 'basic' ? '1' : '✓'}
-                        </Text>
+              {/* 배경 도면은 툴바가 생겨도 같은 높이를 유지해 아래쪽 문이 잘리지 않게 한다. */}
+              <View style={StyleSheet.absoluteFill}>
+                <ScrollView
+                  ref={stepScrolls[pageStep]}
+                  scrollEnabled={pageStep === 'basic' && !isStepChanging && pageStep === step && !activeFocus}
+                  pointerEvents={pageStep === 'configuration' && activeFocus ? 'none' : 'auto'}
+                  accessibilityElementsHidden={pageStep === 'configuration' && !!activeFocus}
+                  importantForAccessibility={pageStep === 'configuration' && activeFocus ? 'no-hide-descendants' : 'auto'}
+                  style={styles.scroll}
+                  contentContainerStyle={[styles.content, pageStep === 'configuration' && styles.configurationContent]}
+                  keyboardShouldPersistTaps="handled"
+                  bounces={false}
+                  overScrollMode="never"
+                  showsVerticalScrollIndicator={pageStep === 'basic'}
+                >
+                  <View>
+                    <View
+                      accessible
+                      accessibilityLiveRegion="polite"
+                      accessibilityLabel={pageStep === 'basic' ? '전체 2단계 중 1단계, 기본 정보 입력 중' : '기본 정보 완료, 전체 2단계 중 2단계, 내부 설정 중'}
+                      style={styles.stepIndicator}
+                    >
+                      <View style={styles.stepItem}>
+                        <View style={[styles.stepBadge, pageStep === 'basic' ? styles.stepBadgeActive : styles.stepBadgeCompleted]}>
+                          <Text style={[styles.stepNumber, pageStep === 'basic' ? styles.stepNumberActive : styles.stepNumberCompleted]}>
+                            {pageStep === 'basic' ? '1' : '✓'}
+                          </Text>
+                        </View>
+                        <Text style={[styles.stepLabel, pageStep === 'basic' ? styles.stepLabelActive : styles.stepLabelCompleted]}>기본 정보</Text>
                       </View>
-                      <Text style={[styles.stepLabel, pageStep === 'basic' ? styles.stepLabelActive : styles.stepLabelCompleted]}>기본 정보</Text>
-                    </View>
-                    <View style={[styles.stepConnector, pageStep === 'configuration' && styles.stepConnectorCompleted]} />
-                    <View style={styles.stepItem}>
-                      <View style={[styles.stepBadge, pageStep === 'configuration' && styles.stepBadgeActive]}>
-                        <Text style={[styles.stepNumber, pageStep === 'configuration' && styles.stepNumberActive]}>2</Text>
+                      <View style={[styles.stepConnector, pageStep === 'configuration' && styles.stepConnectorCompleted]} />
+                      <View style={styles.stepItem}>
+                        <View style={[styles.stepBadge, pageStep === 'configuration' && styles.stepBadgeActive]}>
+                          <Text style={[styles.stepNumber, pageStep === 'configuration' && styles.stepNumberActive]}>2</Text>
+                        </View>
+                        <Text style={[styles.stepLabel, pageStep === 'configuration' && styles.stepLabelActive]}>내부 설정</Text>
                       </View>
-                      <Text style={[styles.stepLabel, pageStep === 'configuration' && styles.stepLabelActive]}>내부 설정</Text>
                     </View>
                   </View>
-                </View>
-                {pageStep === 'basic' ? (
-                  <View style={styles.sections}>
-                    <FormTextInput label="냉장고 이름" accessibilityLabel="냉장고 이름" value={draft.name}
-                      onChangeText={name => setDraft(current => ({ ...current, name }))} maxLength={50} containerStyle={styles.nameField} />
-                    <View style={styles.section}>
-                      <View style={styles.sectionHeader}>
-                        <Text style={styles.label}>냉장고 구조</Text>
-                        <Text style={styles.description}>위에서 아래 순서로 단을 추가하고, 각 단에 나란히 있는 문 개수를 정해 주세요.</Text>
-                      </View>
-                      <View style={styles.structureDiagram}>
-                        {/* 도면 테두리 안쪽과 같은 높이를 나눠 단 이름·조절 버튼을 각 단의 중앙에 맞춘다. */}
-                        <View style={[styles.structureEditor, { height: Math.max(240, draft.rows.length * 44 + 2) }]}>
-                          <View style={styles.structureLabels}>
-                            {draft.rows.map((row, index) => (
-                              <View key={row.id} style={styles.structureLabelRow}>
-                                <Text style={styles.label}>{index + 1}단</Text>
-                              </View>
-                            ))}
-                          </View>
-                          <FridgeStructurePreview rows={draft.rows} style={styles.structurePreview} />
-                          <View style={styles.structureControls}>
-                            {draft.rows.map((row, index) => (
-                              <View key={row.id} style={styles.structureRow}>
-                                <View style={styles.counterGroup}>
-                                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 줄이기`} disabled={row.doors.length <= 1}
-                                    onPress={() => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, -1)); }}
-                                    style={styles.counterButton}>
-                                    <MaterialDesignIcons name="minus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
-                                  </FeedbackPressable>
-                                  <Text accessibilityLiveRegion="polite" style={styles.structureCount}>문 {row.doors.length}개</Text>
-                                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 늘리기`} disabled={row.doors.length >= MAX_DOORS_PER_ROW}
-                                    onPress={() => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, 1)); }}
-                                    style={styles.counterButton}>
-                                    <MaterialDesignIcons name="plus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
+                  {pageStep === 'basic' ? (
+                    <View style={styles.sections}>
+                      <FormTextInput label="냉장고 이름" accessibilityLabel="냉장고 이름" value={draft.name}
+                        onChangeText={name => setDraft(current => ({ ...current, name }))} maxLength={50} containerStyle={styles.nameField} />
+                      <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                          <Text style={styles.label}>냉장고 구조</Text>
+                          <Text style={styles.description}>단과 문의 개수를 설정해 주세요.</Text>
+                        </View>
+                        <View style={styles.structureDiagram}>
+                          {/* 도면 테두리 안쪽과 같은 높이를 나눠 단 이름·조절 버튼을 각 단의 중앙에 맞춘다. */}
+                          <View style={[styles.structureEditor, { height: Math.max(240, draft.rows.length * 44 + 2) }]}>
+                            <View style={styles.structureLabels}>
+                              {draft.rows.map((row, index) => (
+                                <View key={row.id} style={styles.structureLabelRow}>
+                                  <Text style={styles.label}>{index + 1}단</Text>
+                                </View>
+                              ))}
+                            </View>
+                            <FridgeStructurePreview rows={draft.rows} style={styles.structurePreview} />
+                            <View style={styles.structureControls}>
+                              {draft.rows.map((row, index) => (
+                                <View key={row.id} style={styles.structureRow}>
+                                  <View style={styles.counterGroup}>
+                                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 줄이기`} disabled={row.doors.length <= 1}
+                                      onPress={() => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, -1)); }}
+                                      style={styles.counterButton}>
+                                      <MaterialDesignIcons name="minus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
+                                    </FeedbackPressable>
+                                    <Text accessibilityLiveRegion="polite" style={styles.structureCount}>문 {row.doors.length}개</Text>
+                                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 늘리기`} disabled={row.doors.length >= MAX_DOORS_PER_ROW}
+                                      onPress={() => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, 1)); }}
+                                      style={styles.counterButton}>
+                                      <MaterialDesignIcons name="plus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
+                                    </FeedbackPressable>
+                                  </View>
+                                  <FeedbackPressable feedback="danger" accessibilityRole="button" accessibilityLabel={`${index + 1}단 삭제`} disabled={draft.rows.length <= 1}
+                                    onPress={() => { Keyboard.dismiss(); setDraft(current => removeDraftRow(current, row.id)); }}
+                                    style={styles.deleteRowButton}>
+                                    <MaterialDesignIcons name="trash-can-outline" size={18} color={colors.error} accessible={false} style={styles.controlIcon} />
                                   </FeedbackPressable>
                                 </View>
-                                <FeedbackPressable feedback="danger" accessibilityRole="button" accessibilityLabel={`${index + 1}단 삭제`} disabled={draft.rows.length <= 1}
-                                  onPress={() => { Keyboard.dismiss(); setDraft(current => removeDraftRow(current, row.id)); }}
-                                  style={styles.deleteRowButton}>
-                                  <MaterialDesignIcons name="trash-can-outline" size={18} color={colors.error} accessible={false} style={styles.controlIcon} />
-                                </FeedbackPressable>
-                              </View>
-                            ))}
+                              ))}
+                            </View>
                           </View>
-                        </View>
-                        <View style={styles.structureEditor}>
-                          <View style={styles.structureLabels} />
-                          <PrimaryButton label="단 추가" icon="plus" variant="secondary" style={styles.addRowButton}
-                            labelStyle={styles.addRowLabel}
-                            disabled={draft.rows.length >= MAX_ROWS}
-                            onPress={() => { Keyboard.dismiss(); setDraft(addDraftRow); }} />
-                          <View style={styles.structureControls} />
+                          <View style={styles.structureEditor}>
+                            <View style={styles.structureLabels} />
+                            <PrimaryButton label="단 추가" icon="plus" variant="secondary" style={styles.addRowButton}
+                              labelStyle={styles.addRowLabel}
+                              disabled={draft.rows.length >= MAX_ROWS}
+                              onPress={() => { Keyboard.dismiss(); setDraft(addDraftRow); }} />
+                            <View style={styles.structureControls} />
+                          </View>
                         </View>
                       </View>
                     </View>
-                  </View>
-                ) : (
-                  <View style={styles.sections}>
-                    <View style={styles.section}>
-                      <Text accessibilityLiveRegion="polite" style={styles.description}>
-                        {selectedAreaId ? `${location} → ${areaNames[selectedType]}` : '변경할 문·본체를 선택해 주세요.'}
-                      </Text>
-                      <FridgeInteriorMap draft={draft} selectedAreaId={selectedAreaId ?? undefined}
-                        onSelectArea={selectArea} />
+                  ) : (
+                    <View style={[styles.sections, styles.configurationMap]}>
+                      <View style={[styles.section, styles.configurationMap]}>
+                        <FridgeInteriorMap draft={draft} selectedAreaId={selectedAreaId ?? undefined}
+                          onSelectArea={selectArea} focus={activeFocus} onFocus={openFocusedArea} fitHeight />
+                      </View>
                     </View>
-                  </View>
-                )}
-              </ScrollView>
-              {pageStep === 'configuration' ? (
-                <View style={[styles.configurationToolbar, { paddingBottom: insets.bottom }]}>
-                  <FridgeAreaMenu disabled={!selectedAreaId || isStepChanging} openingsOpen={isOpeningSettingsOpen}
+                  )}
+                </ScrollView>
+              </View>
+              {/* 툴바 공간은 중앙 보기에서만 확보하고 배경 스크롤 영역과 분리한다. */}
+              <View ref={pageStep === 'configuration' ? focusViewport : undefined} collapsable={false} pointerEvents="box-none"
+                style={styles.scroll} onLayout={pageStep === 'configuration' ? layoutFocusViewport : undefined}>
+                {pageStep === 'configuration' && activeFocus && focusBounds ? (
+                  <FridgeFocusView draft={draft} target={activeFocus} viewport={focusBounds} overlayHeight={stepHeight} phase={focusPhase}
+                    selectedAreaId={selectedAreaId ?? undefined}
+                    onPhaseChange={finishFocusTransition} onClose={closeFocusedArea} onSelectArea={selectArea} />
+                ) : null}
+              </View>
+              {pageStep === 'configuration' && activeFocus ? (
+                <View pointerEvents={focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={focusPhase !== 'open'}
+                  importantForAccessibility={focusPhase === 'open' ? 'auto' : 'no-hide-descendants'}
+                  style={[styles.configurationToolbar, { paddingBottom: insets.bottom, opacity: focusPhase === 'open' ? 1 : 0 }]}>
+                  <FridgeAreaMenu disabled={!selectedAreaId || isStepChanging || isFocusMoving} openingsOpen={isOpeningSettingsOpen}
                     showOpeningAction={!selectedDoor}
                     openingDisabled={isMergedBody}
                     onOpeningsChange={setIsOpeningSettingsOpen}
@@ -463,6 +525,10 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
   },
+  // 회전 원근으로 커지는 문 끝은 자르지 않고, 옆 단계는 별도로 숨긴다.
+  focusStepViewport: {
+    overflow: 'visible',
+  },
   stepTrack: {
     flex: 1,
     flexDirection: 'row',
@@ -476,9 +542,18 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.md,
   },
+  // 내부 설정은 스크롤 없이 단계 표시 아래의 남은 높이에 도면을 맞춘다.
+  configurationContent: {
+    height: '100%',
+  },
+  configurationMap: {
+    flex: 1,
+    minHeight: 0,
+  },
   configurationToolbar: {
     flexShrink: 0,
     backgroundColor: colors.toolbar,
+    zIndex: 30,
   },
   header: {
     flexDirection: 'row',
@@ -501,9 +576,6 @@ const styles = StyleSheet.create({
   },
   headerActionLabel: {
     fontSize: 13,
-  },
-  stepHeader: {
-    marginBottom: spacing.md,
   },
   title: {
     flex: 1,

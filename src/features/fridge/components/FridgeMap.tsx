@@ -4,9 +4,10 @@
  * 칸을 누르면 식별자를 부모에 전달하고, 홈은 개별 칸·등록 미리보기는 영역 전체를 강조한다.
  * 홈과 최초 등록 미리보기에서 공유하며 선택 상태와 데이터 변경은 호출자가 관리한다.
  */
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { colors, spacing } from '@/theme/tokens';
+import { colors, fridgeSurfaces, spacing } from '@/theme/tokens';
 import { getPositionName, getPositionPath } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotPosition, StorageMode } from '../model/fridgeLayout';
@@ -37,18 +38,35 @@ interface FridgeMapProps {
   // 패널의 읽기 전용 축소 미리보기에서는 칸의 최소 터치 높이를 적용하지 않는다.
   preview?: boolean;
   style?: StyleProp<ViewStyle>;
+  // 도면 내부 상단의 구분 배지를 칸 선택 영역과 분리해 표시한다.
+  areaHeader?: ReactNode;
   // 구조 저장 중에는 다른 칸을 선택하지 못하도록 터치와 접근성 상태를 함께 제한한다.
   disabled?: boolean;
-  // 홈에서는 개별 칸·서랍의 선택 위치를 변경한다.
+  // 홈에서는 개별 칸·좌우 분할의 선택 위치를 변경한다.
   onSelectPosition?: (id: string) => void;
   // 등록 도면은 칸 대신 문·본체 전체에서 터치와 눌림 효과를 처리한다.
   onSelectArea?: (id: string) => void;
 }
 
-/** 칸·개별 서랍의 전체 경로와 선택 상태를 접근성 정보로 함께 제공한다. */
+/** 문과 서랍은 같은 손잡이를 공유하고, 서랍에서는 전체 모양을 가로로 회전한다. */
+export function DoorHandle({ horizontal = false, style }: { horizontal?: boolean; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      style={[styles.doorHandle, horizontal && styles.horizontalHandle, style]}>
+      <View style={[styles.handleGrip, horizontal && styles.horizontalGrip]}>
+        <View style={styles.handleHighlight} />
+        {[false, true].map(end => (
+          <View key={String(end)} style={[styles.handleCap, { [end ? 'bottom' : 'top']: 5 }]} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** 칸·좌우 분할의 전체 경로와 선택 상태를 접근성 정보로 함께 제공한다. */
 export function FridgeMap({
   areas, positions, ingredients, selectedPositionId, selectedAreaId, storageMode, showIngredientCounts = true,
-  showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, preview = false, style, disabled = false, onSelectPosition, onSelectArea,
+  showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, preview = false, style, areaHeader, disabled = false, onSelectPosition, onSelectArea,
 }: FridgeMapProps) {
   const groupInteraction = !!onSelectArea && !preview;
   const Area = groupInteraction ? Pressable : View;
@@ -65,45 +83,46 @@ export function FridgeMap({
           <View key={area.id} style={[styles.area, { flex: area.isBody ? 1 : doorFlex }]}>
             {/* 홈은 칸별로, 등록 도면은 문·본체 전체를 한 번에 눌러 선택한다. */}
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
-            <Area accessibilityRole={groupInteraction ? 'button' : undefined}
-              accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}${area.isBody && storageMode
-                ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
-              accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
-              disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
-              style={[styles.areaInterior, { minHeight: minAreaHeight },
+            <View style={[styles.areaInterior, { minHeight: minAreaHeight },
                 areaSelected && groupInteraction && storageMode && {
                   backgroundColor: storageMode === 'CHILLED' ? colors.chilledBackground : colors.frozenBackground,
                 },
                 areaSelected && !groupInteraction && styles.areaSelected]}>
-              {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
-              {positions.filter(position => position.areaId === area.id)
-                .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
-                // 위→아래 칸 순서를 유지하고 같은 칸의 좌우 서랍만 한 행에 묶는다.
-                const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
-                return (
-                  <View key={firstPosition.slotId} style={[styles.slot, slotIndex > 0 && styles.slotSeparator]}>
-                    <View style={styles.slotRow}>
-                      {slotPositions.map((position, positionIndex) => {
-                        const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
-                        return (
-                          <Position key={position.id} accessible={groupInteraction ? false : undefined}
-                            accessibilityRole={preview ? 'image' : groupInteraction ? undefined : 'button'} accessibilityLabel={getPositionPath(area, position)}
-                            accessibilityHint={position.drawerCount > 0 ? '서랍' : undefined}
-                            accessibilityState={{ selected, disabled }} disabled={disabled} onPress={preview || groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
-                            style={[styles.position, positionIndex > 0 && styles.positionSeparator, (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, selected && styles.positionSelected, groupInteraction && styles.groupPosition]}>
-                            <Text numberOfLines={preview || fitHeight ? 1 : compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
-                            {/* 좌우 서랍은 서로 다른 선택 ID로 재료 수를 집계한다. */}
-                            {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
-                            {/* 자체 서랍은 손잡이로 표시해 일반 칸과 구분한다. */}
-                            {position.drawerCount > 0 ? <View pointerEvents="none" style={styles.drawerHandle} /> : null}
-                          </Position>
-                        );
-                      })}
+              {areaHeader}
+              <Area accessibilityRole={groupInteraction ? 'button' : undefined}
+                accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}${area.isBody && storageMode
+                  ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
+                accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
+                disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
+                style={styles.areaContent}>
+                {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
+                {positions.filter(position => position.areaId === area.id)
+                  .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
+                  // 위→아래 칸 순서를 유지하고 같은 칸의 좌우 분할만 한 행에 묶는다.
+                  const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
+                  return (
+                    <View key={firstPosition.slotId} style={[styles.slot, slotIndex > 0 && styles.slotSeparator]}>
+                      <View style={styles.slotRow}>
+                        {slotPositions.map((position, positionIndex) => {
+                          const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
+                          return (
+                            <Position key={position.id} accessible={groupInteraction ? false : undefined}
+                              accessibilityRole={preview ? 'image' : groupInteraction ? undefined : 'button'} accessibilityLabel={getPositionPath(area, position)}
+                              accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
+                              accessibilityState={{ selected, disabled }} disabled={disabled} onPress={preview || groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
+                              style={[styles.position, positionIndex > 0 && styles.positionSeparator, (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, selected && styles.positionSelected, groupInteraction && styles.groupPosition]}>
+                              <Text numberOfLines={preview || fitHeight ? 1 : compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
+                              {/* 좌우 분할은 서로 다른 선택 ID로 재료 수를 집계한다. */}
+                              {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
+                            </Position>
+                          );
+                        })}
+                      </View>
                     </View>
-                  </View>
-                );
-              })}
-            </Area>
+                  );
+                })}
+              </Area>
+            </View>
           </View>
         );
       })}
@@ -129,26 +148,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  // 기본 정보 도면과 같은 얇은 외곽선을 쓰고, 내부 경계는 한쪽에서만 그린다.
+  // 문과 같은 재질의 외곽선에 안쪽 음영을 더하고, 내부 경계는 한쪽에서만 그린다.
   areaInterior: {
     flex: 1,
     minHeight: 240,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: fridgeSurfaces.border,
     borderRadius: 6,
     overflow: 'hidden',
     backgroundColor: colors.surface,
+    boxShadow: fridgeSurfaces.recessedShadow,
   },
   areaSelected: {
     borderColor: colors.button,
     backgroundColor: colors.sageLight,
+  },
+  areaContent: {
+    flex: 1,
+    minHeight: 0,
   },
   slot: {
     flex: 1,
   },
   slotSeparator: {
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: fridgeSurfaces.border,
   },
   slotRow: {
     flex: 1,
@@ -163,10 +187,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 5,
     backgroundColor: colors.surface,
+    boxShadow: fridgeSurfaces.shelfShadow,
   },
   positionSeparator: {
     borderLeftWidth: 1,
-    borderLeftColor: colors.border,
+    borderLeftColor: fridgeSurfaces.border,
   },
   // 개별 칸의 선택 배경은 입력을 마친 뒤에도 유지하며, 외곽선은 영역에서 한 번만 그린다.
   positionSelected: {
@@ -176,19 +201,54 @@ const styles = StyleSheet.create({
   groupPosition: {
     backgroundColor: 'transparent',
   },
-  drawerHandle: {
+  doorHandle: {
     position: 'absolute',
-    top: 5,
-    alignSelf: 'center',
-    width: '95%',
-    height: 1,
+    width: 8,
+    height: 40,
+    borderRadius: 4,
+    boxShadow: [{ offsetX: 1, offsetY: 1, blurRadius: 2, spreadDistance: 0, color: '#29322A28' }],
+  },
+  horizontalHandle: {
+    width: 40,
+    height: 8,
+  },
+  handleGrip: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 8,
+    height: 40,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#7B887E',
+    backgroundColor: '#BEC8C0',
+  },
+  horizontalGrip: {
+    left: 16,
+    top: -16,
+    transform: [{ rotate: '90deg' }],
+  },
+  handleHighlight: {
+    position: 'absolute',
+    left: 1,
+    top: 6,
+    bottom: 6,
+    width: 2,
     borderRadius: 1,
-    backgroundColor: colors.textMuted,
+    backgroundColor: '#F4F7F3',
+  },
+  handleCap: {
+    position: 'absolute',
+    left: 1,
+    right: 1,
+    height: 1,
+    backgroundColor: '#8A978D',
   },
   positionLabel: {
     color: colors.text,
     fontSize: 12,
     fontWeight: '600',
+    textAlign: 'center',
   },
   compactPosition: {
     padding: 2,

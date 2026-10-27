@@ -6,6 +6,7 @@
 export type StorageMode = 'CHILLED' | 'FROZEN';
 export type AreaType = 'LEFT_DOOR' | 'BODY' | 'RIGHT_DOOR';
 export type DoorOpening = Exclude<AreaType, 'BODY'> | 'DRAWER';
+// 기존 저장값과 호환하며, 0·1은 분할 없음, 2는 좌우 2칸으로 해석한다.
 export type DrawerCount = 0 | 1 | 2;
 
 export const storageModeOptions: { value: StorageMode; label: string }[] = [
@@ -38,7 +39,7 @@ export interface StorageArea {
   isBody: boolean;
 }
 
-/** 서랍 2개는 같은 slotId를 공유하고 개별 선택 위치와 서랍 번호로 구분한다. */
+/** 좌우 2칸은 같은 slotId를 공유하며 기존 서랍 번호 필드로 선택 위치를 구분한다. */
 export interface SlotPosition {
   id: string;
   slotId: string;
@@ -95,8 +96,8 @@ export interface RefrigeratorDraft {
 }
 
 export const MAX_ROWS = 4;
-export const MAX_DOORS_PER_ROW = 3;
-export const MAX_SLOTS = 5;
+export const MAX_DOORS_PER_ROW = 2;
+export const MAX_SLOTS = 4;
 
 function createDraftDoor(id: number, side: DraftDoor['side'] = 'LEFT_DOOR'): DraftDoor {
   return {
@@ -160,15 +161,10 @@ export function setDraftDoorOpening(draft: RefrigeratorDraft, rowId: string, doo
   }) };
 }
 
-/** 도면에서 본체 사이에 여닫이 문이 없는 경우에만 오른쪽 이웃을 반환한다. */
+/** 문을 열고 닫아도 같은 단의 오른쪽 이웃 본체는 서로 맞닿는다. */
 export function getAdjacentRightCompartment(row: DraftRow, bodyId: string): DraftCompartment | undefined {
   const index = row.compartments.findIndex(body => body.id === bodyId);
-  const left = row.compartments[index], right = row.compartments[index + 1];
-  if (!left || !right) return undefined;
-  const hasDoorBetween = row.doors.some(door => door.kind !== 'DRAWER'
-    && ((left.doorIds.includes(door.id) && door.side === 'RIGHT_DOOR')
-      || (right.doorIds.includes(door.id) && door.side === 'LEFT_DOOR')));
-  return hasDoorBetween ? undefined : right;
+  return index < 0 ? undefined : row.compartments[index + 1];
 }
 
 /** 맞닿은 오른쪽 본체만 합친다. 칸은 왼쪽부터 이어 붙이며 모드가 다르면 재선택한다. */
@@ -234,17 +230,32 @@ export function getDraftLayout(draft: RefrigeratorDraft): FridgeLayout {
   return { areas, positions, ingredients: [] };
 }
 
+/** 본체와 닫힌 문을 같은 0~1 기준선에 배치해 문을 열어도 본체 폭·위치를 유지한다. */
+export function getDraftRowGeometry(row: DraftRow) {
+  const unitWidth = 1 / row.doors.length;
+  let bodyColumn = 0;
+  const groups = row.compartments.map(body => {
+    const bodyLeft = bodyColumn * unitWidth;
+    const bodyWidth = body.doorIds.length * unitWidth;
+    bodyColumn += body.doorIds.length;
+    const doors = row.doors.flatMap((door, index) => body.doorIds.includes(door.id)
+      ? [{ door, left: index * unitWidth, width: unitWidth }] : []);
+    return { body, left: bodyLeft, width: bodyWidth, doors };
+  });
+  return { width: 1, groups };
+}
+
 /** 배치도의 접근성 라벨에 사용할 실과 영역·칸 경로를 조합한다. */
 export function getPositionPath(area: StorageArea, position: SlotPosition) {
   return `${area.compartment} → ${area.name} → ${getPositionName(position)}`;
 }
 
-/** 서랍 2개일 때만 표시 이름에 번호를 붙이고 입력한 원래 칸 이름은 유지한다. */
+/** 좌우 2칸일 때만 표시 이름에 번호를 붙이고 입력한 원래 칸 이름은 유지한다. */
 export function getPositionName(position: SlotPosition) {
   return position.drawerNumber ? `${position.name} ${position.drawerNumber}` : position.name;
 }
 
-/** 일반 칸·단일 서랍은 한 위치로, 좌우 서랍은 같은 칸에 속한 두 위치로 표시한다. */
+/** 기존 값 0·1은 한 위치로, 2는 같은 칸에 속한 좌우 두 위치로 표시한다. */
 function getSlotPositions(slotId: string, areaId: string, name: string, drawerCount: DrawerCount): SlotPosition[] {
   const slot = { slotId, areaId, name, drawerCount };
   return drawerCount === 2

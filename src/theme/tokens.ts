@@ -1,7 +1,7 @@
 /**
  * @file
- * tokens는 화면과 공통 컴포넌트에서 재사용하는 색상과 간격 값을 정의한다.
- * 스타일에서 colors, spacing을 참조해 앱 전체의 디자인 기준을 맞춘다.
+ * tokens는 화면과 공통 컴포넌트에서 재사용하는 색상·간격·도면 음영을 정의한다.
+ * 스타일에서 공통 토큰을 참조해 앱 전체의 디자인 기준을 맞춘다.
  * as const는 속성을 타입상 readonly로 만들고 각 값의 리터럴 타입을 유지한다.
  * 실제 객체를 런타임에 동결하는 기능은 아니다.
  */
@@ -37,6 +37,23 @@ export const colors = {
   buttonText: '#FFFFFF',
   // 오류 문구와 입력 오류가 있는 필드의 테두리에 사용한다.
   error: '#A6413B',
+} as const;
+
+// 도면은 왼쪽 위의 빛과 오른쪽 아래의 음영을 공유해 면·선반·금속 부품의 깊이를 맞춘다.
+export const fridgeSurfaces = {
+  border: '#A8B2A6',
+  raisedShadow: [
+    { offsetX: 0, offsetY: 2, blurRadius: 4, color: '#29322A18' },
+    { inset: true, offsetX: 1, offsetY: 1, blurRadius: 1, color: '#FFFFFFE0' },
+    { inset: true, offsetX: -2, offsetY: -2, blurRadius: 3, color: '#29322A14' },
+  ],
+  recessedShadow: [
+    { offsetX: 0, offsetY: 2, blurRadius: 4, color: '#29322A14' },
+    { inset: true, offsetX: 2, offsetY: 2, blurRadius: 4, color: '#29322A18' },
+  ],
+  shelfShadow: [
+    { inset: true, offsetX: 0, offsetY: -3, blurRadius: 2, color: '#29322A12' },
+  ],
 } as const;
 
 // padding, margin, gap에 사용하는 공통 간격이다. xs부터 xxl까지 크기가 커진다.

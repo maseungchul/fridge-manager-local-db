@@ -6,7 +6,7 @@
 import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { RefrigeratorDraft } from '@/features/fridge/model/fridgeLayout';
-import { colors } from '@/theme/tokens';
+import { colors, fridgeSurfaces } from '@/theme/tokens';
 
 interface FridgeStructurePreviewProps {
   rows: RefrigeratorDraft['rows'];
@@ -34,10 +34,11 @@ const styles = StyleSheet.create({
     aspectRatio: 3 / 5,
     alignSelf: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: fridgeSurfaces.border,
     borderRadius: 6,
     overflow: 'hidden',
     backgroundColor: colors.surface,
+    boxShadow: fridgeSurfaces.raisedShadow,
   },
   row: {
     flex: 1,
@@ -45,13 +46,14 @@ const styles = StyleSheet.create({
   },
   rowBorder: {
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: fridgeSurfaces.border,
   },
   door: {
     flex: 1,
+    boxShadow: fridgeSurfaces.raisedShadow,
   },
   doorBorder: {
     borderLeftWidth: 1,
-    borderLeftColor: colors.border,
+    borderLeftColor: fridgeSurfaces.border,
   },
 });
