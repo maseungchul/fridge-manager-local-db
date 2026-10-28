@@ -14,6 +14,11 @@ export const storageModeOptions: { value: StorageMode; label: string }[] = [
   { value: 'FROZEN', label: '냉동' },
 ];
 
+/** 도면과 접근성 안내에서 보관 모드를 공간 이름으로 표시한다. */
+export function getStorageModeName(storageMode: StorageMode) {
+  return storageMode === 'CHILLED' ? '냉장실' : '냉동실';
+}
+
 export const doorOpeningOptions: { value: DoorOpening; label: string }[] = [
   { value: 'LEFT_DOOR', label: '왼쪽 열림' },
   { value: 'RIGHT_DOOR', label: '오른쪽 열림' },

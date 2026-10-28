@@ -5,10 +5,11 @@
  * 홈과 최초 등록 미리보기에서 공유하며 선택 상태와 데이터 변경은 호출자가 관리한다.
  */
 import type { ReactNode } from 'react';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { colors, fridgeSurfaces, spacing } from '@/theme/tokens';
-import { getPositionPath } from '../model/fridgeLayout';
+import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle, spacing } from '@/theme/tokens';
+import { getPositionPath, getStorageModeName } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotPosition, StorageMode } from '../model/fridgeLayout';
 
@@ -23,8 +24,10 @@ interface FridgeMapProps {
   selectedPositionId?: string;
   // 등록 미리보기에서 사용한다. 지정하면 개별 칸 대신 해당 영역의 모든 칸을 선택 표시한다.
   selectedAreaId?: string;
-  // 등록 도면의 선택 배경과 본체 접근성 라벨에 보관 모드를 반영한다.
+  // 배경과 선택 테두리·본체 접근성 라벨에 보관 모드를 반영한다.
   storageMode?: StorageMode | null;
+  // 닫힌 도면에서 정한 본체·문 모서리를 열린 내부 프레임에도 유지한다.
+  cornerStyle?: ViewStyle;
   // 최초 등록에는 재료 정보가 없으므로 개수 표시를 숨길 수 있다. 홈은 기본값을 사용한다.
   showIngredientCounts?: boolean;
   // 연결 관계를 도식으로 표시하는 전체 도면이나 축소 미리보기에서는 영역 제목을 숨긴다.
@@ -49,32 +52,67 @@ interface FridgeMapProps {
 }
 
 /** 문과 서랍은 같은 손잡이를 공유하고, 서랍에서는 전체 모양을 가로로 회전한다. */
-export function DoorHandle({ horizontal = false, style }: { horizontal?: boolean; style?: StyleProp<ViewStyle> }) {
+export function DoorHandle({ horizontal = false, storageMode, style }: {
+  horizontal?: boolean; storageMode?: StorageMode | null; style?: StyleProp<ViewStyle>;
+}) {
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.doorHandle, horizontal && styles.horizontalHandle, style]}>
-      <View style={[styles.handleGrip, horizontal && styles.horizontalGrip]} />
+      <View style={[styles.handleGrip, horizontal && styles.horizontalGrip,
+        storageMode && { backgroundColor: fridgeDoorColors[storageMode].handle }]} />
+    </View>
+  );
+}
+
+/** 문 앞면의 중앙 그림·공간 이름을 공유하고, 축소 도면에서는 이름을 숨긴다. */
+export function DoorModeArt({ storageMode, size, miniature = false, drawer = false, style }: {
+  storageMode: StorageMode | null; size: number; miniature?: boolean; drawer?: boolean; style?: StyleProp<ViewStyle>;
+}) {
+  if (!storageMode) return null;
+  const frozen = storageMode === 'FROZEN';
+  const palette = fridgeDoorColors[storageMode];
+  const color = palette.motif;
+  return (
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      style={[styles.modeArt, miniature && styles.miniatureModeArt, drawer && !miniature && styles.drawerModeArt, style]}>
+      <View style={[styles.modePrint, miniature && styles.miniatureModePrint]}>
+        <MaterialDesignIcons name={frozen ? 'snowflake' : 'weather-windy'} size={size} color={color} accessible={false} />
+        {!miniature ? <Text numberOfLines={1} style={[styles.modeName, { color: palette.ink, fontSize: size < 24 ? 10 : 12 }]}>
+          {getStorageModeName(storageMode)}
+        </Text> : null}
+      </View>
     </View>
   );
 }
 
 /** 투명 포켓의 높은 전면판을 표시하며, 내용과 터치는 부모 칸이 관리한다. */
-function DoorPocketBin() {
+function DoorPocketBin({ style }: { style?: StyleProp<ViewStyle> }) {
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.pocketBin}>
-      <View style={styles.pocketBinFront} />
+      <View style={[styles.pocketBinFront, style]} />
     </View>
   );
 }
 
 /** 칸·좌우 분할의 전체 경로와 선택 상태를 접근성 정보로 함께 제공한다. */
 export function FridgeMap({
-  areas, positions, ingredients, selectedPositionId, selectedAreaId, storageMode, showIngredientCounts = true,
+  areas, positions, ingredients, selectedPositionId, selectedAreaId, storageMode, cornerStyle, showIngredientCounts = true,
   showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, preview = false, style, areaHeader, disabled = false, onSelectPosition, onSelectArea,
 }: FridgeMapProps) {
   const groupInteraction = !!onSelectArea && !preview;
   const Area = groupInteraction ? Pressable : View;
   const Position = preview || groupInteraction ? View : FeedbackPressable;
+  const palette = storageMode ? fridgeDoorColors[storageMode] : null;
+  const selectionColor = palette?.ink ?? fridgeSurfaces.handle;
+  const materialShadow = palette ? fridgeSurfaces.shelfShadow.map(shadow => ({ ...shadow, color: `${palette.motif}22` })) : fridgeSurfaces.shelfShadow;
+  const shelfTheme = palette && { backgroundColor: palette.shelf, boxShadow: materialShadow };
+  const pocketTheme = palette && {
+    backgroundColor: palette.pocket, borderColor: palette.pocketBorder, borderBottomColor: palette.shelf, boxShadow: materialShadow,
+  };
+  // 개별 칸의 테두리는 안쪽으로 그려 선택해도 칸 크기와 배경이 바뀌지 않게 한다.
+  const positionSelection: ViewStyle = { boxShadow: [
+    { inset: true, offsetX: 0, offsetY: 0, blurRadius: 0, spreadDistance: 2, color: selectionColor },
+  ] };
   // 본체는 1, 문 전체의 합도 1로 배분한다. 문 2개는 각각 0.5, 문 1개는 1이다.
   const doorCount = areas.filter(area => !area.isBody).length;
   const doorFlex = doorCount > 0 ? 1 / doorCount : 1;
@@ -88,10 +126,9 @@ export function FridgeMap({
             {/* 홈은 칸별로, 등록 도면은 문·본체 전체를 한 번에 눌러 선택한다. */}
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
             <View style={[styles.areaInterior, { minHeight: minAreaHeight },
-                areaSelected && groupInteraction && storageMode && {
-                  backgroundColor: storageMode === 'CHILLED' ? colors.chilledBackground : colors.frozenBackground,
-                },
-                areaSelected && !groupInteraction && styles.areaSelected]}>
+                getFridgeSurfaceStyle(storageMode),
+                cornerStyle,
+                areaSelected && !groupInteraction && { borderColor: selectionColor }]}>
               {areaHeader}
               <Area accessibilityRole={groupInteraction ? 'button' : undefined}
                 accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}${area.isBody && storageMode
@@ -114,8 +151,10 @@ export function FridgeMap({
                               accessibilityRole={preview ? 'image' : groupInteraction ? undefined : 'button'} accessibilityLabel={getPositionPath(area, position)}
                               accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
                               accessibilityState={{ selected, disabled }} disabled={disabled} onPress={preview || groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
-                              style={[styles.position, positionIndex > 0 && styles.positionSeparator, (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, !area.isBody && styles.pocketPosition, selected && styles.positionSelected, groupInteraction && styles.groupPosition]}>
-                              {!area.isBody ? <DoorPocketBin /> : null}
+                              style={[styles.position, positionIndex > 0 && styles.positionSeparator,
+                                positionIndex > 0 && palette && { borderLeftColor: palette.border },
+                                (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, !area.isBody && styles.pocketPosition, selected && !groupInteraction && !selectedAreaId && positionSelection, groupInteraction && styles.groupPosition]}>
+                              {!area.isBody ? <DoorPocketBin style={pocketTheme} /> : null}
                               {/* 좌우 분할은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                               {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
                             </Position>
@@ -123,7 +162,7 @@ export function FridgeMap({
                         })}
                       </View>
                       {area.isBody && slotIndex > 0 ? (
-                        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.bodyShelf} />
+                        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.bodyShelf, shelfTheme]} />
                       ) : null}
                     </View>
                   );
@@ -138,6 +177,31 @@ export function FridgeMap({
 }
 
 const styles = StyleSheet.create({
+  modeArt: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: fridgeSurfaces.radius,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modePrint: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  miniatureModeArt: {
+    borderRadius: 0,
+  },
+  // 서랍형 손잡이는 위쪽에 있어 인쇄를 아래로 옮겨 작은 문에서도 겹치지 않게 한다.
+  drawerModeArt: {
+    paddingTop: 18,
+  },
+  miniatureModePrint: {
+    gap: 0,
+  },
+  modeName: {
+    fontWeight: '600',
+    letterSpacing: 0.6,
+  },
   // 실 전환과 관계없이 부모의 전체 너비를 사용한다.
   map: {
     width: '100%',
@@ -165,10 +229,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: fridgeSurfaces.interior,
     boxShadow: fridgeSurfaces.recessedShadow,
-  },
-  areaSelected: {
-    borderColor: colors.button,
-    backgroundColor: colors.sageLight,
   },
   areaContent: {
     flex: 1,
@@ -242,10 +302,6 @@ const styles = StyleSheet.create({
   pocketPosition: {
     paddingBottom: 4,
   },
-  // 개별 칸의 선택 배경은 입력을 마친 뒤에도 유지하며, 외곽선은 영역에서 한 번만 그린다.
-  positionSelected: {
-    backgroundColor: colors.sageLight,
-  },
   // 등록 도면의 칸은 부모 영역의 배경을 그대로 사용한다.
   groupPosition: {
     backgroundColor: 'transparent',
@@ -255,7 +311,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 40,
     borderRadius: 4,
-    boxShadow: fridgeSurfaces.shelfShadow,
+    boxShadow: fridgeSurfaces.hardwareShadow,
   },
   horizontalHandle: {
     width: 40,

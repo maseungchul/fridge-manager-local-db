@@ -7,8 +7,8 @@ import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { RefrigeratorDraft } from '@/features/fridge/model/fridgeLayout';
 import { FRIDGE_ASPECT_RATIO } from '@/features/fridge/model/fridgeLayout';
-import { DoorHandle } from '@/features/fridge/components/FridgeMap';
-import { fridgeSurfaces } from '@/theme/tokens';
+import { DoorHandle, DoorModeArt } from '@/features/fridge/components/FridgeMap';
+import { fridgeSurfaces, getFridgeSurfaceStyle } from '@/theme/tokens';
 
 interface FridgeStructurePreviewProps {
   rows: RefrigeratorDraft['rows'];
@@ -21,12 +21,18 @@ export function FridgeStructurePreview({ rows, style }: FridgeStructurePreviewPr
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={[styles.preview, style]}>
       {rows.map((row, rowIndex) => (
         <View key={row.id} style={[styles.row, rowIndex > 0 && styles.rowBorder]}>
-          {row.doors.map((door, index) => (
-            <View key={door.id} style={[styles.door, index > 0 && styles.doorBorder]}>
-              <DoorHandle horizontal={door.kind === 'DRAWER'} style={[styles.handle,
-                door.kind === 'DRAWER' ? styles.drawerHandle : door.side === 'LEFT_DOOR' ? { right: 6 } : { left: 6 }]} />
-            </View>
-          ))}
+          {row.doors.map((door, index) => {
+            const storageMode = row.compartments.find(body => body.doorIds.includes(door.id))?.storageMode;
+            return (
+              <View key={door.id} style={[styles.door, index > 0 && styles.doorBorder,
+                getFridgeSurfaceStyle(storageMode, 'exterior')]}>
+                <DoorModeArt storageMode={storageMode ?? null} size={12} miniature style={door.kind === 'DRAWER'
+                  ? styles.drawerArt : door.side === 'LEFT_DOOR' ? styles.artWithRightHandle : styles.artWithLeftHandle} />
+                <DoorHandle horizontal={door.kind === 'DRAWER'} storageMode={storageMode} style={[styles.handle,
+                  door.kind === 'DRAWER' ? styles.drawerHandle : door.side === 'LEFT_DOOR' ? { right: 6 } : { left: 6 }]} />
+              </View>
+            );
+          })}
         </View>
       ))}
     </View>
@@ -62,6 +68,16 @@ const styles = StyleSheet.create({
     top: '50%',
     marginTop: -20,
     transform: [{ scale: 0.55 }],
+  },
+  // 작은 도면에서는 손잡이를 제외한 공간의 중앙에 모드 그림을 둔다.
+  artWithRightHandle: {
+    paddingRight: 12,
+  },
+  artWithLeftHandle: {
+    paddingLeft: 12,
+  },
+  drawerArt: {
+    paddingTop: 14,
   },
   drawerHandle: {
     top: 10,

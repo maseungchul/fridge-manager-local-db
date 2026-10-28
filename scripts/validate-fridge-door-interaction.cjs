@@ -154,8 +154,8 @@ function fixture(draft = model.createRefrigeratorDraft(), groupIndex = 0, scroll
   const element = groups[groupIndex];
   compartment = mount(element.type, element.props);
   compartment.tree.props.ref.current = { measureInWindow(callback) {
-    const { group, rowIndex, width, height } = compartment.props;
-    callback(24 + (327 - width) / 2 + group.left * width, 210 - scrollY + rowIndex * height, group.width * width, height);
+    const { group, top, width, height } = compartment.props;
+    callback(24 + (327 - width) / 2 + group.left * width, 210 - scrollY + top, group.width * width, height);
   } };
   return { draft, selected, requests, map, compartment };
 }
@@ -225,6 +225,11 @@ function assertFocusAccess(focus, phase) {
   assert.notStrictEqual(bodyFrame, bodyContent);
   assert.equal(flattenStyle(bodyFrame.props.style).borderWidth, 1);
   assert(flattenStyle(bodyFrame.props.style).backgroundColor);
+  const frameMode = focus.props.draft.rows.flatMap(row => row.compartments)
+    .find(body => body.id === focus.props.target.areaId)?.storageMode;
+  assert.equal(flattenStyle(bodyFrame.props.style).backgroundColor,
+    frameMode ? tokens.fridgeDoorColors[frameMode].background : tokens.fridgeSurfaces.interior);
+  if (frameMode) assert.equal(flattenStyle(bodyFrame.props.style).boxShadow[0].color, tokens.fridgeDoorColors[frameMode].frame);
   assert.equal(flattenStyle(bodyFrame.props.style).opacity ?? 1, 1);
   assert.equal(flattenStyle(bodyPanel.props.style).opacity ?? 1, 1);
   assert.equal(bodyFrame.props.pointerEvents, 'none');
@@ -254,6 +259,64 @@ const dimensionAt = (value, progress, parentSize = 0) => {
   if (value?.outputRange) return value.outputRange[0] + (value.outputRange[1] - value.outputRange[0]) * progress;
   return typeof value === 'string' && value.endsWith('%') ? parseFloat(value) / 100 * parentSize : value;
 };
+
+test('닫힌 도면은 단 사이에 4px 여백을 두고 문 사이와 전체 외곽 모서리 형태를 유지한다', () => {
+  for (const count of [1, 2, 3, 4]) {
+    let draft = model.createRefrigeratorDraft();
+    while (draft.rows.length > count) draft = model.removeDraftRow(draft, draft.rows.at(-1).id);
+    while (draft.rows.length < count) draft = model.addDraftRow(draft);
+    for (const [index, row] of draft.rows.entries()) {
+      if (index % 2 === 0) draft = model.changeDraftDoorCount(draft, row.id, 1);
+    }
+    const { map } = fixture(draft);
+    const canvas = children(map.tree)[0];
+    const canvasStyle = flattenStyle(canvas.props.style);
+    assert.equal(canvasStyle.borderRadius, tokens.fridgeSurfaces.radius);
+    assert.equal(canvasStyle.overflow, 'hidden');
+    assert.equal(canvasStyle.borderWidth, undefined);
+    assert.equal(canvasStyle.boxShadow, undefined);
+    assert(children(canvas).every(named('FridgeCompartment')));
+    const groups = children(canvas).filter(named('FridgeCompartment'));
+    const rowHeight = (canvasStyle.height - 4 * (count - 1)) / count;
+    for (let rowIndex = 0; rowIndex < count; rowIndex++) {
+      let end = 0;
+      for (const group of groups.filter(node => node.props.rowIndex === rowIndex)) {
+        const component = mount(group.type, group.props);
+        near(flattenStyle(component.tree.props.style).top, rowIndex * (rowHeight + 4));
+        near(flattenStyle(component.tree.props.style).height, rowHeight);
+        for (const door of doors(component)) {
+          const tree = door.type(door.props);
+          const face = flattenStyle(children(tree)[0].props.style);
+          const surface = flattenStyle(find(tree, node => node.type === 'Pressable').props.style);
+          assert.equal(face.top, 0);
+          assert.equal(face.bottom, 0);
+          assert.equal(surface.borderRadius, 0);
+          assert.equal(surface.borderWidth, 1);
+          const start = group.props.group.left * canvasStyle.width + door.props.style.left;
+          near(start, end);
+          assert.equal(surface.borderLeftWidth, start > 0 ? 0 : 1);
+          end = start + door.props.style.width;
+          assert.equal(surface.borderTopLeftRadius, rowIndex === 0 && start === 0 ? tokens.fridgeSurfaces.radius : 0);
+          assert.equal(surface.borderTopRightRadius, rowIndex === 0 && end === canvasStyle.width ? tokens.fridgeSurfaces.radius : 0);
+          assert.equal(surface.borderBottomLeftRadius, rowIndex === count - 1 && start === 0 ? tokens.fridgeSurfaces.radius : 0);
+          assert.equal(surface.borderBottomRightRadius, rowIndex === count - 1 && end === canvasStyle.width ? tokens.fridgeSurfaces.radius : 0);
+          const selection = find(door.type({ ...door.props, selected: true }), named('SelectionFrame'));
+          const selectedStyle = flattenStyle(selection.type(selection.props).props.style);
+          assert.equal(selectedStyle.borderTopLeftRadius, surface.borderTopLeftRadius);
+          assert.equal(selectedStyle.borderBottomRightRadius, surface.borderBottomRightRadius);
+        }
+        const geometry = getFridgeFocusGeometry(draft, { areaId: group.props.group.body.id,
+          returnAreaId: group.props.group.body.doorIds[0], canvas: { x: 10, y: 20, width: canvasStyle.width, height: canvasStyle.height } },
+          { x: 0, y: 0, width: 375, height: 600 });
+        near(geometry.source.y, 20 + rowIndex * (rowHeight + 4));
+        near(geometry.source.height, rowHeight);
+        near(geometry.source.width, group.props.group.width * canvasStyle.width);
+        component.unmount();
+      }
+      near(end, canvasStyle.width);
+    }
+  }
+});
 
 test('문을 누르면 보기 버튼 없이 연결된 본체 전체의 화면 좌표를 전달한다', () => {
   const { draft, selected, requests, compartment } = fixture();
@@ -348,6 +411,96 @@ test('중단된 전환은 완료로 처리하지 않고 본체·포켓 입력 �
   assertFocusAccess(focus, 'opening');
   assert.deepEqual(phases, []);
   focus.unmount();
+});
+
+test('어느 문을 열어도 앞면·뒷면·본체·포켓·선택선이 원래 외곽 모서리를 유지한다', () => {
+  const corners = style => {
+    const value = flattenStyle(style);
+    return ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius']
+      .map(key => value[key] ?? value.borderRadius ?? 0);
+  };
+  const mirrored = value => [value[1], value[0], value[3], value[2]];
+  for (const count of [1, 2, 3, 4]) {
+    for (const merged of [false, true]) {
+      let draft = model.createRefrigeratorDraft();
+      while (draft.rows.length > count) draft = model.removeDraftRow(draft, draft.rows.at(-1).id);
+      while (draft.rows.length < count) draft = model.addDraftRow(draft);
+      for (const [index, row] of [...draft.rows].entries()) {
+        draft = model.changeDraftDoorCount(draft, row.id, 1);
+        const current = draft.rows[index];
+        current.compartments.forEach(body => { body.storageMode = index % 2 === 0 ? 'CHILLED' : 'FROZEN'; });
+        current.doors[0].storageEnabled = index % 2 === 0;
+        if (index % 2 === 1) draft = model.setDraftDoorOpening(draft, row.id, current.doors[1].id, 'DRAWER');
+        if (merged) draft = model.mergeDraftCompartments(draft, row.id, current.compartments[0].id);
+      }
+      const groupCount = draft.rows.reduce((total, row) => total + row.compartments.length, 0);
+      for (let groupIndex = 0; groupIndex < groupCount; groupIndex++) {
+        const doorCount = fixture(draft, groupIndex).compartment.props.group.doors.length;
+        for (let clicked = 0; clicked < doorCount; clicked++) {
+          const { compartment, requests } = fixture(draft, groupIndex);
+          const original = new Map(doors(compartment).map(door => [door.props.door.id,
+            corners(find(door.type(door.props), node => node.type === 'Pressable').props.style)]));
+          const values = [...original.values()];
+          const bodyCorners = [values[0][0], values.at(-1)[1], values[0][2], values.at(-1)[3]];
+          selectDoor(compartment, clicked);
+          const { focus } = focusedFixture(draft, requests[0]);
+          const check = phase => {
+            assertFocusAccess(focus, phase);
+            for (const door of movingDoors(focus)) {
+              const [front, back] = children(door.type(door.props));
+              const expected = original.get(door.props.door.id);
+              assert.equal(flattenStyle(front.props.style).overflow, 'hidden');
+              assert.deepEqual(corners(front.props.style), expected);
+              assert.deepEqual(corners(find(front, node => node.type === 'Pressable').props.style), expected);
+              const selection = find(front, named('SelectionFrame'));
+              const selectedStyle = flattenStyle(selection.type(selection.props).props.style);
+              assert.deepEqual(corners(selectedStyle), expected);
+              assert.equal(selectedStyle.borderWidth, 2);
+              assert.deepEqual(selectedStyle.boxShadow, []);
+              if (back) {
+                assert.equal(flattenStyle(back.props.style).overflow, 'hidden');
+                assert.deepEqual(corners(back.props.style), mirrored(expected));
+                const backSurface = flattenStyle(children(back)[0].props.style);
+                assert.deepEqual(corners(backSurface), mirrored(expected));
+                assert.deepEqual(backSurface.boxShadow, []);
+              }
+            }
+            const areas = interiorAreas(focus);
+            const bodyArea = areas.find(area => area.props.area.isBody);
+            const layer = find(focus.tree, node => children(node).includes(bodyArea));
+            const panel = find(focus.tree, node => children(node).includes(layer));
+            assert.deepEqual(corners(children(panel)[0].props.style), bodyCorners);
+            for (const area of areas) {
+              const expected = area.props.area.isBody ? bodyCorners : mirrored(original.get(area.props.area.id));
+              const tree = area.type({ ...area.props, selected: true });
+              const map = find(tree, node => node.type === mapModule.FridgeMap);
+              if (map) {
+                const frame = find(mapModule.FridgeMap(map.props), node => children(node).includes(map.props.areaHeader));
+                assert.deepEqual(corners(frame.props.style), expected);
+              } else {
+                const empty = find(tree, named('DoorWithoutStorage'));
+                const mounted = mount(empty.type, empty.props);
+                assert.deepEqual(corners(mounted.tree.props.style), expected);
+                mounted.unmount();
+              }
+              const selection = find(tree, named('SelectionFrame'));
+              const selectedStyle = flattenStyle(selection.type(selection.props).props.style);
+              assert.deepEqual(corners(selectedStyle), expected);
+              assert(selectedStyle.boxShadow.length > 0, '열린 내부 선택 영역의 음영은 유지해야 한다');
+            }
+          };
+          check('opening');
+          animations.at(-1).finish();
+          focus.render();
+          check('open');
+          focus.props.onClose();
+          focus.render();
+          check('closing');
+          focus.unmount();
+        }
+      }
+    }
+  }
 });
 
 test('문을 열고 닫는 동안 닫힌 본체·문의 크기를 유지하고 내부 글자·배지를 확대하지 않는다', () => {
@@ -459,8 +612,8 @@ test('합친 본체의 포켓을 기존 여는 방식과 관계없이 양쪽에 
     const [first, second] = geometry.pockets;
     assert.equal(first.door.id, draft.rows[0].doors[0].id);
     assert.equal(second.door.id, draft.rows[0].doors[1].id);
-    near(first.frame.left + first.frame.width + 3, body.left);
-    near(second.frame.left, body.left + body.width + 3);
+    near(first.frame.left + first.frame.width + 14, body.left);
+    near(second.frame.left, body.left + body.width + 14);
     const { focus } = focusedFixture(draft, requests[0]);
     assert.equal(interiorAreas(focus).length, 3);
     assert.equal(movingDoors(focus).length, 2);
@@ -469,7 +622,7 @@ test('합친 본체의 포켓을 기존 여는 방식과 관계없이 양쪽에 
     for (const hinge of hinges) {
       const bars = findAll(hinge.type(hinge.props), named('DoorHinge')).map(pin => pin.type(pin.props));
       assert(bars.length >= 2);
-      assert(bars.every(bar => flattenStyle(bar.props.style).width <= 3));
+      assert(bars.every(bar => flattenStyle(children(bar)[0].props.style).width <= 8));
     }
     focus.unmount();
   }
@@ -560,13 +713,13 @@ test('중앙 보기에서 합치기·분리하면 본체와 연결된 포켓 수
   assert.equal(getFridgeFocusGeometry(draft, target, viewport).pockets.length, 1);
   draft = model.mergeDraftCompartments(draft, rowId, target.areaId);
   const merged = getFridgeFocusGeometry(draft, target, viewport);
-  near(merged.source.width, 324);
+  near(merged.source.width, 327);
   assert.equal(merged.pockets.length, 2);
   draft = model.splitDraftCompartment(draft, rowId, target.areaId);
   const split = getFridgeFocusGeometry(draft, target, viewport);
-  near(split.source.width, 327 / 2 - 4.5);
-  near(split.source.x, 25.5);
-  near(split.source.y, 213);
+  near(split.source.width, 327 / 2);
+  near(split.source.x, 24);
+  near(split.source.y, 210);
   assert.equal(split.pockets.length, 1);
 });
 
@@ -599,7 +752,7 @@ test('양쪽 본체의 툴바에서 합치고 분리해도 선택·중앙 보기
     const merged = getFridgeFocusGeometry(focus().props.draft, focus().props.target, original.viewport);
     assert.equal(merged.group.body.id, bodyId);
     assert.equal(merged.pockets.length, 2);
-    near(merged.source.width, 324);
+    near(merged.source.width, 327);
     assert.equal(menu().props.onMerge, undefined);
     assert.equal(menu().props.openingDisabled, true);
     menu().props.onSplit();
@@ -668,7 +821,7 @@ test('포켓이 4칸이어도 닫힌 본체·문 크기를 그대로 유지한�
   assert.equal(geometry.scrollable, true);
   near(geometry.body.width / geometry.body.height, geometry.source.width / geometry.source.height);
   assert(geometry.pockets.every(({ frame }) => frame.height === geometry.body.height));
-  near(geometry.body.fromHeight, 129);
+  near(geometry.body.fromHeight, 132);
 });
 
 test('4단·4칸은 문 개수·여는 방식과 관계없이 닫힌 도면의 너비·높이를 그대로 유지한다', () => {
@@ -723,11 +876,11 @@ test('가로로 긴 단은 크기를 유지하고 왼쪽 열림은 본체를 오
       if (opening === 'LEFT_DOOR') {
         near(bodyLeft + geometry.body.width, viewportWidth - 24);
         near(geometry.initialScrollX, geometry.contentWidth - viewportWidth);
-        near(geometry.pockets[0].frame.left + geometry.pockets[0].frame.width + 3, geometry.body.left);
+        near(geometry.pockets[0].frame.left + geometry.pockets[0].frame.width + 14, geometry.body.left);
       } else {
         near(bodyLeft, 24);
         near(geometry.initialScrollX, 0);
-        near(geometry.pockets[0].frame.left, geometry.body.left + geometry.body.width + 3);
+        near(geometry.pockets[0].frame.left, geometry.body.left + geometry.body.width + 14);
       }
       const { focus } = focusedFixture(current, requests[0], viewport);
       near(flattenStyle(moving(focus).props.style).top + geometry.height / 2, viewport.height / 2);
@@ -960,7 +1113,7 @@ test('안내 이력은 같은 등록 화면에서 문을 다시 열어도 유지
   next.screen.unmount();
 });
 
-test('본체·포켓 배지는 내부 상단에 표시하고 별도 닫기 버튼 없이 바깥 영역에서 닫는다', () => {
+test('열린 본체·포켓은 내부 상단에 공간 이름을 표시하고 바깥 영역에서 닫는다', () => {
   const { draft, requests, compartment, map } = fixture();
   selectDoor(compartment);
   const { focus } = focusedFixture(draft, requests[0]);
@@ -968,25 +1121,23 @@ test('본체·포켓 배지는 내부 상단에 표시하고 별도 닫기 버�
     const tree = area.type(area.props);
     const map = find(tree, node => node.type === mapModule.FridgeMap);
     const header = map.props.areaHeader;
-    const badge = find(header, node => children(node).some(child => child.type === 'Text' && ['본체', '도어포켓'].includes(child.props.children)));
-    assert.equal(flattenStyle(badge.props.style).position, undefined);
+    const name = find(header, node => node.type === 'Text');
+    assert.equal(flattenStyle(name.props.style).position, undefined);
+    assert.equal(flattenStyle(name.props.style).borderWidth, undefined);
     assert.equal(header.props.pointerEvents, 'none');
     const frame = find(mapModule.FridgeMap(map.props), node => children(node).includes(header));
     assert.equal(flattenStyle(frame.props.style).overflow, 'hidden');
-    return children(badge)[0].props.children;
+    return name.props.children;
   });
-  assert.deepEqual(labels, ['본체', '도어포켓']);
+  assert.deepEqual(labels, ['냉장실', '도어포켓']);
   assert.equal(findAll(focus.tree, node => node.type === 'SecondaryButton').length, 0);
   const outside = find(children(focus.tree)[0], node => node.type === 'Pressable');
   assert.equal(outside.props.accessibilityRole, 'button');
   assert.equal(children(outside).length, 0);
   map.props = { ...map.props, focus: requests[0] };
   map.render();
-  assert(children(children(map.tree)[0]).every(named('FridgeCompartment')));
+  assert(children(children(map.tree)[0]).every(node => named('FridgeCompartment')(node) || node.props.pointerEvents === 'none'));
   assert.equal(flattenStyle(compartment.tree.props.style).opacity, 0);
-  const modeBadges = interiorAreas(focus).flatMap(area => findAll(area.type(area.props), node => node.type === mapModule.FridgeMap)
-    .flatMap(map => findAll(map.props.areaHeader, named('ModeBadge'))));
-  assert.equal(modeBadges.length, 2);
   focus.unmount();
 });
 
@@ -1009,8 +1160,8 @@ test('문 뒷면은 앞면과 반대로 회전하고 포켓 내용은 열림 완
     assert.equal(flattenStyle(back.props.style).opacity, undefined);
     const content = find(back, node => children(node).some(named('InteriorArea')));
     assert.equal(flattenStyle(content.props.style).opacity, 0);
-    const badge = find(front, named('ModeBadge'));
-    assert.equal(badge.props.storageMode, draft.rows[0].compartments[0].storageMode);
+    const artwork = find(front, named('DoorModeArt'));
+    assert.equal(artwork.props.storageMode, draft.rows[0].compartments[0].storageMode);
     for (const progress of [0, 0.25, 0.75, 1]) {
       const frontVisible = Math.cos(rotationAt(front, progress) * Math.PI / 180) > 0;
       const backVisible = Math.cos(rotationAt(back, progress) * Math.PI / 180) > 0;
@@ -1144,10 +1295,10 @@ test('작은 화면에서도 모든 단이 남은 높이 안에 들어가고 실
       assert(height <= Math.min(540, availableHeight - 20));
       const groups = children(canvas).filter(named('FridgeCompartment'));
       assert.equal(groups.length, rowCount);
-      near(groups.at(-1).props.rowIndex * groups.at(-1).props.height + groups.at(-1).props.height, height);
+      near(groups.at(-1).props.top + groups.at(-1).props.height, height);
       const last = mount(groups.at(-1).type, groups.at(-1).props);
       last.tree.props.ref.current = { measureInWindow(callback) {
-        callback(24 + (availableWidth - width) / 2, 200 + last.props.rowIndex * last.props.height, width, last.props.height);
+        callback(24 + (availableWidth - width) / 2, 200 + last.props.top, width, last.props.height);
       } };
       selectDoor(last);
       near(targets[0].canvas.height, height);
@@ -1155,7 +1306,7 @@ test('작은 화면에서도 모든 단이 남은 높이 안에 들어가고 실
       near(targets[0].canvas.x, 24 + (availableWidth - width) / 2);
       near(targets[0].canvas.y, 200);
       const geometry = getFridgeFocusGeometry(draft, targets[0], { x: 0, y: 110, width: 375, height: 500 });
-      near(geometry.body.fromHeight, height / rowCount - 6);
+      near(geometry.body.fromHeight, (height - 4 * (rowCount - 1)) / rowCount);
       near(geometry.body.width / geometry.body.height, geometry.source.width / geometry.source.height);
       last.unmount();
       map.unmount();
@@ -1241,7 +1392,7 @@ test('중앙 보기에서는 회전 문의 끝을 자르지 않고 다른 단계
   screen.unmount();
 });
 
-test('경첩 양쪽 끝이 실제 본체·포켓 테두리에 맞닿는다', () => {
+test('경첩은 본체·포켓 사이의 중앙에 놓이고 양쪽 선택 테두리와 간격을 유지한다', () => {
   for (const opening of ['LEFT_DOOR', 'RIGHT_DOOR']) {
     for (const groupIndex of [0, 1]) {
       let draft = model.createRefrigeratorDraft();
@@ -1263,11 +1414,15 @@ test('경첩 양쪽 끝이 실제 본체·포켓 테두리에 맞닿는다', () 
       const pocketLeft = geometry.body.left + leaf.frame.left + dimensionAt(backStyle.left, 1, leaf.frame.width) + shift;
       const bodyEdge = opening === 'LEFT_DOOR' ? geometry.body.left : geometry.body.left + geometry.body.width;
       const pocketEdge = opening === 'LEFT_DOOR' ? pocketLeft + dimensionAt(backStyle.width, 1, leaf.frame.width) : pocketLeft;
-      near(Math.abs(bodyEdge - pocketEdge), 3);
+      near(Math.abs(bodyEdge - pocketEdge), 14);
       for (const bar of bars) {
         const style = flattenStyle(bar.props.style);
         near(hingeStyle.left + style.left, Math.min(bodyEdge, pocketEdge));
         near(hingeStyle.left + style.left + style.width, Math.max(bodyEdge, pocketEdge));
+        const pin = flattenStyle(children(bar)[0].props.style);
+        const pinLeft = hingeStyle.left + style.left + style.width / 2 + pin.marginLeft;
+        assert(pinLeft - Math.min(bodyEdge, pocketEdge) >= 3);
+        assert(Math.max(bodyEdge, pocketEdge) - pinLeft - pin.width >= 3);
       }
       assert.equal(leaf.frame.paddingLeft, 0);
       assert.equal(leaf.frame.paddingRight, 0);
@@ -1461,44 +1616,236 @@ test('포켓은 3칸·본체는 4칸까지만 추가하고 최소 한 칸과 기
   screen.unmount();
 });
 
-test('냉장·냉동 배지는 움직이는 문 앞면에 유지하고 수납 여부와 관계없이 포켓도 본체 모드를 따른다', () => {
+test('열린 도면의 프레임 음영·선반·포켓·구분선과 수납 없음 X선까지 같은 모드 색을 사용한다', () => {
+  for (const mode of ['CHILLED', 'FROZEN']) {
+    const draft = model.createRefrigeratorDraft();
+    draft.rows[0].compartments[0].storageMode = mode;
+    draft.rows[0].compartments[0].slots = [
+      { name: model.getSlotName(0), drawerCount: 2 }, { name: model.getSlotName(1), drawerCount: 0 },
+    ];
+    const { compartment, requests } = fixture(draft);
+    selectDoor(compartment);
+    const { focus } = focusedFixture(draft, requests[0]);
+    const palette = tokens.fridgeDoorColors[mode];
+    for (const area of interiorAreas(focus)) {
+      const map = find(area.type(area.props), node => node.type === mapModule.FridgeMap);
+      const tree = mapModule.FridgeMap(map.props);
+      const frame = find(tree, node => children(node).includes(map.props.areaHeader));
+      assert.equal(flattenStyle(frame.props.style).boxShadow[0].color, palette.frame);
+      assert.equal(flattenStyle(find(map.props.areaHeader, node => node.type === 'Text').props.style).color, palette.ink);
+      if (area.props.area.isBody) {
+        const shelf = find(tree, node => flattenStyle(node.props.style).height === 4);
+        assert.equal(flattenStyle(shelf.props.style).backgroundColor, palette.shelf);
+        const divider = find(tree, node => node.props.accessibilityLabel?.includes('오른쪽'));
+        assert.equal(flattenStyle(divider.props.style).borderLeftColor, palette.border);
+      } else {
+        for (const bin of findAll(tree, named('DoorPocketBin'))) {
+          const front = flattenStyle(children(bin.type(bin.props))[0].props.style);
+          assert.equal(front.backgroundColor, palette.pocket);
+          assert.equal(front.borderColor, palette.pocketBorder);
+          assert.equal(front.borderBottomColor, palette.shelf);
+          assert.equal(front.boxShadow[0].color, palette.motif + '22');
+        }
+      }
+    }
+    const empty = mount(interiorModule.DoorWithoutStorage, { label: '수납 없음', selected: false, storageMode: mode });
+    empty.tree.props.onLayout({ nativeEvent: { layout: { width: 100, height: 180 } } });
+    empty.render();
+    const lines = findAll(empty.tree, node => flattenStyle(node.props.style).height === 2);
+    assert.equal(lines.length, 2);
+    assert(lines.every(line => flattenStyle(line.props.style).backgroundColor === palette.motif + '66'));
+    assert.equal(flattenStyle(empty.tree.props.style).boxShadow[0].color, palette.frame);
+    empty.unmount();
+    focus.unmount();
+  }
+});
+
+test('문의 크기와 관계없이 중앙 모드 그림만 표시하고 축소 도면에서는 이름을 숨긴다', () => {
+  for (const mode of ['CHILLED', 'FROZEN']) {
+    for (const size of [16, 56]) {
+      for (const miniature of [false, true]) {
+        const tree = mapModule.DoorModeArt({ storageMode: mode, size, miniature });
+        const icons = findAll(tree, node => node.type === 'Icon');
+        assert.equal(icons.length, 1);
+        assert.equal(icons[0].props.name, mode === 'CHILLED' ? 'weather-windy' : 'snowflake');
+        assert.equal(findAll(tree, node => node.type === 'Text').length, miniature ? 0 : 1);
+      }
+    }
+  }
+});
+
+test('열린 수납은 모드 배경과 연한 테마 손잡이·경첩을 유지하고 선택 시 테두리만 바꾼다', () => {
   for (const mode of ['CHILLED', 'FROZEN']) {
     for (const enabled of [true, false]) {
       const draft = model.createRefrigeratorDraft();
       draft.rows[0].compartments[0].storageMode = mode;
       draft.rows[0].doors[0].storageEnabled = enabled;
       const { compartment, requests } = fixture(draft);
-      const closedDoor = doors(compartment).at(-1);
-      const badge = find(closedDoor.type(closedDoor.props), named('ModeBadge'));
-      const badgeStyle = flattenStyle(badge.type(badge.props).props.style);
-      const card = flattenStyle(closedDoor.props.style);
-      assert(badgeStyle.top >= 3);
-      assert(badgeStyle.top + badgeStyle.height <= card.height - 3);
-      assert(badgeStyle.right >= 0 && badgeStyle.right + badgeStyle.width <= card.width);
       selectDoor(compartment);
       const { focus } = focusedFixture(draft, requests[0]);
-      const movingDoor = movingDoors(focus).at(-1);
-      const movingBadge = find(children(movingDoor.type(movingDoor.props))[0], named('ModeBadge'));
-      assert.equal(movingBadge.props.storageMode, mode);
-      assert.deepEqual(flattenStyle(movingBadge.props.style), flattenStyle(badge.props.style));
-      assertFocusAccess(focus, 'opening');
-      for (const area of interiorAreas(focus)) {
-        const tree = area.type(area.props);
-        const map = find(tree, node => node.type === mapModule.FridgeMap);
-        const modeBadge = find(map ? map.props.areaHeader : tree, named('ModeBadge'));
-        assert.equal(modeBadge.props.storageMode, mode);
-        const icon = find(modeBadge.type(modeBadge.props), node => node.type === 'Icon');
-        assert.equal(icon.props.name, mode === 'CHILLED' ? 'thermometer-low' : 'snowflake');
-      }
       animations.at(-1).finish();
       focus.render();
-      assertFocusAccess(focus, 'open');
-      focus.props.onClose();
-      focus.render();
-      assertFocusAccess(focus, 'closing');
-      const closingDoor = movingDoors(focus).at(-1);
-      assert.equal(find(children(closingDoor.type(closingDoor.props))[0], named('ModeBadge')).props.storageMode, mode);
+      for (const area of interiorAreas(focus)) {
+        for (const selected of [false, true]) {
+          const tree = area.type({ ...area.props, selected });
+          const map = find(tree, node => node.type === mapModule.FridgeMap);
+          let background;
+          if (map) {
+            const mapTree = mapModule.FridgeMap(map.props);
+            const frame = find(mapTree, node => children(node).includes(map.props.areaHeader));
+            background = flattenStyle(frame.props.style).backgroundColor;
+            const positions = findAll(mapTree, node => node.props.accessibilityLabel?.includes('위에서'));
+            assert(positions.every(position => flattenStyle(position.props.style).backgroundColor === 'transparent'));
+          } else {
+            const empty = find(tree, named('DoorWithoutStorage'));
+            const mounted = mount(empty.type, empty.props);
+            background = flattenStyle(mounted.tree.props.style).backgroundColor;
+            mounted.unmount();
+          }
+          assert.equal(background, tokens.fridgeDoorColors[mode].background);
+          const selection = find(tree, named('SelectionFrame'));
+          if (selected) {
+            const style = flattenStyle(selection.type(selection.props).props.style);
+            assert.equal(style.borderColor, tokens.fridgeDoorColors[mode].ink);
+            assert.equal(style.backgroundColor, undefined);
+          } else assert.equal(selection, undefined);
+        }
+      }
+      const handle = mapModule.DoorHandle({ storageMode: mode });
+      assert.equal(flattenStyle(children(handle)[0].props.style).backgroundColor, tokens.fridgeDoorColors[mode].handle);
+      assert.deepEqual(flattenStyle(handle.props.style).boxShadow, tokens.fridgeSurfaces.hardwareShadow);
+      const hinges = find(focus.tree, named('DoorHinges'));
+      const hinge = find(hinges.type(hinges.props), named('DoorHinge'));
+      const pin = children(hinge.type(hinge.props))[0];
+      assert.equal(flattenStyle(pin.props.style).backgroundColor, tokens.fridgeDoorColors[mode].handle);
+      assert.deepEqual(flattenStyle(pin.props.style).boxShadow, tokens.fridgeSurfaces.hardwareShadow);
+      const layout = model.getDraftLayout(draft);
+      const individual = mapModule.FridgeMap({ ...layout, storageMode: mode,
+        selectedPositionId: layout.positions[0].id, onSelectPosition() {} });
+      const selectedSlot = find(individual, node => node.type === 'FeedbackPressable' && node.props.accessibilityState.selected);
+      const slotStyle = flattenStyle(selectedSlot.props.style);
+      assert.equal(slotStyle.backgroundColor, 'transparent');
+      assert.equal(slotStyle.boxShadow[0].color, tokens.fridgeDoorColors[mode].ink);
       focus.unmount();
     }
+  }
+});
+
+test('닫힌 문의 모드 색과 인쇄는 선택·수납 여부와 관계없이 표시하고 문 앞면과 함께 회전한다', () => {
+  for (const mode of ['CHILLED', 'FROZEN']) {
+    for (const enabled of [true, false]) {
+      for (const merged of [false, true]) {
+        let draft = model.createRefrigeratorDraft();
+        const rowId = draft.rows[0].id;
+        if (merged) {
+          draft = model.changeDraftDoorCount(draft, rowId, 1);
+          draft = model.mergeDraftCompartments(draft, rowId, draft.rows[0].compartments[0].id);
+        }
+        draft.rows[0].compartments[0].storageMode = mode;
+        draft.rows[0].doors.forEach(door => { door.storageEnabled = enabled; });
+        const { compartment, requests } = fixture(draft);
+        for (const door of doors(compartment)) {
+          const tree = door.type(door.props);
+          const face = find(tree, node => node.type === 'Pressable');
+          const art = find(children(tree)[0], named('DoorModeArt'));
+          const printed = mapModule.DoorModeArt(art.props);
+          assert.equal(flattenStyle(face.props.style).backgroundColor, tokens.fridgeDoorColors[mode].background);
+          assert(face.props.accessibilityLabel.includes(mode === 'CHILLED' ? '냉장실' : '냉동실'));
+          assert.equal(printed.props.pointerEvents, 'none');
+          assert.equal(printed.props.importantForAccessibility, 'no-hide-descendants');
+          assert(find(printed, node => node.type === 'Icon' && node.props.name === (mode === 'CHILLED' ? 'weather-windy' : 'snowflake')));
+          assert.equal(find(printed, node => node.type === 'Text').props.children, mode === 'CHILLED' ? '냉장실' : '냉동실');
+          const selected = door.type({ ...door.props, selected: true });
+          assert.equal(flattenStyle(find(selected, node => node.type === 'Pressable').props.style).backgroundColor,
+            flattenStyle(face.props.style).backgroundColor);
+        }
+        selectDoor(compartment);
+        const { focus } = focusedFixture(draft, requests[0]);
+        assertFocusAccess(focus, 'opening');
+        for (const door of movingDoors(focus)) {
+          assert.equal(find(children(door.type(door.props))[0], named('DoorModeArt')).props.storageMode, mode);
+        }
+        for (const area of interiorAreas(focus)) {
+          const tree = area.type(area.props);
+          const map = find(tree, node => node.type === mapModule.FridgeMap);
+          const header = map ? map.props.areaHeader : tree;
+          const label = find(header, node => node.type === 'Text');
+          assert.equal(label.props.children, area.props.area.isBody ? mode === 'CHILLED' ? '냉장실' : '냉동실' : '도어포켓');
+          assert.equal(find(header, node => node.type === 'Icon'), undefined);
+        }
+        animations.at(-1).finish();
+        focus.render();
+        assertFocusAccess(focus, 'open');
+        focus.props.onClose();
+        focus.render();
+        assertFocusAccess(focus, 'closing');
+        for (const door of movingDoors(focus)) {
+          assert.equal(find(children(door.type(door.props))[0], named('DoorModeArt')).props.storageMode, mode);
+        }
+        focus.unmount();
+      }
+    }
+  }
+});
+
+test('설정 패널에서 냉장·냉동을 변경하면 닫힌 문의 색과 인쇄 모드가 함께 갱신된다', () => {
+  const { screen, viewport, map, target } = registrationFixture();
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  map.props.onFocus(target);
+  screen.render();
+  find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+  screen.render();
+  find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpenSettings();
+  screen.render();
+  for (const [mode, label] of [['FROZEN', '냉동'], ['CHILLED', '냉장']]) {
+    find(screen.tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === '1단 ' + label).props.onPress();
+    screen.render();
+    const draft = find(screen.tree, named('FridgeInteriorMap')).props.draft;
+    assert.equal(draft.rows[0].compartments[0].storageMode, mode);
+    const { compartment } = fixture(draft);
+    const door = doors(compartment)[0];
+    const tree = door.type(door.props);
+    assert.equal(find(tree, named('DoorModeArt')).props.storageMode, mode);
+    assert.equal(flattenStyle(find(tree, node => node.type === 'Pressable').props.style).backgroundColor, tokens.fridgeDoorColors[mode].background);
+  }
+  screen.unmount();
+});
+
+test('축소 도면도 각 문에 연결된 본체의 모드를 따라 색과 그림을 갱신한다', () => {
+  const { FridgeStructurePreview } = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
+  let draft = model.createRefrigeratorDraft();
+  draft = model.changeDraftDoorCount(draft, draft.rows[0].id, 1);
+  draft.rows[0].compartments[0].storageMode = 'FROZEN';
+  const getArt = () => findAll(FridgeStructurePreview({ rows: draft.rows }), named('DoorModeArt'));
+  assert.deepEqual(getArt().map(art => art.props.storageMode), ['FROZEN', 'CHILLED', 'CHILLED']);
+  const faces = findAll(FridgeStructurePreview({ rows: draft.rows }), node => children(node).some(named('DoorModeArt')));
+  assert.deepEqual(faces.map(face => flattenStyle(face.props.style).backgroundColor), [
+    tokens.fridgeDoorColors.FROZEN.background, tokens.fridgeDoorColors.CHILLED.background, tokens.fridgeDoorColors.CHILLED.background,
+  ]);
+  for (const art of getArt()) {
+    const tree = art.type(art.props);
+    assert.equal(tree.props.pointerEvents, 'none');
+    assert.equal(find(tree, node => node.type === 'Text'), undefined);
+    assert(find(tree, node => node.type === 'Icon'));
+  }
+  draft.rows[0].compartments[0].storageMode = 'CHILLED';
+  assert.equal(getArt()[0].props.storageMode, 'CHILLED');
+});
+
+test('서로 다른 모드의 본체를 합쳐 미설정이 되면 모든 문에서 이전 색과 인쇄를 제거한다', () => {
+  let draft = model.createRefrigeratorDraft();
+  const rowId = draft.rows[0].id;
+  draft = model.changeDraftDoorCount(draft, rowId, 1);
+  draft.rows[0].compartments[1].storageMode = 'FROZEN';
+  draft = model.mergeDraftCompartments(draft, rowId, draft.rows[0].compartments[0].id);
+  assert.equal(draft.rows[0].compartments[0].storageMode, null);
+  const { compartment } = fixture(draft);
+  for (const door of doors(compartment)) {
+    const tree = door.type(door.props);
+    const art = find(tree, named('DoorModeArt'));
+    assert.equal(mapModule.DoorModeArt(art.props), null);
+    const face = find(tree, node => node.type === 'Pressable');
+    assert.equal(flattenStyle(face.props.style).backgroundColor, tokens.fridgeSurfaces.exterior);
+    assert(face.props.accessibilityLabel.includes('보관 모드 미설정'));
   }
 });

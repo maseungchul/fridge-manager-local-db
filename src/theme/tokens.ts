@@ -48,7 +48,7 @@ export const fridgeSurfaces = {
   shelf: '#AECFBF',
   pocket: '#D8EDE24D',
   pocketBorder: '#A8CEBC',
-  handle: '#B3CDBD',
+  handle: '#B3BDB8',
   ink: '#577062',
   radius: 16,
   raisedShadow: [
@@ -62,7 +62,39 @@ export const fridgeSurfaces = {
   shelfShadow: [
     { offsetX: 0, offsetY: 2, blurRadius: 2, color: '#5C806522' },
   ],
+  hardwareShadow: [
+    { offsetX: 0, offsetY: 1, blurRadius: 2, color: '#40535D14' },
+  ],
 } as const;
+
+// 문 앞면과 열린 수납 공간은 선택 여부와 관계없이 같은 보관 모드의 색을 사용한다.
+export const fridgeDoorColors = {
+  CHILLED: {
+    background: '#EAF4EE', border: '#BED8CB', ink: '#416B57', motif: '#648F7A',
+    frame: '#DCEBE1', shelf: '#AECFBF', pocket: '#D8EDE24D', pocketBorder: '#A8CEBC', handle: '#B4CBC0',
+  },
+  FROZEN: {
+    background: '#E8F3FB', border: '#BDD7E8', ink: '#396B90', motif: '#648FAF',
+    frame: '#DAEAF4', shelf: '#AFCEE2', pocket: '#D6EAF64D', pocketBorder: '#ACCDE1', handle: '#B5CBD9',
+  },
+} as const;
+
+/** 문 앞·뒷면과 내부 프레임의 배경·테두리·음영을 같은 모드 색으로 맞춘다. */
+export function getFridgeSurfaceStyle(storageMode: keyof typeof fridgeDoorColors | null | undefined, side: 'interior' | 'exterior' = 'interior') {
+  if (!storageMode) return undefined;
+  const palette = fridgeDoorColors[storageMode];
+  return {
+    backgroundColor: palette.background,
+    borderColor: palette.border,
+    boxShadow: side === 'interior' ? [
+      { ...fridgeSurfaces.recessedShadow[0], color: palette.frame },
+      { ...fridgeSurfaces.recessedShadow[1], color: `${palette.motif}14` },
+    ] : [
+      { ...fridgeSurfaces.raisedShadow[0], color: `${palette.motif}1A` },
+      fridgeSurfaces.raisedShadow[1],
+    ],
+  };
+}
 
 // padding, margin, gap에 사용하는 공통 간격이다. xs부터 xxl까지 크기가 커진다.
 // React Native 스타일의 숫자 값은 화면 밀도에 독립적인 논리 단위로 사용된다.
