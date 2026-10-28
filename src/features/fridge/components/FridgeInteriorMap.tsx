@@ -106,7 +106,7 @@ function InteriorArea({ area, layout, compact, selected, storageMode, onSelectAr
   const header = (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.interiorHeader}>
       <View style={styles.areaBadge}>
-        <Text numberOfLines={1} style={styles.areaBadgeLabel}>{area.isBody ? '본체' : '포켓'}</Text>
+        <Text numberOfLines={1} style={styles.areaBadgeLabel}>{area.isBody ? '본체' : '도어포켓'}</Text>
       </View>
       <ModeBadge storageMode={storageMode} style={styles.interiorModeBadge} />
     </View>

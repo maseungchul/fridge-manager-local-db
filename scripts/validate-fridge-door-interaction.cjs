@@ -178,8 +178,12 @@ function focusedFixture(draft, target, viewport = { x: 0, y: 120, width: 375, he
   focus = mount(FridgeFocusView, props);
   return { focus, phases, selected };
 }
-function registrationFixture() {
+function registrationFixture(doorCount = 1) {
   const screen = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
+  if (doorCount === 2) {
+    find(screen.tree, node => node.props.accessibilityLabel === '1단 문 늘리기').props.onPress();
+    screen.render();
+  }
   find(screen.tree, node => node.type === 'PrimaryButton' && node.props.label === '다음').props.onPress();
   animations.at(-1).finish();
   screen.render();
@@ -512,6 +516,88 @@ test('중앙 보기에서 합치기·분리하면 본체와 연결된 포켓 수
   assert.equal(split.pockets.length, 1);
 });
 
+test('양쪽 본체의 툴바에서 합치고 분리해도 선택·중앙 보기·원래 문으로 복귀를 유지한다', () => {
+  for (const selectedIndex of [0, 1]) {
+    const { screen, viewport, map, row, target } = registrationFixture(2);
+    const bodyId = row.compartments[selectedIndex].id;
+    const doorId = row.doors[selectedIndex].id;
+    const focusTarget = { ...target, areaId: bodyId, returnAreaId: doorId };
+    viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+    map.props.onFocus(focusTarget);
+    screen.render();
+    const focus = () => find(screen.tree, named('FridgeFocusView'));
+    const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu');
+    focus().props.onPhaseChange('open');
+    screen.render();
+    const original = focus().props;
+    const before = getFridgeFocusGeometry(original.draft, original.target, original.viewport);
+    assert.equal(menu().props.mergeDisabled, false);
+    const toolbar = mount(FridgeAreaMenu, menu().props);
+    const mergeButton = find(toolbar.tree, node => node.props.accessibilityLabel === '이웃 본체와 합치기');
+    assert.equal(mergeButton.props.disabled, false);
+    mergeButton.props.onPress();
+    screen.render();
+    assert.equal(focus().props.selectedAreaId, bodyId);
+    assert.equal(focus().props.target.areaId, bodyId);
+    assert.equal(focus().props.target.returnAreaId, doorId);
+    assert.equal(focus().props.phase, 'open');
+    assert.strictEqual(focus().props.viewport, original.viewport);
+    const merged = getFridgeFocusGeometry(focus().props.draft, focus().props.target, original.viewport);
+    assert.equal(merged.group.body.id, bodyId);
+    assert.equal(merged.pockets.length, 2);
+    near(merged.source.width, 324);
+    assert.equal(menu().props.onMerge, undefined);
+    assert.equal(menu().props.openingDisabled, true);
+    menu().props.onSplit();
+    screen.render();
+    const split = getFridgeFocusGeometry(focus().props.draft, focus().props.target, original.viewport);
+    assert.equal(focus().props.selectedAreaId, bodyId);
+    assert.deepEqual(split.group.body.doorIds, [doorId]);
+    near(split.source.x, before.source.x);
+    near(split.source.width, before.source.width);
+    assert.equal(menu().props.mergeDisabled, false);
+    assert.equal(menu().props.openingDisabled, false);
+    focus().props.onClose();
+    screen.render();
+    assert.equal(focus().props.phase, 'closing');
+    focus().props.onPhaseChange('closed');
+    screen.render();
+    assert.equal(focus(), undefined);
+    assert.equal(find(screen.tree, named('FridgeInteriorMap')).props.selectedAreaId, doorId);
+    toolbar.unmount();
+    screen.unmount();
+  }
+});
+
+test('이웃이 없거나 합산 4칸을 넘으면 어느 본체에서도 합치기를 비활성화한다', () => {
+  const single = registrationFixture();
+  single.viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  single.map.props.onFocus(single.target);
+  single.screen.render();
+  find(single.screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+  single.screen.render();
+  assert.equal(find(single.screen.tree, node => node.type === 'FridgeAreaMenu').props.mergeDisabled, true);
+  single.screen.unmount();
+  for (const selectedIndex of [0, 1]) {
+    const { screen, viewport, map, row, target } = registrationFixture(2);
+    viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+    map.props.onFocus({ ...target, areaId: row.compartments[selectedIndex].id, returnAreaId: row.doors[selectedIndex].id });
+    screen.render();
+    find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+    screen.render();
+    const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu');
+    menu().props.onOpenSettings();
+    screen.render();
+    for (let count = 1; count < model.MAX_SLOTS; count++) {
+      find(screen.tree, node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
+      screen.render();
+    }
+    assert.equal(menu().props.mergeDisabled, true);
+    assert.equal(menu().props.mergeLimitExceeded, true);
+    screen.unmount();
+  }
+});
+
 test('포켓 4칸과 내부 상단 배지의 공간을 확보하고 원래 도면 높이로 복귀한다', () => {
   let draft = model.createRefrigeratorDraft();
   draft = model.addDraftRow(model.addDraftRow(draft));
@@ -535,14 +621,14 @@ test('본체·포켓 배지는 내부 상단에 표시하고 별도 닫기 버�
     const tree = area.type(area.props);
     const map = find(tree, node => node.type === mapModule.FridgeMap);
     const header = map.props.areaHeader;
-    const badge = find(header, node => children(node).some(child => child.type === 'Text' && ['본체', '포켓'].includes(child.props.children)));
+    const badge = find(header, node => children(node).some(child => child.type === 'Text' && ['본체', '도어포켓'].includes(child.props.children)));
     assert.equal(flattenStyle(badge.props.style).position, undefined);
     assert.equal(header.props.pointerEvents, 'none');
     const frame = find(mapModule.FridgeMap(map.props), node => children(node).includes(header));
     assert.equal(flattenStyle(frame.props.style).overflow, 'hidden');
     return children(badge)[0].props.children;
   });
-  assert.deepEqual(labels, ['본체', '포켓']);
+  assert.deepEqual(labels, ['본체', '도어포켓']);
   assert.equal(findAll(focus.tree, node => node.type === 'SecondaryButton').length, 0);
   const outside = find(children(focus.tree)[0], node => node.type === 'Pressable');
   assert.equal(outside.props.accessibilityRole, 'button');

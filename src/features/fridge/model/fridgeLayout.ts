@@ -161,20 +161,23 @@ export function setDraftDoorOpening(draft: RefrigeratorDraft, rowId: string, doo
   }) };
 }
 
-/** 문을 열고 닫아도 같은 단의 오른쪽 이웃 본체는 서로 맞닿는다. */
-export function getAdjacentRightCompartment(row: DraftRow, bodyId: string): DraftCompartment | undefined {
+/** 같은 단의 오른쪽 이웃을 먼저 찾고, 없으면 왼쪽 이웃을 합치기 대상으로 사용한다. */
+export function getAdjacentCompartment(row: DraftRow, bodyId: string): DraftCompartment | undefined {
   const index = row.compartments.findIndex(body => body.id === bodyId);
-  return index < 0 ? undefined : row.compartments[index + 1];
+  return index < 0 ? undefined : row.compartments[index + 1] ?? row.compartments[index - 1];
 }
 
-/** 오른쪽 본체와 합치면 문을 양쪽 여닫이로 맞춘다. 칸은 왼쪽부터 이어 붙이며 모드가 다르면 재선택한다. */
+/** 이웃 본체와 합쳐도 선택한 식별자와 칸의 좌우 순서를 유지하며, 문은 양쪽 여닫이로 맞춘다. */
 export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, bodyId: string): RefrigeratorDraft {
   return { ...draft, rows: draft.rows.map(row => {
     if (row.id !== rowId) return row;
-    const index = row.compartments.findIndex(body => body.id === bodyId);
-    const left = row.compartments[index], right = getAdjacentRightCompartment(row, bodyId);
+    const selected = row.compartments.find(body => body.id === bodyId);
+    const adjacent = getAdjacentCompartment(row, bodyId);
+    if (!selected || !adjacent) return row;
+    const index = Math.min(row.compartments.indexOf(selected), row.compartments.indexOf(adjacent));
+    const left = row.compartments[index], right = row.compartments[index + 1];
     if (!left || !right || left.slots.length + right.slots.length > MAX_SLOTS) return row;
-    const merged = { ...left, doorIds: [...left.doorIds, ...right.doorIds], slots: [...left.slots, ...right.slots],
+    const merged = { ...selected, doorIds: [...left.doorIds, ...right.doorIds], slots: [...left.slots, ...right.slots],
       storageMode: left.storageMode === right.storageMode ? left.storageMode : null };
     const doors = row.doors.map<DraftDoor>(door => merged.doorIds.includes(door.id) ? {
       ...door, kind: 'HINGED', side: door.id === merged.doorIds[0] ? 'LEFT_DOOR' : 'RIGHT_DOOR',
@@ -183,20 +186,22 @@ export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, 
   }) };
 }
 
-/** 문별 본체로 분리할 때 기존 칸을 순서대로 나누고, 칸이 부족한 본체에만 기본 칸을 만든다. */
-export function splitDraftCompartment(draft: RefrigeratorDraft, rowId: string, bodyId: string): RefrigeratorDraft {
+/** 칸을 순서대로 나누며, 복귀할 문에 기존 본체 식별자를 남겨 중앙 보기의 연결을 유지한다. */
+export function splitDraftCompartment(draft: RefrigeratorDraft, rowId: string, bodyId: string, returnDoorId?: string): RefrigeratorDraft {
   let nextId = draft.nextId;
   const rows = draft.rows.map(row => row.id !== rowId ? row : { ...row,
     compartments: row.compartments.flatMap(body => {
       if (body.id !== bodyId || body.doorIds.length === 1) return [body];
+      const retainedIndex = Math.max(0, body.doorIds.indexOf(returnDoorId ?? ''));
       let slotIndex = 0;
       return body.doorIds.map((doorId, index) => {
         const slotCount = Math.ceil((body.slots.length - slotIndex) / (body.doorIds.length - index));
         const slots = body.slots.slice(slotIndex, slotIndex + slotCount);
         slotIndex += slots.length;
-        const compartment = index === 0 ? { ...body, doorIds: [doorId] }
-          : createDraftCompartment(nextId++, [doorId]);
-        return { ...compartment, storageMode: body.storageMode, slots: slots.length ? slots : compartment.slots };
+        const compartment = createDraftCompartment(nextId, [doorId]);
+        const id = index === retainedIndex ? body.id : compartment.id;
+        if (index !== retainedIndex) nextId++;
+        return { ...compartment, id, storageMode: body.storageMode, slots: slots.length ? slots : compartment.slots };
       });
     }),
   });

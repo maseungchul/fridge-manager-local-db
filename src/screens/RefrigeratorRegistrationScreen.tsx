@@ -26,7 +26,7 @@ import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import {
   addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft,
-  getAdjacentRightCompartment, getDraftAreaLocation, getDraftLayout, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
+  getAdjacentCompartment, getDraftAreaLocation, getDraftLayout, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
   removeDraftRow, setDraftDoorOpening, splitDraftCompartment, storageModeOptions,
 } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
@@ -76,8 +76,8 @@ export function RefrigeratorRegistrationScreen({
   const selectedType = selectedDoor?.side ?? 'BODY';
   const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id);
   const bodyLocation = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedBody.id);
-  const rightBody = getAdjacentRightCompartment(selectedRow, selectedBody.id);
-  const mergeLimitExceeded = !!rightBody && selectedBody.slots.length + rightBody.slots.length > MAX_SLOTS;
+  const adjacentBody = getAdjacentCompartment(selectedRow, selectedBody.id);
+  const mergeLimitExceeded = !!adjacentBody && selectedBody.slots.length + adjacentBody.slots.length > MAX_SLOTS;
   const storageEnabled = !selectedDoor || selectedDoor.storageEnabled;
   const preview = getDraftLayout(draft);
   const previewArea = preview.areas.find(area => area.id === selectedArea.id)!;
@@ -412,11 +412,14 @@ export function RefrigeratorRegistrationScreen({
                     onToggleStorage={() => updateDoorStorage(!storageEnabled)}
                     onOpeningChange={selectDoorOpening}
                     onMerge={selectedAreaId && !selectedDoor && !isMergedBody
-                      ? () => setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id)) : undefined}
-                    mergeDisabled={!rightBody || mergeLimitExceeded}
+                      ? () => {
+                        setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id));
+                        setFocusTarget(current => current ? { ...current, returnAreaId: selectedBody.doorIds[0] } : current);
+                      } : undefined}
+                    mergeDisabled={!adjacentBody || mergeLimitExceeded}
                     mergeLimitExceeded={mergeLimitExceeded}
                     onSplit={selectedAreaId && !selectedDoor && isMergedBody
-                      ? () => setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id)) : undefined}
+                      ? () => setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id, activeFocus.returnAreaId)) : undefined}
                     onOpenSettings={() => openAreaSettings(selectedArea.id)} />
                 </View>
               ) : null}

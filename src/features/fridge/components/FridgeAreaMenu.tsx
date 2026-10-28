@@ -100,7 +100,7 @@ export function FridgeAreaMenu({ disabled, openingsOpen, showOpeningAction, open
           </View>
         ) : null}
         {onMerge ? (
-          <FeedbackPressable accessibilityRole="button" accessibilityLabel="오른쪽 본체와 합치기"
+          <FeedbackPressable accessibilityRole="button" accessibilityLabel="이웃 본체와 합치기"
             accessibilityState={{ disabled: disabled || mergeDisabled }} disabled={disabled || mergeDisabled}
             onPress={onMerge} style={styles.action}>
             <MaterialDesignIcons name="arrow-collapse-horizontal" size={16} color={colors.text} accessible={false} style={styles.actionIcon} />
