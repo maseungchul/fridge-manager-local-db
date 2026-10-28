@@ -77,7 +77,11 @@ test('여러 본체의 칸 수·순서·이름·서랍 구조·보관 모드를 
       assert(bodies.every(body => body.slots.length >= 1 && body.storageMode === 'FROZEN'));
       assert.equal(bodies[0].id, bodyId);
       assert.equal(new Set(bodies.map(body => body.id)).size, bodies.length);
-      assert.deepEqual(draft.rows[0].doors, original.rows[0].doors);
+      draft.rows[0].doors.forEach((door, index) => {
+        assert.equal(door.id, original.rows[0].doors[index].id);
+        assert.equal(door.storageEnabled, original.rows[0].doors[index].storageEnabled);
+        assert.deepEqual(door.slots, original.rows[0].doors[index].slots);
+      });
       assert.strictEqual(draft.rows[1], original.rows[1]);
     }
     assert.deepEqual(original, snapshot);
@@ -119,7 +123,7 @@ test('공용 칸을 줄인 뒤 분리해도 기존 입력과 본체별 최소 �
   assert.deepEqual(draft.rows[0].compartments.map(body => body.slots.length), [1, 1, 1]);
 });
 
-test('문 방향과 관계없이 오른쪽 이웃 본체와 맞닿는다', () => {
+test('기존 여는 방식과 관계없이 오른쪽 본체와 합치면 문을 본체 양쪽에 배치한다', () => {
   const cases = [
     ['LEFT_DOOR', 'LEFT_DOOR'], ['LEFT_DOOR', 'RIGHT_DOOR'], ['LEFT_DOOR', 'DRAWER'],
     ['RIGHT_DOOR', 'LEFT_DOOR'], ['RIGHT_DOOR', 'RIGHT_DOOR'], ['RIGHT_DOOR', 'DRAWER'],
@@ -132,9 +136,18 @@ test('문 방향과 관계없이 오른쪽 이웃 본체와 맞닿는다', () =>
     const [leftBody, rightBody] = draft.rows[0].compartments;
     draft = setDraftDoorOpening(draft, rowId, leftDoor.id, leftOpening);
     draft = setDraftDoorOpening(draft, rowId, rightDoor.id, rightOpening);
+    const snapshot = structuredClone(draft);
     assert.equal(getAdjacentRightCompartment(draft.rows[0], leftBody.id)?.id, rightBody.id);
     const merged = mergeDraftCompartments(draft, rowId, leftBody.id);
     assert.equal(merged.rows[0].compartments.length, 1);
+    assert.deepEqual(merged.rows[0].doors, [
+      { ...draft.rows[0].doors[0], kind: 'HINGED', side: 'LEFT_DOOR' },
+      { ...draft.rows[0].doors[1], kind: 'HINGED', side: 'RIGHT_DOOR' },
+    ]);
+    assert.strictEqual(merged.rows[1], draft.rows[1]);
+    assert.deepEqual(draft, snapshot);
+    const split = splitDraftCompartment(merged, rowId, leftBody.id);
+    assert.deepEqual(split.rows[0].doors, merged.rows[0].doors);
   }
 });
 
@@ -148,7 +161,10 @@ test('문 수납 사용 여부는 본체 라인과 합치기에 영향을 주지
     ...row, doors: row.doors.map(door => door.id === doorId ? { ...door, storageEnabled: false } : door),
   }) };
   assert.equal(getAdjacentRightCompartment(draft.rows[0], bodyId)?.id, draft.rows[0].compartments[1].id);
-  assert.equal(mergeDraftCompartments(draft, rowId, bodyId).rows[0].compartments.length, 1);
+  const merged = mergeDraftCompartments(draft, rowId, bodyId);
+  assert.equal(merged.rows[0].compartments.length, 1);
+  assert.equal(merged.rows[0].doors[1].storageEnabled, false);
+  assert.deepEqual(merged.rows[0].doors[1].slots, draft.rows[0].doors[1].slots);
 });
 
 test('공용 본체도 오른쪽 이웃만 합칠 수 있고 없는 본체는 변경하지 않는다', () => {

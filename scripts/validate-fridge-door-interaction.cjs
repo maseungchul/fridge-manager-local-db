@@ -379,12 +379,13 @@ test('이동 중 표시 영역 높이가 바뀌어도 이전 이동값이 최종
   focus.unmount();
 });
 
-test('포켓을 문 한 개의 본체와 같은 크기로 배치하고 기존 세로 경첩으로 연결한다', () => {
-  for (const openings of [['LEFT_DOOR', 'RIGHT_DOOR'], ['RIGHT_DOOR', 'LEFT_DOOR'], ['LEFT_DOOR', 'LEFT_DOOR'], ['RIGHT_DOOR', 'RIGHT_DOOR']]) {
+test('합친 본체의 포켓을 기존 여는 방식과 관계없이 양쪽에 같은 크기로 배치하고 경첩으로 연결한다', () => {
+  const openings = ['LEFT_DOOR', 'RIGHT_DOOR', 'DRAWER'];
+  for (const pair of openings.flatMap(left => openings.map(right => [left, right]))) {
     let draft = model.createRefrigeratorDraft();
     const rowId = draft.rows[0].id;
     draft = model.changeDraftDoorCount(draft, rowId, 1);
-    draft.rows[0].doors.forEach((door, index) => { draft = model.setDraftDoorOpening(draft, rowId, door.id, openings[index]); });
+    draft.rows[0].doors.forEach((door, index) => { draft = model.setDraftDoorOpening(draft, rowId, door.id, pair[index]); });
     draft = model.mergeDraftCompartments(draft, rowId, draft.rows[0].compartments[0].id);
     const { requests, compartment } = fixture(draft);
     selectDoor(compartment, 1);
@@ -399,10 +400,10 @@ test('포켓을 문 한 개의 본체와 같은 크기로 배치하고 기존 �
       else assert(frame.left > body.left + body.width);
     }
     const [first, second] = geometry.pockets;
-    if (first.door.side === second.door.side) {
-      near(first.frame.top, second.frame.top);
-      assert(first.frame.left + first.frame.width < second.frame.left);
-    }
+    assert.equal(first.door.id, draft.rows[0].doors[0].id);
+    assert.equal(second.door.id, draft.rows[0].doors[1].id);
+    near(first.frame.left + first.frame.width + 3, body.left);
+    near(second.frame.left, body.left + body.width + 3);
     const { focus } = focusedFixture(draft, requests[0]);
     assert.equal(interiorAreas(focus).length, 3);
     assert.equal(movingDoors(focus).length, 2);

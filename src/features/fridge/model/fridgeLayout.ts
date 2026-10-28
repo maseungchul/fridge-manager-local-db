@@ -167,7 +167,7 @@ export function getAdjacentRightCompartment(row: DraftRow, bodyId: string): Draf
   return index < 0 ? undefined : row.compartments[index + 1];
 }
 
-/** 맞닿은 오른쪽 본체만 합친다. 칸은 왼쪽부터 이어 붙이며 모드가 다르면 재선택한다. */
+/** 오른쪽 본체와 합치면 문을 양쪽 여닫이로 맞춘다. 칸은 왼쪽부터 이어 붙이며 모드가 다르면 재선택한다. */
 export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, bodyId: string): RefrigeratorDraft {
   return { ...draft, rows: draft.rows.map(row => {
     if (row.id !== rowId) return row;
@@ -176,7 +176,10 @@ export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, 
     if (!left || !right || left.slots.length + right.slots.length > MAX_SLOTS) return row;
     const merged = { ...left, doorIds: [...left.doorIds, ...right.doorIds], slots: [...left.slots, ...right.slots],
       storageMode: left.storageMode === right.storageMode ? left.storageMode : null };
-    return { ...row, compartments: [...row.compartments.slice(0, index), merged, ...row.compartments.slice(index + 2)] };
+    const doors = row.doors.map<DraftDoor>(door => merged.doorIds.includes(door.id) ? {
+      ...door, kind: 'HINGED', side: door.id === merged.doorIds[0] ? 'LEFT_DOOR' : 'RIGHT_DOOR',
+    } : door);
+    return { ...row, doors, compartments: [...row.compartments.slice(0, index), merged, ...row.compartments.slice(index + 2)] };
   }) };
 }
 
