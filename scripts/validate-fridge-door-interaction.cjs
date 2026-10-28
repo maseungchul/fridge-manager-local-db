@@ -223,13 +223,14 @@ function assertFocusAccess(focus, phase) {
   const bodyPanel = find(moving(focus), node => children(node).includes(bodyContent));
   const bodyFrame = children(bodyPanel)[0];
   assert.notStrictEqual(bodyFrame, bodyContent);
-  assert.equal(flattenStyle(bodyFrame.props.style).borderWidth, 1);
+  assert.equal(flattenStyle(bodyFrame.props.style).borderWidth, tokens.fridgeSurfaces.frameWidth);
+  assert.equal(flattenStyle(bodyFrame.props.style).borderColor, '#FFFFFF');
   assert(flattenStyle(bodyFrame.props.style).backgroundColor);
   const frameMode = focus.props.draft.rows.flatMap(row => row.compartments)
     .find(body => body.id === focus.props.target.areaId)?.storageMode;
   assert.equal(flattenStyle(bodyFrame.props.style).backgroundColor,
-    frameMode ? tokens.fridgeDoorColors[frameMode].background : tokens.fridgeSurfaces.interior);
-  if (frameMode) assert.equal(flattenStyle(bodyFrame.props.style).boxShadow[0].color, tokens.fridgeDoorColors[frameMode].frame);
+    frameMode ? tokens.fridgeDoorColors[frameMode].frame : tokens.fridgeSurfaces.frame);
+  if (frameMode) assert.equal(flattenStyle(bodyFrame.props.style).boxShadow[0].color, tokens.fridgeDoorColors[frameMode].motif + '14');
   assert.equal(flattenStyle(bodyFrame.props.style).opacity ?? 1, 1);
   assert.equal(flattenStyle(bodyPanel.props.style).opacity ?? 1, 1);
   assert.equal(bodyFrame.props.pointerEvents, 'none');
@@ -260,7 +261,7 @@ const dimensionAt = (value, progress, parentSize = 0) => {
   return typeof value === 'string' && value.endsWith('%') ? parseFloat(value) / 100 * parentSize : value;
 };
 
-test('닫힌 도면은 단 사이에 4px 여백을 두고 문 사이와 전체 외곽 모서리 형태를 유지한다', () => {
+test('닫힌 도면은 단 사이에 4px 여백을 두고 모든 문과 외곽을 직각으로 표시한다', () => {
   for (const count of [1, 2, 3, 4]) {
     let draft = model.createRefrigeratorDraft();
     while (draft.rows.length > count) draft = model.removeDraftRow(draft, draft.rows.at(-1).id);
@@ -271,7 +272,7 @@ test('닫힌 도면은 단 사이에 4px 여백을 두고 문 사이와 전체 �
     const { map } = fixture(draft);
     const canvas = children(map.tree)[0];
     const canvasStyle = flattenStyle(canvas.props.style);
-    assert.equal(canvasStyle.borderRadius, tokens.fridgeSurfaces.radius);
+    assert.equal(canvasStyle.borderRadius, 0);
     assert.equal(canvasStyle.overflow, 'hidden');
     assert.equal(canvasStyle.borderWidth, undefined);
     assert.equal(canvasStyle.boxShadow, undefined);
@@ -296,10 +297,10 @@ test('닫힌 도면은 단 사이에 4px 여백을 두고 문 사이와 전체 �
           near(start, end);
           assert.equal(surface.borderLeftWidth, start > 0 ? 0 : 1);
           end = start + door.props.style.width;
-          assert.equal(surface.borderTopLeftRadius, rowIndex === 0 && start === 0 ? tokens.fridgeSurfaces.radius : 0);
-          assert.equal(surface.borderTopRightRadius, rowIndex === 0 && end === canvasStyle.width ? tokens.fridgeSurfaces.radius : 0);
-          assert.equal(surface.borderBottomLeftRadius, rowIndex === count - 1 && start === 0 ? tokens.fridgeSurfaces.radius : 0);
-          assert.equal(surface.borderBottomRightRadius, rowIndex === count - 1 && end === canvasStyle.width ? tokens.fridgeSurfaces.radius : 0);
+          assert.equal(surface.borderTopLeftRadius, 0);
+          assert.equal(surface.borderTopRightRadius, 0);
+          assert.equal(surface.borderBottomLeftRadius, 0);
+          assert.equal(surface.borderBottomRightRadius, 0);
           const selection = find(door.type({ ...door.props, selected: true }), named('SelectionFrame'));
           const selectedStyle = flattenStyle(selection.type(selection.props).props.style);
           assert.equal(selectedStyle.borderTopLeftRadius, surface.borderTopLeftRadius);
@@ -413,7 +414,7 @@ test('중단된 전환은 완료로 처리하지 않고 본체·포켓 입력 �
   focus.unmount();
 });
 
-test('어느 문을 열어도 앞면·뒷면·본체·포켓·선택선이 원래 외곽 모서리를 유지한다', () => {
+test('어느 문을 열어도 앞면·뒷면·본체·포켓·선택선이 직각 모서리를 유지한다', () => {
   const corners = style => {
     const value = flattenStyle(style);
     return ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius']
@@ -1616,7 +1617,7 @@ test('포켓은 3칸·본체는 4칸까지만 추가하고 최소 한 칸과 기
   screen.unmount();
 });
 
-test('열린 도면의 프레임 음영·선반·포켓·구분선과 수납 없음 X선까지 같은 모드 색을 사용한다', () => {
+test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 사용하고 X선까지 모드 색을 맞춘다', () => {
   for (const mode of ['CHILLED', 'FROZEN']) {
     const draft = model.createRefrigeratorDraft();
     draft.rows[0].compartments[0].storageMode = mode;
@@ -1631,7 +1632,9 @@ test('열린 도면의 프레임 음영·선반·포켓·구분선과 수납 없
       const map = find(area.type(area.props), node => node.type === mapModule.FridgeMap);
       const tree = mapModule.FridgeMap(map.props);
       const frame = find(tree, node => children(node).includes(map.props.areaHeader));
-      assert.equal(flattenStyle(frame.props.style).boxShadow[0].color, palette.frame);
+      assert.equal(flattenStyle(frame.props.style).borderColor, '#FFFFFF');
+      assert.equal(flattenStyle(frame.props.style).backgroundColor, palette.frame);
+      assert.equal(flattenStyle(frame.props.style).boxShadow[0].color, palette.motif + '14');
       assert.equal(flattenStyle(find(map.props.areaHeader, node => node.type === 'Text').props.style).color, palette.ink);
       if (area.props.area.isBody) {
         const shelf = find(tree, node => flattenStyle(node.props.style).height === 4);
@@ -1643,6 +1646,10 @@ test('열린 도면의 프레임 음영·선반·포켓·구분선과 수납 없
           const front = flattenStyle(children(bin.type(bin.props))[0].props.style);
           assert.equal(front.backgroundColor, palette.pocket);
           assert.equal(front.borderColor, palette.pocketBorder);
+          assert.equal(front.borderTopColor, palette.shelf);
+          assert.equal(front.borderTopWidth, 7);
+          assert.equal(front.borderTopLeftRadius, 0);
+          assert.equal(front.borderTopRightRadius, 0);
           assert.equal(front.borderBottomColor, palette.shelf);
           assert.equal(front.boxShadow[0].color, palette.motif + '22');
         }
@@ -1654,7 +1661,9 @@ test('열린 도면의 프레임 음영·선반·포켓·구분선과 수납 없
     const lines = findAll(empty.tree, node => flattenStyle(node.props.style).height === 2);
     assert.equal(lines.length, 2);
     assert(lines.every(line => flattenStyle(line.props.style).backgroundColor === palette.motif + '66'));
-    assert.equal(flattenStyle(empty.tree.props.style).boxShadow[0].color, palette.frame);
+    assert.equal(flattenStyle(empty.tree.props.style).borderColor, '#FFFFFF');
+    assert.equal(flattenStyle(empty.tree.props.style).backgroundColor, palette.frame);
+    assert.equal(flattenStyle(empty.tree.props.style).boxShadow[0].color, palette.motif + '14');
     empty.unmount();
     focus.unmount();
   }
@@ -1702,7 +1711,7 @@ test('열린 수납은 모드 배경과 연한 테마 손잡이·경첩을 유�
             background = flattenStyle(mounted.tree.props.style).backgroundColor;
             mounted.unmount();
           }
-          assert.equal(background, tokens.fridgeDoorColors[mode].background);
+          assert.equal(background, tokens.fridgeDoorColors[mode].frame);
           const selection = find(tree, named('SelectionFrame'));
           if (selected) {
             const style = flattenStyle(selection.type(selection.props).props.style);

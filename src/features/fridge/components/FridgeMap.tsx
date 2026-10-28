@@ -107,7 +107,8 @@ export function FridgeMap({
   const materialShadow = palette ? fridgeSurfaces.shelfShadow.map(shadow => ({ ...shadow, color: `${palette.motif}22` })) : fridgeSurfaces.shelfShadow;
   const shelfTheme = palette && { backgroundColor: palette.shelf, boxShadow: materialShadow };
   const pocketTheme = palette && {
-    backgroundColor: palette.pocket, borderColor: palette.pocketBorder, borderBottomColor: palette.shelf, boxShadow: materialShadow,
+    backgroundColor: palette.pocket, borderColor: palette.pocketBorder,
+    borderTopColor: palette.shelf, borderBottomColor: palette.shelf, boxShadow: materialShadow,
   };
   // 개별 칸의 테두리는 안쪽으로 그려 선택해도 칸 크기와 배경이 바뀌지 않게 한다.
   const positionSelection: ViewStyle = { boxShadow: [
@@ -219,15 +220,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  // 둥근 민트 프레임과 밝은 내부 면을 공유하고, 내부 경계는 한쪽에서만 그린다.
+  // 흰 외곽 안에 한 톤 진한 내부 면을 두고, 내부 경계는 한쪽에서만 그린다.
   areaInterior: {
     flex: 1,
     minHeight: 240,
-    borderWidth: 1,
-    borderColor: fridgeSurfaces.border,
+    borderWidth: fridgeSurfaces.frameWidth,
+    borderColor: fridgeSurfaces.interior,
     borderRadius: fridgeSurfaces.radius,
     overflow: 'hidden',
-    backgroundColor: fridgeSurfaces.interior,
+    backgroundColor: fridgeSurfaces.frame,
     boxShadow: fridgeSurfaces.recessedShadow,
   },
   areaContent: {
@@ -269,11 +270,12 @@ const styles = StyleSheet.create({
     height: '62%',
     borderWidth: 1,
     borderColor: fridgeSurfaces.pocketBorder,
-    borderTopWidth: 3,
+    borderTopWidth: 10,
+    borderTopColor: fridgeSurfaces.shelf,
     borderBottomWidth: 2,
     borderBottomColor: fridgeSurfaces.shelf,
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
     backgroundColor: fridgeSurfaces.pocket,

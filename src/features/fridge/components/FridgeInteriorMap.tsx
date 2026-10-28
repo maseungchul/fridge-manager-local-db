@@ -42,7 +42,7 @@ function getGridEdges(row: RefrigeratorDraft['rows'][number], rowIndex: number, 
   };
 }
 
-/** 외곽 모서리만 둥글게 유지하며, 회전한 문 뒷면에서는 좌우 모서리를 바꾼다. */
+/** 문 앞·뒷면과 선택 테두리의 모서리 값을 같은 기준으로 맞춘다. */
 function getGridCorners(edges: GridEdges, mirrored = false): ViewStyle {
   const left = mirrored ? edges.right : edges.left;
   const right = mirrored ? edges.left : edges.right;
@@ -69,15 +69,17 @@ function getRowBounds(canvasHeight: number, count: number, index: number) {
   return { top: index * (height + ROW_GAP), height };
 }
 
-/** 실제 프레임 크기로 두 대각선을 계산해 가로·세로 비율과 관계없이 문 전체를 가린다. */
+/** 흰 외곽을 제외한 내부 크기로 두 대각선을 계산해 비율과 관계없이 수납 영역을 가린다. */
 export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, readOnly = false, onPress }: {
   label: string; selected: boolean; readOnly?: boolean; onPress?: () => void;
   storageMode?: StorageMode | null;
   cornerStyle?: ViewStyle;
 }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const length = Math.hypot(size.width, size.height);
-  const angle = Math.atan2(size.height, size.width) * 180 / Math.PI;
+  const width = Math.max(0, size.width - fridgeSurfaces.frameWidth * 2);
+  const height = Math.max(0, size.height - fridgeSurfaces.frameWidth * 2);
+  const length = Math.hypot(width, height);
+  const angle = Math.atan2(height, width) * 180 / Math.PI;
   return (
     <Pressable accessibilityRole={readOnly ? 'image' : 'button'} accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
       pointerEvents={readOnly ? 'none' : 'auto'} onPress={readOnly ? undefined : onPress} onLayout={({ nativeEvent }) => {
@@ -88,7 +90,7 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
         {[angle, -angle].map((rotation, index) => (
           <View key={index} style={[styles.cross, {
             backgroundColor: storageMode ? `${fridgeDoorColors[storageMode].motif}66` : fridgeSurfaces.border,
-            width: length, left: (size.width - length) / 2, top: (size.height - 2) / 2,
+            width: length, left: (width - length) / 2, top: (height - 2) / 2,
             transform: [{ rotate: `${rotation}deg` }],
           }]} />
         ))}
@@ -97,7 +99,7 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
   );
 }
 
-/** 도면 크기를 바꾸지 않고 둥근 선택 테두리와 옅은 그림자로 현재 영역을 표시한다. */
+/** 도면 크기를 바꾸지 않고 선택 테두리와 옅은 그림자로 현재 영역을 표시한다. */
 function SelectionFrame({ storageMode, style }: { storageMode: StorageMode | null; style?: StyleProp<ViewStyle> }) {
   const color = storageMode ? fridgeDoorColors[storageMode].ink : fridgeSurfaces.handle;
   return (
@@ -551,7 +553,7 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, 
 }
 
 const styles = StyleSheet.create({
-  // 둥근 프레임과 선택 그림자가 잘리지 않도록 여백을 확보한다.
+  // 도면 프레임과 선택 그림자가 잘리지 않도록 여백을 확보한다.
   viewport: {
     paddingVertical: MAP_PADDING,
   },
@@ -608,10 +610,10 @@ const styles = StyleSheet.create({
   },
   // 칸과 공간 이름을 숨겨도 문 뒤의 본체가 비어 보이지 않도록 프레임을 별도로 유지한다.
   bodyFrame: {
-    borderWidth: 1,
-    borderColor: fridgeSurfaces.border,
+    borderWidth: fridgeSurfaces.frameWidth,
+    borderColor: fridgeSurfaces.interior,
     borderRadius: fridgeSurfaces.radius,
-    backgroundColor: fridgeSurfaces.interior,
+    backgroundColor: fridgeSurfaces.frame,
     boxShadow: fridgeSurfaces.recessedShadow,
   },
   hinges: {
@@ -660,9 +662,9 @@ const styles = StyleSheet.create({
   },
   placeholderHeader: {
     position: 'absolute',
-    top: 1,
-    left: 1,
-    right: 1,
+    top: fridgeSurfaces.frameWidth,
+    left: fridgeSurfaces.frameWidth,
+    right: fridgeSurfaces.frameWidth,
   },
   areaName: {
     minWidth: 0,
@@ -751,10 +753,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: fridgeSurfaces.border,
+    borderWidth: fridgeSurfaces.frameWidth,
+    borderColor: fridgeSurfaces.interior,
     borderRadius: fridgeSurfaces.radius,
-    backgroundColor: fridgeSurfaces.interior,
+    backgroundColor: fridgeSurfaces.frame,
     boxShadow: fridgeSurfaces.recessedShadow,
   },
   cross: {

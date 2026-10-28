@@ -39,24 +39,24 @@ export const colors = {
   error: '#A6413B',
 } as const;
 
-// 냉장고 도면은 크림·민트 색상과 둥근 프레임을 공유하고, 옅은 음영으로 일러스트의 두께를 표현한다.
+// 냉장고 도면은 흰 프레임 안에 모드별 배경과 밝은 수납함을 배치하고, 옅은 음영으로 두께를 표현한다.
 export const fridgeSurfaces = {
   border: '#BED6C9',
   exterior: '#EAF3EC',
-  interior: '#F4F9F3',
-  frame: '#DCEBE1',
-  shelf: '#AECFBF',
-  pocket: '#D8EDE24D',
-  pocketBorder: '#A8CEBC',
+  interior: '#FFFFFF',
+  frame: '#D8E2DC',
+  frameWidth: 6,
+  shelf: '#9DBDAB',
+  pocket: '#F2FAF5CC',
+  pocketBorder: '#ABC7B7',
   handle: '#B3BDB8',
   ink: '#577062',
-  radius: 16,
+  radius: 0,
   raisedShadow: [
     { offsetX: 0, offsetY: 3, blurRadius: 6, color: '#5C80651A' },
     { inset: true, offsetX: 0, offsetY: 1, blurRadius: 0, color: '#FFFFFFC0' },
   ],
   recessedShadow: [
-    { inset: true, offsetX: 0, offsetY: 0, blurRadius: 0, spreadDistance: 4, color: '#DCEBE1' },
     { offsetX: 0, offsetY: 2, blurRadius: 5, color: '#5C806514' },
   ],
   shelfShadow: [
@@ -67,28 +67,27 @@ export const fridgeSurfaces = {
   ],
 } as const;
 
-// 문 앞면과 열린 수납 공간은 선택 여부와 관계없이 같은 보관 모드의 색을 사용한다.
+// 문 앞면은 밝게, 열린 내부는 한 톤 진하게 구분하고 포켓 전면판은 밝은 반투명색을 사용한다.
 export const fridgeDoorColors = {
   CHILLED: {
     background: '#EAF4EE', border: '#BED8CB', ink: '#416B57', motif: '#648F7A',
-    frame: '#DCEBE1', shelf: '#AECFBF', pocket: '#D8EDE24D', pocketBorder: '#A8CEBC', handle: '#B4CBC0',
+    frame: '#CEDFD5', shelf: '#92B5A2', pocket: '#F1FAF4CC', pocketBorder: '#A7C5B4', handle: '#B4CBC0',
   },
   FROZEN: {
     background: '#E8F3FB', border: '#BDD7E8', ink: '#396B90', motif: '#648FAF',
-    frame: '#DAEAF4', shelf: '#AFCEE2', pocket: '#D6EAF64D', pocketBorder: '#ACCDE1', handle: '#B5CBD9',
+    frame: '#CEDFEC', shelf: '#94B8D2', pocket: '#F1F9FFCC', pocketBorder: '#A7C5DA', handle: '#B5CBD9',
   },
 } as const;
 
-/** 문 앞·뒷면과 내부 프레임의 배경·테두리·음영을 같은 모드 색으로 맞춘다. */
+/** 문 앞면은 모드 색을 유지하고, 열린 내부는 흰 테두리와 한 톤 진한 배경으로 구분한다. */
 export function getFridgeSurfaceStyle(storageMode: keyof typeof fridgeDoorColors | null | undefined, side: 'interior' | 'exterior' = 'interior') {
   if (!storageMode) return undefined;
   const palette = fridgeDoorColors[storageMode];
   return {
-    backgroundColor: palette.background,
-    borderColor: palette.border,
+    backgroundColor: side === 'interior' ? palette.frame : palette.background,
+    borderColor: side === 'interior' ? fridgeSurfaces.interior : palette.border,
     boxShadow: side === 'interior' ? [
-      { ...fridgeSurfaces.recessedShadow[0], color: palette.frame },
-      { ...fridgeSurfaces.recessedShadow[1], color: `${palette.motif}14` },
+      { ...fridgeSurfaces.recessedShadow[0], color: `${palette.motif}14` },
     ] : [
       { ...fridgeSurfaces.raisedShadow[0], color: `${palette.motif}1A` },
       fridgeSurfaces.raisedShadow[1],
