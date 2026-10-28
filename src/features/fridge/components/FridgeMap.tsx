@@ -53,9 +53,7 @@ export function DoorHandle({ horizontal = false, style }: { horizontal?: boolean
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.doorHandle, horizontal && styles.horizontalHandle, style]}>
-      <View style={[styles.handleGrip, horizontal && styles.horizontalGrip]}>
-        <View style={styles.handleHighlight} />
-      </View>
+      <View style={[styles.handleGrip, horizontal && styles.horizontalGrip]} />
     </View>
   );
 }
@@ -276,15 +274,6 @@ const styles = StyleSheet.create({
     left: 16,
     top: -16,
     transform: [{ rotate: '90deg' }],
-  },
-  handleHighlight: {
-    position: 'absolute',
-    left: 2,
-    top: 7,
-    bottom: 7,
-    width: 2,
-    borderRadius: 1,
-    backgroundColor: fridgeSurfaces.handleHighlight,
   },
   compactPosition: {
     padding: 2,

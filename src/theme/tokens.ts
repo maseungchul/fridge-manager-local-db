@@ -49,7 +49,6 @@ export const fridgeSurfaces = {
   pocket: '#D8EDE24D',
   pocketBorder: '#A8CEBC',
   handle: '#B3CDBD',
-  handleHighlight: '#F7FCF4CC',
   ink: '#577062',
   radius: 16,
   raisedShadow: [

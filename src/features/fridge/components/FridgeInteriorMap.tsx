@@ -293,12 +293,11 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
     translateY: viewport.y + viewport.height / 2 - (source.y + source.height / 2) };
 }
 
-/** 양쪽 연결판과 둥근 회전축을 같은 민트 색상으로 표시해 손잡이와 구분한다. */
+/** 연결 위치는 유지하고 손잡이와 같은 단색의 짧은 캡슐로 경첩을 표시한다. */
 function DoorHinge({ style }: { style: StyleProp<ViewStyle> }) {
   return (
     <View style={[styles.hinge, style]}>
-      <View style={[styles.hingePlate, { left: -5 }]} />
-      <View style={[styles.hingePlate, { right: -5 }]} />
+      <View style={styles.hingePin} />
     </View>
   );
 }
@@ -592,20 +591,17 @@ const styles = StyleSheet.create({
   hinge: {
     position: 'absolute',
     height: HINGE_HEIGHT,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: fridgeSurfaces.border,
-    backgroundColor: fridgeSurfaces.handle,
   },
-  hingePlate: {
+  hingePin: {
     position: 'absolute',
-    top: 2,
-    bottom: 2,
-    width: 5,
-    borderWidth: 1,
-    borderColor: fridgeSurfaces.border,
-    borderRadius: 3,
-    backgroundColor: fridgeSurfaces.frame,
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    marginLeft: -4,
+    width: 8,
+    borderRadius: 4,
+    backgroundColor: fridgeSurfaces.handle,
+    boxShadow: fridgeSurfaces.shelfShadow,
   },
   hingeConnection: {
     position: 'absolute',
