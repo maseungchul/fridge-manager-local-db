@@ -82,7 +82,7 @@ const native = {
         stop() { this.callback?.({ finished: false }); },
         finish(finished = true) {
           if (finished) value.value = config.toValue;
-          this.callback({ finished });
+          this.callback?.({ finished });
         },
       };
       animations.push(animation);
@@ -178,8 +178,12 @@ function focusedFixture(draft, target, viewport = { x: 0, y: 120, width: 375, he
   focus = mount(FridgeFocusView, props);
   return { focus, phases, selected };
 }
-function registrationFixture(doorCount = 1) {
+function registrationFixture(doorCount = 1, rowCount = 2) {
   const screen = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
+  if (rowCount === 1) {
+    find(screen.tree, node => node.props.accessibilityLabel === '2단 삭제').props.onPress();
+    screen.render();
+  }
   if (doorCount === 2) {
     find(screen.tree, node => node.props.accessibilityLabel === '1단 문 늘리기').props.onPress();
     screen.render();
@@ -765,8 +769,6 @@ test('넘친 도면은 열린 뒤 좌우 이동·포켓 선택이 가능하고 �
       const sceneFrame = flattenStyle(moving(focus).props.style);
       assert(scrollFrame.height > sceneFrame.top + sceneFrame.height, '표시줄 공간은 도면 테두리 아래에 있어야 한다');
       assert(contentFrame.height >= scrollFrame.height);
-      const hint = find(focus.tree, node => node.type === 'Text' && node.props.children === '좌우로 밀어 확인');
-      assert(flattenStyle(hint.props.style).top >= scrollFrame.top + scrollFrame.height);
       const resets = [];
       scroller().props.ref.current = { scrollTo: args => resets.push(args) };
       let lastX = 0;
@@ -833,6 +835,129 @@ test('좌우 이동 중 화면 너비나 연결 구조가 바뀌면 본체의 �
   near(flattenStyle(moving(focus).props.style).left, fitted.focusedLeft);
   assert.equal(focus.props.selectedAreaId, requests[0].areaId);
   focus.unmount();
+});
+
+test('안내는 열린 스크롤 도면의 표시 영역 중앙에 나타나고 노출 기록 후에도 약 2초를 유지한다', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let draft = model.createRefrigeratorDraft();
+  const rowId = draft.rows[0].id;
+  draft = model.changeDraftDoorCount(draft, rowId, 1);
+  const { compartment, requests } = fixture(draft);
+  selectDoor(compartment);
+  const { focus } = focusedFixture(draft, requests[0]);
+  let seen = 0;
+  focus.props = { ...focus.props, scrollHintEnabled: true, onScrollHintSeen: () => seen++, overlayHeight: 800 };
+  const hintElement = () => find(focus.tree, named('FridgeScrollHint'));
+  focus.render();
+  assert.equal(hintElement(), undefined);
+  animations.at(-1).finish();
+  focus.render();
+  assert.equal(hintElement(), undefined, '좌우 이동이 필요 없을 때는 안내를 소비하지 않아야 한다');
+  focus.props = { ...focus.props, draft: model.mergeDraftCompartments(draft, rowId, draft.rows[0].compartments[0].id), scrollHintBlocked: true };
+  focus.render();
+  assert.equal(hintElement(), undefined);
+  assert.equal(seen, 0);
+  focus.props = { ...focus.props, scrollHintBlocked: false };
+  focus.render();
+  const hint = mount(hintElement().type, hintElement().props);
+  assert.equal(seen, 1);
+  assert.equal(hint.tree.props.pointerEvents, 'none');
+  const frame = flattenStyle(hint.tree.props.style);
+  assert.equal(frame.width, focus.props.viewport.width);
+  assert.equal(frame.height, focus.props.viewport.height);
+  assert.equal(frame.alignItems, 'center');
+  assert.equal(frame.justifyContent, 'center');
+  const fadeIn = animations.at(-1);
+  assert.equal(fadeIn.config.toValue, 1);
+  fadeIn.finish();
+  hint.props = { ...hint.props, enabled: false };
+  hint.render();
+  assert(hint.tree, '표시 이력을 기록해도 현재 안내는 즉시 사라지지 않아야 한다');
+  t.mock.timers.tick(1799);
+  assert.equal(animations.at(-1), fadeIn);
+  t.mock.timers.tick(1);
+  const fadeOut = animations.at(-1);
+  assert.equal(fadeOut.config.toValue, 0);
+  assert.equal(fadeOut.config.duration, 200);
+  fadeOut.finish();
+  hint.render();
+  assert.equal(hint.tree, null);
+  assert.equal(seen, 1);
+  hint.unmount();
+  focus.unmount();
+});
+
+test('안내는 자동 위치 정렬·영역 선택에는 유지되고 사용자 드래그에는 즉시 사라진다', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { draft, compartment, requests } = fixture();
+  selectDoor(compartment);
+  const { focus } = focusedFixture(draft, requests[0]);
+  focus.props = { ...focus.props, scrollHintEnabled: true };
+  animations.at(-1).finish();
+  focus.render();
+  const hintElement = () => find(focus.tree, named('FridgeScrollHint'));
+  const scroller = () => find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
+  const hint = mount(hintElement().type, hintElement().props);
+  const animationCount = animations.length;
+  scroller().props.onScroll({ nativeEvent: { contentOffset: scroller().props.contentOffset } });
+  focus.props.onSelectArea(draft.rows[0].doors[0].id);
+  focus.render();
+  hint.props = hintElement().props;
+  hint.render();
+  assert(hint.tree);
+  scroller().props.onScrollBeginDrag();
+  focus.render();
+  hint.props = hintElement().props;
+  hint.render();
+  assert.equal(hint.tree, null);
+  assert.equal(focus.props.phase, 'open');
+  t.mock.timers.tick(5000);
+  assert.equal(animations.length, animationCount);
+  hint.unmount();
+  focus.unmount();
+});
+
+test('안내 이력은 같은 등록 화면에서 문을 다시 열어도 유지하고 설정·여는 방식 패널 중에는 표시를 막는다', () => {
+  const { screen, viewport, map, target } = registrationFixture();
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  map.props.onFocus(target);
+  screen.render();
+  const focus = () => find(screen.tree, named('FridgeFocusView'));
+  const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu');
+  focus().props.onPhaseChange('open');
+  screen.render();
+  assert.equal(focus().props.scrollHintEnabled, true);
+  assert.equal(focus().props.scrollHintBlocked, false);
+  menu().props.onOpeningsChange(true);
+  screen.render();
+  assert.equal(focus().props.scrollHintBlocked, true);
+  menu().props.onOpeningsChange(false);
+  menu().props.onOpenSettings();
+  screen.render();
+  assert.equal(focus().props.scrollHintBlocked, true);
+  find(screen.tree, node => node.type === 'Modal').props.onRequestClose();
+  animations.at(-1).finish();
+  screen.render();
+  assert.equal(focus().props.scrollHintBlocked, false);
+  focus().props.onScrollHintSeen();
+  screen.render();
+  assert.equal(focus().props.scrollHintEnabled, false);
+  focus().props.onClose();
+  screen.render();
+  focus().props.onPhaseChange('closed');
+  screen.render();
+  find(screen.tree, named('FridgeInteriorMap')).props.onFocus(target);
+  screen.render();
+  focus().props.onPhaseChange('open');
+  screen.render();
+  assert.equal(focus().props.scrollHintEnabled, false);
+  screen.unmount();
+  const next = registrationFixture();
+  next.viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  next.map.props.onFocus(next.target);
+  next.screen.render();
+  assert.equal(find(next.screen.tree, named('FridgeFocusView')).props.scrollHintEnabled, true);
+  next.screen.unmount();
 });
 
 test('본체·포켓 배지는 내부 상단에 표시하고 별도 닫기 버튼 없이 바깥 영역에서 닫는다', () => {
@@ -921,6 +1046,55 @@ test('도면 화면은 고정하고 기본 정보·하단 칸 편집 패널만 �
   const panel = find(screen.tree, node => node.type === 'Modal');
   assert.notEqual(find(panel, node => node.type === 'ScrollView').props.scrollEnabled, false);
   screen.unmount();
+});
+
+test('1단·여러 단 모두 크기를 유지한 중앙 보기를 제목 영역에서도 닫을 수 있고 전환 중에는 닫지 않는다', () => {
+  for (const rowCount of [1, 2]) {
+    const { screen, viewport, map } = registrationFixture(1, rowCount);
+    const focus = () => find(screen.tree, named('FridgeFocusView'));
+    const headerClose = () => find(screen.tree, node => node.props.accessibilityLabel === '제목 영역 눌러 냉장고 도면 닫기');
+    const originalDraft = structuredClone(map.props.draft);
+    assert.equal(headerClose(), undefined);
+    const closed = fixture(map.props.draft);
+    selectDoor(closed.compartment);
+    const target = closed.requests[0];
+    viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 420) };
+    map.props.onFocus(target);
+    screen.render();
+    const header = find(screen.tree, node => children(node).includes(headerClose()));
+    const title = find(header, node => node.type === 'Text' && node.props.children === '냉장고 등록');
+    assert.equal(title.props.pointerEvents, 'none');
+    const overlay = mount(FridgeFocusView, focus().props);
+    assert(flattenStyle(header.props.style).zIndex > flattenStyle(overlay.tree.props.style).zIndex);
+    overlay.unmount();
+    assert.equal(headerClose().props.disabled, true);
+    assert.equal(headerClose().props.pointerEvents, 'none');
+    headerClose().props.onPress();
+    screen.render();
+    assert.equal(focus().props.phase, 'opening');
+    focus().props.onPhaseChange('open');
+    screen.render();
+    assert.equal(headerClose().props.disabled, false);
+    assert.equal(headerClose().props.pointerEvents, 'auto');
+    const geometry = getFridgeFocusGeometry(focus().props.draft, target, focus().props.viewport);
+    near(geometry.body.width, geometry.source.width);
+    near(geometry.body.height, geometry.source.height);
+    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpeningsChange(true);
+    screen.render();
+    assert.equal(focus().props.phase, 'open');
+    headerClose().props.onPress();
+    screen.render();
+    assert.equal(focus().props.phase, 'closing');
+    assert.equal(headerClose().props.disabled, true);
+    focus().props.onPhaseChange('closed');
+    screen.render();
+    assert.equal(focus(), undefined);
+    assert.equal(headerClose(), undefined);
+    const restored = find(screen.tree, named('FridgeInteriorMap'));
+    assert.equal(restored.props.selectedAreaId, target.returnAreaId);
+    assert.deepEqual(restored.props.draft, originalDraft);
+    screen.unmount();
+  }
 });
 
 test('기본정보 도면은 단 개수·화면 너비가 바뀌어도 같은 세로 비율과 단별 조절 위치를 유지한다', () => {

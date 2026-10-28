@@ -54,6 +54,7 @@ export function RefrigeratorRegistrationScreen({
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [isOpeningSettingsOpen, setIsOpeningSettingsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasSeenScrollHint, setHasSeenScrollHint] = useState(false);
   const [isStepChanging, setIsStepChanging] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
   const structurePreviewWidth = Math.max(1, Math.min(STRUCTURE_PREVIEW_MAX_WIDTH,
@@ -94,6 +95,8 @@ export function RefrigeratorRegistrationScreen({
     setFocusPhase(phase);
     if (phase === 'closed' && focusTarget) setSelectedAreaId(focusTarget.returnAreaId);
   }, [focusTarget]);
+  // 중앙 보기를 닫았다 다시 열어도 같은 등록 화면에서는 안내를 반복하지 않는다.
+  const markScrollHintSeen = useCallback(() => setHasSeenScrollHint(true), []);
 
   useEffect(() => () => {
     stepChanging.current = false;
@@ -260,7 +263,13 @@ export function RefrigeratorRegistrationScreen({
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* 왼쪽은 취소·이전, 오른쪽은 다음·등록으로 고정해 단계마다 같은 위치에서 조작한다. */}
-      <View style={styles.header}>
+      <View style={[styles.header, activeFocus && styles.focusHeader]}>
+        {/* 큰 도면이 헤더에 닿아도 제목·여백은 바깥 닫기로 처리하고 기존 버튼은 위에 유지한다. */}
+        {activeFocus ? <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button"
+          accessibilityLabel="제목 영역 눌러 냉장고 도면 닫기" onPress={closeFocusedArea}
+          disabled={focusPhase !== 'open'} accessibilityState={{ disabled: focusPhase !== 'open' }}
+          pointerEvents={focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={focusPhase !== 'open'}
+          importantForAccessibility={focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
         <View style={styles.headerNavigation}>
           <SecondaryButton label={step === 'basic' ? '취소' : '이전'} icon={step === 'basic' ? 'close' : 'arrow-left'}
             accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : activeFocus ? '전체 도면으로 돌아가기' : '기본 정보로 돌아가기'}
@@ -268,6 +277,7 @@ export function RefrigeratorRegistrationScreen({
             onPress={step === 'basic' ? cancelRegistration : activeFocus ? closeFocusedArea : () => changeStep('basic')} />
         </View>
         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
+          pointerEvents={activeFocus ? 'none' : 'auto'}
           style={styles.title}>냉장고 등록</Text>
         {/* DB 저장이 연결되기 전까지 등록 버튼은 비활성화한다. */}
         <PrimaryButton label={step === 'basic' ? '다음' : '등록'}
@@ -401,6 +411,8 @@ export function RefrigeratorRegistrationScreen({
                 {pageStep === 'configuration' && activeFocus && focusBounds ? (
                   <FridgeFocusView draft={draft} target={activeFocus} viewport={focusBounds} overlayHeight={stepHeight} phase={focusPhase}
                     selectedAreaId={selectedAreaId ?? undefined}
+                    scrollHintEnabled={!hasSeenScrollHint} onScrollHintSeen={markScrollHintSeen}
+                    scrollHintBlocked={isSettingsOpen || (isOpeningSettingsOpen && !selectedDoor && !isMergedBody)}
                     onPhaseChange={finishFocusTransition} onClose={closeFocusedArea} onSelectArea={selectArea} />
                 ) : null}
               </View>
@@ -555,6 +567,7 @@ const styles = StyleSheet.create({
   // 내부 설정은 스크롤 없이 단계 표시 아래의 남은 높이에 도면을 맞춘다.
   configurationContent: {
     height: '100%',
+    gap: 0,
   },
   configurationMap: {
     flex: 1,
@@ -578,6 +591,10 @@ const styles = StyleSheet.create({
   headerNavigation: {
     width: 64,
     alignItems: 'flex-start',
+  },
+  focusHeader: {
+    zIndex: 40,
+    backgroundColor: colors.background,
   },
   headerAction: {
     width: 64,

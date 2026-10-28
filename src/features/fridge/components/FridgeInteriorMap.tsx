@@ -328,16 +328,55 @@ function DoorHinges({ fromX, toX, height }: { fromX: number; toX: number; height
   );
 }
 
+/** 처음 표시한 안내는 노출 이력이 기록돼도 유지하고, 시간 경과·사용자 드래그로 종료한다. */
+function FridgeScrollHint({ enabled, dismissed, viewport, onSeen }: {
+  enabled: boolean; dismissed: boolean; viewport: LayoutRectangle; onSeen?: () => void;
+}) {
+  const [visible, setVisible] = useState(enabled);
+  const opacity = useAnimatedValue(0);
+
+  useEffect(() => {
+    if (!visible || dismissed) return;
+    onSeen?.();
+    const fadeIn = Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true });
+    fadeIn.start();
+    const timer = setTimeout(() => {
+      Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(({ finished }) => {
+        if (finished) setVisible(false);
+      });
+    }, 1800);
+    return () => {
+      clearTimeout(timer);
+      fadeIn.stop();
+      opacity.stopAnimation();
+    };
+  }, [visible, dismissed, opacity, onSeen]);
+
+  if (!visible || dismissed) return null;
+  return (
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      style={[styles.scrollHintOverlay, { width: viewport.width, height: viewport.height }]}>
+      <Animated.View style={[styles.scrollHint, { opacity }]}>
+        <MaterialDesignIcons name="arrow-left-right" size={20} color={colors.buttonText} accessible={false} />
+        <Text style={styles.scrollHintLabel}>좌우로 밀어 확인</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
 /** 연결된 문은 함께 선택 표시해 펼치고, 열린 본체·포켓의 개별 선택은 기존 툴바에 전달한다. */
-export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId, onPhaseChange, onClose, onSelectArea }: {
+export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId,
+  scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea }: {
   draft: RefrigeratorDraft; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
   overlayHeight?: number;
   selectedAreaId?: string; onPhaseChange: (phase: FridgeFocusPhase) => void; onClose: () => void;
+  scrollHintEnabled?: boolean; scrollHintBlocked?: boolean; onScrollHintSeen?: () => void;
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
 }) {
   const progress = useAnimatedValue(0);
   const scrollRef = useRef<ScrollView>(null);
   const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0 });
+  const [hintDismissed, setHintDismissed] = useState(false);
   const geometry = getFridgeFocusGeometry(draft, target, viewport);
   const layout = getDraftLayout(draft);
   const open = phase === 'open';
@@ -443,6 +482,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           accessibilityLabel="냉장고 내부 도면, 좌우로 이동" showsHorizontalScrollIndicator
           contentOffset={{ x: initialScrollX, y: 0 }} scrollEventThrottle={16}
           onScroll={({ nativeEvent }) => setScrollPosition({ key: scrollKey, x: nativeEvent.contentOffset.x })}
+          onScrollBeginDrag={() => { setHintDismissed(true); onScrollHintSeen?.(); }}
           style={[styles.compartment, { left: 0, top: (viewport.height - geometry.height) / 2,
             width: viewport.width, height: geometry.height + SCROLL_INDICATOR_SPACE }]}>
           {/* 네이티브 스크롤 표시줄이 칸 위에 겹치지 않도록 도면 아래 공간을 남긴다. */}
@@ -452,13 +492,13 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           </View>
         </ScrollView>
       ) : scene}
-      {scrolling ? <Text pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-        style={[styles.scrollHint, { top: (viewport.height + geometry.height) / 2 + SCROLL_INDICATOR_SPACE + 6 }]}>좌우로 밀어 확인</Text> : null}
+      {scrolling && !scrollHintBlocked ? <FridgeScrollHint enabled={scrollHintEnabled} dismissed={hintDismissed}
+        viewport={viewport} onSeen={onScrollHintSeen} /> : null}
     </View>
   );
 }
 
-/** 닫힌 도면의 세로 비율을 남은 공간 안에서 유지하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
+/** 닫힌 도면은 단계 표시 아래에 비율을 유지해 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
 export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false }: FridgeInteriorMapProps) {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const { width: viewportWidth } = viewportSize;
@@ -494,7 +534,7 @@ const styles = StyleSheet.create({
   fittedViewport: {
     flex: 1,
     minHeight: 0,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   canvas: {
     height: MAP_HEIGHT,
@@ -510,14 +550,29 @@ const styles = StyleSheet.create({
   focusBackdrop: {
     backgroundColor: colors.background,
   },
-  scrollHint: {
+  scrollHintOverlay: {
     position: 'absolute',
     left: 0,
-    right: 0,
-    color: colors.textMuted,
-    fontSize: 11,
-    lineHeight: 16,
-    textAlign: 'center',
+    top: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 30,
+  },
+  scrollHint: {
+    maxWidth: '90%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(34, 35, 31, 0.86)',
+  },
+  scrollHintLabel: {
+    flexShrink: 1,
+    color: colors.buttonText,
+    fontSize: 13,
+    lineHeight: 18,
   },
   area: {
     ...StyleSheet.absoluteFill,
