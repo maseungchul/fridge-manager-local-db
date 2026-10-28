@@ -228,7 +228,8 @@ function assertFocusAccess(focus, phase) {
   assert(flattenStyle(bodyFrame.props.style).backgroundColor);
   const frameMode = focus.props.draft.rows.flatMap(row => row.compartments)
     .find(body => body.id === focus.props.target.areaId)?.storageMode;
-  assert.equal(flattenStyle(bodyFrame.props.style).backgroundColor,
+  assert.equal(flattenStyle(bodyFrame.props.style).backgroundColor, '#FFFFFF');
+  assert.equal(flattenStyle(children(bodyFrame)[0].props.style).backgroundColor,
     frameMode ? tokens.fridgeDoorColors[frameMode].frame : tokens.fridgeSurfaces.frame);
   if (frameMode) assert.equal(flattenStyle(bodyFrame.props.style).boxShadow[0].color, tokens.fridgeDoorColors[frameMode].motif + '14');
   assert.equal(flattenStyle(bodyFrame.props.style).opacity ?? 1, 1);
@@ -777,7 +778,7 @@ test('양쪽 본체의 툴바에서 합치고 분리해도 선택·중앙 보기
   }
 });
 
-test('이웃이 없거나 합산 4칸을 넘으면 어느 본체에서도 합치기를 비활성화한다', () => {
+test('합산 4칸을 넘으면 합치기만 비활성화하고 안내 문구로 툴바 높이를 늘리지 않는다', () => {
   const single = registrationFixture();
   single.viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
   single.map.props.onFocus(single.target);
@@ -794,6 +795,10 @@ test('이웃이 없거나 합산 4칸을 넘으면 어느 본체에서도 합치
     find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
     screen.render();
     const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu');
+    const toolbar = mount(FridgeAreaMenu, menu().props);
+    const flowLayout = tree => children(tree).filter(node => flattenStyle(node.props.style).position !== 'absolute')
+      .map(node => ({ type: node.type, style: flattenStyle(node.props.style) }));
+    const beforeLayout = flowLayout(toolbar.tree);
     menu().props.onOpenSettings();
     screen.render();
     for (let count = 1; count < model.MAX_SLOTS; count++) {
@@ -802,6 +807,13 @@ test('이웃이 없거나 합산 4칸을 넘으면 어느 본체에서도 합치
     }
     assert.equal(menu().props.mergeDisabled, true);
     assert.equal(menu().props.mergeLimitExceeded, true);
+    toolbar.props = menu().props;
+    toolbar.render();
+    assert.deepEqual(flowLayout(toolbar.tree), beforeLayout, '합산 제한 안내가 도면의 표시 영역을 줄이면 안 된다');
+    const merge = find(toolbar.tree, node => node.props.accessibilityLabel === '이웃 본체와 합치기');
+    assert.equal(merge.props.disabled, true);
+    assert.match(merge.props.accessibilityHint, /합계 4개 이하/);
+    toolbar.unmount();
     screen.unmount();
   }
 });
@@ -1633,10 +1645,13 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
       const tree = mapModule.FridgeMap(map.props);
       const frame = find(tree, node => children(node).includes(map.props.areaHeader));
       assert.equal(flattenStyle(frame.props.style).borderColor, '#FFFFFF');
-      assert.equal(flattenStyle(frame.props.style).backgroundColor, palette.frame);
+      assert.equal(flattenStyle(frame.props.style).backgroundColor, area.props.area.isBody ? '#FFFFFF' : palette.frame);
+      const content = children(frame).at(-1);
+      assert.equal(flattenStyle(content.props.style).backgroundColor, area.props.area.isBody ? palette.frame : undefined);
       assert.equal(flattenStyle(frame.props.style).boxShadow[0].color, palette.motif + '14');
       assert.equal(flattenStyle(find(map.props.areaHeader, node => node.type === 'Text').props.style).color, palette.ink);
       if (area.props.area.isBody) {
+        assert.equal(flattenStyle(content.props.style).borderRadius, tokens.fridgeSurfaces.cavityRadius);
         const shelf = find(tree, node => flattenStyle(node.props.style).height === 4);
         assert.equal(flattenStyle(shelf.props.style).backgroundColor, palette.shelf);
         const divider = find(tree, node => node.props.accessibilityLabel?.includes('오른쪽'));
@@ -1647,7 +1662,7 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
           assert.equal(front.backgroundColor, palette.pocket);
           assert.equal(front.borderColor, palette.pocketBorder);
           assert.equal(front.borderTopColor, palette.shelf);
-          assert.equal(front.borderTopWidth, 7);
+          assert.equal(front.borderTopWidth, 10);
           assert.equal(front.borderTopLeftRadius, 0);
           assert.equal(front.borderTopRightRadius, 0);
           assert.equal(front.borderBottomColor, palette.shelf);
@@ -1702,7 +1717,9 @@ test('열린 수납은 모드 배경과 연한 테마 손잡이·경첩을 유�
           if (map) {
             const mapTree = mapModule.FridgeMap(map.props);
             const frame = find(mapTree, node => children(node).includes(map.props.areaHeader));
-            background = flattenStyle(frame.props.style).backgroundColor;
+            assert.equal(flattenStyle(frame.props.style).backgroundColor,
+              area.props.area.isBody ? '#FFFFFF' : tokens.fridgeDoorColors[mode].frame);
+            background = flattenStyle(area.props.area.isBody ? children(frame).at(-1).props.style : frame.props.style).backgroundColor;
             const positions = findAll(mapTree, node => node.props.accessibilityLabel?.includes('위에서'));
             assert(positions.every(position => flattenStyle(position.props.style).backgroundColor === 'transparent'));
           } else {

@@ -46,6 +46,9 @@ export const fridgeSurfaces = {
   interior: '#FFFFFF',
   frame: '#D8E2DC',
   frameWidth: 6,
+  bodySideWidth: 10,
+  headerHeight: 28,
+  cavityRadius: 10,
   shelf: '#9DBDAB',
   pocket: '#F2FAF5CC',
   pocketBorder: '#ABC7B7',
@@ -79,12 +82,12 @@ export const fridgeDoorColors = {
   },
 } as const;
 
-/** 문 앞면은 모드 색을 유지하고, 열린 내부는 흰 테두리와 한 톤 진한 배경으로 구분한다. */
+/** 문 앞면은 모드 색을 유지하고, 열린 프레임과 이름 영역은 흰 바탕을 공유한다. */
 export function getFridgeSurfaceStyle(storageMode: keyof typeof fridgeDoorColors | null | undefined, side: 'interior' | 'exterior' = 'interior') {
   if (!storageMode) return undefined;
   const palette = fridgeDoorColors[storageMode];
   return {
-    backgroundColor: side === 'interior' ? palette.frame : palette.background,
+    backgroundColor: side === 'interior' ? fridgeSurfaces.interior : palette.background,
     borderColor: side === 'interior' ? fridgeSurfaces.interior : palette.border,
     boxShadow: side === 'interior' ? [
       { ...fridgeSurfaces.recessedShadow[0], color: `${palette.motif}14` },

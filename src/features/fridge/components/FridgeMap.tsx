@@ -128,6 +128,7 @@ export function FridgeMap({
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
             <View style={[styles.areaInterior, { minHeight: minAreaHeight },
                 getFridgeSurfaceStyle(storageMode),
+                !area.isBody && { backgroundColor: palette?.frame ?? fridgeSurfaces.frame },
                 cornerStyle,
                 areaSelected && !groupInteraction && { borderColor: selectionColor }]}>
               {areaHeader}
@@ -136,7 +137,8 @@ export function FridgeMap({
                   ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
                 accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
                 disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
-                style={styles.areaContent}>
+                style={[styles.areaContent, area.isBody && [styles.bodyCavity,
+                  { backgroundColor: palette?.frame ?? fridgeSurfaces.frame }]]}>
                 {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
                 {positions.filter(position => position.areaId === area.id)
                   .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
@@ -220,7 +222,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  // 흰 외곽 안에 한 톤 진한 내부 면을 두고, 내부 경계는 한쪽에서만 그린다.
+  // 본체는 이름까지 흰 바탕에 두고, 색 배경과 굴곡은 아래 수납 영역에서만 표시한다.
   areaInterior: {
     flex: 1,
     minHeight: 240,
@@ -228,7 +230,7 @@ const styles = StyleSheet.create({
     borderColor: fridgeSurfaces.interior,
     borderRadius: fridgeSurfaces.radius,
     overflow: 'hidden',
-    backgroundColor: fridgeSurfaces.frame,
+    backgroundColor: fridgeSurfaces.interior,
     boxShadow: fridgeSurfaces.recessedShadow,
   },
   areaContent: {
@@ -236,6 +238,11 @@ const styles = StyleSheet.create({
     minHeight: 0,
     paddingHorizontal: 5,
     paddingBottom: 5,
+  },
+  bodyCavity: {
+    marginHorizontal: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
+    borderRadius: fridgeSurfaces.cavityRadius,
+    overflow: 'hidden',
   },
   slot: {
     flex: 1,

@@ -85,7 +85,8 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
       pointerEvents={readOnly ? 'none' : 'auto'} onPress={readOnly ? undefined : onPress} onLayout={({ nativeEvent }) => {
         const { width, height } = nativeEvent.layout;
         setSize(current => current.width === width && current.height === height ? current : { width, height });
-      }} style={[styles.noStorage, getFridgeSurfaceStyle(storageMode), cornerStyle]}>
+      }} style={[styles.noStorage, getFridgeSurfaceStyle(storageMode),
+        { backgroundColor: storageMode ? fridgeDoorColors[storageMode].frame : fridgeSurfaces.frame }, cornerStyle]}>
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         {[angle, -angle].map((rotation, index) => (
           <View key={index} style={[styles.cross, {
@@ -121,7 +122,8 @@ function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyl
 }) {
   const positions = layout.positions.filter(position => position.areaId === area.id);
   const header = (
-    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.interiorHeader}>
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      style={[styles.interiorHeader, area.isBody && styles.bodyHeader]}>
       <Text numberOfLines={1} style={[styles.areaName, storageMode && { color: fridgeDoorColors[storageMode].ink }]}>
         {area.isBody ? storageMode ? getStorageModeName(storageMode) : '본체' : '도어포켓'}
       </Text>
@@ -463,10 +465,14 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           style={[StyleSheet.absoluteFill, styles.bodyFrame,
             getFridgeSurfaceStyle(group.body.storageMode), bodyCorners]}>
-          <Animated.View style={[StyleSheet.absoluteFill, styles.interiorShade, bodyCorners, {
-            backgroundColor: group.body.storageMode ? fridgeDoorColors[group.body.storageMode].motif : fridgeSurfaces.ink,
-            opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0] }),
-          }]} />
+          <View style={[styles.bodyCavity, {
+            backgroundColor: group.body.storageMode ? fridgeDoorColors[group.body.storageMode].frame : fridgeSurfaces.frame,
+          }]}>
+            <Animated.View style={[StyleSheet.absoluteFill, styles.interiorShade, {
+              backgroundColor: group.body.storageMode ? fridgeDoorColors[group.body.storageMode].motif : fridgeSurfaces.ink,
+              opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0] }),
+            }]} />
+          </View>
         </View>
         <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
           importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, { opacity: open ? 1 : 0 }]}>
@@ -613,8 +619,17 @@ const styles = StyleSheet.create({
     borderWidth: fridgeSurfaces.frameWidth,
     borderColor: fridgeSurfaces.interior,
     borderRadius: fridgeSurfaces.radius,
-    backgroundColor: fridgeSurfaces.frame,
+    backgroundColor: fridgeSurfaces.interior,
     boxShadow: fridgeSurfaces.recessedShadow,
+  },
+  // 여닫는 동안에도 이름 자리의 흰 바탕과 둥근 본체 안쪽 면을 같은 위치에 유지한다.
+  bodyCavity: {
+    ...StyleSheet.absoluteFill,
+    top: fridgeSurfaces.headerHeight,
+    left: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
+    right: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
+    borderRadius: fridgeSurfaces.cavityRadius,
+    overflow: 'hidden',
   },
   hinges: {
     position: 'absolute',
@@ -649,12 +664,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   interiorHeader: {
-    minHeight: 28,
+    minHeight: fridgeSurfaces.headerHeight,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 4,
     paddingHorizontal: 6,
+  },
+  bodyHeader: {
+    paddingHorizontal: 0,
   },
   placeholderFrame: {
     borderRadius: fridgeSurfaces.radius,

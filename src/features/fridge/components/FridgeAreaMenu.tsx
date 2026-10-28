@@ -77,7 +77,6 @@ export function FridgeAreaMenu({ disabled, openingsOpen, showOpeningAction, open
           </ScrollView>
         </View>
       ) : null}
-      {onMerge && mergeLimitExceeded ? <Text style={styles.description}>합친 칸이 {MAX_SLOTS}개를 넘어서 연결할 수 없어요.</Text> : null}
       <View style={styles.actions}>
         {showOpeningAction && openingDoors.length > 0 ? (
           <FeedbackPressable accessibilityRole="button" accessibilityState={{ disabled: openingsDisabled, expanded: showOpenings }}
@@ -101,6 +100,7 @@ export function FridgeAreaMenu({ disabled, openingsOpen, showOpeningAction, open
         ) : null}
         {onMerge ? (
           <FeedbackPressable accessibilityRole="button" accessibilityLabel="이웃 본체와 합치기"
+            accessibilityHint={mergeLimitExceeded ? `합치기는 두 본체의 칸이 합계 ${MAX_SLOTS}개 이하일 때 가능해요.` : undefined}
             accessibilityState={{ disabled: disabled || mergeDisabled }} disabled={disabled || mergeDisabled}
             onPress={onMerge} style={styles.action}>
             <MaterialDesignIcons name="arrow-collapse-horizontal" size={16} color={colors.text} accessible={false} style={styles.actionIcon} />
@@ -215,11 +215,6 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.42,
-  },
-  description: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
   },
   openingGroup: {
     gap: spacing.xs,
