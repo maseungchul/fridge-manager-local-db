@@ -95,6 +95,8 @@ export interface RefrigeratorDraft {
   rows: DraftRow[];
 }
 
+// 실측 치수가 없는 등록 도면은 두 단계에서 같은 가로:세로 표시 비율을 사용한다.
+export const FRIDGE_ASPECT_RATIO = 1 / 2;
 export const MAX_ROWS = 4;
 export const MAX_DOORS_PER_ROW = 2;
 export const MAX_SLOTS = 4;

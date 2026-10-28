@@ -6,6 +6,7 @@
 import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { RefrigeratorDraft } from '@/features/fridge/model/fridgeLayout';
+import { FRIDGE_ASPECT_RATIO } from '@/features/fridge/model/fridgeLayout';
 import { colors, fridgeSurfaces } from '@/theme/tokens';
 
 interface FridgeStructurePreviewProps {
@@ -31,7 +32,7 @@ export function FridgeStructurePreview({ rows, style }: FridgeStructurePreviewPr
 const styles = StyleSheet.create({
   preview: {
     width: 144,
-    aspectRatio: 3 / 5,
+    aspectRatio: FRIDGE_ASPECT_RATIO,
     alignSelf: 'center',
     borderWidth: 1,
     borderColor: fridgeSurfaces.border,

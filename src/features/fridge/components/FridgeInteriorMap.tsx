@@ -6,10 +6,10 @@
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import type { LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
 import { DoorHandle, FridgeMap } from '@/features/fridge/components/FridgeMap';
-import { areaNames, getDraftAreaLocation, getDraftLayout, getDraftRowGeometry } from '@/features/fridge/model/fridgeLayout';
+import { areaNames, FRIDGE_ASPECT_RATIO, getDraftAreaLocation, getDraftLayout, getDraftRowGeometry } from '@/features/fridge/model/fridgeLayout';
 import type { DraftDoor, FridgeLayout, RefrigeratorDraft, StorageArea, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, fridgeSurfaces } from '@/theme/tokens';
 
@@ -38,6 +38,8 @@ const HINGE_HEIGHT = 18;
 const GROUP_GAP = 6;
 const MAP_HEIGHT = 540;
 const MAP_PADDING = 10;
+const FOCUS_PADDING = 24;
+const SCROLL_INDICATOR_SPACE = 16;
 const modeColors = {
   CHILLED: { color: colors.chilled, backgroundColor: colors.chilledBackground },
   FROZEN: { color: colors.frozen, backgroundColor: colors.frozenBackground },
@@ -225,7 +227,7 @@ function FridgeCompartment({ group, row, rowIndex, selectedAreaId, focus, width,
   );
 }
 
-/** 문 한 개의 본체와 포켓을 같은 비율로 배치하고, 실제 경첩 기준의 앞·뒷면 좌표를 계산한다. */
+/** 닫힌 도면의 본체·문 크기를 유지하고, 펼친 위치와 실제 경첩 기준의 앞·뒷면 좌표만 계산한다. */
 export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFocusTarget, viewport: LayoutRectangle) {
   const rowIndex = draft.rows.findIndex(row => row.compartments.some(body => body.id === focus.areaId));
   if (rowIndex < 0) return null;
@@ -238,15 +240,14 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
   const sourcePaddingRight = groupIndex === groups.length - 1 ? HINGE_LENGTH / 2 : GROUP_GAP / 2;
   const source = { x: focus.canvas.x + group.left * focus.canvas.width + sourcePaddingLeft,
     y: focus.canvas.y + rowIndex * focus.canvas.height / draft.rows.length + 3,
-    width: group.width * focus.canvas.width - sourcePaddingLeft - sourcePaddingRight,
-    height: focus.canvas.height / draft.rows.length - 6 };
-  const width = Math.min(focus.canvas.width, Math.max(1, viewport.width - 48));
+    width: Math.max(1, group.width * focus.canvas.width - sourcePaddingLeft - sourcePaddingRight),
+    height: Math.max(1, focus.canvas.height / draft.rows.length - 6) };
   const leftDoors = group.doors.filter(({ door }) => door.kind === 'HINGED' && door.side === 'LEFT_DOOR');
   const rightDoors = group.doors.filter(({ door }) => door.kind === 'HINGED' && door.side === 'RIGHT_DOOR');
-  const minimumHeight = Math.max(group.body.slots.length, ...[...leftDoors, ...rightDoors].map(({ door }) => door.slots.length)) * 24 + 34;
-  const height = Math.min(Math.max(source.height, minimumHeight), Math.max(1, viewport.height - 128));
   const pocketCount = leftDoors.length + rightDoors.length;
-  const unitWidth = (width - pocketCount * HINGE_LENGTH) / (group.doors.length + pocketCount);
+  const unitWidth = source.width / group.doors.length;
+  const height = source.height;
+  const width = unitWidth * (group.doors.length + pocketCount) + pocketCount * HINGE_LENGTH;
 
   function place(frame: { left: number; top: number; width: number; height: number }, original: LayoutRectangle) {
     return { ...frame,
@@ -273,10 +274,23 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
     const unfoldOffset = pocket ? pocket.frame.left + (leftHinge ? frame.paddingRight : frame.paddingLeft) - unfoldedLeft : 0;
     return { door, frame, pocket, unfoldOffset };
   });
+  const scrollable = width > viewport.width - FOCUS_PADDING * 2 + 0.01;
+  // 한쪽 열림은 본체를 반대쪽 화면 끝에 맞추고, 양쪽 열림은 가운데에 둔다.
+  const bodyLeft = leftDoors.length > 0 && rightDoors.length === 0
+    ? viewport.width - FOCUS_PADDING - body.width
+    : rightDoors.length > 0 && leftDoors.length === 0 ? FOCUS_PADDING : (viewport.width - body.width) / 2;
+  // 양끝 여백을 고정해 본체 끝 정렬 위치보다 더 멀리 스크롤되지 않게 한다.
+  const scrollPaddingLeft = FOCUS_PADDING;
+  const contentWidth = Math.max(viewport.width, width + FOCUS_PADDING * 2);
+  const initialScrollX = scrollable ? Math.max(0, Math.min(contentWidth - viewport.width,
+    scrollPaddingLeft + body.left - bodyLeft)) : 0;
+  const focusedLeft = scrollable ? scrollPaddingLeft - initialScrollX : (viewport.width - width) / 2;
+  const left = source.x - viewport.x + (source.width - width) / 2;
   return { row, rowIndex, group, source, body, pockets, doors, width, height,
-    left: source.x - viewport.x + (source.width - width) / 2,
+    scrollable, contentWidth, initialScrollX, scrollPaddingLeft, focusedLeft,
+    left,
     top: source.y - viewport.y + (source.height - height) / 2,
-    translateX: viewport.x + viewport.width / 2 - (source.x + source.width / 2),
+    translateX: focusedLeft - left,
     translateY: viewport.y + viewport.height / 2 - (source.y + source.height / 2) };
 }
 
@@ -322,9 +336,18 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
 }) {
   const progress = useAnimatedValue(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0 });
   const geometry = getFridgeFocusGeometry(draft, target, viewport);
   const layout = getDraftLayout(draft);
   const open = phase === 'open';
+  const scrollKey = `${target.areaId}:${geometry?.width}:${geometry?.height}:${viewport.width}`;
+  const initialScrollX = geometry?.initialScrollX ?? 0;
+  const scrollable = geometry?.scrollable ?? false;
+
+  useEffect(() => {
+    if (open && scrollable) scrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
+  }, [open, scrollable, scrollKey, initialScrollX]);
 
   useEffect(() => {
     if (phase !== 'opening' && phase !== 'closing') return;
@@ -342,6 +365,8 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
 
   if (!geometry) return null;
   const { row, rowIndex, group, body, pockets, doors } = geometry;
+  const scrolling = open && geometry.scrollable;
+  const scrollShift = scrollPosition.key === scrollKey ? scrollPosition.x - initialScrollX : 0;
   const area = layout.areas.find(candidate => candidate.id === group.body.id)!;
   function panelStyle(frame: typeof body) {
     return {
@@ -354,6 +379,54 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [frame.fromTranslateY, 0] }) },
       ] };
   }
+  // 닫을 때는 스크롤 위치도 같은 진행값으로 원점에 돌려 시작 화면으로 튀지 않게 한다.
+  const scene = (
+    <Animated.View onStartShouldSetResponder={() => !scrolling} style={[styles.compartment, {
+      left: scrolling ? geometry.scrollPaddingLeft : geometry.focusedLeft,
+      top: scrolling ? 0 : (viewport.height - geometry.height) / 2, width: geometry.width, height: geometry.height,
+      transform: scrolling ? [] : [
+        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateX, -scrollShift] }) },
+        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateY, 0] }) },
+      ],
+    }]}>
+      {/* 본체 프레임은 문 뒤에 유지하고, 칸·내부 배지와 경첩만 열림 완료 후 표시한다. */}
+      <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+        style={[StyleSheet.absoluteFill, { opacity: open ? 1 : 0, zIndex: 2 }]}>
+        {pockets.map(({ door, frame }) => (
+          <DoorHinges key={door.id} height={body.height}
+            fromX={door.side === 'LEFT_DOOR' ? frame.left + frame.width + HINGE_LENGTH / 2 : frame.left - HINGE_LENGTH / 2}
+            toX={door.side === 'LEFT_DOOR' ? body.left - HINGE_LENGTH / 2 : body.left + body.width + HINGE_LENGTH / 2} />
+        ))}
+      </View>
+      <Animated.View style={[styles.compartment, panelStyle(body)]}>
+        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+          style={[StyleSheet.absoluteFill, styles.bodyFrame,
+            selectedAreaId === area.id && group.body.storageMode && { backgroundColor: modeColors[group.body.storageMode].backgroundColor }]}>
+          <Animated.View style={[StyleSheet.absoluteFill, styles.interiorShade, {
+            opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0] }),
+          }]} />
+        </View>
+        <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
+          importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, { opacity: open ? 1 : 0 }]}>
+          <InteriorArea area={area} layout={layout} selected={selectedAreaId === area.id} storageMode={group.body.storageMode}
+            compact={body.width < 120} onSelectArea={onSelectArea} />
+        </View>
+        {doors.map(({ door, frame, pocket, unfoldOffset }, index) => (
+          <FridgeDoor key={door.id} door={door} label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${areaNames[door.side]}`}
+            phase={phase} progress={progress} bodyWidth={body.width}
+            selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
+            storageMode={group.body.storageMode} showModeBadge={index === doors.length - 1}
+            unfoldOffset={unfoldOffset} onSelect={() => onSelectArea(area.id)}
+            style={{ left: frame.left, width: frame.width, height: body.height,
+              paddingLeft: frame.paddingLeft, paddingRight: frame.paddingRight, paddingVertical: 0 }}>
+            {pocket ? <InteriorArea area={layout.areas.find(candidate => candidate.id === door.id)!} layout={layout}
+              selected={selectedAreaId === door.id} storageMode={group.body.storageMode} compact={pocket.frame.width < 120}
+              onSelectArea={onSelectArea} /> : null}
+          </FridgeDoor>
+        ))}
+      </Animated.View>
+    </Animated.View>
+  );
   return (
     // 배경 덮개는 툴바 공간까지 채우고, 중앙 좌표는 툴바를 제외한 viewport로 계산한다.
     <View style={[styles.focusOverlay, { height: Math.max(viewport.height, overlayHeight ?? viewport.height), bottom: undefined }]}
@@ -365,60 +438,33 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="냉장고 도면 바깥 영역 눌러 닫기"
           accessibilityState={{ disabled: !open }} disabled={!open} onPress={onClose} />
       </Animated.View>
-      {/* 도착 좌표를 고정하고 이동값은 0으로 끝낸다. 도면 안의 빈 공간도 터치를 받아 바깥 닫기를 막는다. */}
-      <Animated.View onStartShouldSetResponder={() => true} style={[styles.compartment, { left: (viewport.width - geometry.width) / 2,
-        top: (viewport.height - geometry.height) / 2, width: geometry.width, height: geometry.height,
-        transform: [
-          { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateX, 0] }) },
-          { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateY, 0] }) },
-        ],
-      }]}>
-        {/* 본체 프레임은 문 뒤에 유지하고, 칸·내부 배지와 경첩만 열림 완료 후 표시한다. */}
-        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-          style={[StyleSheet.absoluteFill, { opacity: open ? 1 : 0, zIndex: 2 }]}>
-          {pockets.map(({ door, frame }) => (
-            <DoorHinges key={door.id} height={body.height}
-              fromX={door.side === 'LEFT_DOOR' ? frame.left + frame.width + HINGE_LENGTH / 2 : frame.left - HINGE_LENGTH / 2}
-              toX={door.side === 'LEFT_DOOR' ? body.left - HINGE_LENGTH / 2 : body.left + body.width + HINGE_LENGTH / 2} />
-          ))}
-        </View>
-        <Animated.View style={[styles.compartment, panelStyle(body)]}>
-          <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-            style={[StyleSheet.absoluteFill, styles.bodyFrame,
-              selectedAreaId === area.id && group.body.storageMode && { backgroundColor: modeColors[group.body.storageMode].backgroundColor }]}>
-            <Animated.View style={[StyleSheet.absoluteFill, styles.interiorShade, {
-              opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0] }),
-            }]} />
+      {scrolling ? (
+        <ScrollView ref={scrollRef} horizontal scrollEnabled bounces={false} overScrollMode="never" removeClippedSubviews={false}
+          accessibilityLabel="냉장고 내부 도면, 좌우로 이동" showsHorizontalScrollIndicator
+          contentOffset={{ x: initialScrollX, y: 0 }} scrollEventThrottle={16}
+          onScroll={({ nativeEvent }) => setScrollPosition({ key: scrollKey, x: nativeEvent.contentOffset.x })}
+          style={[styles.compartment, { left: 0, top: (viewport.height - geometry.height) / 2,
+            width: viewport.width, height: geometry.height + SCROLL_INDICATOR_SPACE }]}>
+          {/* 네이티브 스크롤 표시줄이 칸 위에 겹치지 않도록 도면 아래 공간을 남긴다. */}
+          <View style={{ width: geometry.contentWidth, height: geometry.height + SCROLL_INDICATOR_SPACE }}>
+            <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={onClose} />
+            {scene}
           </View>
-          <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
-            importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, { opacity: open ? 1 : 0 }]}>
-            <InteriorArea area={area} layout={layout} selected={selectedAreaId === area.id} storageMode={group.body.storageMode}
-              compact={body.width < 120} onSelectArea={onSelectArea} />
-          </View>
-          {doors.map(({ door, frame, pocket, unfoldOffset }, index) => (
-            <FridgeDoor key={door.id} door={door} label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${areaNames[door.side]}`}
-              phase={phase} progress={progress} bodyWidth={body.width}
-              selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
-              storageMode={group.body.storageMode} showModeBadge={index === doors.length - 1}
-              unfoldOffset={unfoldOffset} onSelect={() => onSelectArea(area.id)}
-              style={{ left: frame.left, width: frame.width, height: body.height,
-                paddingLeft: frame.paddingLeft, paddingRight: frame.paddingRight, paddingVertical: 0 }}>
-              {pocket ? <InteriorArea area={layout.areas.find(candidate => candidate.id === door.id)!} layout={layout}
-                selected={selectedAreaId === door.id} storageMode={group.body.storageMode} compact={pocket.frame.width < 120}
-                onSelectArea={onSelectArea} /> : null}
-            </FridgeDoor>
-          ))}
-        </Animated.View>
-      </Animated.View>
+        </ScrollView>
+      ) : scene}
+      {scrolling ? <Text pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+        style={[styles.scrollHint, { top: (viewport.height + geometry.height) / 2 + SCROLL_INDICATOR_SPACE + 6 }]}>좌우로 밀어 확인</Text> : null}
     </View>
   );
 }
 
-/** 닫힌 도면은 최대 높이 안에서 화면에 맞추고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
+/** 닫힌 도면의 세로 비율을 남은 공간 안에서 유지하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
 export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false }: FridgeInteriorMapProps) {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const { width: viewportWidth } = viewportSize;
-  const mapHeight = fitHeight ? Math.min(MAP_HEIGHT, Math.max(1, viewportSize.height - MAP_PADDING * 2)) : MAP_HEIGHT;
+  const maxHeight = fitHeight ? Math.min(MAP_HEIGHT, Math.max(1, viewportSize.height - MAP_PADDING * 2)) : MAP_HEIGHT;
+  const mapWidth = Math.min(viewportWidth, maxHeight * FRIDGE_ASPECT_RATIO);
+  const mapHeight = mapWidth / FRIDGE_ASPECT_RATIO;
   const rowGeometries = draft.rows.map(getDraftRowGeometry);
   const rowHeight = mapHeight / draft.rows.length;
 
@@ -427,10 +473,10 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, 
       const { width, height } = nativeEvent.layout;
       setViewportSize(current => current.width === width && current.height === height ? current : { width, height });
     }}>
-      <View style={[styles.canvas, { height: mapHeight }]}>
+      <View style={[styles.canvas, { width: mapWidth, height: mapHeight }]}>
         {viewportWidth > 0 ? rowGeometries.flatMap((rowGeometry, rowIndex) => rowGeometry.groups.map((group, index) => (
           <FridgeCompartment key={group.body.id} group={group} row={draft.rows[rowIndex]} rowIndex={rowIndex}
-            selectedAreaId={selectedAreaId} focus={focus} onFocus={onFocus} width={viewportWidth} height={rowHeight} canvasHeight={mapHeight}
+            selectedAreaId={selectedAreaId} focus={focus} onFocus={onFocus} width={mapWidth} height={rowHeight} canvasHeight={mapHeight}
             paddingLeft={index === 0 ? HINGE_LENGTH / 2 : GROUP_GAP / 2}
             paddingRight={index === rowGeometry.groups.length - 1 ? HINGE_LENGTH / 2 : GROUP_GAP / 2}
             onSelectArea={onSelectArea} />
@@ -448,9 +494,11 @@ const styles = StyleSheet.create({
   fittedViewport: {
     flex: 1,
     minHeight: 0,
+    justifyContent: 'center',
   },
   canvas: {
     height: MAP_HEIGHT,
+    alignSelf: 'center',
   },
   compartment: {
     position: 'absolute',
@@ -461,6 +509,15 @@ const styles = StyleSheet.create({
   },
   focusBackdrop: {
     backgroundColor: colors.background,
+  },
+  scrollHint: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
   },
   area: {
     ...StyleSheet.absoluteFill,

@@ -25,7 +25,7 @@ import { FridgeAreaMenu } from '@/features/fridge/components/FridgeAreaMenu';
 import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import {
-  addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft,
+  addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft, FRIDGE_ASPECT_RATIO,
   getAdjacentCompartment, getDraftAreaLocation, getDraftLayout, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
   removeDraftRow, setDraftDoorOpening, splitDraftCompartment, storageModeOptions,
 } from '@/features/fridge/model/fridgeLayout';
@@ -40,6 +40,10 @@ type RefrigeratorRegistrationScreenProps = NativeStackScreenProps<
 
 type RegistrationStep = 'basic' | 'configuration';
 
+const STRUCTURE_LABEL_WIDTH = 24;
+const STRUCTURE_CONTROL_WIDTH = 148;
+const STRUCTURE_PREVIEW_MAX_WIDTH = 144;
+
 export function RefrigeratorRegistrationScreen({
   navigation,
 }: RefrigeratorRegistrationScreenProps) {
@@ -52,6 +56,8 @@ export function RefrigeratorRegistrationScreen({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isStepChanging, setIsStepChanging] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
+  const structurePreviewWidth = Math.max(1, Math.min(STRUCTURE_PREVIEW_MAX_WIDTH,
+    stepWidth - spacing.lg * 2 - STRUCTURE_LABEL_WIDTH - STRUCTURE_CONTROL_WIDTH - spacing.xs * 2));
   const [stepHeight, setStepHeight] = useState(0);
   const [focusTarget, setFocusTarget] = useState<FridgeFocusTarget | null>(null);
   const [focusPhase, setFocusPhase] = useState<FridgeFocusPhase>('closed');
@@ -333,7 +339,7 @@ export function RefrigeratorRegistrationScreen({
                         </View>
                         <View style={styles.structureDiagram}>
                           {/* 도면 테두리 안쪽과 같은 높이를 나눠 단 이름·조절 버튼을 각 단의 중앙에 맞춘다. */}
-                          <View style={[styles.structureEditor, { height: Math.max(240, draft.rows.length * 44 + 2) }]}>
+                          <View style={[styles.structureEditor, { height: structurePreviewWidth / FRIDGE_ASPECT_RATIO }]}>
                             <View style={styles.structureLabels}>
                               {draft.rows.map((row, index) => (
                                 <View key={row.id} style={styles.structureLabelRow}>
@@ -341,7 +347,8 @@ export function RefrigeratorRegistrationScreen({
                                 </View>
                               ))}
                             </View>
-                            <FridgeStructurePreview rows={draft.rows} style={styles.structurePreview} />
+                            <FridgeStructurePreview rows={draft.rows} style={[styles.structurePreview,
+                              { flex: 0, width: structurePreviewWidth, aspectRatio: FRIDGE_ASPECT_RATIO }]} />
                             <View style={styles.structureControls}>
                               {draft.rows.map((row, index) => (
                                 <View key={row.id} style={styles.structureRow}>
@@ -779,7 +786,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   structureLabels: {
-    width: 24,
+    width: STRUCTURE_LABEL_WIDTH,
     paddingVertical: 1,
   },
   structureLabelRow: {
@@ -789,12 +796,12 @@ const styles = StyleSheet.create({
   structurePreview: {
     flex: 1,
     width: undefined,
-    maxWidth: 144,
+    maxWidth: STRUCTURE_PREVIEW_MAX_WIDTH,
     aspectRatio: undefined,
     alignSelf: 'stretch',
   },
   structureControls: {
-    width: 148,
+    width: STRUCTURE_CONTROL_WIDTH,
     paddingVertical: 1,
   },
   structureRow: {

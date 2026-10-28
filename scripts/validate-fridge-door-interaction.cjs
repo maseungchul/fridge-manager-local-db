@@ -155,7 +155,7 @@ function fixture(draft = model.createRefrigeratorDraft(), groupIndex = 0, scroll
   compartment = mount(element.type, element.props);
   compartment.tree.props.ref.current = { measureInWindow(callback) {
     const { group, rowIndex, width, height } = compartment.props;
-    callback(24 + group.left * width, 210 - scrollY + rowIndex * height, group.width * width, height);
+    callback(24 + (327 - width) / 2 + group.left * width, 210 - scrollY + rowIndex * height, group.width * width, height);
   } };
   return { draft, selected, requests, map, compartment };
 }
@@ -194,7 +194,7 @@ function registrationFixture(doorCount = 1) {
     canvas: { x: 24, y: 210, width: 327, height: 540 } };
   return { screen, viewport, map, row, target };
 }
-const moving = focus => children(focus.tree)[1];
+const moving = focus => find(focus.tree, node => typeof node.props?.onStartShouldSetResponder === 'function');
 const movingDoors = focus => findAll(moving(focus), named('FridgeDoor'));
 const interiorAreas = focus => findAll(moving(focus), named('InteriorArea'));
 function assertFocusAccess(focus, phase) {
@@ -204,7 +204,9 @@ function assertFocusAccess(focus, phase) {
   const outside = find(backdrop, node => node.type === 'Pressable');
   assert.equal(outside.props.disabled, phase !== 'open');
   assert.equal(outside.props.accessibilityState.disabled, phase !== 'open');
-  assert.equal(moving(focus).props.onStartShouldSetResponder(), true);
+  const horizontalScroll = find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
+  assert.equal(moving(focus).props.onStartShouldSetResponder(), !horizontalScroll);
+  if (phase !== 'open') assert.equal(horizontalScroll, undefined);
   const hinges = find(moving(focus), node => children(node).some(named('DoorHinges')));
   if (hinges) {
     assert.equal(flattenStyle(hinges.props.style).opacity, phase === 'open' ? 1 : 0);
@@ -257,7 +259,7 @@ test('문을 누르면 보기 버튼 없이 연결된 본체 전체의 화면 �
   assert.equal(find(tree, node => node.type === 'FeedbackPressable'), undefined);
   selectDoor(compartment);
   assert.deepEqual(requests[0], { areaId: draft.rows[0].compartments[0].id,
-    returnAreaId: draft.rows[0].doors[0].id, canvas: { x: 24, y: 210, width: 327, height: 540 } });
+    returnAreaId: draft.rows[0].doors[0].id, canvas: { x: 52.5, y: 210, width: 270, height: 540 } });
   assert.equal(flattenStyle(compartment.tree.props.style).opacity, 0);
   assert.deepEqual(selected, [draft.rows[0].doors[0].id, draft.rows[0].compartments[0].id]);
   assert.deepEqual(draft, snapshot);
@@ -344,7 +346,7 @@ test('중단된 전환은 완료로 처리하지 않고 본체·포켓 입력 �
   focus.unmount();
 });
 
-test('문을 열고 닫는 동안 실제 프레임만 바꾸고 내부 글자·배지에 비율 확대를 적용하지 않는다', () => {
+test('문을 열고 닫는 동안 닫힌 본체·문의 크기를 유지하고 내부 글자·배지를 확대하지 않는다', () => {
   for (const rows of [1, 4]) {
     for (const doorCount of [1, 2]) {
       for (const merged of doorCount === 2 ? [false, true] : [false]) {
@@ -372,6 +374,9 @@ test('문을 열고 닫는 동안 실제 프레임만 바꾸고 내부 글자·�
           const height = dimensionAt(panelStyle.height, progress);
           near(width, geometry.source.width + (geometry.body.width - geometry.source.width) * progress);
           near(height, geometry.source.height + (geometry.body.height - geometry.source.height) * progress);
+          near(width, geometry.source.width);
+          near(height, geometry.source.height);
+          near(width / height, geometry.source.width / geometry.source.height);
           const centerX = origin.left + dimensionAt(origin.transform[0].translateX, progress)
             + dimensionAt(panelStyle.left, progress) + dimensionAt(panelStyle.transform[0].translateX, progress) + width / 2;
           const centerY = origin.top + dimensionAt(origin.transform[1].translateY, progress)
@@ -421,7 +426,9 @@ test('이동 중 표시 영역 높이가 바뀌어도 이전 이동값이 최종
   animation.finish();
   focus.render();
   const completed = flattenStyle(moving(focus).props.style);
-  near(completed.top + completed.height / 2, 260);
+  const scroller = find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
+  const parentTop = scroller ? flattenStyle(scroller.props.style).top : 0;
+  near(parentTop + completed.top + completed.height / 2, 260);
   focus.unmount();
 });
 
@@ -521,10 +528,11 @@ test('모든 단의 연결 도면을 화면 중앙에 맞추고 본체의 원래
           canvas: { x: 24, y: -170, width: 327, height: 540 } };
         const viewport = { x: 0, y: 110, width: 375, height: 360 };
         const geometry = getFridgeFocusGeometry(draft, target, viewport);
-        near(geometry.left + geometry.width / 2 + geometry.translateX, viewport.width / 2);
+        near(geometry.left + geometry.translateX, geometry.focusedLeft);
+        if (!geometry.scrollable) near(geometry.focusedLeft + geometry.width / 2, viewport.width / 2);
         near(geometry.top + geometry.height / 2 + geometry.translateY, viewport.height / 2);
-        assert(geometry.height <= viewport.height - 128 + 1e-8);
-        assert(geometry.width <= viewport.width - 48 + 1e-8);
+        near(geometry.height, geometry.source.height);
+        if (!geometry.scrollable) assert(geometry.width <= viewport.width - 48 + 1e-8);
         near(geometry.body.fromWidth, geometry.source.width);
         near(geometry.body.fromHeight, geometry.source.height);
         near(geometry.left + geometry.body.left + geometry.body.width / 2 + geometry.body.fromTranslateX,
@@ -640,7 +648,7 @@ test('이웃이 없거나 합산 4칸을 넘으면 어느 본체에서도 합치
   }
 });
 
-test('포켓 4칸과 내부 상단 배지의 공간을 확보하고 원래 도면 높이로 복귀한다', () => {
+test('포켓이 4칸이어도 닫힌 본체·문 크기를 그대로 유지한다', () => {
   let draft = model.createRefrigeratorDraft();
   draft = model.addDraftRow(model.addDraftRow(draft));
   const rowId = draft.rows[0].id;
@@ -651,8 +659,180 @@ test('포켓 4칸과 내부 상단 배지의 공간을 확보하고 원래 도�
   const target = { areaId: draft.rows[0].compartments[0].id, returnAreaId: draft.rows[0].doors[0].id,
     canvas: { x: 24, y: 210, width: 327, height: 540 } };
   const geometry = getFridgeFocusGeometry(draft, target, { x: 0, y: 120, width: 375, height: 600 });
-  assert(geometry.pockets.every(({ frame }) => (frame.height - 34) / model.MAX_SLOTS >= 24));
+  near(geometry.body.width, geometry.source.width);
+  near(geometry.height, geometry.source.height);
+  assert.equal(geometry.scrollable, true);
+  near(geometry.body.width / geometry.body.height, geometry.source.width / geometry.source.height);
+  assert(geometry.pockets.every(({ frame }) => frame.height === geometry.body.height));
   near(geometry.body.fromHeight, 129);
+});
+
+test('4단·4칸은 문 개수·여는 방식과 관계없이 닫힌 도면의 너비·높이를 그대로 유지한다', () => {
+  for (const opening of ['LEFT_DOOR', 'RIGHT_DOOR', 'DRAWER']) {
+    for (const doorCount of [1, 2]) {
+      for (const merged of doorCount === 2 ? [false, true] : [false]) {
+        let draft = model.addDraftRow(model.addDraftRow(model.createRefrigeratorDraft()));
+        const rowId = draft.rows[0].id;
+        if (doorCount === 2) draft = model.changeDraftDoorCount(draft, rowId, 1);
+        const bodyId = draft.rows[0].compartments[0].id;
+        for (const door of draft.rows[0].doors) draft = model.setDraftDoorOpening(draft, rowId, door.id, opening);
+        if (merged) draft = model.mergeDraftCompartments(draft, rowId, bodyId);
+        draft.rows[0].compartments[0].slots = Array.from({ length: 4 }, (_, index) => ({ name: `${index + 1}칸`, drawerCount: 2 }));
+        draft.rows[0].doors.forEach(door => { door.slots = Array.from({ length: 4 }, (_, index) => ({ name: `${index + 1}칸`, drawerCount: 0 })); });
+        const { compartment, requests } = fixture(draft);
+        selectDoor(compartment);
+        const geometry = getFridgeFocusGeometry(draft, requests[0], { x: 0, y: 100, width: 375, height: 500 });
+        near(geometry.height, geometry.source.height);
+        near(geometry.body.width, geometry.source.width);
+        near(geometry.body.width / geometry.body.height, geometry.source.width / geometry.source.height);
+        if (geometry.scrollable) {
+          const bodyLeft = geometry.focusedLeft + geometry.body.left;
+          if (geometry.pockets.every(({ door }) => door.side === 'LEFT_DOOR')) near(bodyLeft + geometry.body.width, 375 - 24);
+          else if (geometry.pockets.every(({ door }) => door.side === 'RIGHT_DOOR')) near(bodyLeft, 24);
+          else near(bodyLeft + geometry.body.width / 2, 375 / 2);
+          assert(geometry.initialScrollX >= 0);
+          assert(geometry.initialScrollX <= geometry.contentWidth - 375);
+        }
+        if (!geometry.scrollable) assert(geometry.width <= 375 - 48 + 1e-8);
+      }
+    }
+  }
+});
+
+test('가로로 긴 단은 크기를 유지하고 왼쪽 열림은 본체를 오른쪽 끝에, 오른쪽 열림은 왼쪽 끝에 둔다', () => {
+  const draft = model.addDraftRow(model.addDraftRow(model.createRefrigeratorDraft()));
+  const row = draft.rows[0];
+  row.compartments[0].slots = Array.from({ length: 4 }, (_, index) => ({ name: `${index + 1}칸`, drawerCount: 0 }));
+  row.doors[0].slots = Array.from({ length: 4 }, (_, index) => ({ name: `${index + 1}칸`, drawerCount: 0 }));
+  const snapshot = structuredClone(draft);
+  for (const viewportWidth of [320, 375, 480]) {
+    const geometries = ['LEFT_DOOR', 'RIGHT_DOOR'].map(opening => {
+      const current = model.setDraftDoorOpening(draft, row.id, row.doors[0].id, opening);
+      const { compartment, requests } = fixture(current);
+      selectDoor(compartment);
+      const viewport = { x: 0, y: 100, width: viewportWidth, height: 600 };
+      const geometry = getFridgeFocusGeometry(current, requests[0], viewport);
+      assert.equal(geometry.scrollable, true);
+      near(geometry.height, geometry.source.height);
+      near(geometry.body.width, geometry.source.width);
+      const bodyLeft = geometry.focusedLeft + geometry.body.left;
+      if (opening === 'LEFT_DOOR') {
+        near(bodyLeft + geometry.body.width, viewportWidth - 24);
+        near(geometry.initialScrollX, geometry.contentWidth - viewportWidth);
+        near(geometry.pockets[0].frame.left + geometry.pockets[0].frame.width + 3, geometry.body.left);
+      } else {
+        near(bodyLeft, 24);
+        near(geometry.initialScrollX, 0);
+        near(geometry.pockets[0].frame.left, geometry.body.left + geometry.body.width + 3);
+      }
+      const { focus } = focusedFixture(current, requests[0], viewport);
+      near(flattenStyle(moving(focus).props.style).top + geometry.height / 2, viewport.height / 2);
+      focus.unmount();
+      return geometry;
+    });
+    near(geometries[0].body.width, geometries[1].body.width);
+    near(geometries[0].body.height, geometries[1].body.height);
+  }
+  assert.deepEqual(draft, snapshot);
+});
+
+test('넘친 도면은 열린 뒤 좌우 이동·포켓 선택이 가능하고 이동한 위치에서 원래 자리로 닫힌다', () => {
+  for (const merged of [false, true]) {
+    for (const opening of ['LEFT_DOOR', 'RIGHT_DOOR']) {
+      let draft = model.addDraftRow(model.addDraftRow(model.createRefrigeratorDraft()));
+      const rowId = draft.rows[0].id;
+      if (merged) draft = model.changeDraftDoorCount(draft, rowId, 1);
+      draft = model.setDraftDoorOpening(draft, rowId, draft.rows[0].doors[0].id, opening);
+      if (merged) draft = model.mergeDraftCompartments(draft, rowId, draft.rows[0].compartments[0].id);
+      draft.rows[0].doors.forEach(door => { door.slots = Array.from({ length: 4 }, (_, index) => ({ name: `${index + 1}칸`, drawerCount: 0 })); });
+      const { compartment, requests } = fixture(draft);
+      selectDoor(compartment);
+      const target = requests[0];
+      const { focus } = focusedFixture(draft, target);
+      const geometry = getFridgeFocusGeometry(draft, target, focus.props.viewport);
+      const scroller = () => find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
+      assertFocusAccess(focus, 'opening');
+      assert.equal(scroller(), undefined);
+      animations.at(-1).finish();
+      focus.render();
+      assertFocusAccess(focus, 'open');
+      assert.equal(scroller().props.scrollEnabled, true);
+      assert.equal(scroller().props.bounces, false);
+      assert.equal(scroller().props.removeClippedSubviews, false);
+      assert.equal(scroller().props.contentOffset.x, geometry.initialScrollX);
+      const scrollFrame = flattenStyle(scroller().props.style);
+      const contentFrame = flattenStyle(children(scroller())[0].props.style);
+      const sceneFrame = flattenStyle(moving(focus).props.style);
+      assert(scrollFrame.height > sceneFrame.top + sceneFrame.height, '표시줄 공간은 도면 테두리 아래에 있어야 한다');
+      assert(contentFrame.height >= scrollFrame.height);
+      const hint = find(focus.tree, node => node.type === 'Text' && node.props.children === '좌우로 밀어 확인');
+      assert(flattenStyle(hint.props.style).top >= scrollFrame.top + scrollFrame.height);
+      const resets = [];
+      scroller().props.ref.current = { scrollTo: args => resets.push(args) };
+      let lastX = 0;
+      for (const x of [0, geometry.contentWidth - focus.props.viewport.width]) {
+        lastX = x;
+        scroller().props.onScroll({ nativeEvent: { contentOffset: { x, y: 0 } } });
+        focus.render();
+        const sceneLeft = flattenStyle(moving(focus).props.style).left - x;
+        const edgePocket = x === 0 ? geometry.pockets[0] : geometry.pockets.at(-1);
+        if (geometry.pockets.length > 1 || (x === 0) === (edgePocket.door.side === 'LEFT_DOOR')) {
+          assert(sceneLeft + edgePocket.frame.left >= -1e-8);
+          assert(sceneLeft + edgePocket.frame.left + edgePocket.frame.width <= focus.props.viewport.width + 1e-8);
+        }
+      }
+      const pocketId = geometry.pockets.at(-1).door.id;
+      interiorAreas(focus).find(area => area.props.area.id === pocketId).props.onSelectArea(pocketId);
+      focus.render();
+      assert.equal(focus.props.selectedAreaId, pocketId);
+      assert.equal(resets.length, 0, '스크롤·선택 변경으로 처음 위치에 되돌리지 않아야 한다');
+      focus.props.onClose();
+      focus.render();
+      assertFocusAccess(focus, 'closing');
+      const style = flattenStyle(moving(focus).props.style);
+      const translation = style.transform[0].translateX.outputRange;
+      near(style.left + translation[1], geometry.scrollPaddingLeft - lastX);
+      near(style.left + translation[0], geometry.left);
+      animations.at(-1).finish();
+      focus.render();
+      assertFocusAccess(focus, 'closed');
+      focus.unmount();
+    }
+  }
+});
+
+test('좌우 이동 중 화면 너비나 연결 구조가 바뀌면 본체의 초기 정렬에 맞춰 이동 범위를 다시 잡는다', () => {
+  let draft = model.addDraftRow(model.addDraftRow(model.createRefrigeratorDraft()));
+  const rowId = draft.rows[0].id;
+  draft = model.changeDraftDoorCount(draft, rowId, 1);
+  draft = model.mergeDraftCompartments(draft, rowId, draft.rows[0].compartments[0].id);
+  draft.rows[0].doors.forEach(door => { door.slots = Array.from({ length: 4 }, (_, index) => ({ name: `${index + 1}칸`, drawerCount: 0 })); });
+  const { compartment, requests } = fixture(draft);
+  selectDoor(compartment);
+  const { focus } = focusedFixture(draft, requests[0]);
+  animations.at(-1).finish();
+  focus.render();
+  const scroller = () => find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
+  const resets = [];
+  scroller().props.ref.current = { scrollTo: args => resets.push(args) };
+  scroller().props.onScroll({ nativeEvent: { contentOffset: { x: 0, y: 0 } } });
+  focus.render();
+  focus.props = { ...focus.props, viewport: { ...focus.props.viewport, width: 320 } };
+  focus.render();
+  const resized = getFridgeFocusGeometry(draft, focus.props.target, focus.props.viewport);
+  assert.deepEqual(resets, [{ x: resized.initialScrollX, animated: false }]);
+  focus.props = { ...focus.props, draft: model.splitDraftCompartment(draft, rowId, requests[0].areaId, requests[0].returnAreaId) };
+  focus.render();
+  const split = getFridgeFocusGeometry(focus.props.draft, focus.props.target, focus.props.viewport);
+  assert.equal(Boolean(scroller()), split.scrollable);
+  if (split.scrollable) assert.deepEqual(resets.at(-1), { x: split.initialScrollX, animated: false });
+  focus.props = { ...focus.props, viewport: { ...focus.props.viewport, width: 375 } };
+  focus.render();
+  assert.equal(scroller(), undefined);
+  const fitted = getFridgeFocusGeometry(focus.props.draft, focus.props.target, focus.props.viewport);
+  near(flattenStyle(moving(focus).props.style).left, fitted.focusedLeft);
+  assert.equal(focus.props.selectedAreaId, requests[0].areaId);
+  focus.unmount();
 });
 
 test('본체·포켓 배지는 내부 상단에 표시하고 별도 닫기 버튼 없이 바깥 영역에서 닫는다', () => {
@@ -743,31 +923,66 @@ test('도면 화면은 고정하고 기본 정보·하단 칸 편집 패널만 �
   screen.unmount();
 });
 
+test('기본정보 도면은 단 개수·화면 너비가 바뀌어도 같은 세로 비율과 단별 조절 위치를 유지한다', () => {
+  const screen = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
+  const { FridgeStructurePreview } = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
+  for (const rowCount of [2, 4]) {
+    while (find(screen.tree, node => node.type === 'FridgeStructurePreview').props.rows.length < rowCount) {
+      find(screen.tree, node => node.type === 'PrimaryButton' && node.props.label === '단 추가').props.onPress();
+      screen.render();
+    }
+    for (const availableWidth of [320, 375, 768]) {
+      const viewport = find(screen.tree, node => node.props.onLayout && children(node).some(child =>
+        child.type === 'Animated.View' && flattenStyle(child.props.style).flexDirection === 'row'));
+      viewport.props.onLayout({ nativeEvent: { layout: { width: availableWidth, height: 600 } } });
+      screen.render();
+      const preview = find(screen.tree, node => node.type === 'FridgeStructurePreview');
+      const frame = flattenStyle(FridgeStructurePreview(preview.props).props.style);
+      const editor = find(screen.tree, node => children(node).includes(preview));
+      const height = flattenStyle(editor.props.style).height;
+      near(frame.width / height, model.FRIDGE_ASPECT_RATIO);
+      assert.equal(frame.aspectRatio, model.FRIDGE_ASPECT_RATIO);
+      const controls = children(editor).at(-1);
+      assert.equal(children(controls).length, rowCount);
+      const reservedWidth = children(editor).filter(child => child !== preview)
+        .reduce((sum, child) => sum + flattenStyle(child.props.style).width, 0);
+      assert(frame.width + reservedWidth + tokens.spacing.xs * 2 <= availableWidth - tokens.spacing.lg * 2);
+      if (availableWidth === 375) assert(height > 240);
+    }
+  }
+  screen.unmount();
+});
+
 test('작은 화면에서도 모든 단이 남은 높이 안에 들어가고 실제 높이로 문을 열고 복귀한다', () => {
   for (const rowCount of [1, 2, 3, 4]) {
     let draft = model.createRefrigeratorDraft();
     while (draft.rows.length > rowCount) draft = model.removeDraftRow(draft, draft.rows.at(-1).id);
     while (draft.rows.length < rowCount) draft = model.addDraftRow(draft);
-    for (const availableHeight of [240, 460, 700]) {
+    for (const [availableWidth, availableHeight] of [[327, 240], [327, 460], [327, 700], [200, 700], [700, 240]]) {
       const targets = [];
       const map = mount(FridgeInteriorMap, { draft, fitHeight: true, onSelectArea() {}, onFocus: target => targets.push(target) });
-      map.tree.props.onLayout({ nativeEvent: { layout: { width: 327, height: availableHeight } } });
+      map.tree.props.onLayout({ nativeEvent: { layout: { width: availableWidth, height: availableHeight } } });
       map.render();
       const canvas = children(map.tree)[0];
-      const height = flattenStyle(canvas.props.style).height;
-      near(height, Math.min(540, availableHeight - 20));
+      const { width, height } = flattenStyle(canvas.props.style);
+      near(width / height, model.FRIDGE_ASPECT_RATIO);
+      assert(width <= availableWidth);
+      assert(height <= Math.min(540, availableHeight - 20));
       const groups = children(canvas).filter(named('FridgeCompartment'));
       assert.equal(groups.length, rowCount);
       near(groups.at(-1).props.rowIndex * groups.at(-1).props.height + groups.at(-1).props.height, height);
       const last = mount(groups.at(-1).type, groups.at(-1).props);
       last.tree.props.ref.current = { measureInWindow(callback) {
-        callback(24, 200 + last.props.rowIndex * last.props.height, 327, last.props.height);
+        callback(24 + (availableWidth - width) / 2, 200 + last.props.rowIndex * last.props.height, width, last.props.height);
       } };
       selectDoor(last);
       near(targets[0].canvas.height, height);
+      near(targets[0].canvas.width, width);
+      near(targets[0].canvas.x, 24 + (availableWidth - width) / 2);
       near(targets[0].canvas.y, 200);
       const geometry = getFridgeFocusGeometry(draft, targets[0], { x: 0, y: 110, width: 375, height: 500 });
       near(geometry.body.fromHeight, height / rowCount - 6);
+      near(geometry.body.width / geometry.body.height, geometry.source.width / geometry.source.height);
       last.unmount();
       map.unmount();
     }
