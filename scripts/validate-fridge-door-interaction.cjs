@@ -263,6 +263,48 @@ test('문을 누르면 보기 버튼 없이 연결된 본체 전체의 화면 �
   assert.deepEqual(draft, snapshot);
 });
 
+test('합친 본체는 어느 문을 눌러도 양쪽 외관을 선택 표시하고 내부 포켓은 개별 선택한다', () => {
+  for (const clickedIndex of [0, 1]) {
+    let draft = model.createRefrigeratorDraft();
+    const rowId = draft.rows[0].id;
+    draft = model.changeDraftDoorCount(draft, rowId, 1);
+    draft = model.mergeDraftCompartments(draft, rowId, draft.rows[0].compartments[0].id);
+    const { compartment, requests } = fixture(draft);
+    const measure = compartment.tree.props.ref.current.measureInWindow;
+    let finishMeasurement;
+    compartment.tree.props.ref.current.measureInWindow = callback => { finishMeasurement = () => measure(callback); };
+    selectDoor(compartment, clickedIndex);
+    assert(doors(compartment).every(door => door.props.selected));
+    finishMeasurement();
+    const target = requests[0];
+    assert.equal(target.returnAreaId, draft.rows[0].doors[clickedIndex].id);
+    const { focus } = focusedFixture(draft, target);
+    assert(movingDoors(focus).every(door => door.props.selected));
+    animations.at(-1).finish();
+    focus.render();
+    const pocket = interiorAreas(focus).find(area => area.props.area.id === target.returnAreaId);
+    pocket.props.onSelectArea(target.returnAreaId);
+    focus.render();
+    assert.deepEqual(interiorAreas(focus).filter(area => area.props.selected).map(area => area.props.area.id), [target.returnAreaId]);
+    focus.props.onClose();
+    focus.render();
+    assert(movingDoors(focus).every(door => door.props.selected));
+    animations.at(-1).finish();
+    focus.render();
+    compartment.props = { ...compartment.props, focus: null, selectedAreaId: target.returnAreaId };
+    compartment.render();
+    assert(doors(compartment).every(door => door.props.selected));
+    const split = model.splitDraftCompartment(draft, rowId, target.areaId, target.returnAreaId);
+    const groups = model.getDraftRowGeometry(split.rows[0]).groups;
+    for (const group of groups) {
+      compartment.props = { ...compartment.props, row: split.rows[0], group };
+      compartment.render();
+      assert.equal(doors(compartment)[0].props.selected, group.body.doorIds.includes(target.returnAreaId));
+    }
+    focus.unmount();
+  }
+});
+
 test('본체와 포켓이 한 애니메이션으로 함께 펼쳐지고 완료 후 각각 조작할 수 있다', () => {
   const { draft, requests, compartment } = fixture();
   selectDoor(compartment);

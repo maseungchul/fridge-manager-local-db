@@ -187,7 +187,7 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   );
 }
 
-/** 닫힌 문을 누르면 연결된 본체 전체의 화면 좌표를 측정해 중앙 보기를 연다. */
+/** 같은 본체의 닫힌 문을 함께 선택 표시하고, 본체 전체의 화면 좌표를 측정해 중앙 보기를 연다. */
 function FridgeCompartment({ group, row, rowIndex, selectedAreaId, focus, width, height, canvasHeight, paddingLeft, paddingRight, onSelectArea, onFocus }: {
   group: BodyGeometry; row: RefrigeratorDraft['rows'][number]; rowIndex: number;
   selectedAreaId?: string; width: number; height: number; canvasHeight: number; paddingLeft: number; paddingRight: number;
@@ -213,7 +213,7 @@ function FridgeCompartment({ group, row, rowIndex, selectedAreaId, focus, width,
     <View ref={frameRef} collapsable={false} style={[styles.compartment, { left: group.left * width, top: rowIndex * height,
       width: group.width * width, height, opacity: focus?.areaId === body.id ? 0 : 1 }, (selectedBody || selectedDoor) && styles.selectedArea]}>
       {group.doors.map(({ door, left, width: doorWidth }, index) => (
-        <FridgeDoor key={door.id} door={door} phase="closed" progress={progress} selected={selectedBody || selectedAreaId === door.id}
+        <FridgeDoor key={door.id} door={door} phase="closed" progress={progress} selected={selectedBody || selectedDoor}
           storageMode={body.storageMode} showModeBadge={index === group.doors.length - 1}
           label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${door.kind === 'DRAWER' ? '서랍' : areaNames[door.side]}`}
           onSelect={() => { onSelectArea(door.kind === 'DRAWER' ? body.id : door.id); showArea(door); }}
@@ -314,7 +314,7 @@ function DoorHinges({ fromX, toX, height }: { fromX: number; toX: number; height
   );
 }
 
-/** 한 번의 열림·이동으로 본체와 포켓을 함께 펼치고, 각 도면 선택은 기존 툴바에 전달한다. */
+/** 연결된 문은 함께 선택 표시해 펼치고, 열린 본체·포켓의 개별 선택은 기존 툴바에 전달한다. */
 export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId, onPhaseChange, onClose, onSelectArea }: {
   draft: RefrigeratorDraft; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
   overlayHeight?: number;
@@ -397,7 +397,8 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           </View>
           {doors.map(({ door, frame, pocket, unfoldOffset }, index) => (
             <FridgeDoor key={door.id} door={door} label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${areaNames[door.side]}`}
-              phase={phase} progress={progress} bodyWidth={body.width} selected={target.returnAreaId === door.id || target.returnAreaId === group.body.id}
+              phase={phase} progress={progress} bodyWidth={body.width}
+              selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
               storageMode={group.body.storageMode} showModeBadge={index === doors.length - 1}
               unfoldOffset={unfoldOffset} onSelect={() => onSelectArea(area.id)}
               style={{ left: frame.left, width: frame.width, height: body.height,
