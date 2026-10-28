@@ -39,20 +39,29 @@ export const colors = {
   error: '#A6413B',
 } as const;
 
-// 도면은 왼쪽 위의 빛과 오른쪽 아래의 음영을 공유해 면·선반·금속 부품의 깊이를 맞춘다.
+// 냉장고 도면은 크림·민트 색상과 둥근 프레임을 공유하고, 옅은 음영으로 일러스트의 두께를 표현한다.
 export const fridgeSurfaces = {
-  border: '#A8B2A6',
+  border: '#BED6C9',
+  exterior: '#EAF3EC',
+  interior: '#F4F9F3',
+  frame: '#DCEBE1',
+  shelf: '#AECFBF',
+  pocket: '#D8EDE24D',
+  pocketBorder: '#A8CEBC',
+  handle: '#B3CDBD',
+  handleHighlight: '#F7FCF4CC',
+  ink: '#577062',
+  radius: 16,
   raisedShadow: [
-    { offsetX: 0, offsetY: 2, blurRadius: 4, color: '#29322A18' },
-    { inset: true, offsetX: 1, offsetY: 1, blurRadius: 1, color: '#FFFFFFE0' },
-    { inset: true, offsetX: -2, offsetY: -2, blurRadius: 3, color: '#29322A14' },
+    { offsetX: 0, offsetY: 3, blurRadius: 6, color: '#5C80651A' },
+    { inset: true, offsetX: 0, offsetY: 1, blurRadius: 0, color: '#FFFFFFC0' },
   ],
   recessedShadow: [
-    { offsetX: 0, offsetY: 2, blurRadius: 4, color: '#29322A14' },
-    { inset: true, offsetX: 2, offsetY: 2, blurRadius: 4, color: '#29322A18' },
+    { inset: true, offsetX: 0, offsetY: 0, blurRadius: 0, spreadDistance: 4, color: '#DCEBE1' },
+    { offsetX: 0, offsetY: 2, blurRadius: 5, color: '#5C806514' },
   ],
   shelfShadow: [
-    { inset: true, offsetX: 0, offsetY: -3, blurRadius: 2, color: '#29322A12' },
+    { offsetX: 0, offsetY: 2, blurRadius: 2, color: '#5C806522' },
   ],
 } as const;
 

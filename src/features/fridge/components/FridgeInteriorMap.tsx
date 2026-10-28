@@ -71,7 +71,7 @@ export function DoorWithoutStorage({ label, selected, storageMode, readOnly = fa
   );
 }
 
-/** 도면 크기를 바꾸지 않고 문·본체 위에 같은 선택 테두리와 퍼짐 효과를 표시한다. */
+/** 도면 크기를 바꾸지 않고 둥근 선택 테두리와 옅은 그림자로 현재 영역을 표시한다. */
 function SelectionFrame({ storageMode, style }: { storageMode: StorageMode | null; style?: StyleProp<ViewStyle> }) {
   const color = storageMode ? modeColors[storageMode].color : colors.button;
   return (
@@ -79,8 +79,7 @@ function SelectionFrame({ storageMode, style }: { storageMode: StorageMode | nul
       style={[styles.selectionFrame, {
         borderColor: color,
         boxShadow: [
-          { offsetX: 0, offsetY: 0, blurRadius: 4, spreadDistance: 1, color: `${color}66` },
-          { offsetX: 0, offsetY: 0, blurRadius: 10, spreadDistance: 2, color: `${color}26` },
+          { offsetX: 0, offsetY: 2, blurRadius: 6, color: `${color}20` },
         ],
       }, style]} />
   );
@@ -92,7 +91,7 @@ function ModeBadge({ storageMode, style }: { storageMode: StorageMode | null; st
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.modeBadge, { backgroundColor: modeColors[storageMode].backgroundColor,
-        borderColor: modeColors[storageMode].color }, style]}>
+        borderColor: `${modeColors[storageMode].color}33` }, style]}>
       <MaterialDesignIcons name={storageMode === 'CHILLED' ? 'thermometer-low' : 'snowflake'} size={14}
         color={modeColors[storageMode].color} accessible={false} />
     </View>
@@ -294,13 +293,12 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
     translateY: viewport.y + viewport.height / 2 - (source.y + source.height / 2) };
 }
 
-/** 연결판을 양쪽 면에 걸치고 회전축에 마디를 표시해 손잡이와 구분한다. */
+/** 양쪽 연결판과 둥근 회전축을 같은 민트 색상으로 표시해 손잡이와 구분한다. */
 function DoorHinge({ style }: { style: StyleProp<ViewStyle> }) {
   return (
     <View style={[styles.hinge, style]}>
       <View style={[styles.hingePlate, { left: -5 }]} />
       <View style={[styles.hingePlate, { right: -5 }]} />
-      {[5, 11].map(top => <View key={top} style={[styles.hingeSeam, { top }]} />)}
     </View>
   );
 }
@@ -527,7 +525,7 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, 
 }
 
 const styles = StyleSheet.create({
-  // 선택 테두리의 퍼짐 효과가 잘리지 않도록 여백을 확보한다.
+  // 둥근 프레임과 선택 그림자가 잘리지 않도록 여백을 확보한다.
   viewport: {
     paddingVertical: MAP_PADDING,
   },
@@ -584,8 +582,8 @@ const styles = StyleSheet.create({
   bodyFrame: {
     borderWidth: 1,
     borderColor: fridgeSurfaces.border,
-    borderRadius: 6,
-    backgroundColor: colors.surface,
+    borderRadius: fridgeSurfaces.radius,
+    backgroundColor: fridgeSurfaces.interior,
     boxShadow: fridgeSurfaces.recessedShadow,
   },
   hinges: {
@@ -594,10 +592,10 @@ const styles = StyleSheet.create({
   hinge: {
     position: 'absolute',
     height: HINGE_HEIGHT,
-    borderRadius: 2,
+    borderRadius: 3,
     borderWidth: 1,
-    borderColor: '#6B7B6F',
-    backgroundColor: '#9BAA9E',
+    borderColor: fridgeSurfaces.border,
+    backgroundColor: fridgeSurfaces.handle,
   },
   hingePlate: {
     position: 'absolute',
@@ -605,17 +603,9 @@ const styles = StyleSheet.create({
     bottom: 2,
     width: 5,
     borderWidth: 1,
-    borderColor: '#95A397',
-    borderRadius: 2,
-    backgroundColor: '#DCE3DC',
-    boxShadow: fridgeSurfaces.raisedShadow,
-  },
-  hingeSeam: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: '#607364',
+    borderColor: fridgeSurfaces.border,
+    borderRadius: 3,
+    backgroundColor: fridgeSurfaces.frame,
   },
   hingeConnection: {
     position: 'absolute',
@@ -623,7 +613,7 @@ const styles = StyleSheet.create({
     right: 0,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: '#95A397',
+    borderColor: fridgeSurfaces.border,
   },
   hingeConnectionTop: {
     borderTopWidth: 1,
@@ -643,7 +633,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   placeholderFrame: {
-    borderRadius: 6,
+    borderRadius: fridgeSurfaces.radius,
     overflow: 'hidden',
   },
   placeholderHeader: {
@@ -660,13 +650,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: fridgeSurfaces.border,
-    borderRadius: 6,
-    backgroundColor: colors.toolbar,
-    boxShadow: fridgeSurfaces.raisedShadow,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFFB3',
     zIndex: 5,
   },
   areaBadgeLabel: {
-    color: colors.text,
+    color: fridgeSurfaces.ink,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -674,8 +663,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 3,
     bottom: 3,
-    borderRadius: 6,
-    backgroundColor: colors.text,
+    borderRadius: fridgeSurfaces.radius,
+    backgroundColor: fridgeSurfaces.ink,
   },
   selectedArea: {
     zIndex: 1,
@@ -684,8 +673,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 3,
     bottom: 3,
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: fridgeSurfaces.radius,
+    borderWidth: 2,
     zIndex: 1,
   },
   modeBadge: {
@@ -696,7 +685,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: fridgeSurfaces.raisedShadow,
     zIndex: 5,
   },
   exteriorModeBadge: {
@@ -724,15 +712,15 @@ const styles = StyleSheet.create({
   },
   doorShade: {
     ...StyleSheet.absoluteFill,
-    borderRadius: 6,
-    backgroundColor: colors.text,
+    borderRadius: fridgeSurfaces.radius,
+    backgroundColor: fridgeSurfaces.ink,
   },
   exteriorFace: {
     flex: 1,
     borderWidth: 1,
     borderColor: fridgeSurfaces.border,
-    borderRadius: 6,
-    backgroundColor: colors.surface,
+    borderRadius: fridgeSurfaces.radius,
+    backgroundColor: fridgeSurfaces.exterior,
     boxShadow: fridgeSurfaces.raisedShadow,
   },
   doorHandle: {
@@ -758,13 +746,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: fridgeSurfaces.border,
-    borderRadius: 6,
-    backgroundColor: colors.surface,
+    borderRadius: fridgeSurfaces.radius,
+    backgroundColor: fridgeSurfaces.interior,
     boxShadow: fridgeSurfaces.recessedShadow,
   },
   cross: {
     position: 'absolute',
     height: 2,
-    backgroundColor: '#B0ACA3',
+    backgroundColor: fridgeSurfaces.border,
   },
 });

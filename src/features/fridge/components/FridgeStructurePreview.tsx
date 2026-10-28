@@ -7,7 +7,8 @@ import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { RefrigeratorDraft } from '@/features/fridge/model/fridgeLayout';
 import { FRIDGE_ASPECT_RATIO } from '@/features/fridge/model/fridgeLayout';
-import { colors, fridgeSurfaces } from '@/theme/tokens';
+import { DoorHandle } from '@/features/fridge/components/FridgeMap';
+import { fridgeSurfaces } from '@/theme/tokens';
 
 interface FridgeStructurePreviewProps {
   rows: RefrigeratorDraft['rows'];
@@ -21,7 +22,10 @@ export function FridgeStructurePreview({ rows, style }: FridgeStructurePreviewPr
       {rows.map((row, rowIndex) => (
         <View key={row.id} style={[styles.row, rowIndex > 0 && styles.rowBorder]}>
           {row.doors.map((door, index) => (
-            <View key={door.id} style={[styles.door, index > 0 && styles.doorBorder]} />
+            <View key={door.id} style={[styles.door, index > 0 && styles.doorBorder]}>
+              <DoorHandle horizontal={door.kind === 'DRAWER'} style={[styles.handle,
+                door.kind === 'DRAWER' ? styles.drawerHandle : door.side === 'LEFT_DOOR' ? { right: 6 } : { left: 6 }]} />
+            </View>
           ))}
         </View>
       ))}
@@ -36,9 +40,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderWidth: 1,
     borderColor: fridgeSurfaces.border,
-    borderRadius: 6,
+    borderRadius: fridgeSurfaces.radius,
     overflow: 'hidden',
-    backgroundColor: colors.surface,
+    backgroundColor: fridgeSurfaces.frame,
     boxShadow: fridgeSurfaces.raisedShadow,
   },
   row: {
@@ -51,7 +55,19 @@ const styles = StyleSheet.create({
   },
   door: {
     flex: 1,
+    backgroundColor: fridgeSurfaces.exterior,
     boxShadow: fridgeSurfaces.raisedShadow,
+  },
+  handle: {
+    top: '50%',
+    marginTop: -20,
+    transform: [{ scale: 0.55 }],
+  },
+  drawerHandle: {
+    top: 10,
+    left: '50%',
+    marginTop: 0,
+    marginLeft: -20,
   },
   doorBorder: {
     borderLeftWidth: 1,

@@ -55,9 +55,6 @@ export function DoorHandle({ horizontal = false, style }: { horizontal?: boolean
       style={[styles.doorHandle, horizontal && styles.horizontalHandle, style]}>
       <View style={[styles.handleGrip, horizontal && styles.horizontalGrip]}>
         <View style={styles.handleHighlight} />
-        {[false, true].map(end => (
-          <View key={String(end)} style={[styles.handleCap, { [end ? 'bottom' : 'top']: 5 }]} />
-        ))}
       </View>
     </View>
   );
@@ -160,15 +157,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  // 문과 같은 재질의 외곽선에 안쪽 음영을 더하고, 내부 경계는 한쪽에서만 그린다.
+  // 둥근 민트 프레임과 밝은 내부 면을 공유하고, 내부 경계는 한쪽에서만 그린다.
   areaInterior: {
     flex: 1,
     minHeight: 240,
     borderWidth: 1,
     borderColor: fridgeSurfaces.border,
-    borderRadius: 6,
+    borderRadius: fridgeSurfaces.radius,
     overflow: 'hidden',
-    backgroundColor: colors.surface,
+    backgroundColor: fridgeSurfaces.interior,
     boxShadow: fridgeSurfaces.recessedShadow,
   },
   areaSelected: {
@@ -178,6 +175,8 @@ const styles = StyleSheet.create({
   areaContent: {
     flex: 1,
     minHeight: 0,
+    paddingHorizontal: 5,
+    paddingBottom: 5,
   },
   slot: {
     flex: 1,
@@ -191,10 +190,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 3,
     right: 3,
-    top: 2,
-    height: 2,
-    backgroundColor: '#69717666',
-    boxShadow: [{ offsetX: 0, offsetY: 2, blurRadius: 2, color: '#22231F20' }],
+    top: 0,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: fridgeSurfaces.shelf,
+    boxShadow: fridgeSurfaces.shelfShadow,
   },
   pocketBin: {
     position: 'absolute',
@@ -210,16 +210,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: '62%',
     borderWidth: 1,
-    borderColor: '#737A8066',
+    borderColor: fridgeSurfaces.pocketBorder,
+    borderTopWidth: 3,
     borderBottomWidth: 2,
-    borderBottomColor: '#69717666',
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-    borderBottomLeftRadius: 6,
-    borderBottomRightRadius: 6,
-    backgroundColor: 'transparent',
+    borderBottomColor: fridgeSurfaces.shelf,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    backgroundColor: fridgeSurfaces.pocket,
     overflow: 'hidden',
-    boxShadow: [{ offsetX: 0, offsetY: 1, blurRadius: 1, color: '#22231F12' }],
+    boxShadow: fridgeSurfaces.shelfShadow,
   },
   slotRow: {
     flex: 1,
@@ -233,16 +234,15 @@ const styles = StyleSheet.create({
     padding: 8,
     justifyContent: 'center',
     gap: 5,
-    backgroundColor: colors.surface,
+    backgroundColor: 'transparent',
   },
   positionSeparator: {
     borderLeftWidth: 1,
-    borderLeftColor: '#737A8066',
+    borderLeftColor: fridgeSurfaces.border,
   },
-  // 투명 포켓 뒤로 영역의 배경이 보이도록 본체 칸의 채색은 적용하지 않는다.
+  // 포켓의 둥근 바닥과 칸 아래 여백을 같은 위치에 맞춘다.
   pocketPosition: {
     paddingBottom: 4,
-    backgroundColor: 'transparent',
   },
   // 개별 칸의 선택 배경은 입력을 마친 뒤에도 유지하며, 외곽선은 영역에서 한 번만 그린다.
   positionSelected: {
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 40,
     borderRadius: 4,
-    boxShadow: [{ offsetX: 1, offsetY: 1, blurRadius: 2, spreadDistance: 0, color: '#29322A28' }],
+    boxShadow: fridgeSurfaces.shelfShadow,
   },
   horizontalHandle: {
     width: 40,
@@ -270,9 +270,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 40,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#7B887E',
-    backgroundColor: '#BEC8C0',
+    backgroundColor: fridgeSurfaces.handle,
   },
   horizontalGrip: {
     left: 16,
@@ -281,19 +279,12 @@ const styles = StyleSheet.create({
   },
   handleHighlight: {
     position: 'absolute',
-    left: 1,
-    top: 6,
-    bottom: 6,
+    left: 2,
+    top: 7,
+    bottom: 7,
     width: 2,
     borderRadius: 1,
-    backgroundColor: '#F4F7F3',
-  },
-  handleCap: {
-    position: 'absolute',
-    left: 1,
-    right: 1,
-    height: 1,
-    backgroundColor: '#8A978D',
+    backgroundColor: fridgeSurfaces.handleHighlight,
   },
   compactPosition: {
     padding: 2,
