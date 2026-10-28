@@ -262,7 +262,7 @@ const dimensionAt = (value, progress, parentSize = 0) => {
   return typeof value === 'string' && value.endsWith('%') ? parseFloat(value) / 100 * parentSize : value;
 };
 
-test('닫힌 도면은 단 사이에 4px 여백을 두고 모든 문과 외곽을 직각으로 표시한다', () => {
+test('닫힌 도면은 단을 여백 없이 붙이고 문에 선택 테두리를 표시하지 않는다', () => {
   for (const count of [1, 2, 3, 4]) {
     let draft = model.createRefrigeratorDraft();
     while (draft.rows.length > count) draft = model.removeDraftRow(draft, draft.rows.at(-1).id);
@@ -279,12 +279,12 @@ test('닫힌 도면은 단 사이에 4px 여백을 두고 모든 문과 외곽�
     assert.equal(canvasStyle.boxShadow, undefined);
     assert(children(canvas).every(named('FridgeCompartment')));
     const groups = children(canvas).filter(named('FridgeCompartment'));
-    const rowHeight = (canvasStyle.height - 4 * (count - 1)) / count;
+    const rowHeight = canvasStyle.height / count;
     for (let rowIndex = 0; rowIndex < count; rowIndex++) {
       let end = 0;
       for (const group of groups.filter(node => node.props.rowIndex === rowIndex)) {
         const component = mount(group.type, group.props);
-        near(flattenStyle(component.tree.props.style).top, rowIndex * (rowHeight + 4));
+        near(flattenStyle(component.tree.props.style).top, rowIndex * rowHeight);
         near(flattenStyle(component.tree.props.style).height, rowHeight);
         for (const door of doors(component)) {
           const tree = door.type(door.props);
@@ -294,6 +294,7 @@ test('닫힌 도면은 단 사이에 4px 여백을 두고 모든 문과 외곽�
           assert.equal(face.bottom, 0);
           assert.equal(surface.borderRadius, 0);
           assert.equal(surface.borderWidth, 1);
+          assert.equal(surface.borderTopWidth, rowIndex > 0 ? 0 : 1);
           const start = group.props.group.left * canvasStyle.width + door.props.style.left;
           near(start, end);
           assert.equal(surface.borderLeftWidth, start > 0 ? 0 : 1);
@@ -302,15 +303,12 @@ test('닫힌 도면은 단 사이에 4px 여백을 두고 모든 문과 외곽�
           assert.equal(surface.borderTopRightRadius, 0);
           assert.equal(surface.borderBottomLeftRadius, 0);
           assert.equal(surface.borderBottomRightRadius, 0);
-          const selection = find(door.type({ ...door.props, selected: true }), named('SelectionFrame'));
-          const selectedStyle = flattenStyle(selection.type(selection.props).props.style);
-          assert.equal(selectedStyle.borderTopLeftRadius, surface.borderTopLeftRadius);
-          assert.equal(selectedStyle.borderBottomRightRadius, surface.borderBottomRightRadius);
+          assert.equal(find(door.type({ ...door.props, selected: true }), named('SelectionFrame')), undefined);
         }
         const geometry = getFridgeFocusGeometry(draft, { areaId: group.props.group.body.id,
           returnAreaId: group.props.group.body.doorIds[0], canvas: { x: 10, y: 20, width: canvasStyle.width, height: canvasStyle.height } },
           { x: 0, y: 0, width: 375, height: 600 });
-        near(geometry.source.y, 20 + rowIndex * (rowHeight + 4));
+        near(geometry.source.y, 20 + rowIndex * rowHeight);
         near(geometry.source.height, rowHeight);
         near(geometry.source.width, group.props.group.width * canvasStyle.width);
         component.unmount();
@@ -334,7 +332,7 @@ test('문을 누르면 보기 버튼 없이 연결된 본체 전체의 화면 �
   assert.deepEqual(draft, snapshot);
 });
 
-test('합친 본체는 어느 문을 눌러도 양쪽 외관을 선택 표시하고 내부 포켓은 개별 선택한다', () => {
+test('합친 본체는 어느 문을 눌러도 같은 본체를 열고 외관 선택 표시 없이 내부 포켓을 개별 선택한다', () => {
   for (const clickedIndex of [0, 1]) {
     let draft = model.createRefrigeratorDraft();
     const rowId = draft.rows[0].id;
@@ -346,6 +344,7 @@ test('합친 본체는 어느 문을 눌러도 양쪽 외관을 선택 표시하
     compartment.tree.props.ref.current.measureInWindow = callback => { finishMeasurement = () => measure(callback); };
     selectDoor(compartment, clickedIndex);
     assert(doors(compartment).every(door => door.props.selected));
+    assert(doors(compartment).every(door => !find(door.type(door.props), named('SelectionFrame'))));
     finishMeasurement();
     const target = requests[0];
     assert.equal(target.returnAreaId, draft.rows[0].doors[clickedIndex].id);
@@ -454,11 +453,7 @@ test('어느 문을 열어도 앞면·뒷면·본체·포켓·선택선이 직�
               assert.equal(flattenStyle(front.props.style).overflow, 'hidden');
               assert.deepEqual(corners(front.props.style), expected);
               assert.deepEqual(corners(find(front, node => node.type === 'Pressable').props.style), expected);
-              const selection = find(front, named('SelectionFrame'));
-              const selectedStyle = flattenStyle(selection.type(selection.props).props.style);
-              assert.deepEqual(corners(selectedStyle), expected);
-              assert.equal(selectedStyle.borderWidth, 2);
-              assert.deepEqual(selectedStyle.boxShadow, []);
+              assert.equal(find(front, named('SelectionFrame')), undefined);
               if (back) {
                 assert.equal(flattenStyle(back.props.style).overflow, 'hidden');
                 assert.deepEqual(corners(back.props.style), mirrored(expected));
@@ -834,7 +829,7 @@ test('포켓이 4칸이어도 닫힌 본체·문 크기를 그대로 유지한�
   assert.equal(geometry.scrollable, true);
   near(geometry.body.width / geometry.body.height, geometry.source.width / geometry.source.height);
   assert(geometry.pockets.every(({ frame }) => frame.height === geometry.body.height));
-  near(geometry.body.fromHeight, 132);
+  near(geometry.body.fromHeight, target.canvas.height / draft.rows.length);
 });
 
 test('4단·4칸은 문 개수·여는 방식과 관계없이 닫힌 도면의 너비·높이를 그대로 유지한다', () => {
@@ -1319,7 +1314,7 @@ test('작은 화면에서도 모든 단이 남은 높이 안에 들어가고 실
       near(targets[0].canvas.x, 24 + (availableWidth - width) / 2);
       near(targets[0].canvas.y, 200);
       const geometry = getFridgeFocusGeometry(draft, targets[0], { x: 0, y: 110, width: 375, height: 500 });
-      near(geometry.body.fromHeight, (height - 4 * (rowCount - 1)) / rowCount);
+      near(geometry.body.fromHeight, height / rowCount);
       near(geometry.body.width / geometry.body.height, geometry.source.width / geometry.source.height);
       last.unmount();
       map.unmount();

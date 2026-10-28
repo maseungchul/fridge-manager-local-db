@@ -57,16 +57,15 @@ function getGridCorners(edges: GridEdges, mirrored = false): ViewStyle {
 
 const HINGE_LENGTH = 14;
 const HINGE_HEIGHT = 18;
-const ROW_GAP = 4;
 const MAP_HEIGHT = 540;
 const MAP_PADDING = 10;
 const FOCUS_PADDING = 24;
 const SCROLL_INDICATOR_SPACE = 16;
 
-/** 단 사이 여백을 제외한 실제 문 크기와 좌표를 닫힌 도면·중앙 보기에서 공유한다. */
+/** 전체 높이를 단별로 균등하게 나눈 문 크기와 좌표를 닫힌 도면·중앙 보기에서 공유한다. */
 function getRowBounds(canvasHeight: number, count: number, index: number) {
-  const height = Math.max(1, (canvasHeight - ROW_GAP * (count - 1)) / count);
-  return { top: index * (height + ROW_GAP), height };
+  const height = Math.max(1, canvasHeight / count);
+  return { top: index * height, height };
 }
 
 /** 흰 외곽을 제외한 내부 크기로 두 대각선을 계산해 비율과 관계없이 수납 영역을 가린다. */
@@ -165,7 +164,8 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   const gridCorners = gridEdges ? getGridCorners(gridEdges) : undefined;
   const backCorners = gridEdges ? getGridCorners(gridEdges, true) : undefined;
   const gridStyle: ViewStyle | undefined = gridEdges ? {
-    ...gridCorners, borderWidth: 1, borderLeftWidth: gridEdges.left ? 0 : 1, boxShadow: [],
+    ...gridCorners, borderWidth: 1, borderTopWidth: closed && gridEdges.top ? 0 : 1,
+    borderLeftWidth: gridEdges.left ? 0 : 1, boxShadow: [],
   } : undefined;
 
   return (
@@ -193,7 +193,6 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
           backgroundColor: storageMode ? fridgeDoorColors[storageMode].motif : fridgeSurfaces.ink,
           opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }),
         }]} />
-        {selected ? <SelectionFrame storageMode={storageMode} style={[StyleSheet.absoluteFill, gridCorners, styles.doorFlatSurface]} /> : null}
       </Animated.View>
       {!drawer && children ? (
         <Animated.View pointerEvents={phase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={phase !== 'open'}
