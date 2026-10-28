@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, fridgeSurfaces, spacing } from '@/theme/tokens';
-import { getPositionName, getPositionPath } from '../model/fridgeLayout';
+import { getPositionPath } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotPosition, StorageMode } from '../model/fridgeLayout';
 
@@ -31,9 +31,9 @@ interface FridgeMapProps {
   showAreaLabels?: boolean;
   // 전체 도면의 행 높이에 맞춰 표시하며, 단독 사용 시 기존 최소 높이를 유지한다.
   minAreaHeight?: number;
-  // 고정 높이의 등록 도면에서는 칸을 균등 분배하고 이름을 한 줄로 제한한다.
+  // 고정 높이의 등록 도면에서는 칸을 균등 분배하고 최소 높이를 적용하지 않는다.
   fitHeight?: boolean;
-  // 문이 많은 등록 도면의 좁은 영역은 여백을 줄이고 이름을 두 줄까지 표시한다.
+  // 문이 많은 등록 도면의 좁은 영역은 여백을 줄인다.
   compact?: boolean;
   // 패널의 읽기 전용 축소 미리보기에서는 칸의 최소 터치 높이를 적용하지 않는다.
   preview?: boolean;
@@ -59,6 +59,15 @@ export function DoorHandle({ horizontal = false, style }: { horizontal?: boolean
           <View key={String(end)} style={[styles.handleCap, { [end ? 'bottom' : 'top']: 5 }]} />
         ))}
       </View>
+    </View>
+  );
+}
+
+/** 투명 포켓의 높은 전면판을 표시하며, 내용과 터치는 부모 칸이 관리한다. */
+function DoorPocketBin() {
+  return (
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.pocketBin}>
+      <View style={styles.pocketBinFront} />
     </View>
   );
 }
@@ -101,7 +110,7 @@ export function FridgeMap({
                   // 위→아래 칸 순서를 유지하고 같은 칸의 좌우 분할만 한 행에 묶는다.
                   const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
                   return (
-                    <View key={firstPosition.slotId} style={[styles.slot, slotIndex > 0 && styles.slotSeparator]}>
+                    <View key={firstPosition.slotId} style={[styles.slot, area.isBody && slotIndex > 0 && styles.slotSeparator]}>
                       <View style={styles.slotRow}>
                         {slotPositions.map((position, positionIndex) => {
                           const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
@@ -110,14 +119,17 @@ export function FridgeMap({
                               accessibilityRole={preview ? 'image' : groupInteraction ? undefined : 'button'} accessibilityLabel={getPositionPath(area, position)}
                               accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
                               accessibilityState={{ selected, disabled }} disabled={disabled} onPress={preview || groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
-                              style={[styles.position, positionIndex > 0 && styles.positionSeparator, (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, selected && styles.positionSelected, groupInteraction && styles.groupPosition]}>
-                              <Text numberOfLines={preview || fitHeight ? 1 : compact ? 2 : undefined} style={[styles.positionLabel, compact && styles.compactPositionLabel]}>{getPositionName(position)}</Text>
+                              style={[styles.position, positionIndex > 0 && styles.positionSeparator, (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, !area.isBody && styles.pocketPosition, selected && styles.positionSelected, groupInteraction && styles.groupPosition]}>
+                              {!area.isBody ? <DoorPocketBin /> : null}
                               {/* 좌우 분할은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                               {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
                             </Position>
                           );
                         })}
                       </View>
+                      {area.isBody && slotIndex > 0 ? (
+                        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.bodyShelf} />
+                      ) : null}
                     </View>
                   );
                 })}
@@ -131,7 +143,7 @@ export function FridgeMap({
 }
 
 const styles = StyleSheet.create({
-  // 실 전환이나 칸 이름 길이와 관계없이 부모의 전체 너비를 사용한다.
+  // 실 전환과 관계없이 부모의 전체 너비를 사용한다.
   map: {
     width: '100%',
     flexDirection: 'row',
@@ -170,9 +182,44 @@ const styles = StyleSheet.create({
   slot: {
     flex: 1,
   },
+  // 기존 경계 공간을 유지하고 선은 별도 장식으로 그려 칸 높이가 바뀌지 않게 한다.
   slotSeparator: {
     borderTopWidth: 1,
-    borderTopColor: fridgeSurfaces.border,
+    borderTopColor: 'transparent',
+  },
+  bodyShelf: {
+    position: 'absolute',
+    left: 3,
+    right: 3,
+    top: 2,
+    height: 2,
+    backgroundColor: '#69717666',
+    boxShadow: [{ offsetX: 0, offsetY: 2, blurRadius: 2, color: '#22231F20' }],
+  },
+  pocketBin: {
+    position: 'absolute',
+    left: 4,
+    right: 4,
+    top: 3,
+    bottom: 2,
+  },
+  pocketBinFront: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '62%',
+    borderWidth: 1,
+    borderColor: '#737A8066',
+    borderBottomWidth: 2,
+    borderBottomColor: '#69717666',
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+    boxShadow: [{ offsetX: 0, offsetY: 1, blurRadius: 1, color: '#22231F12' }],
   },
   slotRow: {
     flex: 1,
@@ -187,11 +234,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 5,
     backgroundColor: colors.surface,
-    boxShadow: fridgeSurfaces.shelfShadow,
   },
   positionSeparator: {
     borderLeftWidth: 1,
-    borderLeftColor: fridgeSurfaces.border,
+    borderLeftColor: '#737A8066',
+  },
+  // 투명 포켓 뒤로 영역의 배경이 보이도록 본체 칸의 채색은 적용하지 않는다.
+  pocketPosition: {
+    paddingBottom: 4,
+    backgroundColor: 'transparent',
   },
   // 개별 칸의 선택 배경은 입력을 마친 뒤에도 유지하며, 외곽선은 영역에서 한 번만 그린다.
   positionSelected: {
@@ -244,12 +295,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#8A978D',
   },
-  positionLabel: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
   compactPosition: {
     padding: 2,
   },
@@ -260,9 +305,6 @@ const styles = StyleSheet.create({
   },
   previewPosition: {
     paddingHorizontal: 4,
-  },
-  compactPositionLabel: {
-    fontSize: 11,
   },
   positionCount: {
     color: colors.textMuted,

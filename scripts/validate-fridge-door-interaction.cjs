@@ -1355,7 +1355,71 @@ test('배경 덮개는 전체 높이를 채우고 중앙 위치는 툴바를 제
   }
 });
 
-test('포켓·본체 모두 4칸까지만 추가하고 최소 한 칸과 기존 입력을 유지한다', () => {
+test('도면의 칸명은 숨기고 자동 위치 안내·선택·재료 집계는 유지한다', () => {
+  const layout = model.getDraftLayout(model.createRefrigeratorDraft());
+  const selected = [];
+  const props = { ...layout, showAreaLabels: false, showIngredientCounts: false,
+    selectedPositionId: layout.positions[1].id, onSelectPosition: id => selected.push(id) };
+  const map = mapModule.FridgeMap(props);
+  assert.equal(findAll(map, node => node.type === 'Text').length, 0);
+  const positions = findAll(map, node => node.type === 'FeedbackPressable');
+  assert.equal(positions.length, layout.positions.length);
+  assert(positions.every(position => position.props.accessibilityLabel.includes('위에서')));
+  assert.equal(positions[1].props.accessibilityState.selected, true);
+  positions[1].props.onPress();
+  assert.deepEqual(selected, [layout.positions[1].id]);
+  const withIngredients = mapModule.FridgeMap({ ...props, showIngredientCounts: true,
+    ingredients: [{ id: 'ingredient-1', positionId: layout.positions[1].id }] });
+  const counts = findAll(withIngredients, node => node.type === 'Text');
+  assert.equal(counts.length, layout.positions.length);
+  assert.equal(counts[1].props.children.join(''), '1개');
+});
+
+test('이름 입력 없이 본체 칸의 분할을 편집하고 포켓은 개수 조절만 표시한다', () => {
+  const { screen, viewport, map, target, row } = registrationFixture();
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  map.props.onFocus(target);
+  screen.render();
+  const focus = () => find(screen.tree, named('FridgeFocusView'));
+  focus().props.onPhaseChange('open');
+  screen.render();
+  for (const [areaId, isBody] of [[row.compartments[0].id, true], [row.doors[0].id, false]]) {
+    focus().props.onSelectArea(areaId);
+    screen.render();
+    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpenSettings();
+    screen.render();
+    const panel = () => find(screen.tree, node => node.props.accessibilityViewIsModal);
+    assert.equal(findAll(panel(), node => node.type === 'FormTextInput').length, 0);
+    const preview = find(panel(), named('FridgeMap'));
+    assert.equal(findAll(preview.type(preview.props), node => node.type === 'Text').length, 0);
+    const increase = find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 늘리기'));
+    increase.props.onPress();
+    screen.render();
+    const selectors = findAll(panel(), node => node.type === 'SlotStructureSelector');
+    if (isBody) {
+      assert.equal(selectors.length, 2);
+      assert.equal(selectors[1].props.accessibilityLabel, '1단 본체 위에서 2번째 칸');
+      selectors[1].props.onChange(2);
+      screen.render();
+      const draft = find(screen.tree, named('FridgeInteriorMap')).props.draft;
+      assert.deepEqual(draft.rows[0].compartments[0].slots, [
+        { name: '위에서 1번째 칸', drawerCount: 0 }, { name: '위에서 2번째 칸', drawerCount: 2 },
+      ]);
+      assert(find(panel(), node => node.type === 'ScrollView'));
+      assert.equal(flattenStyle(panel().props.style).height, 844 * 0.75);
+    } else {
+      assert.equal(selectors.length, 0);
+      assert.equal(find(panel(), node => node.type === 'ScrollView'), undefined);
+      assert.equal(find(panel(), node => node.type === 'Text' && node.props.accessibilityRole === 'header'
+        && typeof node.props.children === 'string' && node.props.children.includes('번째 칸')), undefined);
+      assert.equal(flattenStyle(panel().props.style).height, undefined);
+      assert.equal(flattenStyle(panel().props.style).paddingBottom, 34);
+    }
+  }
+  screen.unmount();
+});
+
+test('포켓은 3칸·본체는 4칸까지만 추가하고 최소 한 칸과 기존 입력을 유지한다', () => {
   const { screen, viewport, map, target, row } = registrationFixture();
   viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
   map.props.onFocus(target);
@@ -1364,7 +1428,7 @@ test('포켓·본체 모두 4칸까지만 추가하고 최소 한 칸과 기존 
   screen.render();
   const getDraft = () => find(screen.tree, named('FridgeInteriorMap')).props.draft;
   const original = structuredClone(getDraft());
-  for (const [areaId, limit] of [[row.doors[0].id, 4], [row.compartments[0].id, 4]]) {
+  for (const [areaId, limit] of [[row.doors[0].id, 3], [row.compartments[0].id, 4]]) {
     find(screen.tree, named('FridgeFocusView')).props.onSelectArea(areaId);
     screen.render();
     find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpenSettings();

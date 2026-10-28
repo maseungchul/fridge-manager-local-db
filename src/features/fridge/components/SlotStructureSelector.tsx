@@ -2,7 +2,7 @@
  * @file
  * 본체 칸의 가로 분할을 선택하는 공통 입력으로 최초 등록과 기존 칸 설정에서 사용한다.
  * 선택값·저장 중 입력 제한은 부모가 관리하며, 이 컴포넌트는 선택 결과만 부모에게 전달한다.
- * 입력 상태 갱신과 칸 이름 변경은 호출자가 담당한다.
+ * 입력 상태 갱신과 칸의 자동 위치 안내는 호출자가 담당한다.
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { StyleSheet, Text, View } from 'react-native';

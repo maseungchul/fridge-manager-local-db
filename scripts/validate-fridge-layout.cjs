@@ -1,12 +1,12 @@
 /**
  * @file
- * 닫힌 도면의 문·본체 정렬과 합치기·분리 시 칸 수·입력 보존을 검사한다.
+ * 닫힌 도면의 문·본체 정렬과 합치기·분리 시 칸 구조·자동 위치명을 검사한다.
  * 화면·DB를 거치지 않고 실제 초안 변경 함수의 동작을 확인한다.
  */
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const {
-  changeDraftDoorCount, createRefrigeratorDraft, getAdjacentCompartment, getDraftRowGeometry,
+  changeDraftDoorCount, createRefrigeratorDraft, getAdjacentCompartment, getDraftLayout, getDraftRowGeometry, getPositionName, getPositionPath,
   mergeDraftCompartments, setDraftDoorOpening, splitDraftCompartment,
 } = require('../src/features/fridge/model/fridgeLayout.ts');
 
@@ -54,13 +54,13 @@ test('두 본체를 합치고 분리해도 두 칸이 반복해서 늘어나지 
   }
 });
 
-test('여러 본체의 칸 수·순서·이름·서랍 구조·보관 모드를 보존한다', () => {
+test('여러 본체의 칸 수·순서·서랍 구조·보관 모드를 보존한다', () => {
   for (const counts of [[2, 2], [1, 1, 1], [2, 1, 1]]) {
     const original = createDraftWithSlots(counts);
     const snapshot = structuredClone(original);
     const rowId = original.rows[0].id;
     const bodyId = original.rows[0].compartments[0].id;
-    const expectedSlots = original.rows[0].compartments.flatMap(body => body.slots);
+    const expectedSlots = original.rows[0].compartments.flatMap(body => body.slots.map(slot => slot.drawerCount));
     const expectedDoorIds = original.rows[0].doors.map(door => door.id);
     let draft = original;
     for (let cycle = 0; cycle < 10; cycle++) {
@@ -68,11 +68,11 @@ test('여러 본체의 칸 수·순서·이름·서랍 구조·보관 모드를 
         draft = mergeDraftCompartments(draft, rowId, bodyId);
         assert.equal(draft.rows[0].compartments.length, remaining - 1);
       }
-      assert.deepEqual(draft.rows[0].compartments[0].slots, expectedSlots);
+      assert.deepEqual(draft.rows[0].compartments[0].slots.map(slot => slot.drawerCount), expectedSlots);
       draft = splitDraftCompartment(draft, rowId, bodyId);
       const bodies = draft.rows[0].compartments;
       assert.equal(bodies.length, counts.length);
-      assert.deepEqual(bodies.flatMap(body => body.slots), expectedSlots);
+      assert.deepEqual(bodies.flatMap(body => body.slots.map(slot => slot.drawerCount)), expectedSlots);
       assert.deepEqual(bodies.flatMap(body => body.doorIds), expectedDoorIds);
       assert(bodies.every(body => body.slots.length >= 1 && body.storageMode === 'FROZEN'));
       assert.equal(bodies[0].id, bodyId);
@@ -98,7 +98,8 @@ test('본체 합치기는 합산 4칸까지 허용하고 5칸부터는 기존 �
       if (counts[0] + counts[1] === 4) {
         assert.equal(merged.rows[0].compartments.length, 1);
         assert.equal(merged.rows[0].compartments[0].id, body.id);
-        assert.deepEqual(merged.rows[0].compartments[0].slots, row.compartments.flatMap(body => body.slots));
+        assert.deepEqual(merged.rows[0].compartments[0].slots.map(slot => slot.drawerCount),
+          row.compartments.flatMap(body => body.slots.map(slot => slot.drawerCount)));
       } else assert.deepEqual(merged, snapshot);
     }
     assert.deepEqual(draft, snapshot);
@@ -119,7 +120,7 @@ test('공용 칸을 줄인 뒤 분리해도 기존 입력과 본체별 최소 �
   }) };
   draft = splitDraftCompartment(draft, rowId, bodyId);
   assert.deepEqual(draft.rows[0].compartments.map(body => body.slots.length), [1, 1, 1]);
-  assert.deepEqual(draft.rows[0].compartments[0].slots, [retainedSlot]);
+  assert.deepEqual(draft.rows[0].compartments[0].slots, [{ ...retainedSlot, name: '위에서 1번째 칸' }]);
   draft = mergeDraftCompartments(draft, rowId, bodyId);
   draft = mergeDraftCompartments(draft, rowId, bodyId);
   draft = splitDraftCompartment(draft, rowId, bodyId);
@@ -207,7 +208,7 @@ test('양쪽 본체에서 합쳐도 선택한 식별자와 칸·문의 좌우 �
       const body = merged.rows[0].compartments[0];
       assert.equal(merged.rows[0].compartments.length, 1);
       assert.equal(body.id, selected.id);
-      assert.deepEqual(body.slots, row.compartments.flatMap(body => body.slots));
+      assert.deepEqual(body.slots.map(slot => slot.drawerCount), row.compartments.flatMap(body => body.slots.map(slot => slot.drawerCount)));
       assert.deepEqual(body.doorIds, row.doors.map(door => door.id));
       assert.equal(body.storageMode, sameMode ? 'FROZEN' : null);
       assert.deepEqual(merged.rows[0].doors.map(door => door.side), ['LEFT_DOOR', 'RIGHT_DOOR']);
@@ -216,7 +217,7 @@ test('양쪽 본체에서 합쳐도 선택한 식별자와 칸·문의 좌우 �
       assert.strictEqual(merged.rows[1], draft.rows[1]);
       const split = splitDraftCompartment(merged, row.id, body.id, row.doors[selectedIndex].id);
       assert.equal(split.rows[0].compartments[selectedIndex].id, selected.id);
-      assert.deepEqual(split.rows[0].compartments.flatMap(body => body.slots), body.slots);
+      assert.deepEqual(split.rows[0].compartments.flatMap(body => body.slots.map(slot => slot.drawerCount)), body.slots.map(slot => slot.drawerCount));
       assert.deepEqual(draft, snapshot);
     }
   }
@@ -230,10 +231,46 @@ test('오른쪽에서 합친 칸을 줄인 뒤 분리해도 기존 칸을 복제
   const retainedSlot = { name: '유지할 칸', drawerCount: 2 };
   draft.rows[0].compartments[0].slots = [retainedSlot];
   const split = splitDraftCompartment(draft, row.id, selected.id, row.doors[1].id);
-  assert.deepEqual(split.rows[0].compartments[0].slots, [retainedSlot]);
+  assert.deepEqual(split.rows[0].compartments[0].slots, [{ ...retainedSlot, name: '위에서 1번째 칸' }]);
   assert.equal(split.rows[0].compartments[1].id, selected.id);
-  assert.deepEqual(split.rows[0].compartments[1].slots, [{ name: '1번째 칸', drawerCount: 0 }]);
+  assert.deepEqual(split.rows[0].compartments[1].slots, [{ name: '위에서 1번째 칸', drawerCount: 0 }]);
   assert.equal(new Set(split.rows[0].compartments.map(body => body.id)).size, 2);
+});
+
+test('기존 칸 이름과 관계없이 위에서부터 위치명을 만들고 좌우 선택 위치를 구분한다', () => {
+  const draft = createDraftWithSlots([2, 1]);
+  const row = draft.rows[0];
+  row.compartments[0].slots[0].drawerCount = 2;
+  row.doors[0].slots = ['위칸', '아래칸', '3번째 칸'].map(name => ({ name, drawerCount: 0 }));
+  const snapshot = structuredClone(draft);
+  const layout = getDraftLayout(draft);
+  const bodyPositions = layout.positions.filter(position => position.areaId === row.compartments[0].id);
+  const pocketPositions = layout.positions.filter(position => position.areaId === row.doors[0].id);
+  assert.deepEqual(bodyPositions.map(getPositionName), [
+    '위에서 1번째 칸 · 왼쪽', '위에서 1번째 칸 · 오른쪽', '위에서 2번째 칸',
+  ]);
+  assert.deepEqual(pocketPositions.map(position => position.name), ['위에서 1번째 칸', '위에서 2번째 칸', '위에서 3번째 칸']);
+  assert.equal(bodyPositions[0].slotId, bodyPositions[1].slotId);
+  assert.notEqual(bodyPositions[0].id, bodyPositions[1].id);
+  const pocket = layout.areas.find(area => area.id === row.doors[0].id);
+  assert.equal(getPositionPath(pocket, pocketPositions[1]), '1단 1번째 → 왼쪽 문 도어포켓 → 위에서 2번째 칸');
+  assert.deepEqual(draft, snapshot);
+});
+
+test('어느 본체에서 합치고 분리해도 자동 위치명을 현재 영역의 순서로 다시 지정한다', () => {
+  for (const selectedIndex of [0, 1]) {
+    const draft = createDraftWithSlots([2, 2]);
+    const row = draft.rows[0];
+    const selected = row.compartments[selectedIndex];
+    const merged = mergeDraftCompartments(draft, row.id, selected.id);
+    assert.deepEqual(merged.rows[0].compartments[0].slots.map(slot => slot.name), [
+      '위에서 1번째 칸', '위에서 2번째 칸', '위에서 3번째 칸', '위에서 4번째 칸',
+    ]);
+    const split = splitDraftCompartment(merged, row.id, selected.id, row.doors[selectedIndex].id);
+    for (const body of split.rows[0].compartments) {
+      assert.deepEqual(body.slots.map(slot => slot.name), ['위에서 1번째 칸', '위에서 2번째 칸']);
+    }
+  }
 });
 
 test('여는 방식을 바꿔도 닫힌 문과 본체의 폭·위치를 유지한다', () => {

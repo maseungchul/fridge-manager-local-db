@@ -100,16 +100,27 @@ export const FRIDGE_ASPECT_RATIO = 1 / 2;
 export const MAX_ROWS = 4;
 export const MAX_DOORS_PER_ROW = 2;
 export const MAX_SLOTS = 4;
+export const MAX_DOOR_SLOTS = 3;
+
+/** 칸 이름은 입력받지 않고 영역 안의 위→아래 순서로 자동 지정한다. */
+export function getSlotName(index: number) {
+  return `위에서 ${index + 1}번째 칸`;
+}
+
+/** 합치기·분리로 영역이 바뀐 칸의 구조를 보존하고 이름만 현재 순서로 맞춘다. */
+function renumberSlots(slots: SlotConfiguration[]): SlotConfiguration[] {
+  return slots.map((slot, index) => ({ ...slot, name: getSlotName(index) }));
+}
 
 function createDraftDoor(id: number, side: DraftDoor['side'] = 'LEFT_DOOR'): DraftDoor {
   return {
     id: `door-${id}`, kind: 'HINGED', side, storageEnabled: true,
-    slots: ['위칸', '아래칸'].map(name => ({ name, drawerCount: 0 })),
+    slots: [0, 1].map(index => ({ name: getSlotName(index), drawerCount: 0 })),
   };
 }
 
 function createDraftCompartment(id: number, doorIds: string[]): DraftCompartment {
-  return { id: `body-${id}`, doorIds, storageMode: 'CHILLED', slots: [{ name: '1번째 칸', drawerCount: 0 }] };
+  return { id: `body-${id}`, doorIds, storageMode: 'CHILLED', slots: [{ name: getSlotName(0), drawerCount: 0 }] };
 }
 
 /** 2단에 각각 문·본체 하나로 시작하고, 유형 JSON 대신 단별 문 개수로 배치를 구성한다. */
@@ -179,7 +190,7 @@ export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, 
     const index = Math.min(row.compartments.indexOf(selected), row.compartments.indexOf(adjacent));
     const left = row.compartments[index], right = row.compartments[index + 1];
     if (!left || !right || left.slots.length + right.slots.length > MAX_SLOTS) return row;
-    const merged = { ...selected, doorIds: [...left.doorIds, ...right.doorIds], slots: [...left.slots, ...right.slots],
+    const merged = { ...selected, doorIds: [...left.doorIds, ...right.doorIds], slots: renumberSlots([...left.slots, ...right.slots]),
       storageMode: left.storageMode === right.storageMode ? left.storageMode : null };
     const doors = row.doors.map<DraftDoor>(door => merged.doorIds.includes(door.id) ? {
       ...door, kind: 'HINGED', side: door.id === merged.doorIds[0] ? 'LEFT_DOOR' : 'RIGHT_DOOR',
@@ -203,7 +214,7 @@ export function splitDraftCompartment(draft: RefrigeratorDraft, rowId: string, b
         const compartment = createDraftCompartment(nextId, [doorId]);
         const id = index === retainedIndex ? body.id : compartment.id;
         if (index !== retainedIndex) nextId++;
-        return { ...compartment, id, storageMode: body.storageMode, slots: slots.length ? slots : compartment.slots };
+        return { ...compartment, id, storageMode: body.storageMode, slots: slots.length ? renumberSlots(slots) : compartment.slots };
       });
     }),
   });
@@ -231,7 +242,7 @@ export function getDraftLayout(draft: RefrigeratorDraft): FridgeLayout {
         name: isDoor ? areaNames[area.side] : areaNames.BODY, isBody: !isDoor });
       if (!isDoor || area.storageEnabled) {
         area.slots.forEach((slot, index) => positions.push(...getSlotPositions(
-          `${area.id}-${index}`, area.id, slot.name || `${index + 1}번째 칸`, slot.drawerCount,
+          `${area.id}-${index}`, area.id, getSlotName(index), slot.drawerCount,
         )));
       }
     }
@@ -257,12 +268,12 @@ export function getDraftRowGeometry(row: DraftRow) {
 
 /** 배치도의 접근성 라벨에 사용할 실과 영역·칸 경로를 조합한다. */
 export function getPositionPath(area: StorageArea, position: SlotPosition) {
-  return `${area.compartment} → ${area.name} → ${getPositionName(position)}`;
+  return `${area.compartment} → ${area.name}${area.isBody ? '' : ' 도어포켓'} → ${getPositionName(position)}`;
 }
 
-/** 좌우 2칸일 때만 표시 이름에 번호를 붙이고 입력한 원래 칸 이름은 유지한다. */
+/** 자동 위치명에 좌우 분할 방향을 붙여 같은 칸의 선택 위치를 구분한다. */
 export function getPositionName(position: SlotPosition) {
-  return position.drawerNumber ? `${position.name} ${position.drawerNumber}` : position.name;
+  return position.drawerNumber ? `${position.name} · ${position.drawerNumber === 1 ? '왼쪽' : '오른쪽'}` : position.name;
 }
 
 /** 기존 값 0·1은 한 위치로, 2는 같은 칸에 속한 좌우 두 위치로 표시한다. */

@@ -26,7 +26,7 @@ import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import {
   addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft, FRIDGE_ASPECT_RATIO,
-  getAdjacentCompartment, getDraftAreaLocation, getDraftLayout, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
+  getAdjacentCompartment, getDraftAreaLocation, getDraftLayout, getSlotName, MAX_DOOR_SLOTS, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
   removeDraftRow, setDraftDoorOpening, splitDraftCompartment, storageModeOptions,
 } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
@@ -80,6 +80,7 @@ export function RefrigeratorRegistrationScreen({
   const openingDoors = selectedRow.doors.filter(door => selectedBody.doorIds.includes(door.id));
   const isMergedBody = selectedBody.doorIds.length > 1;
   const selectedArea = selectedDoor ?? selectedBody;
+  const maxSlotCount = selectedDoor ? MAX_DOOR_SLOTS : MAX_SLOTS;
   const selectedType = selectedDoor?.side ?? 'BODY';
   const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id);
   const bodyLocation = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedBody.id);
@@ -241,8 +242,8 @@ export function RefrigeratorRegistrationScreen({
     Keyboard.dismiss();
     updateSlots(slots => {
       const nextCount = slots.length + delta;
-      if (nextCount < 1 || nextCount > MAX_SLOTS) return slots;
-      return delta === 1 ? [...slots, { name: `${nextCount}번째 칸`, drawerCount: 0 }] : slots.slice(0, -1);
+      if (nextCount < 1 || nextCount > maxSlotCount) return slots;
+      return delta === 1 ? [...slots, { name: getSlotName(nextCount - 1), drawerCount: 0 }] : slots.slice(0, -1);
     });
   }
 
@@ -454,16 +455,18 @@ export function RefrigeratorRegistrationScreen({
             <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={closeAreaSettings} />
           </Animated.View>
           <KeyboardAvoidingView style={styles.settingsKeyboard} pointerEvents="box-none" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <Animated.View style={[styles.settingsPanel, { height: panelHeight, transform: [{
-              translateY: settingsAnimation.interpolate({ inputRange: [0, 1], outputRange: [panelHeight, 0] }),
-            }] }]} accessibilityViewIsModal onAccessibilityEscape={closeAreaSettings}>
+            <Animated.View style={[styles.settingsPanel, {
+              height: selectedDoor ? undefined : panelHeight, maxHeight: panelHeight,
+              paddingBottom: selectedDoor ? Math.max(insets.bottom, spacing.md) : 0,
+              transform: [{ translateY: settingsAnimation.interpolate({ inputRange: [0, 1], outputRange: [panelHeight, 0] }) }],
+            }]} accessibilityViewIsModal onAccessibilityEscape={closeAreaSettings}>
               <View style={styles.settingsHeader}>
                 <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.settingsTitle}>
                   {location} → {areaNames[selectedType]}
                 </Text>
                 <SecondaryButton label="닫기" icon="close" accessibilityLabel="내부 설정 패널 닫기" onPress={closeAreaSettings} />
               </View>
-              {/* 미리보기 오른쪽에 칸 개수·본체 보관 모드를 고정하고, 아래에서는 개별 칸을 편집한다. */}
+              {/* 미리보기 오른쪽에 칸 개수·본체 보관 모드를 고정하고, 아래에서는 본체 칸의 분할만 편집한다. */}
               <View style={[styles.settingsPreview, { minHeight: Math.min(168, windowHeight * 0.22) }]}>
                 <View style={styles.structurePreview}>
                   {selectedDoor && !storageEnabled ? (
@@ -499,34 +502,34 @@ export function RefrigeratorRegistrationScreen({
                         </FeedbackPressable>
                         <Text accessibilityLiveRegion="polite" style={styles.structureCount}>칸 {selectedArea.slots.length}개</Text>
                         <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 늘리기`}
-                          disabled={selectedArea.slots.length >= MAX_SLOTS} onPress={() => changeSlotCount(1)}
+                          disabled={selectedArea.slots.length >= maxSlotCount} onPress={() => changeSlotCount(1)}
                           style={styles.counterButton}>
                           <MaterialDesignIcons name="plus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
                         </FeedbackPressable>
                       </View>
-                      <Text style={[styles.description, styles.counterDescription]}>{`칸은 1~${MAX_SLOTS}개까지 등록할 수 있어요.`}</Text>
+                      <Text style={[styles.description, styles.counterDescription]}>{`칸은 1~${maxSlotCount}개까지 등록할 수 있어요.`}</Text>
                     </View>
                   </View>
                 ) : null}
               </View>
-              <ScrollView key={selectedArea.id} style={styles.scroll}
-                contentContainerStyle={[styles.settingsContent, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}
-                keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-                {!storageEnabled ? <Text style={styles.description}>이 문에는 수납칸이 없습니다. 수납 사용을 켜면 다시 구성할 수 있어요.</Text> : null}
-                {storageEnabled ? (
+              {!storageEnabled ? (
+                <View style={styles.settingsContent}>
+                  <Text style={styles.description}>이 문에는 수납칸이 없습니다. 수납 사용을 켜면 다시 구성할 수 있어요.</Text>
+                </View>
+              ) : !selectedDoor ? (
+                <ScrollView key={selectedArea.id} style={styles.scroll}
+                  contentContainerStyle={[styles.settingsContent, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
                   <View>
                     {selectedArea.slots.map((slot, index) => (
                       <View key={index} style={[styles.slotForm, index < selectedArea.slots.length - 1 && styles.slotSeparator]}>
-                        <Text accessibilityRole="header" style={styles.slotTitle}>{index + 1}번째 칸</Text>
-                        <FormTextInput label="칸 이름" labelStyle={styles.slotLabel} accessibilityLabel={`${location} ${areaNames[selectedType]} ${index + 1}번째 칸 이름`}
-                          containerStyle={styles.slotNameField} value={slot.name} maxLength={24} onChangeText={name => updateSlot(index, { name })} />
-                        {!selectedDoor ? <SlotStructureSelector label="칸 구조" accessibilityLabel={`${location} 본체 ${index + 1}번째 칸`}
-                          value={slot.drawerCount} onChange={drawerCount => updateSlot(index, { drawerCount })} /> : null}
+                        <Text accessibilityRole="header" style={styles.slotTitle}>{getSlotName(index)}</Text>
+                        <SlotStructureSelector label="칸 구조" accessibilityLabel={`${location} 본체 ${getSlotName(index)}`}
+                          value={slot.drawerCount} onChange={drawerCount => updateSlot(index, { drawerCount })} />
                       </View>
                     ))}
                   </View>
-                ) : null}
-              </ScrollView>
+                </ScrollView>
+              ) : null}
             </Animated.View>
           </KeyboardAvoidingView>
         </View>
@@ -755,13 +758,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: '700',
-  },
-  slotLabel: {
-    fontSize: 12,
-    fontWeight: '400',
-  },
-  slotNameField: {
-    marginBottom: 0,
   },
   slotSeparator: {
     borderBottomWidth: 1,
