@@ -92,6 +92,7 @@ const native = {
 };
 let mapModule;
 let interiorModule;
+let structureModule;
 function loadComponent(path) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: {
@@ -110,7 +111,10 @@ function loadComponent(path) {
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
     '@/features/fridge/components/FridgeInteriorMap': interiorModule,
     '@/features/fridge/components/FridgeAreaMenu': { FridgeAreaMenu: 'FridgeAreaMenu' },
-    '@/features/fridge/components/FridgeStructurePreview': { FridgeStructurePreview: 'FridgeStructurePreview' },
+    '@/features/fridge/components/FridgeStructurePreview': {
+      FridgeStructurePreview: 'FridgeStructurePreview',
+      STRUCTURE_PREVIEW_ASPECT_RATIO: structureModule?.STRUCTURE_PREVIEW_ASPECT_RATIO,
+    },
     '@/features/fridge/components/SlotStructureSelector': { SlotStructureSelector: 'SlotStructureSelector' },
     '@react-navigation/native': { usePreventRemove() {} },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }) },
@@ -120,6 +124,7 @@ function loadComponent(path) {
 }
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
+structureModule = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
 const { FridgeInteriorMap, FridgeFocusView, getFridgeFocusGeometry } = interiorModule;
 const { RefrigeratorRegistrationScreen } = loadComponent('src/screens/RefrigeratorRegistrationScreen.tsx');
 const { FridgeAreaMenu } = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
@@ -1256,7 +1261,7 @@ test('1단·여러 단 모두 크기를 유지한 중앙 보기를 제목 영역
   }
 });
 
-test('기본정보 도면은 단 개수·화면 너비가 바뀌어도 같은 세로 비율과 단별 조절 위치를 유지한다', () => {
+test('기본정보 도면은 단 개수·화면 너비가 바뀌어도 독립된 세로 비율과 단별 조절 위치를 유지한다', () => {
   const screen = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
   const { FridgeStructurePreview } = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
   for (const rowCount of [2, 4]) {
@@ -1273,8 +1278,8 @@ test('기본정보 도면은 단 개수·화면 너비가 바뀌어도 같은 �
       const frame = flattenStyle(FridgeStructurePreview(preview.props).props.style);
       const editor = find(screen.tree, node => children(node).includes(preview));
       const height = flattenStyle(editor.props.style).height;
-      near(frame.width / height, model.FRIDGE_ASPECT_RATIO);
-      assert.equal(frame.aspectRatio, model.FRIDGE_ASPECT_RATIO);
+      near(frame.width / height, structureModule.STRUCTURE_PREVIEW_ASPECT_RATIO);
+      assert.equal(frame.aspectRatio, structureModule.STRUCTURE_PREVIEW_ASPECT_RATIO);
       const controls = children(editor).at(-1);
       assert.equal(children(controls).length, rowCount);
       const reservedWidth = children(editor).filter(child => child !== preview)
@@ -1811,14 +1816,18 @@ test('닫힌 문의 모드 색과 인쇄는 선택·수납 여부와 관계없�
   }
 });
 
-test('설정 패널에서 냉장·냉동을 변경하면 닫힌 문의 색과 인쇄 모드가 함께 갱신된다', () => {
+test('냉장·냉동과 칸 변경은 내부 설정에만 반영하고 기본정보 도면은 유지한다', () => {
   const { screen, viewport, map, target } = registrationFixture();
+  const basicProps = () => find(screen.tree, node => node.type === 'FridgeStructurePreview').props;
+  const before = structuredClone(basicProps());
   viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
   map.props.onFocus(target);
   screen.render();
   find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
   screen.render();
   find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpenSettings();
+  screen.render();
+  find(screen.tree, node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
   screen.render();
   for (const [mode, label] of [['FROZEN', '냉동'], ['CHILLED', '냉장']]) {
     find(screen.tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === '1단 ' + label).props.onPress();
@@ -1830,29 +1839,73 @@ test('설정 패널에서 냉장·냉동을 변경하면 닫힌 문의 색과 �
     const tree = door.type(door.props);
     assert.equal(find(tree, named('DoorModeArt')).props.storageMode, mode);
     assert.equal(flattenStyle(find(tree, node => node.type === 'Pressable').props.style).backgroundColor, tokens.fridgeDoorColors[mode].background);
+    assert.deepEqual(basicProps(), before);
   }
   screen.unmount();
 });
 
-test('축소 도면도 각 문에 연결된 본체의 모드를 따라 색과 그림을 갱신한다', () => {
-  const { FridgeStructurePreview } = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
-  let draft = model.createRefrigeratorDraft();
-  draft = model.changeDraftDoorCount(draft, draft.rows[0].id, 1);
-  draft.rows[0].compartments[0].storageMode = 'FROZEN';
-  const getArt = () => findAll(FridgeStructurePreview({ rows: draft.rows }), named('DoorModeArt'));
-  assert.deepEqual(getArt().map(art => art.props.storageMode), ['FROZEN', 'CHILLED', 'CHILLED']);
-  const faces = findAll(FridgeStructurePreview({ rows: draft.rows }), node => children(node).some(named('DoorModeArt')));
-  assert.deepEqual(faces.map(face => flattenStyle(face.props.style).backgroundColor), [
-    tokens.fridgeDoorColors.FROZEN.background, tokens.fridgeDoorColors.CHILLED.background, tokens.fridgeDoorColors.CHILLED.background,
-  ]);
-  for (const art of getArt()) {
-    const tree = art.type(art.props);
-    assert.equal(tree.props.pointerEvents, 'none');
-    assert.equal(find(tree, node => node.type === 'Text'), undefined);
-    assert(find(tree, node => node.type === 'Icon'));
+test('기본정보는 단·문 개수만 받고 여는 방식·문 수납·본체 합치기에 영향받지 않는다', () => {
+  const { screen, viewport, map, row, target } = registrationFixture(2);
+  const basicProps = () => find(screen.tree, node => node.type === 'FridgeStructurePreview').props;
+  const before = structuredClone(basicProps());
+  assert.deepEqual(before.rows, [{ id: row.id, doorCount: 2 },
+    { id: map.props.draft.rows[1].id, doorCount: 1 }]);
+  const beforeTree = structureModule.FridgeStructurePreview(before);
+  const assertBasicUnchanged = () => {
+    assert.deepEqual(basicProps(), before);
+    assert.deepEqual(structureModule.FridgeStructurePreview(basicProps()), beforeTree);
+  };
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  map.props.onFocus(target);
+  screen.render();
+  const focus = () => find(screen.tree, named('FridgeFocusView'));
+  focus().props.onPhaseChange('open');
+  screen.render();
+  const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu').props;
+  for (const opening of ['RIGHT_DOOR', 'DRAWER', 'LEFT_DOOR']) {
+    menu().onOpeningChange(row.doors[0].id, opening);
+    screen.render();
+    const door = focus().props.draft.rows[0].doors[0];
+    assert.equal(opening === 'DRAWER' ? door.kind : door.side, opening === 'DRAWER' ? 'DRAWER' : opening);
+    assertBasicUnchanged();
   }
-  draft.rows[0].compartments[0].storageMode = 'CHILLED';
-  assert.equal(getArt()[0].props.storageMode, 'CHILLED');
+  focus().props.onSelectArea(row.doors[0].id);
+  screen.render();
+  menu().onToggleStorage();
+  screen.render();
+  assert.equal(focus().props.draft.rows[0].doors[0].storageEnabled, false);
+  assertBasicUnchanged();
+  focus().props.onSelectArea(row.compartments[0].id);
+  screen.render();
+  menu().onMerge();
+  screen.render();
+  assert.equal(focus().props.draft.rows[0].compartments.length, 1);
+  assertBasicUnchanged();
+  menu().onSplit();
+  screen.render();
+  assert.equal(focus().props.draft.rows[0].compartments.length, 2);
+  assertBasicUnchanged();
+  find(screen.tree, node => node.props.accessibilityLabel === '1단 문 줄이기').props.onPress();
+  screen.render();
+  assert.equal(basicProps().rows[0].doorCount, 1);
+  assert.equal(children(children(structureModule.FridgeStructurePreview(basicProps()))[0]).length, 1);
+  screen.unmount();
+});
+
+test('기본정보 도면 UI는 내부 설정의 색상·손잡이·모서리 토큰 변경과 독립적이다', () => {
+  const props = { rows: [{ id: 'row-1', doorCount: 2 }, { id: 'row-2', doorCount: 1 }] };
+  const before = structureModule.FridgeStructurePreview(props);
+  const original = { ...tokens.fridgeSurfaces };
+  try {
+    Object.assign(tokens.fridgeSurfaces, {
+      border: '#FF0000', exterior: '#000000', frame: '#000000', handle: '#FF0000',
+      handleLength: 160, radius: 40, raisedShadow: [],
+    });
+    const changed = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
+    assert.deepEqual(changed.FridgeStructurePreview(props), before);
+  } finally {
+    Object.assign(tokens.fridgeSurfaces, original);
+  }
 });
 
 test('서로 다른 모드의 본체를 합쳐 미설정이 되면 모든 문에서 이전 색과 인쇄를 제거한다', () => {

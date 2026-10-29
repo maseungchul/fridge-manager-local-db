@@ -1,17 +1,16 @@
 /**
  * @file
  * 최초 등록에서 사용자가 정한 단별 문 개수를 닫힌 냉장고 도식으로 표시한다.
- * 실제 비율·내부 수납을 추측하지 않고 문 배치만 보여주며 입력은 호출자가 관리한다.
+ * 내부 설정·보관 모드와 분리된 고정 도식이며, 단 식별자와 문 개수만 전달받는다.
  */
 import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
-import type { RefrigeratorDraft } from '@/features/fridge/model/fridgeLayout';
-import { FRIDGE_ASPECT_RATIO } from '@/features/fridge/model/fridgeLayout';
-import { DoorHandle, DoorModeArt } from '@/features/fridge/components/FridgeMap';
-import { fridgeSurfaces, getFridgeSurfaceStyle } from '@/theme/tokens';
+
+// 기본정보 도식의 비율은 내부 설정 도면과 별도로 관리한다.
+export const STRUCTURE_PREVIEW_ASPECT_RATIO = 1 / 2;
 
 interface FridgeStructurePreviewProps {
-  rows: RefrigeratorDraft['rows'];
+  rows: { id: string; doorCount: number }[];
   style?: StyleProp<ViewStyle>;
 }
 
@@ -21,18 +20,11 @@ export function FridgeStructurePreview({ rows, style }: FridgeStructurePreviewPr
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={[styles.preview, style]}>
       {rows.map((row, rowIndex) => (
         <View key={row.id} style={[styles.row, rowIndex > 0 && styles.rowBorder]}>
-          {row.doors.map((door, index) => {
-            const storageMode = row.compartments.find(body => body.doorIds.includes(door.id))?.storageMode;
-            return (
-              <View key={door.id} style={[styles.door, index > 0 && styles.doorBorder,
-                getFridgeSurfaceStyle(storageMode, 'exterior')]}>
-                <DoorModeArt storageMode={storageMode ?? null} size={12} miniature style={door.kind === 'DRAWER'
-                  ? styles.drawerArt : door.side === 'LEFT_DOOR' ? styles.artWithRightHandle : styles.artWithLeftHandle} />
-                <DoorHandle horizontal={door.kind === 'DRAWER'} miniature storageMode={storageMode} style={[styles.handle,
-                  door.kind === 'DRAWER' ? styles.drawerHandle : door.side === 'LEFT_DOOR' ? { right: 6 } : { left: 6 }]} />
-              </View>
-            );
-          })}
+          {Array.from({ length: row.doorCount }, (_, index) => (
+            <View key={index} style={[styles.door, index > 0 && styles.doorBorder]}>
+              <View style={[styles.handle, index === 0 ? styles.handleRight : styles.handleLeft]} />
+            </View>
+          ))}
         </View>
       ))}
     </View>
@@ -42,14 +34,14 @@ export function FridgeStructurePreview({ rows, style }: FridgeStructurePreviewPr
 const styles = StyleSheet.create({
   preview: {
     width: 144,
-    aspectRatio: FRIDGE_ASPECT_RATIO,
+    aspectRatio: STRUCTURE_PREVIEW_ASPECT_RATIO,
     alignSelf: 'center',
     borderWidth: 1,
-    borderColor: fridgeSurfaces.border,
-    borderRadius: fridgeSurfaces.radius,
+    borderColor: '#C7D1CA',
+    borderRadius: 0,
     overflow: 'hidden',
-    backgroundColor: fridgeSurfaces.frame,
-    boxShadow: fridgeSurfaces.raisedShadow,
+    backgroundColor: '#F6F8F5',
+    boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 6, color: '#5C6A6014' }],
   },
   row: {
     flex: 1,
@@ -57,35 +49,29 @@ const styles = StyleSheet.create({
   },
   rowBorder: {
     borderTopWidth: 1,
-    borderTopColor: fridgeSurfaces.border,
+    borderTopColor: '#C7D1CA',
   },
   door: {
     flex: 1,
-    backgroundColor: fridgeSurfaces.exterior,
-    boxShadow: fridgeSurfaces.raisedShadow,
+    backgroundColor: '#F6F8F5',
   },
   handle: {
+    position: 'absolute',
     top: '50%',
-    marginTop: -fridgeSurfaces.handleLength / 2,
-    transform: [{ scale: 0.55 }],
+    marginTop: -22,
+    width: 4,
+    height: 44,
+    borderRadius: 2,
+    backgroundColor: '#B3BDB8',
   },
-  // 작은 도면에서는 손잡이를 제외한 공간의 중앙에 모드 그림을 둔다.
-  artWithRightHandle: {
-    paddingRight: 12,
+  handleRight: {
+    right: 8,
   },
-  artWithLeftHandle: {
-    paddingLeft: 12,
-  },
-  drawerArt: {
-    paddingTop: 14,
-  },
-  drawerHandle: {
-    top: 0,
-    marginTop: 0,
-    transform: [],
+  handleLeft: {
+    left: 8,
   },
   doorBorder: {
     borderLeftWidth: 1,
-    borderLeftColor: fridgeSurfaces.border,
+    borderLeftColor: '#C7D1CA',
   },
 });

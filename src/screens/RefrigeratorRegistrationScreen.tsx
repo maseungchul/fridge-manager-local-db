@@ -18,14 +18,14 @@ import { SecondaryButton } from '@/components/SecondaryButton';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
-import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
+import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
 import { DoorWithoutStorage, FridgeFocusView, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase, FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
 import { FridgeAreaMenu } from '@/features/fridge/components/FridgeAreaMenu';
 import { FridgeMap } from '@/features/fridge/components/FridgeMap';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import {
-  addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft, FRIDGE_ASPECT_RATIO,
+  addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft,
   getAdjacentCompartment, getDraftAreaLocation, getDraftLayout, getSlotName, MAX_DOOR_SLOTS, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
   removeDraftRow, setDraftDoorOpening, splitDraftCompartment, storageModeOptions,
 } from '@/features/fridge/model/fridgeLayout';
@@ -350,7 +350,7 @@ export function RefrigeratorRegistrationScreen({
                         </View>
                         <View style={styles.structureDiagram}>
                           {/* 도면 테두리 안쪽과 같은 높이를 나눠 단 이름·조절 버튼을 각 단의 중앙에 맞춘다. */}
-                          <View style={[styles.structureEditor, { height: structurePreviewWidth / FRIDGE_ASPECT_RATIO }]}>
+                          <View style={[styles.structureEditor, { height: structurePreviewWidth / STRUCTURE_PREVIEW_ASPECT_RATIO }]}>
                             <View style={styles.structureLabels}>
                               {draft.rows.map((row, index) => (
                                 <View key={row.id} style={styles.structureLabelRow}>
@@ -358,8 +358,8 @@ export function RefrigeratorRegistrationScreen({
                                 </View>
                               ))}
                             </View>
-                            <FridgeStructurePreview rows={draft.rows} style={[styles.structurePreview,
-                              { flex: 0, width: structurePreviewWidth, aspectRatio: FRIDGE_ASPECT_RATIO }]} />
+                            <FridgeStructurePreview rows={draft.rows.map(row => ({ id: row.id, doorCount: row.doors.length }))}
+                              style={{ width: structurePreviewWidth }} />
                             <View style={styles.structureControls}>
                               {draft.rows.map((row, index) => (
                                 <View key={row.id} style={styles.structureRow}>
