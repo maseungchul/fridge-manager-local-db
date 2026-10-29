@@ -93,7 +93,7 @@ export function DoorModeArt({ storageMode, size, miniature = false, drawer = fal
   );
 }
 
-/** 투명 포켓의 높은 전면판을 표시하며, 내용과 터치는 부모 칸이 관리한다. */
+/** 윗면이 열린 U자형 포켓을 표시하며, 내용과 터치는 부모 칸이 관리한다. */
 function DoorPocketBin({ style }: { style?: StyleProp<ViewStyle> }) {
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.pocketBin}>
@@ -115,8 +115,7 @@ export function FridgeMap({
   const materialShadow = palette ? fridgeSurfaces.shelfShadow.map(shadow => ({ ...shadow, color: `${palette.motif}22` })) : fridgeSurfaces.shelfShadow;
   const shelfTheme = palette && { backgroundColor: palette.shelf, boxShadow: materialShadow };
   const pocketTheme = palette && {
-    backgroundColor: palette.pocket, borderColor: palette.pocketBorder,
-    borderTopColor: palette.shelf, borderBottomColor: palette.shelf, boxShadow: materialShadow,
+    backgroundColor: palette.pocket, borderColor: palette.shelf,
   };
   // 개별 칸의 테두리는 안쪽으로 그려 선택해도 칸 크기와 배경이 바뀌지 않게 한다.
   const positionSelection: ViewStyle = { boxShadow: [
@@ -280,19 +279,15 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: '62%',
-    borderWidth: 1,
-    borderColor: fridgeSurfaces.pocketBorder,
-    borderTopWidth: 10,
-    borderTopColor: fridgeSurfaces.shelf,
-    borderBottomWidth: 2,
-    borderBottomColor: fridgeSurfaces.shelf,
+    borderWidth: 3,
+    borderColor: fridgeSurfaces.shelf,
+    borderTopWidth: 0,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
     backgroundColor: fridgeSurfaces.pocket,
     overflow: 'hidden',
-    boxShadow: fridgeSurfaces.shelfShadow,
   },
   slotRow: {
     flex: 1,

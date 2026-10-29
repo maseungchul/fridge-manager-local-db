@@ -1661,13 +1661,14 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
         for (const bin of findAll(tree, named('DoorPocketBin'))) {
           const front = flattenStyle(children(bin.type(bin.props))[0].props.style);
           assert.equal(front.backgroundColor, palette.pocket);
-          assert.equal(front.borderColor, palette.pocketBorder);
-          assert.equal(front.borderTopColor, palette.shelf);
-          assert.equal(front.borderTopWidth, 10);
+          assert.equal(front.borderColor, palette.shelf);
+          assert.equal(front.borderWidth, 3);
+          assert.equal(front.borderTopWidth, 0);
           assert.equal(front.borderTopLeftRadius, 0);
           assert.equal(front.borderTopRightRadius, 0);
-          assert.equal(front.borderBottomColor, palette.shelf);
-          assert.equal(front.boxShadow[0].color, palette.motif + '22');
+          assert.equal(front.borderBottomLeftRadius, 12);
+          assert.equal(front.borderBottomRightRadius, 12);
+          assert.equal(front.boxShadow, undefined);
         }
       }
     }
