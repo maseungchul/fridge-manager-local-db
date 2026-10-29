@@ -133,17 +133,17 @@ export function FridgeMap({
           <View key={area.id} style={[styles.area, { flex: area.isBody ? 1 : doorFlex }]}>
             {/* 홈은 칸별로, 등록 도면은 문·본체 전체를 한 번에 눌러 선택한다. */}
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
-            <View style={[styles.areaInterior, { minHeight: minAreaHeight },
+            <Area accessibilityRole={groupInteraction ? 'button' : undefined}
+              accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}${area.isBody && storageMode
+                ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
+              accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
+              disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
+              style={[styles.areaInterior, { minHeight: minAreaHeight },
                 getFridgeSurfaceStyle(storageMode),
                 cornerStyle,
                 areaSelected && !groupInteraction && { borderColor: selectionColor }]}>
               {areaHeader}
-              <Area accessibilityRole={groupInteraction ? 'button' : undefined}
-                accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}${area.isBody && storageMode
-                  ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
-                accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
-                disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
-                style={[styles.areaContent, { backgroundColor: palette?.frame ?? fridgeSurfaces.frame }]}>
+              <View style={[styles.areaContent, { backgroundColor: palette?.frame ?? fridgeSurfaces.frame }]}>
                 {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
                 {positions.filter(position => position.areaId === area.id)
                   .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
@@ -175,8 +175,8 @@ export function FridgeMap({
                     </View>
                   );
                 })}
-              </Area>
-            </View>
+              </View>
+            </Area>
           </View>
         );
       })}

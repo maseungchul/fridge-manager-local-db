@@ -566,12 +566,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   // 내부 설정은 스크롤 없이 단계 표시 아래의 남은 높이에 도면을 맞춘다.
   configurationContent: {
     height: '100%',
-    gap: 0,
   },
   configurationMap: {
     flex: 1,

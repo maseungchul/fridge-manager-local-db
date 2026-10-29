@@ -635,7 +635,7 @@ test('합친 본체의 포켓을 기존 여는 방식과 관계없이 양쪽에 
   }
 });
 
-test('본체·포켓을 누르면 해당 영역의 선택 상태와 편집 대상을 전환한다', () => {
+test('본체·포켓의 흰색 이름 영역을 누르면 해당 영역의 선택 상태와 편집 대상을 전환한다', () => {
   const { draft, requests, compartment } = fixture();
   selectDoor(compartment);
   const { focus, selected } = focusedFixture(draft, requests[0]);
@@ -643,13 +643,35 @@ test('본체·포켓을 누르면 해당 영역의 선택 상태와 편집 대�
   focus.render();
   let pocket = interiorAreas(focus).find(node => !node.props.area.isBody);
   const pocketMap = find(pocket.type(pocket.props), node => node.type === mapModule.FridgeMap);
-  pocketMap.props.onSelectArea();
+  const pocketTree = mapModule.FridgeMap(pocketMap.props);
+  const pocketFrame = find(pocketTree, node => children(node).includes(pocketMap.props.areaHeader));
+  assert.equal(pocketFrame.type, 'Pressable');
+  assert.equal(findAll(pocketTree, node => node.type === 'Pressable').length, 1);
+  assert.equal(pocketFrame.props.accessibilityState.selected, false);
+  pocketFrame.props.onPress();
   focus.render();
   assert.equal(focus.props.selectedAreaId, draft.rows[0].doors[0].id);
   assert.equal(interiorAreas(focus).find(node => !node.props.area.isBody).props.selected, true);
   assert.equal(interiorAreas(focus).find(node => node.props.area.isBody).props.selected, false);
   const body = interiorAreas(focus).find(node => node.props.area.isBody);
-  find(body.type(body.props), node => node.type === mapModule.FridgeMap).props.onSelectArea();
+  const bodyMap = find(body.type(body.props), node => node.type === mapModule.FridgeMap);
+  for (const mode of ['CHILLED', 'FROZEN']) {
+    const bodyTree = mapModule.FridgeMap({ ...bodyMap.props, storageMode: mode });
+    const bodyFrame = find(bodyTree, node => children(node).includes(bodyMap.props.areaHeader));
+    assert.equal(bodyFrame.type, 'Pressable');
+    assert.equal(findAll(bodyTree, node => node.type === 'Pressable').length, 1);
+    assert.equal(bodyFrame.props.disabled, false);
+    assert.equal(bodyFrame.props.accessibilityState.selected, false);
+  }
+  const disabledFrame = find(mapModule.FridgeMap({ ...bodyMap.props, disabled: true }),
+    node => children(node).includes(bodyMap.props.areaHeader));
+  assert.equal(disabledFrame.props.disabled, true);
+  assert.equal(disabledFrame.props.accessibilityState.disabled, true);
+  const previewFrame = find(mapModule.FridgeMap({ ...bodyMap.props, preview: true }),
+    node => children(node).includes(bodyMap.props.areaHeader));
+  assert.equal(previewFrame.type, 'View');
+  assert.equal(previewFrame.props.onPress, undefined);
+  find(mapModule.FridgeMap(bodyMap.props), node => children(node).includes(bodyMap.props.areaHeader)).props.onPress();
   focus.render();
   assert.equal(focus.props.selectedAreaId, draft.rows[0].compartments[0].id);
   assert.deepEqual(selected, [draft.rows[0].doors[0].id, draft.rows[0].compartments[0].id]);
