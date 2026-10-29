@@ -13,6 +13,9 @@ import { getPositionPath, getSlotName, getStorageModeName } from '../model/fridg
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotPosition, StorageMode } from '../model/fridgeLayout';
 
+const BODY_SHELF_HEIGHT = 4;
+const BODY_SHELF_SIDE_INSET = 3;
+
 interface FridgeMapProps {
   // 호출자가 현재 실에 맞게 추린 표시 대상 영역이며 전달 순서대로 배치한다.
   areas: StorageArea[];
@@ -123,10 +126,11 @@ export function FridgeMap({
   const pocketTheme = palette && {
     backgroundColor: palette.pocket, borderColor: palette.shelf,
   };
-  // 개별 칸의 테두리는 안쪽으로 그려 선택해도 칸 크기와 배경이 바뀌지 않게 한다.
+  // 홈의 개별 위치 테두리는 안쪽으로 그려 선택해도 칸 크기와 배경이 바뀌지 않게 한다.
   const positionSelection: ViewStyle = { boxShadow: [
     { inset: true, offsetX: 0, offsetY: 0, blurRadius: 0, spreadDistance: 2, color: selectionColor },
   ] };
+  const slotSelection: ViewStyle = { backgroundColor: `${selectionColor}33` };
   // 본체는 1, 문 전체의 합도 1로 배분한다. 문 2개는 각각 0.5, 문 1개는 1이다.
   const doorCount = areas.filter(area => !area.isBody).length;
   const doorFlex = doorCount > 0 ? 1 / doorCount : 1;
@@ -160,8 +164,11 @@ export function FridgeMap({
                       accessibilityLabel={slotInteraction ? `${area.compartment} → ${area.name} → ${getSlotName(slotIndex)}` : undefined}
                       accessibilityState={slotInteraction ? { selected: selectedSlotIndex === slotIndex, disabled } : undefined}
                       disabled={disabled} onPress={slotInteraction ? event => { event.stopPropagation(); onSelectSlot?.(slotIndex); } : undefined}
-                      style={[styles.slot, area.isBody && slotIndex > 0 && styles.slotSeparator,
-                        slotInteraction && selectedSlotIndex === slotIndex && positionSelection]}>
+                      style={[styles.slot, area.isBody && slotIndex > 0 && styles.slotSeparator]}>
+                      {slotInteraction && selectedSlotIndex === slotIndex ? (
+                        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                          style={[styles.slotHighlight, { top: (area.isBody && slotIndex > 0 ? BODY_SHELF_HEIGHT : 0) + 4 }, slotSelection]} />
+                      ) : null}
                       <View style={styles.slotRow}>
                         {slotPositions.map((position, positionIndex) => {
                           const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
@@ -262,6 +269,14 @@ const styles = StyleSheet.create({
   slot: {
     flex: 1,
   },
+  // 선반과 같은 좌우 경계를 사용하고, 위쪽 선반 아래에서만 선택 배경을 칠한다.
+  slotHighlight: {
+    position: 'absolute',
+    left: BODY_SHELF_SIDE_INSET,
+    right: BODY_SHELF_SIDE_INSET,
+    bottom: 0,
+    overflow: 'hidden',
+  },
   // 기존 경계 공간을 유지하고 선은 별도 장식으로 그려 칸 높이가 바뀌지 않게 한다.
   slotSeparator: {
     borderTopWidth: 1,
@@ -269,10 +284,10 @@ const styles = StyleSheet.create({
   },
   bodyShelf: {
     position: 'absolute',
-    left: 3,
-    right: 3,
+    left: BODY_SHELF_SIDE_INSET,
+    right: BODY_SHELF_SIDE_INSET,
     top: 0,
-    height: 4,
+    height: BODY_SHELF_HEIGHT,
     borderRadius: 2,
     backgroundColor: fridgeSurfaces.shelf,
     boxShadow: fridgeSurfaces.shelfShadow,

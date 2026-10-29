@@ -1915,6 +1915,17 @@ test('칸 구성에서 도면의 칸 선택·분할 편집을 연동하고 칸 �
   screen.render();
   assert.equal(stopped, true);
   assert.equal(focus().props.selectedSlotIndex, 1);
+  const selectedTree = mapModule.FridgeMap({ ...map.props, selectedSlotIndex: 1 });
+  const selectedSlot = find(selectedTree, node => node.type === 'Pressable'
+    && node.props.accessibilityLabel?.includes('번째 칸') && node.props.accessibilityState.selected);
+  assert.equal(flattenStyle(selectedSlot.props.style).backgroundColor, undefined);
+  const highlight = find(selectedSlot, node => node.props.pointerEvents === 'none' && flattenStyle(node.props.style).overflow === 'hidden');
+  const shelf = find(selectedSlot, node => flattenStyle(node.props.style).height === 4);
+  const highlightStyle = flattenStyle(highlight.props.style);
+  const shelfStyle = flattenStyle(shelf.props.style);
+  assert(highlightStyle.top >= shelfStyle.top + shelfStyle.height);
+  assert(highlightStyle.left >= shelfStyle.left);
+  assert(highlightStyle.right >= shelfStyle.right);
   const selector = find(toolbarTree(screen), node => node.type === 'SlotStructureSelector');
   assert.equal(selector.props.accessibilityLabel, '1단 본체 위에서 2번째 칸');
   selector.props.onChange(2);
