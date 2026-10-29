@@ -66,7 +66,7 @@ class AnimatedValue {
   stopAnimation() {}
 }
 const native = {
-  View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
+  View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
   Keyboard: { dismiss() {} }, Platform: { OS: 'ios' },
   useWindowDimensions: () => ({ width: 375, height: 844 }),
   StyleSheet: { create: value => value, absoluteFill: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 } },
@@ -1709,7 +1709,7 @@ test('하위 메뉴를 열고 닫은 뒤 레이아웃이 다시 측정되어도 
   }
   focus().props.onSelectArea(row.doors[0].id);
   screen.render();
-  menu().onCategoryChange('storage');
+  find(toolbarTree(screen), node => node.type === 'Switch').props.onValueChange(false);
   screen.render();
   viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 520 } } });
   screen.render();
@@ -1870,14 +1870,21 @@ test('카테고리를 다시 누르면 접고 하위 영역에 툴바 배경을 
   assert(findAll(blocked, node => node.props.accessibilityHint?.includes('하위 설정')).every(node => node.props.disabled));
   find(screen.tree, named('FridgeFocusView')).props.onSelectArea(row.doors[0].id);
   screen.render();
-  assert.deepEqual(categories().map(node => node.props.accessibilityLabel), ['칸 구성', '문 수납']);
-  categories().find(node => node.props.accessibilityLabel === '문 수납').props.onPress();
+  assert.deepEqual(categories().map(node => node.props.accessibilityLabel), ['칸 구성']);
+  const storageSwitch = () => find(toolbarTree(screen), node => node.type === 'Switch');
+  assert.equal(storageSwitch().props.value, true);
+  assert.equal(storageSwitch().props.accessibilityLabel, '문 수납 사용');
+  const disabledSwitch = find(FridgeAreaMenu({ ...find(screen.tree, node => node.type === 'FridgeAreaMenu').props, disabled: true }),
+    node => node.type === 'Switch');
+  assert.equal(disabledSwitch.props.disabled, true);
+  storageSwitch().props.onValueChange(false);
   screen.render();
-  find(toolbarTree(screen), node => node.props.accessibilityLabel === '문 수납 사용 안 함').props.onPress();
-  screen.render();
+  assert.equal(storageSwitch().props.value, false);
+  assert.equal(find(toolbarTree(screen), node => node.props.accessibilityLabel === '문 수납 하위 설정'), undefined);
   assert.equal(categories().find(node => node.props.accessibilityLabel === '칸 구성').props.disabled, true);
-  find(toolbarTree(screen), node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === '문 수납 사용').props.onPress();
+  storageSwitch().props.onValueChange(true);
   screen.render();
+  assert.equal(storageSwitch().props.value, true);
   assert.equal(categories().find(node => node.props.accessibilityLabel === '칸 구성').props.disabled, false);
   assert.equal(find(screen.tree, named('FridgeInteriorMap')).props.draft.rows[0].doors[0].slots.length, 2);
   screen.unmount();

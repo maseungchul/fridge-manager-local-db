@@ -92,7 +92,6 @@ export function RefrigeratorRegistrationScreen({
   const activeMenuCategory = menuCategory === 'mode' && selectedDoor
     || menuCategory === 'opening' && (selectedDoor || isMergedBody)
     || menuCategory === 'slots' && (isDrawerBody || !storageEnabled)
-    || menuCategory === 'storage' && !selectedDoor
     ? null : menuCategory;
   const activeFocus = focusPhase === 'closed' ? null : focusTarget;
   const isFocusMoving = focusPhase === 'opening' || focusPhase === 'closing';

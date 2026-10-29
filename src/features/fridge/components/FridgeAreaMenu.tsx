@@ -4,7 +4,7 @@
  * 하위 설정은 도면과 분리된 표시 공간에 펼치며, 초안과 선택 상태는 호출자가 관리한다.
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -13,7 +13,7 @@ import { doorOpeningOptions, getSlotName, MAX_SLOTS, storageModeOptions } from '
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, spacing } from '@/theme/tokens';
 
-export type FridgeMenuCategory = 'mode' | 'opening' | 'slots' | 'storage';
+export type FridgeMenuCategory = 'mode' | 'opening' | 'slots';
 
 const SUBMENU_HEIGHT = 82;
 const SUBMENU_BOTTOM_SPACE = 20;
@@ -50,7 +50,6 @@ const categoryOptions = [
   { id: 'mode', label: '보관 모드', icon: 'thermometer-low' },
   { id: 'opening', label: '여는 방식', icon: 'door-open' },
   { id: 'slots', label: '칸 구성', icon: 'view-agenda-outline' },
-  { id: 'storage', label: '문 수납', icon: 'tray-full' },
 ] as const;
 
 /** 하위 설정과 카테고리 사이의 화살표로 관계를 표시하고, 같은 버튼을 다시 누르면 접는다. */
@@ -63,7 +62,6 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
       case 'mode': return showOpeningAction;
       case 'opening': return showOpeningAction && openingDoors.length > 0;
       case 'slots': return showSlots;
-      case 'storage': return storageEnabled !== undefined;
     }
   });
   const categoryDisabled = (category: FridgeMenuCategory) => disabled
@@ -116,18 +114,6 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
                 ) : null}
               </ScrollView>
             ) : null}
-            {current.id === 'storage' ? (
-              <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
-                accessibilityRole="radiogroup" accessibilityLabel="문 수납 사용" style={styles.choicesViewport} contentContainerStyle={styles.choices}>
-                {[{ value: true, label: '사용' }, { value: false, label: '사용 안 함' }].map(option => (
-                  <FeedbackPressable key={option.label} accessibilityRole="radio" accessibilityLabel={`문 수납 ${option.label}`}
-                    disabled={disabled} accessibilityState={{ checked: storageEnabled === option.value, disabled }}
-                    onPress={() => onStorageChange(option.value)} style={[styles.choice, storageEnabled === option.value && styles.selected]}>
-                    <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{option.label}</Text><SelectionCheck selected={storageEnabled === option.value} />
-                  </FeedbackPressable>
-                ))}
-              </ScrollView>
-            ) : null}
           </View>
         </View>
         </View>
@@ -148,6 +134,17 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
             </FeedbackPressable>
           );
         })}
+        {storageEnabled !== undefined ? (
+          <View style={[styles.action, styles.storageAction, disabled && styles.disabled]}>
+            <View style={styles.storageLabel}>
+              <MaterialDesignIcons name="tray-full" size={18} color={colors.text} accessible={false} />
+              <Text accessible={false} numberOfLines={1} style={styles.label}>문 수납</Text>
+            </View>
+            <Switch accessibilityLabel="문 수납 사용" value={storageEnabled} disabled={disabled}
+              onValueChange={onStorageChange} trackColor={{ false: colors.border, true: colors.chilled }}
+              thumbColor={colors.surface} ios_backgroundColor={colors.border} hitSlop={6} style={styles.storageSwitch} />
+          </View>
+        ) : null}
         {onMerge || onSplit ? (
           <FeedbackPressable accessibilityRole="button" accessibilityLabel={onSplit ? '문별로 본체 분리' : '이웃 본체와 합치기'}
             accessibilityHint={!onSplit && mergeLimitExceeded ? `합치기는 두 본체의 칸이 합계 ${MAX_SLOTS}개 이하일 때 가능해요.` : undefined}
@@ -214,6 +211,26 @@ const styles = StyleSheet.create({
     borderColor: colors.chilled,
     backgroundColor: colors.sageLight,
   },
+  storageAction: {
+    minWidth: 140,
+    maxWidth: 160,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+  },
+  storageLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  storageSwitch: {
+    alignSelf: 'center',
+    transform: [{ scale: 0.8 }],
+  },
+  disabled: {
+    opacity: 0.42,
+  },
   submenuArrow: {
     position: 'absolute',
     bottom: '100%',
@@ -240,7 +257,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   choice: {
-    flexGrow: 1,
+    flexGrow: 0,
     flexShrink: 0,
     minWidth: 0,
     minHeight: 44,
