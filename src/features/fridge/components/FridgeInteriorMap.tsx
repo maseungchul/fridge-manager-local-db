@@ -145,7 +145,7 @@ function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyl
   );
 }
 
-/** 문 앞·뒷면을 같은 경첩으로 회전하고, 포켓 내용은 열림 완료 후 표시한다. */
+/** 문 앞·뒷면을 같은 경첩으로 회전하고, 포켓 내부는 전환 중에도 유지하되 조작은 열림 완료 후 허용한다. */
 function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, gridEdges, children }: {
   door: DraftDoor; label: string; phase: FridgeFocusPhase; progress: Animated.Value; selected: boolean; storageMode: StorageMode | null;
   style: AreaFrame; onSelect: () => void; unfoldOffset?: number; children?: ReactNode;
@@ -209,7 +209,7 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.exteriorFace, modeStyle, backCorners, styles.doorFlatSurface]} />
           <View pointerEvents={phase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={phase !== 'open'}
             importantForAccessibility={phase === 'open' ? 'auto' : 'no-hide-descendants'}
-            style={[StyleSheet.absoluteFill, { opacity: phase === 'open' ? 1 : 0 }]}>{children}</View>
+            style={StyleSheet.absoluteFill}>{children}</View>
         </Animated.View>
       ) : null}
     </View>
@@ -453,15 +453,18 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateY, 0] }) },
       ],
     }]}>
-      {/* 본체 프레임은 문 뒤에 유지하고, 칸·공간 이름과 경첩만 열림 완료 후 표시한다. */}
-      <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-        style={[StyleSheet.absoluteFill, { opacity: open ? 1 : 0, zIndex: 2 }]}>
+      {/* 경첩은 문 뒷면이 드러난 뒤 서서히 표시하고, 본체와 같은 이동값을 적용한다. */}
+      <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+        style={[StyleSheet.absoluteFill, {
+          opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1], extrapolate: 'clamp' }),
+          transform: panelStyle(body).transform, zIndex: 2,
+        }]}>
         {pockets.map(({ door, frame }) => (
           <DoorHinges key={door.id} height={body.height} storageMode={group.body.storageMode}
             fromX={door.side === 'LEFT_DOOR' ? frame.left + frame.width + HINGE_LENGTH / 2 : frame.left - HINGE_LENGTH / 2}
             toX={door.side === 'LEFT_DOOR' ? body.left - HINGE_LENGTH / 2 : body.left + body.width + HINGE_LENGTH / 2} />
         ))}
-      </View>
+      </Animated.View>
       <Animated.View style={[styles.compartment, panelStyle(body)]}>
         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           style={[StyleSheet.absoluteFill, styles.bodyFrame,
@@ -476,7 +479,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           </View>
         </View>
         <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
-          importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, { opacity: open ? 1 : 0 }]}>
+          importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={StyleSheet.absoluteFill}>
           <InteriorArea area={area} layout={layout} selected={selectedAreaId === area.id} storageMode={group.body.storageMode}
             cornerStyle={bodyCorners} compact={body.width < 120} onSelectArea={onSelectArea} />
         </View>

@@ -218,7 +218,11 @@ function assertFocusAccess(focus, phase) {
   if (phase !== 'open') assert.equal(horizontalScroll, undefined);
   const hinges = find(moving(focus), node => children(node).some(named('DoorHinges')));
   if (hinges) {
-    assert.equal(flattenStyle(hinges.props.style).opacity, phase === 'open' ? 1 : 0);
+    const opacity = flattenStyle(hinges.props.style).opacity;
+    assert.deepEqual(opacity.inputRange, [0, 0.5, 1]);
+    assert.deepEqual(opacity.outputRange, [0, 0, 1]);
+    assert.equal(opacity.extrapolate, 'clamp');
+    assert.strictEqual(opacity.value, movingDoors(focus)[0].props.progress);
     assert.equal(hinges.props.pointerEvents, 'none');
     assert.equal(hinges.props.importantForAccessibility, 'no-hide-descendants');
   }
@@ -226,6 +230,16 @@ function assertFocusAccess(focus, phase) {
   assert(layers.length >= 1);
   const bodyContent = layers.find(layer => children(layer).some(node => named('InteriorArea')(node) && node.props.area.isBody));
   const bodyPanel = find(moving(focus), node => children(node).includes(bodyContent));
+  if (hinges) {
+    const hingeMovement = flattenStyle(hinges.props.style).transform;
+    const bodyMovement = flattenStyle(bodyPanel.props.style).transform;
+    for (const axis of ['translateX', 'translateY']) {
+      const hingeValue = hingeMovement.find(transform => transform[axis])[axis];
+      const bodyValue = bodyMovement.find(transform => transform[axis])[axis];
+      assert.strictEqual(hingeValue.value, bodyValue.value);
+      assert.deepEqual(hingeValue.outputRange, bodyValue.outputRange);
+    }
+  }
   const bodyFrame = children(bodyPanel)[0];
   assert.notStrictEqual(bodyFrame, bodyContent);
   assert.equal(flattenStyle(bodyFrame.props.style).borderWidth, tokens.fridgeSurfaces.frameWidth);
@@ -242,7 +256,7 @@ function assertFocusAccess(focus, phase) {
   assert.equal(bodyFrame.props.pointerEvents, 'none');
   assert.equal(bodyFrame.props.importantForAccessibility, 'no-hide-descendants');
   for (const layer of layers) {
-    assert.equal(flattenStyle(layer.props.style).opacity, phase === 'open' ? 1 : 0);
+    assert.equal(flattenStyle(layer.props.style).opacity ?? 1, 1);
     assert.equal(layer.props.pointerEvents, phase === 'open' ? 'auto' : 'none');
     assert.equal(layer.props.accessibilityElementsHidden, phase !== 'open');
     assert.equal(layer.props.importantForAccessibility, phase === 'open' ? 'auto' : 'no-hide-descendants');
@@ -255,7 +269,7 @@ function assertFocusAccess(focus, phase) {
       assert.equal(faces[1].props.pointerEvents, phase === 'open' ? 'auto' : 'none');
       assert.equal(faces[1].props.accessibilityElementsHidden, phase !== 'open');
       const content = find(faces[1], node => children(node).some(named('InteriorArea')));
-      assert.equal(flattenStyle(content.props.style).opacity, phase === 'open' ? 1 : 0);
+      assert.equal(flattenStyle(content.props.style).opacity ?? 1, 1);
       assert.equal(content.props.pointerEvents, phase === 'open' ? 'auto' : 'none');
       assert.equal(content.props.accessibilityElementsHidden, phase !== 'open');
     }
@@ -385,7 +399,7 @@ test('합친 본체는 어느 문을 눌러도 같은 본체를 열고 외관 �
   }
 });
 
-test('본체와 포켓이 한 애니메이션으로 함께 펼쳐지고 완료 후 각각 조작할 수 있다', () => {
+test('본체·포켓 내부는 전환 내내 유지하고 한 애니메이션으로 펼친 뒤 각각 조작할 수 있다', () => {
   const { draft, requests, compartment } = fixture();
   selectDoor(compartment);
   const before = animations.length;
@@ -396,20 +410,25 @@ test('본체와 포켓이 한 애니메이션으로 함께 펼쳐지고 완료 �
   assert.equal(interiorAreas(focus).length, 2);
   const style = flattenStyle(moving(focus).props.style);
   const progress = style.transform[0].translateX.value;
+  const hingeOpacity = () => flattenStyle(find(moving(focus), node => children(node).some(named('DoorHinges'))).props.style).opacity;
+  assert.equal(hingeOpacity().value.value, 0);
   assert.equal(movingDoors(focus)[0].props.progress, progress);
   assert(style.transform.every(transform => Object.values(transform)[0].value === progress));
   opening.finish();
   focus.render();
   assertFocusAccess(focus, 'open');
+  assert.equal(hingeOpacity().value.value, 1);
   const close = find(children(focus.tree)[0], node => node.type === 'Pressable');
   assert.equal(close.props.accessibilityLabel, '냉장고 도면 바깥 영역 눌러 닫기');
   close.props.onPress();
   focus.render();
   assertFocusAccess(focus, 'closing');
+  assert.equal(hingeOpacity().value.value, 1);
   animations.at(-1).finish();
   focus.render();
   assert.deepEqual(phases, ['open', 'closed']);
   assertFocusAccess(focus, 'closed');
+  assert.equal(hingeOpacity().value.value, 0);
   focus.unmount();
 });
 
@@ -1181,7 +1200,7 @@ test('열린 본체·포켓은 내부 상단에 공간 이름을 표시하고 �
   focus.unmount();
 });
 
-test('문 뒷면은 앞면과 반대로 회전하고 포켓 내용은 열림 완료 전까지 숨긴다', () => {
+test('문 뒷면은 앞면과 반대로 회전하고 포켓 내부는 열고 닫는 동안 유지한다', () => {
   function rotationAt(face, progress) {
     const rotation = flattenStyle(face.props.style).transform.find(transform => transform.rotateY).rotateY;
     return parseFloat(rotation.outputRange[0]) + (parseFloat(rotation.outputRange[1]) - parseFloat(rotation.outputRange[0])) * progress;
@@ -1199,7 +1218,16 @@ test('문 뒷면은 앞면과 반대로 회전하고 포켓 내용은 열림 완
     assert.equal(flattenStyle(back.props.style).backfaceVisibility, 'hidden');
     assert.equal(flattenStyle(back.props.style).opacity, undefined);
     const content = find(back, node => children(node).some(named('InteriorArea')));
-    assert.equal(flattenStyle(content.props.style).opacity, 0);
+    assert.equal(flattenStyle(content.props.style).opacity ?? 1, 1);
+    for (const phase of ['opening', 'open', 'closing']) {
+      const pocketBack = children(door.type({ ...door.props, phase }))[1];
+      const pocketContent = find(pocketBack, node => children(node).some(named('InteriorArea')));
+      assert.equal(flattenStyle(pocketContent.props.style).opacity ?? 1, 1);
+      assert.equal(pocketContent.props.pointerEvents, phase === 'open' ? 'auto' : 'none');
+      assert.equal(pocketContent.props.accessibilityElementsHidden, phase !== 'open');
+      assert.equal(pocketContent.props.importantForAccessibility, phase === 'open' ? 'auto' : 'no-hide-descendants');
+      assert.strictEqual(children(pocketContent)[0], children(content)[0]);
+    }
     const artwork = find(front, named('DoorModeArt'));
     assert.equal(artwork.props.storageMode, draft.rows[0].compartments[0].storageMode);
     for (const progress of [0, 0.25, 0.75, 1]) {
