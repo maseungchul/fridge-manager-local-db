@@ -12,7 +12,7 @@ import { doorOpeningOptions, getSlotName, MAX_SLOTS, storageModeOptions } from '
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, spacing } from '@/theme/tokens';
 
-export type FridgeMenuCategory = 'mode' | 'opening' | 'slots' | 'storage' | 'connection';
+export type FridgeMenuCategory = 'mode' | 'opening' | 'slots' | 'storage';
 
 interface FridgeAreaMenuProps {
   disabled: boolean;
@@ -46,7 +46,6 @@ const categoryOptions = [
   { id: 'opening', label: '여는 방식', icon: 'door-open' },
   { id: 'slots', label: '칸 구성', icon: 'view-agenda-outline' },
   { id: 'storage', label: '문 수납', icon: 'tray-full' },
-  { id: 'connection', label: '본체 연결', icon: 'arrow-collapse-horizontal' },
 ] as const;
 
 /** 하위 설정과 카테고리 사이의 화살표로 관계를 표시하고, 같은 버튼을 다시 누르면 접는다. */
@@ -61,7 +60,6 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
       case 'opening': return showOpeningAction && openingDoors.length > 0;
       case 'slots': return showSlots;
       case 'storage': return storageEnabled !== undefined;
-      case 'connection': return !!onMerge || !!onSplit;
     }
   });
   const categoryDisabled = (category: FridgeMenuCategory) => disabled
@@ -73,33 +71,35 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
     <View style={styles.toolbar} onAccessibilityEscape={() => onCategoryChange(null)}>
       {current ? (
         <View accessibilityLabel={`${current.label} 하위 설정`} style={styles.submenu}>
-          <ScrollView style={{ maxHeight: Math.min(260, height * 0.34) }} bounces={false} overScrollMode="never"
+          <ScrollView style={{ maxHeight: Math.min(260, height * 0.34) }} nestedScrollEnabled bounces={false} overScrollMode="never"
             keyboardShouldPersistTaps="handled" contentContainerStyle={styles.submenuContent}>
             {current.id === 'mode' ? (
-              <View accessibilityRole="radiogroup" accessibilityLabel={`${location} 보관 모드`} style={styles.choices}>
+              <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
+                accessibilityRole="radiogroup" accessibilityLabel={`${location} 보관 모드`} style={styles.choicesViewport} contentContainerStyle={styles.choices}>
                 {storageModeOptions.map(mode => (
                   <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${location} ${mode.label}`}
                     disabled={disabled} accessibilityState={{ checked: storageMode === mode.value, disabled }}
                     onPress={() => onStorageModeChange(mode.value)} style={[styles.choice, storageMode === mode.value && styles.selected]}>
                     <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'weather-windy' : 'snowflake'} size={18}
                       color={mode.value === 'CHILLED' ? colors.chilled : colors.frozen} accessible={false} />
-                    <Text style={styles.label}>{mode.label}</Text><SelectionCheck selected={storageMode === mode.value} />
+                    <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{mode.label}</Text><SelectionCheck selected={storageMode === mode.value} />
                   </FeedbackPressable>
                 ))}
-              </View>
+              </ScrollView>
             ) : null}
             {current.id === 'opening' ? openingDoors.map(door => (
-              <View key={door.id} accessibilityRole="radiogroup" accessibilityLabel={`${door.label} 여는 방식`} style={styles.choices}>
+              <ScrollView key={door.id} horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
+                accessibilityRole="radiogroup" accessibilityLabel={`${door.label} 여는 방식`} style={styles.choicesViewport} contentContainerStyle={styles.choices}>
                 {doorOpeningOptions.map(option => (
                   <FeedbackPressable key={option.value} accessibilityRole="radio" disabled={disabled}
                     accessibilityLabel={`${door.label} ${option.label}`}
                     accessibilityState={{ checked: door.opening === option.value, disabled }}
                     onPress={() => onOpeningChange(door.id, option.value)} style={[styles.choice, door.opening === option.value && styles.selected]}>
                     <MaterialDesignIcons name={openingIcons[option.value]} size={18} color={colors.text} accessible={false} />
-                    <Text style={styles.label}>{option.label}</Text><SelectionCheck selected={door.opening === option.value} />
+                    <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{option.label}</Text><SelectionCheck selected={door.opening === option.value} />
                   </FeedbackPressable>
                 ))}
-              </View>
+              </ScrollView>
             )) : null}
             {current.id === 'slots' ? (
               <>
@@ -116,47 +116,33 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
                 </View>
                 {showOpeningAction && slot ? (
                   <>
-                    <View accessibilityRole="radiogroup" accessibilityLabel="분할할 칸 선택" style={styles.choices}>
+                    <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
+                      accessibilityRole="radiogroup" accessibilityLabel="분할할 칸 선택" style={styles.choicesViewport} contentContainerStyle={styles.choices}>
                       {slots.map((_, index) => (
                         <FeedbackPressable key={index} accessibilityRole="radio" accessibilityLabel={getSlotName(index)}
                           disabled={disabled} accessibilityState={{ checked: index === selectedSlotIndex, disabled }}
                           onPress={() => onSlotSelect(index)} style={[styles.choice, index === selectedSlotIndex && styles.selected]}>
-                          <Text style={styles.label}>{index + 1}번째 칸</Text>
+                          <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{index + 1}번째 칸</Text>
                         </FeedbackPressable>
                       ))}
-                    </View>
+                    </ScrollView>
                     <SlotStructureSelector label={`${getSlotName(selectedSlotIndex)} 분할`} accessibilityLabel={`${location} ${getSlotName(selectedSlotIndex)}`}
-                      value={slot.drawerCount} disabled={disabled} onChange={onSlotStructureChange} />
+                      value={slot.drawerCount} disabled={disabled} scrollable onChange={onSlotStructureChange} />
                   </>
                 ) : null}
               </>
             ) : null}
             {current.id === 'storage' ? (
-              <View accessibilityRole="radiogroup" accessibilityLabel="문 수납 사용" style={styles.choices}>
+              <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
+                accessibilityRole="radiogroup" accessibilityLabel="문 수납 사용" style={styles.choicesViewport} contentContainerStyle={styles.choices}>
                 {[{ value: true, label: '사용' }, { value: false, label: '사용 안 함' }].map(option => (
                   <FeedbackPressable key={option.label} accessibilityRole="radio" accessibilityLabel={`문 수납 ${option.label}`}
                     disabled={disabled} accessibilityState={{ checked: storageEnabled === option.value, disabled }}
                     onPress={() => onStorageChange(option.value)} style={[styles.choice, storageEnabled === option.value && styles.selected]}>
-                    <Text style={styles.label}>{option.label}</Text><SelectionCheck selected={storageEnabled === option.value} />
+                    <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{option.label}</Text><SelectionCheck selected={storageEnabled === option.value} />
                   </FeedbackPressable>
                 ))}
-              </View>
-            ) : null}
-            {current.id === 'connection' ? (
-              <View style={styles.choices}>
-                {onMerge ? <FeedbackPressable accessibilityRole="button" accessibilityLabel="이웃 본체와 합치기"
-                  accessibilityHint={mergeLimitExceeded ? `합치기는 두 본체의 칸이 합계 ${MAX_SLOTS}개 이하일 때 가능해요.` : undefined}
-                  accessibilityState={{ disabled: disabled || mergeDisabled }} disabled={disabled || mergeDisabled}
-                  onPress={onMerge} style={styles.choice}>
-                  <MaterialDesignIcons name="arrow-collapse-horizontal" size={18} color={colors.text} accessible={false} />
-                  <Text style={styles.label}>합치기</Text>
-                </FeedbackPressable> : null}
-                {onSplit ? <FeedbackPressable accessibilityRole="button" accessibilityLabel="문별로 본체 분리"
-                  accessibilityState={{ disabled }} disabled={disabled} onPress={onSplit} style={styles.choice}>
-                  <MaterialDesignIcons name="arrow-expand-horizontal" size={18} color={colors.text} accessible={false} />
-                  <Text style={styles.label}>분리</Text>
-                </FeedbackPressable> : null}
-              </View>
+              </ScrollView>
             ) : null}
           </ScrollView>
         </View>
@@ -177,6 +163,15 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
             </FeedbackPressable>
           );
         })}
+        {onMerge || onSplit ? (
+          <FeedbackPressable accessibilityRole="button" accessibilityLabel={onSplit ? '문별로 본체 분리' : '이웃 본체와 합치기'}
+            accessibilityHint={!onSplit && mergeLimitExceeded ? `합치기는 두 본체의 칸이 합계 ${MAX_SLOTS}개 이하일 때 가능해요.` : undefined}
+            accessibilityState={{ disabled: disabled || (!onSplit && mergeDisabled) }} disabled={disabled || (!onSplit && mergeDisabled)}
+            onPress={onSplit ?? onMerge} style={styles.action}>
+            <MaterialDesignIcons name={onSplit ? 'arrow-expand-horizontal' : 'arrow-collapse-horizontal'} size={18} color={colors.text} accessible={false} />
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.label}>{onSplit ? '분리' : '합치기'}</Text>
+          </FeedbackPressable>
+        ) : null}
       </View>
     </View>
   );
@@ -246,18 +241,25 @@ const styles = StyleSheet.create({
     borderTopColor: '#000000',
   },
   choices: {
+    flexGrow: 1,
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingBottom: spacing.md,
     gap: spacing.xs,
   },
+  choicesViewport: {
+    flexGrow: 0,
+  },
   choice: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
     minWidth: 0,
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: 8,
     borderWidth: 1,
@@ -270,6 +272,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  choiceLabel: {
+    flexShrink: 0,
   },
   selected: {
     borderColor: colors.chilled,

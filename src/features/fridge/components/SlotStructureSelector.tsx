@@ -5,7 +5,7 @@
  * 입력 상태 갱신과 칸의 자동 위치 안내는 호출자가 담당한다.
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { colors, spacing } from '@/theme/tokens';
@@ -23,6 +23,8 @@ interface SlotStructureSelectorProps {
   accessibilityLabel?: string;
   value: DrawerCount;
   disabled?: boolean;
+  // 툴바의 좁은 하위 영역에서는 버튼 너비를 유지하고 좌우로 이동한다.
+  scrollable?: boolean;
   onChange: (value: DrawerCount) => void;
 }
 
@@ -33,26 +35,29 @@ interface SlotStructureSelectorProps {
  * @param props.accessibilityLabel 선택 버튼을 구분할 칸 번호·경로. 생략하면 label을 사용한다.
  * @param props.value 기존 값 0·1은 분할 없음, 2는 좌우 2칸으로 표시한다.
  * @param props.disabled 저장 중 선택 변경을 막을지 여부.
+ * @param props.scrollable 좁은 툴바에서 버튼 너비를 유지하고 좌우 이동을 허용할지 여부.
  * @param props.onChange 선택한 분할을 부모의 입력 상태에 반영할 콜백.
  * @returns 가로 분할 구조 선택 버튼.
  */
-export function SlotStructureSelector({ label, accessibilityLabel = label, value, disabled, onChange }: SlotStructureSelectorProps) {
+export function SlotStructureSelector({ label, accessibilityLabel = label, value, disabled, scrollable = false, onChange }: SlotStructureSelectorProps) {
   const selectedValue = value === 2 ? 2 : 0;
+  const options = structureOptions.map(option => (
+    <FeedbackPressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${option.label}`}
+      accessibilityState={{ checked: selectedValue === option.value, disabled: !!disabled }} disabled={disabled}
+      onPress={() => onChange(option.value)} style={[styles.option, selectedValue === option.value && styles.selected]}>
+      <MaterialDesignIcons name={option.icon} size={18} color={colors.text} accessible={false} />
+      <Text numberOfLines={1} style={[styles.label, styles.optionLabel]}>{option.label}</Text>
+      <SelectionCheck selected={selectedValue === option.value} />
+    </FeedbackPressable>
+  ));
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       {/* 칸별로 같은 선택지가 반복되므로 접근성 이름에는 부모가 전달한 칸 번호·경로를 함께 넣는다. */}
-      <View style={styles.options}>
-        {structureOptions.map(option => (
-          <FeedbackPressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${option.label}`}
-            accessibilityState={{ checked: selectedValue === option.value, disabled: !!disabled }} disabled={disabled}
-            onPress={() => onChange(option.value)} style={[styles.option, selectedValue === option.value && styles.selected]}>
-            <MaterialDesignIcons name={option.icon} size={18} color={colors.text} accessible={false} />
-            <Text numberOfLines={1} style={[styles.label, styles.optionLabel]}>{option.label}</Text>
-            <SelectionCheck selected={selectedValue === option.value} />
-          </FeedbackPressable>
-        ))}
-      </View>
+      {scrollable ? (
+        <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
+          style={styles.optionsViewport} contentContainerStyle={[styles.options, styles.scrollOptions]}>{options}</ScrollView>
+      ) : <View style={styles.options}>{options}</View>}
     </View>
   );
 }
@@ -65,7 +70,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
   },
+  optionsViewport: {
+    flexGrow: 0,
+  },
+  scrollOptions: {
+    flexGrow: 1,
+    alignItems: 'flex-start',
+    paddingBottom: spacing.md,
+  },
   option: {
+    flexShrink: 0,
     minWidth: 0,
     minHeight: 44,
     padding: spacing.xs,
