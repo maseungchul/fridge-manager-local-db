@@ -79,12 +79,15 @@ export function RefrigeratorRegistrationScreen({
     || body.doorIds.some(id => id === selectedAreaId)) ?? selectedRow.compartments[0];
   const openingDoors = selectedRow.doors.filter(door => selectedBody.doorIds.includes(door.id));
   const isMergedBody = selectedBody.doorIds.length > 1;
+  const isDrawerBody = !selectedDoor && openingDoors.some(door => door.kind === 'DRAWER');
+  const canEditSlotStructure = !selectedDoor && !isDrawerBody;
   const selectedArea = selectedDoor ?? selectedBody;
   const maxSlotCount = selectedDoor ? MAX_DOOR_SLOTS : MAX_SLOTS;
   const selectedType = selectedDoor?.side ?? 'BODY';
   const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id);
   const bodyLocation = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedBody.id);
   const adjacentBody = getAdjacentCompartment(selectedRow, selectedBody.id);
+  const mergeIncludesDrawer = isDrawerBody || selectedRow.doors.some(door => door.kind === 'DRAWER' && adjacentBody?.doorIds.includes(door.id));
   const mergeLimitExceeded = !!adjacentBody && selectedBody.slots.length + adjacentBody.slots.length > MAX_SLOTS;
   const storageEnabled = !selectedDoor || selectedDoor.storageEnabled;
   const preview = getDraftLayout(draft);
@@ -229,7 +232,7 @@ export function RefrigeratorRegistrationScreen({
   }
 
   function updateSlots(update: (slots: SlotConfiguration[]) => SlotConfiguration[]) {
-    if (!storageEnabled) return;
+    if (!storageEnabled || isDrawerBody) return;
     setDraft(current => ({ ...current, rows: current.rows.map(row => row.id !== selectedRow.id ? row : {
       ...row,
       doors: row.doors.map(door => door.id === selectedArea.id ? { ...door, slots: update(door.slots) } : door),
@@ -431,7 +434,7 @@ export function RefrigeratorRegistrationScreen({
                     storageEnabled={selectedAreaId ? selectedDoor?.storageEnabled : false}
                     onToggleStorage={() => updateDoorStorage(!storageEnabled)}
                     onOpeningChange={selectDoorOpening}
-                    onMerge={selectedAreaId && !selectedDoor && !isMergedBody
+                    onMerge={selectedAreaId && !selectedDoor && !isMergedBody && !mergeIncludesDrawer
                       ? () => {
                         setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id));
                         setFocusTarget(current => current ? { ...current, returnAreaId: selectedBody.doorIds[0] } : current);
@@ -456,8 +459,8 @@ export function RefrigeratorRegistrationScreen({
           </Animated.View>
           <KeyboardAvoidingView style={styles.settingsKeyboard} pointerEvents="box-none" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <Animated.View style={[styles.settingsPanel, {
-              height: selectedDoor ? undefined : panelHeight, maxHeight: panelHeight,
-              paddingBottom: selectedDoor ? Math.max(insets.bottom, spacing.md) : 0,
+              height: canEditSlotStructure ? panelHeight : undefined, maxHeight: panelHeight,
+              paddingBottom: canEditSlotStructure ? 0 : Math.max(insets.bottom, spacing.md),
               transform: [{ translateY: settingsAnimation.interpolate({ inputRange: [0, 1], outputRange: [panelHeight, 0] }) }],
             }]} accessibilityViewIsModal onAccessibilityEscape={closeAreaSettings}>
               <View style={styles.settingsHeader}>
@@ -466,7 +469,7 @@ export function RefrigeratorRegistrationScreen({
                 </Text>
                 <SecondaryButton label="닫기" icon="close" accessibilityLabel="내부 설정 패널 닫기" onPress={closeAreaSettings} />
               </View>
-              {/* 미리보기 오른쪽에 칸 개수·본체 보관 모드를 고정하고, 아래에서는 본체 칸의 분할만 편집한다. */}
+              {/* 미리보기 오른쪽에 칸 개수·보관 모드를 두고, 서랍형은 보관 모드만 편집한다. */}
               <View style={[styles.settingsPreview, { minHeight: Math.min(168, windowHeight * 0.22) }]}>
                 <View style={styles.structurePreview}>
                   {selectedDoor && !storageEnabled ? (
@@ -494,7 +497,7 @@ export function RefrigeratorRegistrationScreen({
                         </FeedbackPressable>
                       ))}
                     </View>
-                    <View style={styles.sectionHeader}>
+                    {!isDrawerBody ? <View style={styles.sectionHeader}>
                       <View style={styles.counterGroup}>
                         <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 줄이기`}
                           disabled={selectedArea.slots.length <= 1} onPress={() => changeSlotCount(-1)}
@@ -509,7 +512,7 @@ export function RefrigeratorRegistrationScreen({
                         </FeedbackPressable>
                       </View>
                       <Text style={[styles.description, styles.counterDescription]}>{`칸은 1~${maxSlotCount}개까지 등록할 수 있어요.`}</Text>
-                    </View>
+                    </View> : null}
                   </View>
                 ) : null}
               </View>
@@ -517,7 +520,7 @@ export function RefrigeratorRegistrationScreen({
                 <View style={styles.settingsContent}>
                   <Text style={styles.description}>이 문에는 수납칸이 없습니다. 수납 사용을 켜면 다시 구성할 수 있어요.</Text>
                 </View>
-              ) : !selectedDoor ? (
+              ) : canEditSlotStructure ? (
                 <ScrollView key={selectedArea.id} style={styles.scroll}
                   contentContainerStyle={[styles.settingsContent, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
                   <View>

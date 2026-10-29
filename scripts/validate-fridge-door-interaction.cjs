@@ -1642,6 +1642,77 @@ test('이름 입력 없이 본체 칸의 분할을 편집하고 포켓은 개수
   screen.unmount();
 });
 
+test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·기존 입력을 유지한다', () => {
+  for (const drawerIndex of [0, 1]) {
+    const { screen, viewport, row, target } = registrationFixture(2);
+    viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+    const focus = () => find(screen.tree, named('FridgeFocusView'));
+    const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu').props;
+    const panel = () => find(screen.tree, node => node.props.accessibilityViewIsModal);
+    const draft = () => find(screen.tree, named('FridgeInteriorMap')).props.draft;
+    const openBody = index => {
+      find(screen.tree, named('FridgeInteriorMap')).props.onFocus({ ...target,
+        areaId: row.compartments[index].id, returnAreaId: row.doors[index].id });
+      screen.render();
+      focus().props.onPhaseChange('open');
+      screen.render();
+    };
+    const openSettings = () => { menu().onOpenSettings(); screen.render(); };
+    const closeSettings = () => {
+      panel().props.onAccessibilityEscape();
+      animations.at(-1).finish();
+      screen.render();
+    };
+    openBody(drawerIndex);
+    openSettings();
+    find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
+    screen.render();
+    find(panel(), node => node.type === 'SlotStructureSelector').props.onChange(2);
+    screen.render();
+    const originalSlots = structuredClone(draft().rows[0].compartments[drawerIndex].slots);
+    closeSettings();
+    menu().onOpeningChange(row.doors[drawerIndex].id, 'DRAWER');
+    screen.render();
+    assert.equal(menu().onMerge, undefined);
+    assert.equal(find(FridgeAreaMenu(menu()), node => node.props.accessibilityLabel === '이웃 본체와 합치기'), undefined);
+    openSettings();
+    assert.equal(find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')), undefined);
+    assert.equal(find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 줄이기')), undefined);
+    assert.equal(find(panel(), node => node.type === 'SlotStructureSelector'), undefined);
+    assert.equal(find(panel(), node => node.type === 'ScrollView'), undefined);
+    assert.equal(flattenStyle(panel().props.style).height, undefined);
+    assert.equal(flattenStyle(panel().props.style).paddingBottom, 34);
+    const modes = findAll(panel(), node => node.props.accessibilityRole === 'radio');
+    assert.equal(modes.length, 2);
+    assert(modes.every(mode => !mode.props.disabled));
+    modes[1].props.onPress();
+    screen.render();
+    assert.equal(draft().rows[0].compartments[drawerIndex].storageMode, 'FROZEN');
+    assert.deepEqual(draft().rows[0].compartments[drawerIndex].slots, originalSlots);
+    closeSettings();
+    menu().onOpeningChange(row.doors[drawerIndex].id, row.doors[drawerIndex].side);
+    screen.render();
+    assert.equal(typeof menu().onMerge, 'function');
+    openSettings();
+    assert(find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')));
+    assert.equal(findAll(panel(), node => node.type === 'SlotStructureSelector').length, 2);
+    assert.deepEqual(draft().rows[0].compartments[drawerIndex].slots, originalSlots);
+    closeSettings();
+    menu().onOpeningChange(row.doors[drawerIndex].id, 'DRAWER');
+    screen.render();
+    focus().props.onClose();
+    screen.render();
+    focus().props.onPhaseChange('closed');
+    screen.render();
+    openBody(1 - drawerIndex);
+    assert.equal(menu().onMerge, undefined);
+    openSettings();
+    assert(find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')));
+    assert.equal(findAll(panel(), node => node.type === 'SlotStructureSelector').length, 1);
+    screen.unmount();
+  }
+});
+
 test('포켓은 3칸·본체는 4칸까지만 추가하고 최소 한 칸과 기존 입력을 유지한다', () => {
   const { screen, viewport, map, target, row } = registrationFixture();
   viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
