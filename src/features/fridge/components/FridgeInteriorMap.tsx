@@ -160,11 +160,14 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   const faceHeight = style.height - verticalPadding * 2;
   const artSize = Math.max(14, Math.min(56, leafWidth * 0.32, faceHeight * 0.28));
   const modeStyle = getFridgeSurfaceStyle(storageMode, 'exterior');
+  const contactColor = '#c0c9cf';
   const gridCorners = gridEdges ? getGridCorners(gridEdges) : undefined;
   const backCorners = gridEdges ? getGridCorners(gridEdges, true) : undefined;
   const gridStyle: ViewStyle | undefined = gridEdges ? {
-    ...gridCorners, borderWidth: 1, borderTopWidth: closed && gridEdges.top ? 0 : 1,
-    borderLeftWidth: gridEdges.left ? 0 : 1, boxShadow: [],
+    ...gridCorners, borderWidth: 0,
+    ...(gridEdges.right && { borderRightWidth: 4, borderRightColor: contactColor }),
+    ...(gridEdges.bottom && { borderBottomWidth: 4, borderBottomColor: contactColor }),
+    boxShadow: [],
   } : undefined;
 
   return (
@@ -738,7 +741,7 @@ const styles = StyleSheet.create({
   },
   exteriorFace: {
     flex: 1,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: fridgeSurfaces.border,
     borderRadius: fridgeSurfaces.radius,
     backgroundColor: fridgeSurfaces.exterior,

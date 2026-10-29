@@ -42,7 +42,7 @@ export const colors = {
 // 냉장고 도면은 흰 프레임 안에 모드별 배경과 밝은 수납함을 배치하고, 옅은 음영으로 두께를 표현한다.
 export const fridgeSurfaces = {
   border: '#BED6C9',
-  exterior: '#EAF3EC',
+  exterior: '#D8E0DA',
   interior: '#FFFFFF',
   frame: '#D8E2DC',
   frameWidth: 6,
@@ -74,11 +74,11 @@ export const fridgeSurfaces = {
 // 문 앞면은 밝게, 열린 내부는 한 톤 진하게 구분하고 포켓 전면판은 밝은 반투명색을 사용한다.
 export const fridgeDoorColors = {
   CHILLED: {
-    background: '#EAF4EE', border: '#BED8CB', ink: '#416B57', motif: '#648F7A',
+    background: '#D4E6DB', border: '#BED8CB', ink: '#416B57', motif: '#648F7A',
     frame: '#CEDFD5', shelf: '#92B5A2', pocket: '#F1FAF4CC', pocketBorder: '#A7C5B4', handle: '#B4CBC0',
   },
   FROZEN: {
-    background: '#E8F3FB', border: '#BDD7E8', ink: '#396B90', motif: '#648FAF',
+    background: '#D3E4F1', border: '#BDD7E8', ink: '#396B90', motif: '#648FAF',
     frame: '#CEDFEC', shelf: '#94B8D2', pocket: '#F1F9FFCC', pocketBorder: '#A7C5DA', handle: '#B5CBD9',
   },
 } as const;
