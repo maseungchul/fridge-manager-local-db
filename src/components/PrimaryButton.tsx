@@ -15,6 +15,7 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 interface PrimaryButtonProps {
   label: string;
   icon?: ComponentProps<typeof MaterialDesignIcons>['name'];
+  iconColor?: ComponentProps<typeof MaterialDesignIcons>['color'];
   onPress: PressableProps['onPress'];
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
@@ -28,6 +29,7 @@ interface PrimaryButtonProps {
 export function PrimaryButton({
   label,
   icon,
+  iconColor,
   onPress,
   variant = 'primary',
   disabled = false,
@@ -58,7 +60,7 @@ export function PrimaryButton({
         <ActivityIndicator color={variant === 'secondary' ? colors.text : colors.buttonText} />
       ) : (
         <>
-          {icon ? <MaterialDesignIcons name={icon} size={20} color={variant === 'secondary' ? colors.text : colors.buttonText}
+          {icon ? <MaterialDesignIcons name={icon} size={20} color={iconColor ?? (variant === 'secondary' ? colors.text : colors.buttonText)}
             accessible={false} style={styles.icon} /> : null}
           <Text style={[styles.text, variant === 'secondary' && styles.secondaryText, labelStyle]}>{label}</Text>
         </>

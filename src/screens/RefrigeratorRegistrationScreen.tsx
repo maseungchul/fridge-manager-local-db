@@ -358,7 +358,8 @@ export function RefrigeratorRegistrationScreen({
                           </View>
                           <View style={styles.structureEditor}>
                             <View style={styles.structureLabels} />
-                            <PrimaryButton label="단 추가" icon="plus" variant="secondary" style={styles.addRowButton}
+                            <PrimaryButton label="단 추가" icon="plus" iconColor={colors.chilled} variant="secondary"
+                              style={[styles.addRowButton, { width: structurePreviewWidth }]}
                               labelStyle={styles.addRowLabel}
                               disabled={draft.rows.length >= MAX_ROWS}
                               onPress={() => { Keyboard.dismiss(); setDraft(addDraftRow); }} />
@@ -627,15 +628,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   addRowLabel: {
+    color: colors.chilled,
     fontSize: 14,
+    fontWeight: '600',
   },
   addRowButton: {
-    flex: 1,
-    maxWidth: 144,
-    height: 50,
-    borderRadius: 16,
+    height: 44,
+    borderRadius: 12,
     borderWidth: 0,
-    backgroundColor: 'transparent',
+    backgroundColor: colors.chilledBackground,
   },
   label: {
     color: colors.text,
