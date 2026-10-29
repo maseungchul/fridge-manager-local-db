@@ -94,6 +94,7 @@ let mapModule;
 let interiorModule;
 let structureModule;
 let menuModule;
+let quantityStepperModule;
 function loadComponent(path) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: {
@@ -108,6 +109,7 @@ function loadComponent(path) {
     '@/components/SelectionCheck': { SelectionCheck: 'SelectionCheck' },
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
+    '@/components/QuantityStepper': quantityStepperModule,
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
     '@/features/fridge/components/FridgeInteriorMap': interiorModule,
@@ -123,6 +125,7 @@ function loadComponent(path) {
   new Function('require', 'module', 'exports', output)(name => name in dependencies ? dependencies[name] : require(name), module, module.exports);
   return module.exports;
 }
+quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
 structureModule = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
@@ -130,7 +133,8 @@ const { FridgeInteriorMap, FridgeFocusView, getFridgeFocusGeometry } = interiorM
 menuModule = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
 const { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } = menuModule;
 const { RefrigeratorRegistrationScreen } = loadComponent('src/screens/RefrigeratorRegistrationScreen.tsx');
-const children = node => [node?.props?.children].flat(Infinity).filter(child => child?.type);
+const children = node => node?.type === quantityStepperModule.QuantityStepper
+  ? [node.type(node.props)] : [node?.props?.children].flat(Infinity).filter(child => child?.type);
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 function find(node, predicate) {
   if (predicate(node)) return node;
@@ -1933,6 +1937,7 @@ test('포켓은 3칸·본체는 4칸까지만 추가하고 최소 한 칸과 기
     }
     assert.equal(counter('늘리기').props.disabled, true);
     assert.equal(find(screen.tree, node => node.type === 'FridgeAreaMenu').props.maxSlotCount, limit);
+    assert.equal(find(toolbarTree(screen), node => node.props.accessibilityLiveRegion === 'polite').props.children.join(''), `${limit}칸`);
     counter('늘리기').props.onPress();
     screen.render();
     assert.equal(area().slots.length, limit);
@@ -1942,6 +1947,7 @@ test('포켓은 3칸·본체는 4칸까지만 추가하고 최소 한 칸과 기
       screen.render();
     }
     assert.equal(counter('줄이기').props.disabled, true);
+    assert.equal(find(toolbarTree(screen), node => node.props.accessibilityLiveRegion === 'polite').props.children.join(''), '1칸');
     counter('줄이기').props.onPress();
     screen.render();
     assert.deepEqual(area().slots, beforeSlots.slice(0, 1));

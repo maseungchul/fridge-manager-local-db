@@ -17,6 +17,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
+import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantityStepper';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeFocusView, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase, FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
@@ -39,7 +40,7 @@ type RefrigeratorRegistrationScreenProps = NativeStackScreenProps<
 type RegistrationStep = 'basic' | 'configuration';
 
 const STRUCTURE_LABEL_WIDTH = 24;
-const STRUCTURE_CONTROL_WIDTH = 148;
+const STRUCTURE_CONTROL_WIDTH = QUANTITY_STEPPER_WIDTH + 8 + 32;
 const STRUCTURE_PREVIEW_MAX_WIDTH = 144;
 
 export function RefrigeratorRegistrationScreen({
@@ -343,19 +344,9 @@ export function RefrigeratorRegistrationScreen({
                             <View style={styles.structureControls}>
                               {draft.rows.map((row, index) => (
                                 <View key={row.id} style={styles.structureRow}>
-                                  <View style={styles.counterGroup}>
-                                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 줄이기`} disabled={row.doors.length <= 1}
-                                      onPress={() => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, -1)); }}
-                                      style={styles.counterButton}>
-                                      <MaterialDesignIcons name="minus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
-                                    </FeedbackPressable>
-                                    <Text accessibilityLiveRegion="polite" style={styles.structureCount}>문 {row.doors.length}개</Text>
-                                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${index + 1}단 문 늘리기`} disabled={row.doors.length >= MAX_DOORS_PER_ROW}
-                                      onPress={() => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, 1)); }}
-                                      style={styles.counterButton}>
-                                      <MaterialDesignIcons name="plus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
-                                    </FeedbackPressable>
-                                  </View>
+                                  <QuantityStepper value={row.doors.length} maximum={MAX_DOORS_PER_ROW} unit="도어"
+                                    accessibilityLabel={`${index + 1}단 문`}
+                                    onChange={delta => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, delta)); }} />
                                   <FeedbackPressable feedback="danger" accessibilityRole="button" accessibilityLabel={`${index + 1}단 삭제`} disabled={draft.rows.length <= 1}
                                     onPress={() => { Keyboard.dismiss(); setDraft(current => removeDraftRow(current, row.id)); }}
                                     style={styles.deleteRowButton}>
@@ -619,27 +610,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  counterGroup: {
-    width: 108,
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  structureCount: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  counterButton: {
-    width: 32,
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   // 기존 프로젝트와 같은 줄 높이·폰트 여백 설정으로 아이콘의 중앙을 맞춘다.
   controlIcon: {

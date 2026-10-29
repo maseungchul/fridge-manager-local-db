@@ -7,6 +7,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
+import { QuantityStepper } from '@/components/QuantityStepper';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import { doorOpeningOptions, getSlotName, MAX_SLOTS, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
@@ -107,17 +108,8 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
             {current.id === 'slots' ? (
               <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
                 accessibilityLabel="칸 개수와 선택한 칸의 분할" style={styles.choicesViewport} contentContainerStyle={styles.choices}>
-                <View style={styles.counter}>
-                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} 칸 줄이기`}
-                    disabled={disabled || slots.length <= 1} onPress={() => onSlotCountChange(-1)} style={styles.counterButton}>
-                    <MaterialDesignIcons name="minus" size={20} color={colors.text} accessible={false} />
-                  </FeedbackPressable>
-                  <Text numberOfLines={1} accessibilityLiveRegion="polite" style={styles.count}>칸 {slots.length}개</Text>
-                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} 칸 늘리기`}
-                    disabled={disabled || slots.length >= maxSlotCount} onPress={() => onSlotCountChange(1)} style={styles.counterButton}>
-                    <MaterialDesignIcons name="plus" size={20} color={colors.text} accessible={false} />
-                  </FeedbackPressable>
-                </View>
+                <QuantityStepper value={slots.length} maximum={maxSlotCount} unit="칸"
+                  accessibilityLabel={`${location} 칸`} disabled={disabled} onChange={onSlotCountChange} />
                 {showOpeningAction && slot ? (
                   <SlotStructureSelector label={`${getSlotName(selectedSlotIndex)} 분할`} accessibilityLabel={`${location} ${getSlotName(selectedSlotIndex)}`}
                     value={slot.drawerCount} disabled={disabled} inline onChange={onSlotStructureChange} />
@@ -276,30 +268,5 @@ const styles = StyleSheet.create({
   selected: {
     borderColor: colors.chilled,
     backgroundColor: colors.sageLight,
-  },
-  counter: {
-    flexShrink: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  counterButton: {
-    flexShrink: 0,
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  count: {
-    minWidth: 72,
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
   },
 });
