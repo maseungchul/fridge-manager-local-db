@@ -2,7 +2,7 @@
  * @file
  * 냉장고 최초 등록을 기본 정보·구조 선택과 내부 설정의 두 단계로 나눈다.
  * 단별 문 개수로 배치를 만들고 문 수납·본체 연결·내부 칸 설정을 제공한다.
- * 구조는 하단 툴바에서, 칸·보관 모드는 하단 패널에서 편집하고 초안에 즉시 반영한다.
+ * 여는 방식·보관 모드·칸·본체 연결을 하단 카테고리에서 편집하고 초안에 즉시 반영한다.
  * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
  * 단계 이동 시 입력을 유지하고 취소 시 홈으로 돌아가며, DB 저장은 별도로 연결한다.
  */
@@ -10,24 +10,22 @@ import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { LayoutChangeEvent, LayoutRectangle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
-import { SelectionCheck } from '@/components/SelectionCheck';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
-import { DoorWithoutStorage, FridgeFocusView, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
+import { FridgeFocusView, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase, FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
 import { FridgeAreaMenu } from '@/features/fridge/components/FridgeAreaMenu';
-import { FridgeMap } from '@/features/fridge/components/FridgeMap';
-import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
+import type { FridgeMenuCategory } from '@/features/fridge/components/FridgeAreaMenu';
 import {
   addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft,
-  getAdjacentCompartment, getDraftAreaLocation, getDraftLayout, getSlotName, MAX_DOOR_SLOTS, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
-  removeDraftRow, setDraftDoorOpening, splitDraftCompartment, storageModeOptions,
+  getAdjacentCompartment, getDraftAreaLocation, getSlotName, MAX_DOOR_SLOTS, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
+  removeDraftRow, setDraftDoorOpening, splitDraftCompartment,
 } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
@@ -48,12 +46,12 @@ export function RefrigeratorRegistrationScreen({
   navigation,
 }: RefrigeratorRegistrationScreenProps) {
   const insets = useSafeAreaInsets();
-  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
   const [draft, setDraft] = useState(createRefrigeratorDraft);
   const [step, setStep] = useState<RegistrationStep>('basic');
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
-  const [isOpeningSettingsOpen, setIsOpeningSettingsOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [menuCategory, setMenuCategory] = useState<FridgeMenuCategory | null>(null);
+  const [slotIndex, setSlotIndex] = useState(0);
   const [hasSeenScrollHint, setHasSeenScrollHint] = useState(false);
   const [isStepChanging, setIsStepChanging] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
@@ -66,7 +64,6 @@ export function RefrigeratorRegistrationScreen({
   const focusViewport = useRef<View>(null);
   const focusViewportSize = useRef<{ width: number; height: number } | null>(null);
   const cancelRequested = useRef(false);
-  const settingsAnimation = useRef(new Animated.Value(0)).current;
   const stepAnimation = useRef(new Animated.Value(0)).current;
   const stepChanging = useRef(false);
   const stepScrolls = {
@@ -85,14 +82,18 @@ export function RefrigeratorRegistrationScreen({
   const maxSlotCount = selectedDoor ? MAX_DOOR_SLOTS : MAX_SLOTS;
   const selectedType = selectedDoor?.side ?? 'BODY';
   const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id);
-  const bodyLocation = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedBody.id);
   const adjacentBody = getAdjacentCompartment(selectedRow, selectedBody.id);
   const mergeIncludesDrawer = isDrawerBody || selectedRow.doors.some(door => door.kind === 'DRAWER' && adjacentBody?.doorIds.includes(door.id));
   const mergeLimitExceeded = !!adjacentBody && selectedBody.slots.length + adjacentBody.slots.length > MAX_SLOTS;
   const storageEnabled = !selectedDoor || selectedDoor.storageEnabled;
-  const preview = getDraftLayout(draft);
-  const previewArea = preview.areas.find(area => area.id === selectedArea.id)!;
-  const panelHeight = windowHeight * 0.75;
+  const selectedSlotIndex = Math.min(slotIndex, selectedArea.slots.length - 1);
+  // 선택 대상에서 사용할 수 없는 하위 설정은 감추고, 해당 대상으로 돌아오면 다시 표시한다.
+  const activeMenuCategory = menuCategory === 'mode' && selectedDoor
+    || menuCategory === 'opening' && (selectedDoor || isMergedBody)
+    || menuCategory === 'slots' && (isDrawerBody || !storageEnabled)
+    || menuCategory === 'storage' && !selectedDoor
+    || menuCategory === 'connection' && (selectedDoor || (!isMergedBody && mergeIncludesDrawer))
+    ? null : menuCategory;
   const activeFocus = focusPhase === 'closed' ? null : focusTarget;
   const isFocusMoving = focusPhase === 'opening' || focusPhase === 'closing';
   const finishFocusTransition = useCallback((phase: FridgeFocusPhase) => {
@@ -105,20 +106,17 @@ export function RefrigeratorRegistrationScreen({
   useEffect(() => () => {
     stepChanging.current = false;
     stepAnimation.stopAnimation();
-    settingsAnimation.stopAnimation();
-  }, [settingsAnimation, stepAnimation]);
+  }, [stepAnimation]);
 
-  // 기기 뒤로가기는 내부 설정·중앙 보기·여는 방식·이전 단계 순서로 닫는다.
+  // 기기 뒤로가기는 하위 설정·중앙 보기·이전 단계 순서로 닫는다.
   usePreventRemove(step === 'configuration' || isStepChanging, ({ data }) => {
     if (cancelRequested.current) {
       cancelRequested.current = false;
       navigation.dispatch(data.action);
     } else if (stepChanging.current || isFocusMoving) {
       return;
-    } else if (isSettingsOpen) {
-      closeAreaSettings();
-    } else if (isOpeningSettingsOpen && !selectedDoor && !isMergedBody) {
-      setIsOpeningSettingsOpen(false);
+    } else if (activeMenuCategory) {
+      setMenuCategory(null);
     } else if (activeFocus) {
       closeFocusedArea();
     } else {
@@ -140,10 +138,8 @@ export function RefrigeratorRegistrationScreen({
   function changeStep(nextStep: RegistrationStep) {
     if (stepChanging.current || nextStep === step) return;
     Keyboard.dismiss();
-    settingsAnimation.stopAnimation();
-    settingsAnimation.setValue(0);
-    setIsSettingsOpen(false);
-    setIsOpeningSettingsOpen(false);
+    setMenuCategory(null);
+    setSlotIndex(0);
     setSelectedAreaId(null);
     setFocusPhase('closed');
     stepScrolls[nextStep].current?.scrollTo({ y: 0, animated: false });
@@ -164,6 +160,7 @@ export function RefrigeratorRegistrationScreen({
 
   function selectArea(id: string) {
     Keyboard.dismiss();
+    if (id !== selectedAreaId) setSlotIndex(0);
     setSelectedAreaId(id);
   }
 
@@ -184,6 +181,7 @@ export function RefrigeratorRegistrationScreen({
       setFocusBounds({ x, y, ...(focusViewportSize.current ?? { width, height }) });
       setFocusTarget(target);
       setSelectedAreaId(target.areaId);
+      setSlotIndex(0);
       setFocusPhase('opening');
     });
   }
@@ -191,28 +189,6 @@ export function RefrigeratorRegistrationScreen({
   function closeFocusedArea() {
     if (!activeFocus || focusPhase !== 'open') return;
     setFocusPhase('closing');
-  }
-
-  function openAreaSettings(id: string) {
-    if (!storageEnabled) return;
-    Keyboard.dismiss();
-    settingsAnimation.stopAnimation();
-    settingsAnimation.setValue(0);
-    setSelectedAreaId(id);
-    setIsSettingsOpen(true);
-  }
-
-  // 패널 닫기는 편집 초안을 유지하며 등록 화면의 취소와 구분한다.
-  function closeAreaSettings() {
-    Keyboard.dismiss();
-    Animated.timing(settingsAnimation, { toValue: 0, duration: 180, useNativeDriver: true }).start(({ finished }) => {
-      if (finished) setIsSettingsOpen(false);
-    });
-  }
-
-  // Modal 자체는 움직이지 않고 배경의 투명도와 패널의 위치만 각각 바꾼다.
-  function showAreaSettings() {
-    Animated.timing(settingsAnimation, { toValue: 1, duration: 240, useNativeDriver: true }).start();
   }
 
   // 문 수납을 꺼도 문 식별자·방향·칸 입력은 유지해 다시 켤 수 있다.
@@ -243,6 +219,7 @@ export function RefrigeratorRegistrationScreen({
   // 마지막 칸부터 추가·제거해 남은 칸과 다른 문·본체의 입력을 유지한다.
   function changeSlotCount(delta: -1 | 1) {
     Keyboard.dismiss();
+    if (delta === -1) setSlotIndex(index => Math.max(0, Math.min(index, selectedArea.slots.length - 2)));
     updateSlots(slots => {
       const nextCount = slots.length + delta;
       if (nextCount < 1 || nextCount > maxSlotCount) return slots;
@@ -416,7 +393,9 @@ export function RefrigeratorRegistrationScreen({
                   <FridgeFocusView draft={draft} target={activeFocus} viewport={focusBounds} overlayHeight={stepHeight} phase={focusPhase}
                     selectedAreaId={selectedAreaId ?? undefined}
                     scrollHintEnabled={!hasSeenScrollHint} onScrollHintSeen={markScrollHintSeen}
-                    scrollHintBlocked={isSettingsOpen || (isOpeningSettingsOpen && !selectedDoor && !isMergedBody)}
+                    scrollHintBlocked={activeMenuCategory !== null}
+                    selectedSlotIndex={activeMenuCategory === 'slots' && canEditSlotStructure ? selectedSlotIndex : undefined}
+                    onSelectSlot={(areaId, index) => { selectArea(areaId); setSlotIndex(index); }}
                     onPhaseChange={finishFocusTransition} onClose={closeFocusedArea} onSelectArea={selectArea} />
                 ) : null}
               </View>
@@ -424,15 +403,20 @@ export function RefrigeratorRegistrationScreen({
                 <View pointerEvents={focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={focusPhase !== 'open'}
                   importantForAccessibility={focusPhase === 'open' ? 'auto' : 'no-hide-descendants'}
                   style={[styles.configurationToolbar, { paddingBottom: insets.bottom, opacity: focusPhase === 'open' ? 1 : 0 }]}>
-                  <FridgeAreaMenu disabled={!selectedAreaId || isStepChanging || isFocusMoving} openingsOpen={isOpeningSettingsOpen}
+                  <FridgeAreaMenu disabled={!selectedAreaId || isStepChanging || isFocusMoving}
+                    activeCategory={activeMenuCategory} onCategoryChange={setMenuCategory}
                     showOpeningAction={!selectedDoor}
                     openingDisabled={isMergedBody}
-                    onOpeningsChange={setIsOpeningSettingsOpen}
                     openingDoors={openingDoors.map(door => ({ id: door.id,
                       label: `${getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), door.id)} 문`,
                       opening: door.kind === 'DRAWER' ? 'DRAWER' : door.side }))}
                     storageEnabled={selectedAreaId ? selectedDoor?.storageEnabled : false}
-                    onToggleStorage={() => updateDoorStorage(!storageEnabled)}
+                    onStorageChange={updateDoorStorage} storageMode={selectedBody.storageMode}
+                    onStorageModeChange={selectStorageMode} showSlots={!isDrawerBody}
+                    slots={selectedArea.slots} maxSlotCount={maxSlotCount} selectedSlotIndex={selectedSlotIndex}
+                    location={`${location} ${areaNames[selectedType]}`}
+                    onSlotCountChange={changeSlotCount} onSlotSelect={setSlotIndex}
+                    onSlotStructureChange={drawerCount => updateSlot(selectedSlotIndex, { drawerCount })}
                     onOpeningChange={selectDoorOpening}
                     onMerge={selectedAreaId && !selectedDoor && !isMergedBody && !mergeIncludesDrawer
                       ? () => {
@@ -443,101 +427,14 @@ export function RefrigeratorRegistrationScreen({
                     mergeLimitExceeded={mergeLimitExceeded}
                     onSplit={selectedAreaId && !selectedDoor && isMergedBody
                       ? () => setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id, activeFocus.returnAreaId)) : undefined}
-                    onOpenSettings={() => openAreaSettings(selectedArea.id)} />
+                  />
                 </View>
               ) : null}
             </View>
           ))}
         </Animated.View>
       </View>
-      {/* 설정값은 화면의 draft에 반영하므로 패널을 닫아도 입력은 유지한다. */}
-      <Modal visible={step === 'configuration' && isSettingsOpen} transparent animationType="none"
-        onShow={showAreaSettings} onRequestClose={closeAreaSettings}>
-        <View style={styles.settingsOverlay}>
-          <Animated.View style={[StyleSheet.absoluteFill, styles.settingsBackdrop, { opacity: settingsAnimation }]}>
-            <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={closeAreaSettings} />
-          </Animated.View>
-          <KeyboardAvoidingView style={styles.settingsKeyboard} pointerEvents="box-none" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <Animated.View style={[styles.settingsPanel, {
-              height: canEditSlotStructure ? panelHeight : undefined, maxHeight: panelHeight,
-              paddingBottom: canEditSlotStructure ? 0 : Math.max(insets.bottom, spacing.md),
-              transform: [{ translateY: settingsAnimation.interpolate({ inputRange: [0, 1], outputRange: [panelHeight, 0] }) }],
-            }]} accessibilityViewIsModal onAccessibilityEscape={closeAreaSettings}>
-              <View style={styles.settingsHeader}>
-                <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={styles.settingsTitle}>
-                  {location} → {areaNames[selectedType]}
-                </Text>
-                <SecondaryButton label="닫기" icon="close" accessibilityLabel="내부 설정 패널 닫기" onPress={closeAreaSettings} />
-              </View>
-              {/* 미리보기 오른쪽에 칸 개수·보관 모드를 두고, 서랍형은 보관 모드만 편집한다. */}
-              <View style={[styles.settingsPreview, { minHeight: Math.min(168, windowHeight * 0.22) }]}>
-                <View style={styles.structurePreview}>
-                  {selectedDoor && !storageEnabled ? (
-                    <DoorWithoutStorage label={`${location} → ${areaNames[selectedType]}`} selected={false}
-                      storageMode={selectedBody.storageMode} readOnly />
-                  ) : (
-                    <FridgeMap areas={[previewArea]} positions={preview.positions.filter(position => position.areaId === selectedArea.id)}
-                      ingredients={preview.ingredients} showIngredientCounts={false} storageMode={selectedBody.storageMode}
-                      showAreaLabels={false} minAreaHeight={0} compact preview style={styles.scroll} onSelectPosition={openAreaSettings} />
-                  )}
-                </View>
-                {storageEnabled ? (
-                  <View style={styles.settingsPreviewControls}>
-                    <View accessibilityRole="radiogroup" accessibilityLabel={`${bodyLocation} 보관 모드`}
-                      accessibilityState={{ disabled: !!selectedDoor }} style={styles.row}>
-                      {storageModeOptions.map(mode => (
-                        <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${bodyLocation} ${mode.label}`}
-                          disabled={!!selectedDoor} accessibilityState={{ checked: selectedBody.storageMode === mode.value, disabled: !!selectedDoor }}
-                          onPress={() => selectStorageMode(mode.value)}
-                          style={[styles.choice, selectedBody.storageMode === mode.value && styles.selected]}>
-                          <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'thermometer-low' : 'snowflake'} size={18}
-                            color={mode.value === 'CHILLED' ? colors.chilled : colors.frozen} accessible={false} style={styles.controlIcon} />
-                          <Text numberOfLines={1} style={styles.selectionLabel}>{mode.label}</Text>
-                          <SelectionCheck selected={selectedBody.storageMode === mode.value} />
-                        </FeedbackPressable>
-                      ))}
-                    </View>
-                    {!isDrawerBody ? <View style={styles.sectionHeader}>
-                      <View style={styles.counterGroup}>
-                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 줄이기`}
-                          disabled={selectedArea.slots.length <= 1} onPress={() => changeSlotCount(-1)}
-                          style={styles.counterButton}>
-                          <MaterialDesignIcons name="minus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
-                        </FeedbackPressable>
-                        <Text accessibilityLiveRegion="polite" style={styles.structureCount}>칸 {selectedArea.slots.length}개</Text>
-                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} ${areaNames[selectedType]} 칸 늘리기`}
-                          disabled={selectedArea.slots.length >= maxSlotCount} onPress={() => changeSlotCount(1)}
-                          style={styles.counterButton}>
-                          <MaterialDesignIcons name="plus" size={20} color={colors.button} accessible={false} style={styles.controlIcon} />
-                        </FeedbackPressable>
-                      </View>
-                      <Text style={[styles.description, styles.counterDescription]}>{`칸은 1~${maxSlotCount}개까지 등록할 수 있어요.`}</Text>
-                    </View> : null}
-                  </View>
-                ) : null}
-              </View>
-              {!storageEnabled ? (
-                <View style={styles.settingsContent}>
-                  <Text style={styles.description}>이 문에는 수납칸이 없습니다. 수납 사용을 켜면 다시 구성할 수 있어요.</Text>
-                </View>
-              ) : canEditSlotStructure ? (
-                <ScrollView key={selectedArea.id} style={styles.scroll}
-                  contentContainerStyle={[styles.settingsContent, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-                  <View>
-                    {selectedArea.slots.map((slot, index) => (
-                      <View key={index} style={[styles.slotForm, index < selectedArea.slots.length - 1 && styles.slotSeparator]}>
-                        <Text accessibilityRole="header" style={styles.slotTitle}>{getSlotName(index)}</Text>
-                        <SlotStructureSelector label="칸 구조" accessibilityLabel={`${location} 본체 ${getSlotName(index)}`}
-                          value={slot.drawerCount} onChange={drawerCount => updateSlot(index, { drawerCount })} />
-                      </View>
-                    ))}
-                  </View>
-                </ScrollView>
-              ) : null}
-            </Animated.View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -697,102 +594,6 @@ const styles = StyleSheet.create({
   sectionHeader: {
     gap: spacing.xs,
   },
-  settingsOverlay: {
-    flex: 1,
-  },
-  settingsBackdrop: {
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-  },
-  settingsKeyboard: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  settingsPanel: {
-    flexShrink: 1,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-  },
-  settingsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  settingsTitle: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  settingsContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    gap: spacing.sm,
-  },
-  settingsPreview: {
-    flexShrink: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  settingsPreviewControls: {
-    flexShrink: 0,
-    alignSelf: 'stretch',
-    justifyContent: 'space-between',
-    gap: spacing.xs,
-  },
-  slotForm: {
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-  },
-  slotTitle: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  slotSeparator: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  choice: {
-    minHeight: 44,
-    flexDirection: 'row',
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    backgroundColor: colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.sm,
-  },
-  selectionLabel: {
-    flexShrink: 0,
-    color: colors.text,
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  selected: {
-    backgroundColor: colors.sageLight,
-    borderColor: colors.button,
-  },
   structureDiagram: {
     gap: spacing.xs,
   },
@@ -808,13 +609,6 @@ const styles = StyleSheet.create({
   structureLabelRow: {
     flex: 1,
     justifyContent: 'center',
-  },
-  structurePreview: {
-    flex: 1,
-    width: undefined,
-    maxWidth: STRUCTURE_PREVIEW_MAX_WIDTH,
-    aspectRatio: undefined,
-    alignSelf: 'stretch',
   },
   structureControls: {
     width: STRUCTURE_CONTROL_WIDTH,
@@ -846,9 +640,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  counterDescription: {
-    marginLeft: spacing.sm,
   },
   // 기존 프로젝트와 같은 줄 높이·폰트 여백 설정으로 아이콘의 중앙을 맞춘다.
   controlIcon: {

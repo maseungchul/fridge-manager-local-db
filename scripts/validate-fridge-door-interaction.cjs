@@ -204,6 +204,7 @@ function registrationFixture(doorCount = 1, rowCount = 2) {
   return { screen, viewport, map, row, target };
 }
 const moving = focus => find(focus.tree, node => typeof node.props?.onStartShouldSetResponder === 'function');
+const toolbarTree = screen => FridgeAreaMenu(find(screen.tree, node => node.type === 'FridgeAreaMenu').props);
 const movingDoors = focus => findAll(moving(focus), named('FridgeDoor'));
 const interiorAreas = focus => findAll(moving(focus), named('InteriorArea'));
 function assertFocusAccess(focus, phase) {
@@ -787,7 +788,7 @@ test('양쪽 본체의 툴바에서 합치고 분리해도 선택·중앙 보기
     const original = focus().props;
     const before = getFridgeFocusGeometry(original.draft, original.target, original.viewport);
     assert.equal(menu().props.mergeDisabled, false);
-    const toolbar = mount(FridgeAreaMenu, menu().props);
+    const toolbar = mount(FridgeAreaMenu, { ...menu().props, activeCategory: 'connection' });
     const mergeButton = find(toolbar.tree, node => node.props.accessibilityLabel === '이웃 본체와 합치기');
     assert.equal(mergeButton.props.disabled, false);
     mergeButton.props.onPress();
@@ -841,18 +842,20 @@ test('합산 4칸을 넘으면 합치기만 비활성화하고 안내 문구로 
     find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
     screen.render();
     const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu');
-    const toolbar = mount(FridgeAreaMenu, menu().props);
+    const toolbar = mount(FridgeAreaMenu, { ...menu().props, activeCategory: 'connection' });
     const flowLayout = tree => children(tree).filter(node => flattenStyle(node.props.style).position !== 'absolute')
       .map(node => ({ type: node.type, style: flattenStyle(node.props.style) }));
     const beforeLayout = flowLayout(toolbar.tree);
-    menu().props.onOpenSettings();
+    menu().props.onCategoryChange('slots');
     screen.render();
     for (let count = 1; count < model.MAX_SLOTS; count++) {
-      find(screen.tree, node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
+      find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
       screen.render();
     }
     assert.equal(menu().props.mergeDisabled, true);
     assert.equal(menu().props.mergeLimitExceeded, true);
+    menu().props.onCategoryChange('connection');
+    screen.render();
     toolbar.props = menu().props;
     toolbar.render();
     assert.deepEqual(flowLayout(toolbar.tree), beforeLayout, '합산 제한 안내가 도면의 표시 영역을 줄이면 안 된다');
@@ -1140,15 +1143,14 @@ test('안내 이력은 같은 등록 화면에서 문을 다시 열어도 유지
   screen.render();
   assert.equal(focus().props.scrollHintEnabled, true);
   assert.equal(focus().props.scrollHintBlocked, false);
-  menu().props.onOpeningsChange(true);
+  menu().props.onCategoryChange('opening');
   screen.render();
   assert.equal(focus().props.scrollHintBlocked, true);
-  menu().props.onOpeningsChange(false);
-  menu().props.onOpenSettings();
+  menu().props.onCategoryChange(null);
+  menu().props.onCategoryChange('slots');
   screen.render();
   assert.equal(focus().props.scrollHintBlocked, true);
-  find(screen.tree, node => node.type === 'Modal').props.onRequestClose();
-  animations.at(-1).finish();
+  menu().props.onCategoryChange(null);
   screen.render();
   assert.equal(focus().props.scrollHintBlocked, false);
   focus().props.onScrollHintSeen();
@@ -1248,7 +1250,7 @@ test('문 뒷면은 앞면과 반대로 회전하고 포켓 내부는 열고 닫
   }
 });
 
-test('도면 화면은 고정하고 기본 정보·하단 칸 편집 패널만 스크롤을 허용한다', () => {
+test('도면 화면은 고정하고 기본 정보만 세로 스크롤을 허용하며 별도 설정 모달은 없다', () => {
   const screen = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
   const pageScrolls = () => findAll(screen.tree, node => node.type === 'ScrollView' && node.props.ref);
   assert.deepEqual(pageScrolls().map(node => node.props.scrollEnabled), [true, false]);
@@ -1262,8 +1264,7 @@ test('도면 화면은 고정하고 기본 정보·하단 칸 편집 패널만 �
   assert.equal(configuration.props.showsVerticalScrollIndicator, false);
   assert.equal(flattenStyle(configuration.props.contentContainerStyle).height, '100%');
   assert.equal(find(screen.tree, named('FridgeInteriorMap')).props.fitHeight, true);
-  const panel = find(screen.tree, node => node.type === 'Modal');
-  assert.notEqual(find(panel, node => node.type === 'ScrollView').props.scrollEnabled, false);
+  assert.equal(find(screen.tree, node => node.type === 'Modal'), undefined);
   screen.unmount();
 });
 
@@ -1298,7 +1299,7 @@ test('1단·여러 단 모두 크기를 유지한 중앙 보기를 제목 영역
     const geometry = getFridgeFocusGeometry(focus().props.draft, target, focus().props.viewport);
     near(geometry.body.width, geometry.source.width);
     near(geometry.body.height, geometry.source.height);
-    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpeningsChange(true);
+    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('opening');
     screen.render();
     assert.equal(focus().props.phase, 'open');
     headerClose().props.onPress();
@@ -1547,15 +1548,15 @@ test('배경 덮개는 전체 높이를 채우고 중앙 위치는 툴바를 제
       screen.render();
       menu.props = menuProps();
       menu.render();
-      assert.equal(menu.props.openingsOpen, expanded);
+      assert.equal(menu.props.activeCategory, expanded ? 'opening' : null);
       assert.deepEqual(flowChildren(menu.tree).map(node => flattenStyle(node.props.style)), beforeFlow);
-      const panel = find(menu.tree, node => !!node.props.onAccessibilityEscape);
+      const panel = find(menu.tree, node => node.props.accessibilityLabel === '여는 방식 하위 설정');
       if (expanded) {
         const style = flattenStyle(panel.props.style);
         assert.equal(style.position, 'absolute');
         assert.equal(style.bottom, '100%');
-        assert.equal(style.left, 0);
-        assert.equal(style.right, 0);
+        assert.equal(style.left, tokens.spacing.lg);
+        assert.equal(style.right, tokens.spacing.lg);
       } else assert.equal(panel, undefined);
       focus = find(screen.tree, named('FridgeFocusView'));
       assert.strictEqual(focus.props.viewport, beforeBounds);
@@ -1564,9 +1565,9 @@ test('배경 덮개는 전체 높이를 채우고 중앙 위치는 툴바를 제
     }
     const toolbar = find(screen.tree, node => children(node).some(child => child.type === 'FridgeAreaMenu'));
     assert(flattenStyle(toolbar.props.style).zIndex > (flattenStyle(viewport.props.style).zIndex ?? 0));
-    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpenSettings();
+    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('slots');
     screen.render();
-    assert.equal(find(screen.tree, node => node.type === 'Modal').props.visible, true);
+    assert(find(toolbarTree(screen), node => node.props.accessibilityLabel === '칸 구성 하위 설정'));
     viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 520 } } });
     screen.render();
     focus = find(screen.tree, named('FridgeFocusView'));
@@ -1609,36 +1610,146 @@ test('이름 입력 없이 본체 칸의 분할을 편집하고 포켓은 개수
   for (const [areaId, isBody] of [[row.compartments[0].id, true], [row.doors[0].id, false]]) {
     focus().props.onSelectArea(areaId);
     screen.render();
-    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpenSettings();
+    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('slots');
     screen.render();
-    const panel = () => find(screen.tree, node => node.props.accessibilityViewIsModal);
+    const panel = () => toolbarTree(screen);
     assert.equal(findAll(panel(), node => node.type === 'FormTextInput').length, 0);
-    const preview = find(panel(), named('FridgeMap'));
-    assert.equal(findAll(preview.type(preview.props), node => node.type === 'Text').length, 0);
+    assert.equal(find(panel(), named('FridgeMap')), undefined);
     const increase = find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 늘리기'));
     increase.props.onPress();
     screen.render();
-    const selectors = findAll(panel(), node => node.type === 'SlotStructureSelector');
     if (isBody) {
-      assert.equal(selectors.length, 2);
-      assert.equal(selectors[1].props.accessibilityLabel, '1단 본체 위에서 2번째 칸');
-      selectors[1].props.onChange(2);
+      find(panel(), node => node.props.accessibilityLabel === model.getSlotName(1)).props.onPress();
+      screen.render();
+      const selector = find(panel(), node => node.type === 'SlotStructureSelector');
+      assert.equal(selector.props.accessibilityLabel, '1단 본체 위에서 2번째 칸');
+      selector.props.onChange(2);
       screen.render();
       const draft = find(screen.tree, named('FridgeInteriorMap')).props.draft;
       assert.deepEqual(draft.rows[0].compartments[0].slots, [
         { name: '위에서 1번째 칸', drawerCount: 0 }, { name: '위에서 2번째 칸', drawerCount: 2 },
       ]);
       assert(find(panel(), node => node.type === 'ScrollView'));
-      assert.equal(flattenStyle(panel().props.style).height, 844 * 0.75);
+      assert.equal(find(panel(), node => node.type === 'Modal'), undefined);
     } else {
-      assert.equal(selectors.length, 0);
-      assert.equal(find(panel(), node => node.type === 'ScrollView'), undefined);
+      assert.equal(findAll(panel(), node => node.type === 'SlotStructureSelector').length, 0);
       assert.equal(find(panel(), node => node.type === 'Text' && node.props.accessibilityRole === 'header'
         && typeof node.props.children === 'string' && node.props.children.includes('번째 칸')), undefined);
-      assert.equal(flattenStyle(panel().props.style).height, undefined);
-      assert.equal(flattenStyle(panel().props.style).paddingBottom, 34);
+      assert.equal(flattenStyle(find(panel(), node => node.props.accessibilityLabel === '칸 구성 하위 설정').props.style).position, 'absolute');
     }
   }
+  screen.unmount();
+});
+
+test('카테고리를 다시 누르면 접고 하위 영역에 툴바 배경을 적용하며 여백 안에 삼각형 화살표를 표시한다', () => {
+  const { screen, viewport, target, row } = registrationFixture(2);
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  find(screen.tree, named('FridgeInteriorMap')).props.onFocus(target);
+  screen.render();
+  find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+  screen.render();
+  const categories = () => findAll(toolbarTree(screen), node => node.props.accessibilityHint?.includes('하위 설정'));
+  assert.deepEqual(categories().map(node => node.props.accessibilityLabel), ['보관 모드', '여는 방식', '칸 구성', '본체 연결']);
+  for (const label of ['여는 방식', '보관 모드', '칸 구성', '본체 연결']) {
+    categories().find(node => node.props.accessibilityLabel === label).props.onPress();
+    screen.render();
+    const tree = toolbarTree(screen);
+    const panel = find(tree, node => node.props.accessibilityLabel === `${label} 하위 설정`);
+    const parent = categories().find(node => node.props.accessibilityLabel === label);
+    const arrow = find(parent, node => flattenStyle(node.props.style).borderTopWidth === 6);
+    assert.equal(parent.props.accessibilityState.expanded, true);
+    assert.equal(categories().filter(node => node.props.accessibilityState.expanded).length, 1);
+    assert.equal(flattenStyle(panel.props.style).position, 'absolute');
+    const panelStyle = flattenStyle(panel.props.style);
+    const arrowStyle = flattenStyle(arrow.props.style);
+    assert.equal(panelStyle.backgroundColor, flattenStyle(tree.props.style).backgroundColor);
+    assert(panelStyle.marginBottom > 0);
+    assert.equal(arrowStyle.width, 0);
+    assert.equal(arrowStyle.height, 0);
+    assert.equal(arrowStyle.borderLeftColor, 'transparent');
+    assert.equal(arrowStyle.borderRightColor, 'transparent');
+    assert.equal(arrowStyle.borderTopColor, '#000000');
+    assert.equal(arrowStyle.bottom, '100%');
+    const toolbarStyle = flattenStyle(tree.props.style);
+    const parentStyle = flattenStyle(parent.props.style);
+    assert(arrowStyle.marginBottom - parentStyle.borderWidth >= 10);
+    assert(toolbarStyle.paddingVertical + panelStyle.marginBottom - arrowStyle.marginBottom - arrowStyle.borderTopWidth >= 10);
+    if (label === '보관 모드') {
+      assert.equal(find(parent, node => node.type === 'Icon').props.name, 'thermometer-low');
+      const chilled = find(tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel.endsWith('냉장'));
+      assert.equal(find(chilled, node => node.type === 'Icon').props.name, 'weather-windy');
+    }
+    assert.equal(find(tree, node => node.type === 'SecondaryButton'), undefined);
+    assert.equal(find(tree, node => node.props.accessibilityRole === 'header'), undefined);
+    parent.props.onPress();
+    screen.render();
+    assert.equal(find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('하위 설정')), undefined);
+  }
+  categories().find(node => node.props.accessibilityLabel === '여는 방식').props.onPress();
+  screen.render();
+  categories().find(node => node.props.accessibilityLabel === '보관 모드').props.onPress();
+  screen.render();
+  assert.equal(find(toolbarTree(screen), node => node.props.accessibilityLabel === '여는 방식 하위 설정'), undefined);
+  assert(find(toolbarTree(screen), node => node.props.accessibilityLabel === '보관 모드 하위 설정'));
+  const blocked = FridgeAreaMenu({ ...find(screen.tree, node => node.type === 'FridgeAreaMenu').props, disabled: true });
+  assert.equal(find(blocked, node => node.props.accessibilityLabel?.endsWith('하위 설정')), undefined);
+  assert(findAll(blocked, node => node.props.accessibilityHint?.includes('하위 설정')).every(node => node.props.disabled));
+  find(screen.tree, named('FridgeFocusView')).props.onSelectArea(row.doors[0].id);
+  screen.render();
+  assert.deepEqual(categories().map(node => node.props.accessibilityLabel), ['칸 구성', '문 수납']);
+  categories().find(node => node.props.accessibilityLabel === '문 수납').props.onPress();
+  screen.render();
+  find(toolbarTree(screen), node => node.props.accessibilityLabel === '문 수납 사용 안 함').props.onPress();
+  screen.render();
+  assert.equal(categories().find(node => node.props.accessibilityLabel === '칸 구성').props.disabled, true);
+  find(toolbarTree(screen), node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === '문 수납 사용').props.onPress();
+  screen.render();
+  assert.equal(categories().find(node => node.props.accessibilityLabel === '칸 구성').props.disabled, false);
+  assert.equal(find(screen.tree, named('FridgeInteriorMap')).props.draft.rows[0].doors[0].slots.length, 2);
+  screen.unmount();
+});
+
+test('칸 구성에서 도면의 칸 선택·분할 편집을 연동하고 칸 삭제 후에도 유효한 칸을 선택한다', () => {
+  const { screen, viewport, target } = registrationFixture();
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  find(screen.tree, named('FridgeInteriorMap')).props.onFocus(target);
+  screen.render();
+  const focus = () => find(screen.tree, named('FridgeFocusView'));
+  const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu').props;
+  focus().props.onPhaseChange('open');
+  screen.render();
+  menu().onCategoryChange('slots');
+  screen.render();
+  find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
+  screen.render();
+  const overlay = mount(FridgeFocusView, focus().props);
+  const body = interiorAreas(overlay).find(node => node.props.area.isBody);
+  const map = find(body.type(body.props), node => node.type === mapModule.FridgeMap);
+  const tree = mapModule.FridgeMap(map.props);
+  const slotButtons = findAll(tree, node => node.type === 'Pressable' && node.props.accessibilityLabel?.includes('번째 칸'));
+  assert.equal(slotButtons.length, 2);
+  assert.equal(slotButtons[0].props.accessibilityState.selected, true);
+  let stopped = false;
+  slotButtons[1].props.onPress({ stopPropagation() { stopped = true; } });
+  screen.render();
+  assert.equal(stopped, true);
+  assert.equal(focus().props.selectedSlotIndex, 1);
+  const selector = find(toolbarTree(screen), node => node.type === 'SlotStructureSelector');
+  assert.equal(selector.props.accessibilityLabel, '1단 본체 위에서 2번째 칸');
+  selector.props.onChange(2);
+  screen.render();
+  assert.equal(menu().slots[1].drawerCount, 2);
+  find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('칸 줄이기')).props.onPress();
+  screen.render();
+  assert.equal(focus().props.selectedSlotIndex, 0);
+  menu().onCategoryChange(null);
+  screen.render();
+  assert.equal(focus().props.selectedSlotIndex, undefined);
+  overlay.props = { ...focus().props, phase: 'closing', selectedSlotIndex: 0 };
+  overlay.render();
+  const closingBody = interiorAreas(overlay).find(node => node.props.area.isBody);
+  assert.equal(find(closingBody.type(closingBody.props), node => node.type === mapModule.FridgeMap).props.onSelectSlot, undefined);
+  overlay.unmount();
   screen.unmount();
 });
 
@@ -1648,7 +1759,7 @@ test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·�
     viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
     const focus = () => find(screen.tree, named('FridgeFocusView'));
     const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu').props;
-    const panel = () => find(screen.tree, node => node.props.accessibilityViewIsModal);
+    const panel = () => toolbarTree(screen);
     const draft = () => find(screen.tree, named('FridgeInteriorMap')).props.draft;
     const openBody = index => {
       find(screen.tree, named('FridgeInteriorMap')).props.onFocus({ ...target,
@@ -1657,10 +1768,9 @@ test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·�
       focus().props.onPhaseChange('open');
       screen.render();
     };
-    const openSettings = () => { menu().onOpenSettings(); screen.render(); };
+    const openSettings = () => { menu().onCategoryChange('slots'); screen.render(); };
     const closeSettings = () => {
       panel().props.onAccessibilityEscape();
-      animations.at(-1).finish();
       screen.render();
     };
     openBody(drawerIndex);
@@ -1680,8 +1790,9 @@ test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·�
     assert.equal(find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 줄이기')), undefined);
     assert.equal(find(panel(), node => node.type === 'SlotStructureSelector'), undefined);
     assert.equal(find(panel(), node => node.type === 'ScrollView'), undefined);
-    assert.equal(flattenStyle(panel().props.style).height, undefined);
-    assert.equal(flattenStyle(panel().props.style).paddingBottom, 34);
+    assert.equal(find(panel(), node => node.props.accessibilityLabel === '칸 구성'), undefined);
+    menu().onCategoryChange('mode');
+    screen.render();
     const modes = findAll(panel(), node => node.props.accessibilityRole === 'radio');
     assert.equal(modes.length, 2);
     assert(modes.every(mode => !mode.props.disabled));
@@ -1695,7 +1806,7 @@ test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·�
     assert.equal(typeof menu().onMerge, 'function');
     openSettings();
     assert(find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')));
-    assert.equal(findAll(panel(), node => node.type === 'SlotStructureSelector').length, 2);
+    assert.equal(findAll(panel(), node => node.type === 'SlotStructureSelector').length, 1);
     assert.deepEqual(draft().rows[0].compartments[drawerIndex].slots, originalSlots);
     closeSettings();
     menu().onOpeningChange(row.doors[drawerIndex].id, 'DRAWER');
@@ -1725,10 +1836,10 @@ test('포켓은 3칸·본체는 4칸까지만 추가하고 최소 한 칸과 기
   for (const [areaId, limit] of [[row.doors[0].id, 3], [row.compartments[0].id, 4]]) {
     find(screen.tree, named('FridgeFocusView')).props.onSelectArea(areaId);
     screen.render();
-    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpenSettings();
+    find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('slots');
     screen.render();
     const area = () => [...getDraft().rows[0].doors, ...getDraft().rows[0].compartments].find(area => area.id === areaId);
-    const counter = action => find(screen.tree, node => node.type === 'FeedbackPressable'
+    const counter = action => find(toolbarTree(screen), node => node.type === 'FeedbackPressable'
       && node.props.accessibilityLabel?.endsWith(`칸 ${action}`));
     const beforeSlots = structuredClone(area().slots);
     while (area().slots.length < limit) {
@@ -1737,7 +1848,7 @@ test('포켓은 3칸·본체는 4칸까지만 추가하고 최소 한 칸과 기
       screen.render();
     }
     assert.equal(counter('늘리기').props.disabled, true);
-    assert(find(screen.tree, node => node.type === 'Text' && node.props.children === `칸은 1~${limit}개까지 등록할 수 있어요.`));
+    assert.equal(find(screen.tree, node => node.type === 'FridgeAreaMenu').props.maxSlotCount, limit);
     counter('늘리기').props.onPress();
     screen.render();
     assert.equal(area().slots.length, limit);
@@ -1952,12 +2063,14 @@ test('냉장·냉동과 칸 변경은 내부 설정에만 반영하고 기본정
   screen.render();
   find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
   screen.render();
-  find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onOpenSettings();
+  find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('slots');
   screen.render();
-  find(screen.tree, node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
+  find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
+  screen.render();
+  find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('mode');
   screen.render();
   for (const [mode, label] of [['FROZEN', '냉동'], ['CHILLED', '냉장']]) {
-    find(screen.tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === '1단 ' + label).props.onPress();
+    find(toolbarTree(screen), node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === '1단 본체 ' + label).props.onPress();
     screen.render();
     const draft = find(screen.tree, named('FridgeInteriorMap')).props.draft;
     assert.equal(draft.rows[0].compartments[0].storageMode, mode);
@@ -1998,7 +2111,7 @@ test('기본정보는 단·문 개수만 받고 여는 방식·문 수납·본�
   }
   focus().props.onSelectArea(row.doors[0].id);
   screen.render();
-  menu().onToggleStorage();
+  menu().onStorageChange(false);
   screen.render();
   assert.equal(focus().props.draft.rows[0].doors[0].storageEnabled, false);
   assertBasicUnchanged();

@@ -117,10 +117,12 @@ function SelectionFrame({ storageMode, style }: { storageMode: StorageMode | nul
 }
 
 /** 열린 본체에는 보관 모드의 공간 이름을, 문 수납에는 도어포켓 이름만 표시한다. */
-function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyle, onSelectArea }: {
+function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyle, onSelectArea, selectedSlotIndex, onSelectSlot }: {
   area: StorageArea; layout: FridgeLayout; compact: boolean; selected: boolean;
   storageMode: StorageMode | null; onSelectArea: FridgeInteriorMapProps['onSelectArea'];
   cornerStyle?: ViewStyle;
+  selectedSlotIndex?: number;
+  onSelectSlot?: (index: number) => void;
 }) {
   const positions = layout.positions.filter(position => position.areaId === area.id);
   const header = (
@@ -139,6 +141,7 @@ function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyl
         ingredients={layout.ingredients} selectedAreaId={selected ? area.id : undefined} showIngredientCounts={false}
         showAreaLabels={false} minAreaHeight={0} fitHeight storageMode={storageMode} cornerStyle={cornerStyle}
         compact={compact} style={styles.areaMap} areaHeader={header}
+        selectedSlotIndex={selectedSlotIndex} onSelectSlot={onSelectSlot}
         onSelectArea={() => onSelectArea(area.id)} />}
       {selected ? <SelectionFrame storageMode={storageMode} style={[StyleSheet.absoluteFill, cornerStyle]} /> : null}
     </View>
@@ -390,12 +393,15 @@ function FridgeScrollHint({ enabled, dismissed, viewport, onSeen }: {
 
 /** 연결된 문은 함께 선택 표시해 펼치고, 열린 본체·포켓의 개별 선택은 기존 툴바에 전달한다. */
 export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId,
-  scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea }: {
+  scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea,
+  selectedSlotIndex, onSelectSlot }: {
   draft: RefrigeratorDraft; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
   overlayHeight?: number;
   selectedAreaId?: string; onPhaseChange: (phase: FridgeFocusPhase) => void; onClose: () => void;
   scrollHintEnabled?: boolean; scrollHintBlocked?: boolean; onScrollHintSeen?: () => void;
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
+  selectedSlotIndex?: number;
+  onSelectSlot?: (areaId: string, index: number) => void;
 }) {
   const progress = useAnimatedValue(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -481,6 +487,8 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
           importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={StyleSheet.absoluteFill}>
           <InteriorArea area={area} layout={layout} selected={selectedAreaId === area.id} storageMode={group.body.storageMode}
+            selectedSlotIndex={selectedSlotIndex}
+            onSelectSlot={open && selectedSlotIndex !== undefined ? index => onSelectSlot?.(area.id, index) : undefined}
             cornerStyle={bodyCorners} compact={body.width < 120} onSelectArea={onSelectArea} />
         </View>
         {doors.map(({ door, frame, pocket, unfoldOffset }) => {

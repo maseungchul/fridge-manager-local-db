@@ -9,7 +9,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle, spacing } from '@/theme/tokens';
-import { getPositionPath, getStorageModeName } from '../model/fridgeLayout';
+import { getPositionPath, getSlotName, getStorageModeName } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotPosition, StorageMode } from '../model/fridgeLayout';
 
@@ -49,6 +49,9 @@ interface FridgeMapProps {
   onSelectPosition?: (id: string) => void;
   // 등록 도면은 칸 대신 문·본체 전체에서 터치와 눌림 효과를 처리한다.
   onSelectArea?: (id: string) => void;
+  // 등록 툴바에서 칸 구성을 펼친 동안에는 좌우 분할을 한 칸으로 묶어 선택한다.
+  selectedSlotIndex?: number;
+  onSelectSlot?: (index: number) => void;
 }
 
 /** 일반 문은 세로 막대, 서랍은 상단에 파인 사다리꼴 홈으로 표시하고 축소 도면에서는 홈 높이를 줄인다. */
@@ -106,8 +109,11 @@ function DoorPocketBin({ style }: { style?: StyleProp<ViewStyle> }) {
 export function FridgeMap({
   areas, positions, ingredients, selectedPositionId, selectedAreaId, storageMode, cornerStyle, showIngredientCounts = true,
   showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, preview = false, style, areaHeader, disabled = false, onSelectPosition, onSelectArea,
+  selectedSlotIndex, onSelectSlot,
 }: FridgeMapProps) {
   const groupInteraction = !!onSelectArea && !preview;
+  const slotInteraction = !!onSelectSlot && !preview;
+  const Slot = slotInteraction ? Pressable : View;
   const Area = groupInteraction ? Pressable : View;
   const Position = preview || groupInteraction ? View : FeedbackPressable;
   const palette = storageMode ? fridgeDoorColors[storageMode] : null;
@@ -133,7 +139,7 @@ export function FridgeMap({
           <View key={area.id} style={[styles.area, { flex: area.isBody ? 1 : doorFlex }]}>
             {/* 홈은 칸별로, 등록 도면은 문·본체 전체를 한 번에 눌러 선택한다. */}
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
-            <Area accessibilityRole={groupInteraction ? 'button' : undefined}
+            <Area accessible={slotInteraction ? false : undefined} accessibilityRole={groupInteraction ? 'button' : undefined}
               accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}${area.isBody && storageMode
                 ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
               accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
@@ -150,7 +156,12 @@ export function FridgeMap({
                   // 위→아래 칸 순서를 유지하고 같은 칸의 좌우 분할만 한 행에 묶는다.
                   const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
                   return (
-                    <View key={firstPosition.slotId} style={[styles.slot, area.isBody && slotIndex > 0 && styles.slotSeparator]}>
+                    <Slot key={firstPosition.slotId} accessibilityRole={slotInteraction ? 'button' : undefined}
+                      accessibilityLabel={slotInteraction ? `${area.compartment} → ${area.name} → ${getSlotName(slotIndex)}` : undefined}
+                      accessibilityState={slotInteraction ? { selected: selectedSlotIndex === slotIndex, disabled } : undefined}
+                      disabled={disabled} onPress={slotInteraction ? event => { event.stopPropagation(); onSelectSlot?.(slotIndex); } : undefined}
+                      style={[styles.slot, area.isBody && slotIndex > 0 && styles.slotSeparator,
+                        slotInteraction && selectedSlotIndex === slotIndex && positionSelection]}>
                       <View style={styles.slotRow}>
                         {slotPositions.map((position, positionIndex) => {
                           const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
@@ -172,7 +183,7 @@ export function FridgeMap({
                       {area.isBody && slotIndex > 0 ? (
                         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.bodyShelf, shelfTheme]} />
                       ) : null}
-                    </View>
+                    </Slot>
                   );
                 })}
               </View>
