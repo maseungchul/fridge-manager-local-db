@@ -751,12 +751,10 @@ const styles = StyleSheet.create({
   },
   doorHandle: {
     top: '50%',
-    marginTop: -20,
+    marginTop: -fridgeSurfaces.handleLength / 2,
   },
   drawerHandle: {
-    top: 12,
-    left: '50%',
-    marginLeft: -20,
+    top: 0,
   },
   handleLeft: {
     left: 10,

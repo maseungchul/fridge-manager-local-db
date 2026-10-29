@@ -51,15 +51,23 @@ interface FridgeMapProps {
   onSelectArea?: (id: string) => void;
 }
 
-/** 문과 서랍은 같은 손잡이를 공유하고, 서랍에서는 전체 모양을 가로로 회전한다. */
-export function DoorHandle({ horizontal = false, storageMode, style }: {
-  horizontal?: boolean; storageMode?: StorageMode | null; style?: StyleProp<ViewStyle>;
+/** 일반 문은 세로 막대, 서랍은 상단에 파인 사다리꼴 홈으로 표시하고 축소 도면에서는 홈 높이를 줄인다. */
+export function DoorHandle({ horizontal = false, miniature = false, storageMode, style }: {
+  horizontal?: boolean; miniature?: boolean; storageMode?: StorageMode | null; style?: StyleProp<ViewStyle>;
 }) {
+  const palette = storageMode ? fridgeDoorColors[storageMode] : null;
+  const depth = miniature ? 7 : 12;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      style={[styles.doorHandle, horizontal && styles.horizontalHandle, style]}>
-      <View style={[styles.handleGrip, horizontal && styles.horizontalGrip,
-        storageMode && { backgroundColor: fridgeDoorColors[storageMode].handle }]} />
+      style={[styles.doorHandle, horizontal && [styles.horizontalHandle, { height: depth }], style]}>
+      {horizontal ? (
+        <View style={[styles.drawerPull, { height: depth }]}>
+          <View style={[styles.drawerTrapezoid, {
+            borderTopWidth: depth, borderLeftWidth: depth / 2, borderRightWidth: depth / 2,
+            borderTopColor: palette?.handle ?? fridgeSurfaces.handle,
+          }]} />
+        </View>
+      ) : <View style={[styles.handleGrip, palette && { backgroundColor: palette.handle }]} />}
     </View>
   );
 }
@@ -318,27 +326,39 @@ const styles = StyleSheet.create({
   doorHandle: {
     position: 'absolute',
     width: 8,
-    height: 40,
+    height: fridgeSurfaces.handleLength,
     borderRadius: 4,
     boxShadow: fridgeSurfaces.hardwareShadow,
   },
   horizontalHandle: {
-    width: 40,
-    height: 8,
+    left: 0,
+    right: 0,
+    width: '100%',
+    alignItems: 'center',
+    borderRadius: 0,
+    boxShadow: [],
+  },
+  drawerPull: {
+    width: '50%',
+    maxWidth: 128,
+  },
+  drawerTrapezoid: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 0,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
   },
   handleGrip: {
     position: 'absolute',
     left: 0,
     top: 0,
     width: 8,
-    height: 40,
+    height: fridgeSurfaces.handleLength,
     borderRadius: 4,
     backgroundColor: fridgeSurfaces.handle,
-  },
-  horizontalGrip: {
-    left: 16,
-    top: -16,
-    transform: [{ rotate: '90deg' }],
   },
   compactPosition: {
     padding: 2,

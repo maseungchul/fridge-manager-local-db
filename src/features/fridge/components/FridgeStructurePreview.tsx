@@ -28,7 +28,7 @@ export function FridgeStructurePreview({ rows, style }: FridgeStructurePreviewPr
                 getFridgeSurfaceStyle(storageMode, 'exterior')]}>
                 <DoorModeArt storageMode={storageMode ?? null} size={12} miniature style={door.kind === 'DRAWER'
                   ? styles.drawerArt : door.side === 'LEFT_DOOR' ? styles.artWithRightHandle : styles.artWithLeftHandle} />
-                <DoorHandle horizontal={door.kind === 'DRAWER'} storageMode={storageMode} style={[styles.handle,
+                <DoorHandle horizontal={door.kind === 'DRAWER'} miniature storageMode={storageMode} style={[styles.handle,
                   door.kind === 'DRAWER' ? styles.drawerHandle : door.side === 'LEFT_DOOR' ? { right: 6 } : { left: 6 }]} />
               </View>
             );
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   },
   handle: {
     top: '50%',
-    marginTop: -20,
+    marginTop: -fridgeSurfaces.handleLength / 2,
     transform: [{ scale: 0.55 }],
   },
   // 작은 도면에서는 손잡이를 제외한 공간의 중앙에 모드 그림을 둔다.
@@ -80,10 +80,9 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   drawerHandle: {
-    top: 10,
-    left: '50%',
+    top: 0,
     marginTop: 0,
-    marginLeft: -20,
+    transform: [],
   },
   doorBorder: {
     borderLeftWidth: 1,
