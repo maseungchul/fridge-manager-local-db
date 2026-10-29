@@ -20,7 +20,7 @@ import { FormTextInput } from '@/components/FormTextInput';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeFocusView, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase, FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
-import { FridgeAreaMenu } from '@/features/fridge/components/FridgeAreaMenu';
+import { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } from '@/features/fridge/components/FridgeAreaMenu';
 import type { FridgeMenuCategory } from '@/features/fridge/components/FridgeAreaMenu';
 import {
   addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft,
@@ -163,13 +163,14 @@ export function RefrigeratorRegistrationScreen({
     setSelectedAreaId(id);
   }
 
-  // 툴바 전후의 확정된 레이아웃 크기를 사용해 늦게 도착한 네이티브 측정값이 중앙 위치를 덮지 않게 한다.
+  // 펼칠 메뉴의 최대 높이를 항상 제외해 메뉴 표시 여부가 도면 중앙 위치를 바꾸지 않게 한다.
   function layoutFocusViewport({ nativeEvent }: LayoutChangeEvent) {
     const { width, height } = nativeEvent.layout;
     if (width <= 0 || height <= 0) return;
-    focusViewportSize.current = { width, height };
-    setFocusBounds(current => !current || (current.width === width && current.height === height)
-      ? current : { ...current, width, height });
+    const size = { width, height: Math.max(1, height - FRIDGE_MENU_RESERVED_SPACE) };
+    focusViewportSize.current = size;
+    setFocusBounds(current => !current || (current.width === size.width && current.height === size.height)
+      ? current : { ...current, ...size });
   }
 
   function openFocusedArea(target: FridgeFocusTarget) {
@@ -177,7 +178,7 @@ export function RefrigeratorRegistrationScreen({
     Keyboard.dismiss();
     focusViewport.current?.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0 || stepChanging.current) return;
-      setFocusBounds({ x, y, ...(focusViewportSize.current ?? { width, height }) });
+      setFocusBounds({ x, y, ...(focusViewportSize.current ?? { width, height: Math.max(1, height - FRIDGE_MENU_RESERVED_SPACE) }) });
       setFocusTarget(target);
       setSelectedAreaId(target.areaId);
       setSlotIndex(0);
@@ -414,7 +415,7 @@ export function RefrigeratorRegistrationScreen({
                     onStorageModeChange={selectStorageMode} showSlots={!isDrawerBody}
                     slots={selectedArea.slots} maxSlotCount={maxSlotCount} selectedSlotIndex={selectedSlotIndex}
                     location={`${location} ${areaNames[selectedType]}`}
-                    onSlotCountChange={changeSlotCount} onSlotSelect={setSlotIndex}
+                    onSlotCountChange={changeSlotCount}
                     onSlotStructureChange={drawerCount => updateSlot(selectedSlotIndex, { drawerCount })}
                     onOpeningChange={selectDoorOpening}
                     onMerge={selectedAreaId && !selectedDoor && !isMergedBody && !mergeIncludesDrawer

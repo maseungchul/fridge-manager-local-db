@@ -1,10 +1,10 @@
 /**
  * @file
  * 등록 도면의 하단 카테고리와 해당 카테고리의 하위 설정을 표시한다.
- * 하위 설정은 툴바 위에 겹쳐 도면 위치를 유지하며, 초안과 선택 상태는 호출자가 관리한다.
+ * 하위 설정은 도면과 분리된 표시 공간에 펼치며, 초안과 선택 상태는 호출자가 관리한다.
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
@@ -13,6 +13,11 @@ import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@
 import { colors, spacing } from '@/theme/tokens';
 
 export type FridgeMenuCategory = 'mode' | 'opening' | 'slots' | 'storage';
+
+const SUBMENU_HEIGHT = 82;
+const SUBMENU_BOTTOM_SPACE = 20;
+// 메뉴를 접어도 도면의 계산 영역은 같은 크기로 유지하고, 실제 툴바에는 빈 공간을 만들지 않는다.
+export const FRIDGE_MENU_RESERVED_SPACE = SUBMENU_HEIGHT + SUBMENU_BOTTOM_SPACE + spacing.sm;
 
 interface FridgeAreaMenuProps {
   disabled: boolean;
@@ -34,7 +39,6 @@ interface FridgeAreaMenuProps {
   onStorageChange: (enabled: boolean) => void;
   onStorageModeChange: (mode: StorageMode) => void;
   onSlotCountChange: (delta: -1 | 1) => void;
-  onSlotSelect: (index: number) => void;
   onSlotStructureChange: (value: DrawerCount) => void;
   onMerge?: () => void;
   onSplit?: () => void;
@@ -52,8 +56,7 @@ const categoryOptions = [
 export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, showOpeningAction, openingDisabled = false,
   openingDoors, storageEnabled, storageMode, showSlots, slots, maxSlotCount, selectedSlotIndex, location,
   mergeDisabled = false, mergeLimitExceeded = false, onOpeningChange, onStorageChange, onStorageModeChange,
-  onSlotCountChange, onSlotSelect, onSlotStructureChange, onMerge, onSplit }: FridgeAreaMenuProps) {
-  const { height } = useWindowDimensions();
+  onSlotCountChange, onSlotStructureChange, onMerge, onSplit }: FridgeAreaMenuProps) {
   const categories = categoryOptions.filter(category => {
     switch (category.id) {
       case 'mode': return showOpeningAction;
@@ -70,23 +73,23 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
   return (
     <View style={styles.toolbar} onAccessibilityEscape={() => onCategoryChange(null)}>
       {current ? (
-        <View accessibilityLabel={`${current.label} 하위 설정`} style={styles.submenu}>
-          <ScrollView style={{ maxHeight: Math.min(260, height * 0.34) }} nestedScrollEnabled bounces={false} overScrollMode="never"
-            keyboardShouldPersistTaps="handled" contentContainerStyle={styles.submenuContent}>
-            {current.id === 'mode' ? (
-              <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
-                accessibilityRole="radiogroup" accessibilityLabel={`${location} 보관 모드`} style={styles.choicesViewport} contentContainerStyle={styles.choices}>
-                {storageModeOptions.map(mode => (
-                  <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${location} ${mode.label}`}
-                    disabled={disabled} accessibilityState={{ checked: storageMode === mode.value, disabled }}
-                    onPress={() => onStorageModeChange(mode.value)} style={[styles.choice, storageMode === mode.value && styles.selected]}>
-                    <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'weather-windy' : 'snowflake'} size={18}
-                      color={mode.value === 'CHILLED' ? colors.chilled : colors.frozen} accessible={false} />
-                    <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{mode.label}</Text><SelectionCheck selected={storageMode === mode.value} />
-                  </FeedbackPressable>
-                ))}
-              </ScrollView>
-            ) : null}
+        <View style={styles.submenuSlot}>
+          <View accessibilityLabel={`${current.label} 하위 설정`} style={styles.submenu}>
+            <View style={styles.submenuContent}>
+              {current.id === 'mode' ? (
+                <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
+                  accessibilityRole="radiogroup" accessibilityLabel={`${location} 보관 모드`} style={styles.choicesViewport} contentContainerStyle={styles.choices}>
+                  {storageModeOptions.map(mode => (
+                    <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${location} ${mode.label}`}
+                      disabled={disabled} accessibilityState={{ checked: storageMode === mode.value, disabled }}
+                      onPress={() => onStorageModeChange(mode.value)} style={[styles.choice, storageMode === mode.value && styles.selected]}>
+                      <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'weather-windy' : 'snowflake'} size={18}
+                        color={mode.value === 'CHILLED' ? colors.chilled : colors.frozen} accessible={false} />
+                      <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{mode.label}</Text><SelectionCheck selected={storageMode === mode.value} />
+                    </FeedbackPressable>
+                  ))}
+                </ScrollView>
+              ) : null}
             {current.id === 'opening' ? openingDoors.map(door => (
               <ScrollView key={door.id} horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
                 accessibilityRole="radiogroup" accessibilityLabel={`${door.label} 여는 방식`} style={styles.choicesViewport} contentContainerStyle={styles.choices}>
@@ -102,35 +105,24 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
               </ScrollView>
             )) : null}
             {current.id === 'slots' ? (
-              <>
+              <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
+                accessibilityLabel="칸 개수와 선택한 칸의 분할" style={styles.choicesViewport} contentContainerStyle={styles.choices}>
                 <View style={styles.counter}>
                   <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} 칸 줄이기`}
                     disabled={disabled || slots.length <= 1} onPress={() => onSlotCountChange(-1)} style={styles.counterButton}>
                     <MaterialDesignIcons name="minus" size={20} color={colors.text} accessible={false} />
                   </FeedbackPressable>
-                  <Text accessibilityLiveRegion="polite" style={styles.count}>칸 {slots.length}개</Text>
+                  <Text numberOfLines={1} accessibilityLiveRegion="polite" style={styles.count}>칸 {slots.length}개</Text>
                   <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${location} 칸 늘리기`}
                     disabled={disabled || slots.length >= maxSlotCount} onPress={() => onSlotCountChange(1)} style={styles.counterButton}>
                     <MaterialDesignIcons name="plus" size={20} color={colors.text} accessible={false} />
                   </FeedbackPressable>
                 </View>
                 {showOpeningAction && slot ? (
-                  <>
-                    <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
-                      accessibilityRole="radiogroup" accessibilityLabel="분할할 칸 선택" style={styles.choicesViewport} contentContainerStyle={styles.choices}>
-                      {slots.map((_, index) => (
-                        <FeedbackPressable key={index} accessibilityRole="radio" accessibilityLabel={getSlotName(index)}
-                          disabled={disabled} accessibilityState={{ checked: index === selectedSlotIndex, disabled }}
-                          onPress={() => onSlotSelect(index)} style={[styles.choice, index === selectedSlotIndex && styles.selected]}>
-                          <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{index + 1}번째 칸</Text>
-                        </FeedbackPressable>
-                      ))}
-                    </ScrollView>
-                    <SlotStructureSelector label={`${getSlotName(selectedSlotIndex)} 분할`} accessibilityLabel={`${location} ${getSlotName(selectedSlotIndex)}`}
-                      value={slot.drawerCount} disabled={disabled} scrollable onChange={onSlotStructureChange} />
-                  </>
+                  <SlotStructureSelector label={`${getSlotName(selectedSlotIndex)} 분할`} accessibilityLabel={`${location} ${getSlotName(selectedSlotIndex)}`}
+                    value={slot.drawerCount} disabled={disabled} inline onChange={onSlotStructureChange} />
                 ) : null}
-              </>
+              </ScrollView>
             ) : null}
             {current.id === 'storage' ? (
               <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
@@ -144,7 +136,8 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
                 ))}
               </ScrollView>
             ) : null}
-          </ScrollView>
+          </View>
+        </View>
         </View>
       ) : null}
       <View style={styles.actions}>
@@ -186,13 +179,17 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.toolbar,
   },
-  // 하위 설정의 높이를 툴바 배치에서 제외해 카테고리를 바꿔도 도면이 밀리지 않게 한다.
-  submenu: {
+  // 툴바의 배치 높이를 바꾸지 않고, 도면 계산에서 별도로 제외한 공간에 하위 설정을 펼친다.
+  submenuSlot: {
     position: 'absolute',
     bottom: '100%',
     left: spacing.lg,
     right: spacing.lg,
-    marginBottom: spacing.lg,
+    height: SUBMENU_HEIGHT,
+    marginBottom: SUBMENU_BOTTOM_SPACE,
+  },
+  submenu: {
+    height: '100%',
     borderWidth: 1,
     borderColor: colors.chilled,
     borderRadius: 10,
@@ -281,12 +278,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sageLight,
   },
   counter: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
   },
   counterButton: {
+    flexShrink: 0,
     width: 44,
     height: 44,
     alignItems: 'center',

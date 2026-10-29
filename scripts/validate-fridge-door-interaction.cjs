@@ -93,6 +93,7 @@ const native = {
 let mapModule;
 let interiorModule;
 let structureModule;
+let menuModule;
 function loadComponent(path) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: {
@@ -110,7 +111,7 @@ function loadComponent(path) {
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
     '@/features/fridge/components/FridgeInteriorMap': interiorModule,
-    '@/features/fridge/components/FridgeAreaMenu': { FridgeAreaMenu: 'FridgeAreaMenu' },
+    '@/features/fridge/components/FridgeAreaMenu': { ...menuModule, FridgeAreaMenu: 'FridgeAreaMenu' },
     '@/features/fridge/components/FridgeStructurePreview': {
       FridgeStructurePreview: 'FridgeStructurePreview',
       STRUCTURE_PREVIEW_ASPECT_RATIO: structureModule?.STRUCTURE_PREVIEW_ASPECT_RATIO,
@@ -126,8 +127,9 @@ mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
 structureModule = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
 const { FridgeInteriorMap, FridgeFocusView, getFridgeFocusGeometry } = interiorModule;
+menuModule = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
+const { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } = menuModule;
 const { RefrigeratorRegistrationScreen } = loadComponent('src/screens/RefrigeratorRegistrationScreen.tsx');
-const { FridgeAreaMenu } = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
 const children = node => [node?.props?.children].flat(Infinity).filter(child => child?.type);
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 function find(node, predicate) {
@@ -852,9 +854,11 @@ test('합산 4칸을 넘으면 합치기만 비활성화하고 안내 문구로 
     const toolbar = mount(FridgeAreaMenu, menu().props);
     const flowLayout = tree => children(tree).filter(node => flattenStyle(node.props.style).position !== 'absolute')
       .map(node => ({ type: node.type, style: flattenStyle(node.props.style) }));
-    const beforeLayout = flowLayout(toolbar.tree);
     menu().props.onCategoryChange('slots');
     screen.render();
+    toolbar.props = menu().props;
+    toolbar.render();
+    const beforeLayout = flowLayout(toolbar.tree);
     for (let count = 1; count < model.MAX_SLOTS; count++) {
       find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
       screen.render();
@@ -1525,7 +1529,7 @@ test('배경 덮개는 전체 높이를 채우고 중앙 위치는 툴바를 제
     if (!measureFirst) reply(0, 110, 375, 600);
     screen.render();
     let focus = find(screen.tree, named('FridgeFocusView'));
-    assert.equal(focus.props.viewport.height, 520);
+    assert.equal(focus.props.viewport.height, 520 - FRIDGE_MENU_RESERVED_SPACE);
     assert.equal(focus.props.overlayHeight, 600);
     const overlay = mount(FridgeFocusView, focus.props);
     const overlayStyle = flattenStyle(overlay.tree.props.style);
@@ -1535,7 +1539,7 @@ test('배경 덮개는 전체 높이를 채우고 중앙 위치는 툴바를 제
     assert.equal(backdropStyle.top, 0);
     assert.equal(backdropStyle.bottom, 0);
     const centered = flattenStyle(moving(overlay).props.style);
-    near(centered.top + centered.height / 2, 260);
+    near(centered.top + centered.height / 2, (520 - FRIDGE_MENU_RESERVED_SPACE) / 2);
     overlay.unmount();
     focus.props.onPhaseChange('open');
     screen.render();
@@ -1555,13 +1559,14 @@ test('배경 덮개는 전체 높이를 채우고 중앙 위치는 툴바를 제
       menu.render();
       assert.equal(menu.props.activeCategory, expanded ? 'opening' : null);
       assert.deepEqual(flowChildren(menu.tree).map(node => flattenStyle(node.props.style)), beforeFlow);
+      assert.equal(flowChildren(menu.tree).length, 1);
       const panel = find(menu.tree, node => node.props.accessibilityLabel === '여는 방식 하위 설정');
       if (expanded) {
         const style = flattenStyle(panel.props.style);
-        assert.equal(style.position, 'absolute');
-        assert.equal(style.bottom, '100%');
-        assert.equal(style.left, tokens.spacing.lg);
-        assert.equal(style.right, tokens.spacing.lg);
+        assert.notEqual(style.position, 'absolute');
+        assert.equal(style.height, '100%');
+        assert.equal(flattenStyle(children(menu.tree)[0].props.style).height, 82);
+        assert.equal(flattenStyle(children(menu.tree)[0].props.style).position, 'absolute');
       } else assert.equal(panel, undefined);
       focus = find(screen.tree, named('FridgeFocusView'));
       assert.strictEqual(focus.props.viewport, beforeBounds);
@@ -1582,6 +1587,48 @@ test('배경 덮개는 전체 높이를 채우고 중앙 위치는 툴바를 제
     menu.unmount();
     screen.unmount();
   }
+});
+
+test('하위 메뉴를 열고 닫은 뒤 레이아웃이 다시 측정되어도 도면 좌표와 툴바 배치 높이는 유지한다', () => {
+  const { screen, viewport, target, row } = registrationFixture(2);
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 600) };
+  find(screen.tree, named('FridgeInteriorMap')).props.onFocus(target);
+  screen.render();
+  viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 520 } } });
+  screen.render();
+  const focus = () => find(screen.tree, named('FridgeFocusView'));
+  const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu').props;
+  focus().props.onPhaseChange('open');
+  screen.render();
+  const bounds = focus().props.viewport;
+  const geometry = getFridgeFocusGeometry(focus().props.draft, target, bounds);
+  assert.equal(bounds.height, 520 - FRIDGE_MENU_RESERVED_SPACE);
+  for (const category of ['mode', 'opening', 'slots', null, 'slots', null]) {
+    menu().onCategoryChange(category);
+    screen.render();
+    viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 520 } } });
+    screen.render();
+    assert.strictEqual(focus().props.viewport, bounds);
+    const next = getFridgeFocusGeometry(focus().props.draft, target, focus().props.viewport);
+    near(next.translateY, geometry.translateY);
+    near(next.translateX, geometry.translateX);
+    const tree = toolbarTree(screen);
+    const normalFlow = children(tree).filter(child => flattenStyle(child.props.style).position !== 'absolute');
+    assert.equal(normalFlow.length, 1, '하위 메뉴가 툴바 높이에 더해지면 안 된다');
+    assert.equal(find(tree, node => node.props.accessibilityLabel?.endsWith('하위 설정')) !== undefined, category !== null);
+  }
+  focus().props.onSelectArea(row.doors[0].id);
+  screen.render();
+  menu().onCategoryChange('storage');
+  screen.render();
+  viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 520 } } });
+  screen.render();
+  assert.strictEqual(focus().props.viewport, bounds);
+  viewport.props.onLayout({ nativeEvent: { layout: { width: 414, height: 620 } } });
+  screen.render();
+  assert.equal(focus().props.viewport.width, 414);
+  assert.equal(focus().props.viewport.height, 620 - FRIDGE_MENU_RESERVED_SPACE);
+  screen.unmount();
 });
 
 test('도면의 칸명은 숨기고 자동 위치 안내·선택·재료 집계는 유지한다', () => {
@@ -1624,7 +1671,7 @@ test('이름 입력 없이 본체 칸의 분할을 편집하고 포켓은 개수
     increase.props.onPress();
     screen.render();
     if (isBody) {
-      find(panel(), node => node.props.accessibilityLabel === model.getSlotName(1)).props.onPress();
+      focus().props.onSelectSlot(areaId, 1);
       screen.render();
       const selector = find(panel(), node => node.type === 'SlotStructureSelector');
       assert.equal(selector.props.accessibilityLabel, '1단 본체 위에서 2번째 칸');
@@ -1640,7 +1687,7 @@ test('이름 입력 없이 본체 칸의 분할을 편집하고 포켓은 개수
       assert.equal(findAll(panel(), node => node.type === 'SlotStructureSelector').length, 0);
       assert.equal(find(panel(), node => node.type === 'Text' && node.props.accessibilityRole === 'header'
         && typeof node.props.children === 'string' && node.props.children.includes('번째 칸')), undefined);
-      assert.equal(flattenStyle(find(panel(), node => node.props.accessibilityLabel === '칸 구성 하위 설정').props.style).position, 'absolute');
+      assert.notEqual(flattenStyle(find(panel(), node => node.props.accessibilityLabel === '칸 구성 하위 설정').props.style).position, 'absolute');
     }
   }
   screen.unmount();
@@ -1666,21 +1713,23 @@ test('카테고리를 다시 누르면 접고 하위 영역에 툴바 배경을 
     const arrow = find(parent, node => flattenStyle(node.props.style).borderTopWidth === 6);
     assert.equal(parent.props.accessibilityState.expanded, true);
     assert.equal(categories().filter(node => node.props.accessibilityState.expanded).length, 1);
-    assert.equal(flattenStyle(panel.props.style).position, 'absolute');
+    assert.notEqual(flattenStyle(panel.props.style).position, 'absolute');
+    const reservedStyle = flattenStyle(children(tree)[0].props.style);
+    assert.equal(reservedStyle.height, 82);
     const panelStyle = flattenStyle(panel.props.style);
     const arrowStyle = flattenStyle(arrow.props.style);
     assert.equal(panelStyle.backgroundColor, flattenStyle(tree.props.style).backgroundColor);
-    assert(panelStyle.marginBottom > 0);
+    assert(reservedStyle.marginBottom > 0);
     assert.equal(arrowStyle.width, 0);
     assert.equal(arrowStyle.height, 0);
     assert.equal(arrowStyle.borderLeftColor, 'transparent');
     assert.equal(arrowStyle.borderRightColor, 'transparent');
     assert.equal(arrowStyle.borderTopColor, '#000000');
     assert.equal(arrowStyle.bottom, '100%');
-    const toolbarStyle = flattenStyle(tree.props.style);
     const parentStyle = flattenStyle(parent.props.style);
     assert(arrowStyle.marginBottom - parentStyle.borderWidth >= 10);
-    assert(toolbarStyle.paddingVertical + panelStyle.marginBottom - arrowStyle.marginBottom - arrowStyle.borderTopWidth >= 10);
+    const toolbarStyle = flattenStyle(tree.props.style);
+    assert.equal(toolbarStyle.paddingVertical + reservedStyle.marginBottom - arrowStyle.marginBottom - arrowStyle.borderTopWidth, 6);
     if (label === '보관 모드') {
       assert.equal(find(parent, node => node.type === 'Icon').props.name, 'thermometer-low');
       const chilled = find(tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel.endsWith('냉장'));
@@ -1704,18 +1753,21 @@ test('카테고리를 다시 누르면 접고 하위 영역에 툴바 배경을 
     }
     if (label === '칸 구성') {
       const selector = find(panel, node => node.type === 'SlotStructureSelector');
-      assert.equal(selector.props.scrollable, true);
+      assert.equal(selector.props.inline, true);
+      assert.equal(find(panel, node => node.props.accessibilityLabel === '분할할 칸 선택'), undefined);
+      assert.equal(horizontalRows.length, 1);
+      assert(children(horizontalRows[0]).includes(selector));
       const { SlotStructureSelector } = loadComponent('src/features/fridge/components/SlotStructureSelector.tsx');
-      const splitRow = find(SlotStructureSelector(selector.props), node => node.type === 'ScrollView');
-      assert.equal(splitRow.props.horizontal, true);
-      assert.equal(splitRow.props.nestedScrollEnabled, true);
-      assert.equal(flattenStyle(splitRow.props.contentContainerStyle).alignItems, 'flex-start');
-      assert(flattenStyle(splitRow.props.contentContainerStyle).paddingBottom >= 16);
-      assert.equal(find(SlotStructureSelector({ ...selector.props, scrollable: false }), node => node.type === 'ScrollView'), undefined);
+      const split = SlotStructureSelector(selector.props);
+      assert.equal(find(split, node => node.type === 'ScrollView'), undefined);
+      assert.equal(find(split, node => node.type === 'Text' && node.props.children === selector.props.label), undefined);
+      assert(find(SlotStructureSelector({ ...selector.props, inline: false }), node => node.type === 'Text' && node.props.children === selector.props.label));
     }
     parent.props.onPress();
     screen.render();
     assert.equal(find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('하위 설정')), undefined);
+    assert.equal(children(toolbarTree(screen)).length, 1);
+    assert.equal(flattenStyle(children(toolbarTree(screen))[0].props.style).height, undefined);
   }
   categories().find(node => node.props.accessibilityLabel === '여는 방식').props.onPress();
   screen.render();

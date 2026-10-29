@@ -25,6 +25,8 @@ interface SlotStructureSelectorProps {
   disabled?: boolean;
   // 툴바의 좁은 하위 영역에서는 버튼 너비를 유지하고 좌우로 이동한다.
   scrollable?: boolean;
+  // 툴바 한 줄에서는 제목을 생략하고 분할 버튼만 표시한다.
+  inline?: boolean;
   onChange: (value: DrawerCount) => void;
 }
 
@@ -36,10 +38,11 @@ interface SlotStructureSelectorProps {
  * @param props.value 기존 값 0·1은 분할 없음, 2는 좌우 2칸으로 표시한다.
  * @param props.disabled 저장 중 선택 변경을 막을지 여부.
  * @param props.scrollable 좁은 툴바에서 버튼 너비를 유지하고 좌우 이동을 허용할지 여부.
+ * @param props.inline 툴바 한 줄 안에 제목 없이 분할 버튼만 표시할지 여부.
  * @param props.onChange 선택한 분할을 부모의 입력 상태에 반영할 콜백.
  * @returns 가로 분할 구조 선택 버튼.
  */
-export function SlotStructureSelector({ label, accessibilityLabel = label, value, disabled, scrollable = false, onChange }: SlotStructureSelectorProps) {
+export function SlotStructureSelector({ label, accessibilityLabel = label, value, disabled, scrollable = false, inline = false, onChange }: SlotStructureSelectorProps) {
   const selectedValue = value === 2 ? 2 : 0;
   const options = structureOptions.map(option => (
     <FeedbackPressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${option.label}`}
@@ -51,8 +54,8 @@ export function SlotStructureSelector({ label, accessibilityLabel = label, value
     </FeedbackPressable>
   ));
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={[styles.container, inline && styles.inline]}>
+      {!inline ? <Text style={styles.label}>{label}</Text> : null}
       {/* 칸별로 같은 선택지가 반복되므로 접근성 이름에는 부모가 전달한 칸 번호·경로를 함께 넣는다. */}
       {scrollable ? (
         <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
@@ -65,6 +68,9 @@ export function SlotStructureSelector({ label, accessibilityLabel = label, value
 const styles = StyleSheet.create({
   container: {
     gap: spacing.xs,
+  },
+  inline: {
+    flexShrink: 0,
   },
   options: {
     flexDirection: 'row',
