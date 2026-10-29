@@ -1640,13 +1640,14 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
       const tree = mapModule.FridgeMap(map.props);
       const frame = find(tree, node => children(node).includes(map.props.areaHeader));
       assert.equal(flattenStyle(frame.props.style).borderColor, '#FFFFFF');
-      assert.equal(flattenStyle(frame.props.style).backgroundColor, area.props.area.isBody ? '#FFFFFF' : palette.frame);
+      assert.equal(flattenStyle(frame.props.style).backgroundColor, '#FFFFFF');
       const content = children(frame).at(-1);
-      assert.equal(flattenStyle(content.props.style).backgroundColor, area.props.area.isBody ? palette.frame : undefined);
+      assert.equal(flattenStyle(content.props.style).backgroundColor, palette.frame);
+      assert.equal(flattenStyle(content.props.style).marginBottom, flattenStyle(content.props.style).marginHorizontal);
+      assert.equal(flattenStyle(content.props.style).borderRadius, tokens.fridgeSurfaces.cavityRadius);
       assert.equal(flattenStyle(frame.props.style).boxShadow[0].color, palette.motif + '14');
       assert.equal(flattenStyle(find(map.props.areaHeader, node => node.type === 'Text').props.style).color, palette.ink);
       if (area.props.area.isBody) {
-        assert.equal(flattenStyle(content.props.style).borderRadius, tokens.fridgeSurfaces.cavityRadius);
         const shelf = find(tree, node => flattenStyle(node.props.style).height === 4);
         assert.equal(flattenStyle(shelf.props.style).backgroundColor, palette.shelf);
         const divider = find(tree, node => node.props.accessibilityLabel?.includes('오른쪽'));
@@ -1666,13 +1667,14 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
       }
     }
     const empty = mount(interiorModule.DoorWithoutStorage, { label: '수납 없음', selected: false, storageMode: mode });
-    empty.tree.props.onLayout({ nativeEvent: { layout: { width: 100, height: 180 } } });
+    children(empty.tree).at(-1).props.onLayout({ nativeEvent: { layout: { width: 80, height: 164 } } });
     empty.render();
     const lines = findAll(empty.tree, node => flattenStyle(node.props.style).height === 2);
     assert.equal(lines.length, 2);
     assert(lines.every(line => flattenStyle(line.props.style).backgroundColor === palette.motif + '66'));
     assert.equal(flattenStyle(empty.tree.props.style).borderColor, '#FFFFFF');
-    assert.equal(flattenStyle(empty.tree.props.style).backgroundColor, palette.frame);
+    assert.equal(flattenStyle(empty.tree.props.style).backgroundColor, '#FFFFFF');
+    assert.equal(flattenStyle(children(empty.tree).at(-1).props.style).backgroundColor, palette.frame);
     assert.equal(flattenStyle(empty.tree.props.style).boxShadow[0].color, palette.motif + '14');
     empty.unmount();
     focus.unmount();
@@ -1712,15 +1714,15 @@ test('열린 수납은 모드 배경과 연한 테마 손잡이·경첩을 유�
           if (map) {
             const mapTree = mapModule.FridgeMap(map.props);
             const frame = find(mapTree, node => children(node).includes(map.props.areaHeader));
-            assert.equal(flattenStyle(frame.props.style).backgroundColor,
-              area.props.area.isBody ? '#FFFFFF' : tokens.fridgeDoorColors[mode].frame);
-            background = flattenStyle(area.props.area.isBody ? children(frame).at(-1).props.style : frame.props.style).backgroundColor;
+            assert.equal(flattenStyle(frame.props.style).backgroundColor, '#FFFFFF');
+            background = flattenStyle(children(frame).at(-1).props.style).backgroundColor;
             const positions = findAll(mapTree, node => node.props.accessibilityLabel?.includes('위에서'));
             assert(positions.every(position => flattenStyle(position.props.style).backgroundColor === 'transparent'));
           } else {
             const empty = find(tree, named('DoorWithoutStorage'));
             const mounted = mount(empty.type, empty.props);
-            background = flattenStyle(mounted.tree.props.style).backgroundColor;
+            assert.equal(flattenStyle(mounted.tree.props.style).backgroundColor, '#FFFFFF');
+            background = flattenStyle(children(mounted.tree).at(-1).props.style).backgroundColor;
             mounted.unmount();
           }
           assert.equal(background, tokens.fridgeDoorColors[mode].frame);
@@ -1789,7 +1791,7 @@ test('닫힌 문의 모드 색과 인쇄는 선택·수납 여부와 관계없�
         for (const area of interiorAreas(focus)) {
           const tree = area.type(area.props);
           const map = find(tree, node => node.type === mapModule.FridgeMap);
-          const header = map ? map.props.areaHeader : tree;
+          const header = map ? map.props.areaHeader : find(tree, named('DoorWithoutStorage')).props.areaHeader;
           const label = find(header, node => node.type === 'Text');
           assert.equal(label.props.children, area.props.area.isBody ? mode === 'CHILLED' ? '냉장실' : '냉동실' : '도어포켓');
           assert.equal(find(header, node => node.type === 'Icon'), undefined);

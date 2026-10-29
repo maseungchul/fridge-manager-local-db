@@ -68,25 +68,28 @@ function getRowBounds(canvasHeight: number, count: number, index: number) {
   return { top: index * height, height };
 }
 
-/** 흰 외곽을 제외한 내부 크기로 두 대각선을 계산해 비율과 관계없이 수납 영역을 가린다. */
-export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, readOnly = false, onPress }: {
+/** 수납 면의 실측 크기로 두 대각선을 계산해 이름 영역과 흰 여백을 피해서 X선을 그린다. */
+export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, areaHeader, readOnly = false, onPress }: {
   label: string; selected: boolean; readOnly?: boolean; onPress?: () => void;
   storageMode?: StorageMode | null;
   cornerStyle?: ViewStyle;
+  areaHeader?: ReactNode;
 }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const width = Math.max(0, size.width - fridgeSurfaces.frameWidth * 2);
-  const height = Math.max(0, size.height - fridgeSurfaces.frameWidth * 2);
+  const { width, height } = size;
   const length = Math.hypot(width, height);
   const angle = Math.atan2(height, width) * 180 / Math.PI;
   return (
     <Pressable accessibilityRole={readOnly ? 'image' : 'button'} accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
-      pointerEvents={readOnly ? 'none' : 'auto'} onPress={readOnly ? undefined : onPress} onLayout={({ nativeEvent }) => {
-        const { width, height } = nativeEvent.layout;
-        setSize(current => current.width === width && current.height === height ? current : { width, height });
-      }} style={[styles.noStorage, getFridgeSurfaceStyle(storageMode),
-        { backgroundColor: storageMode ? fridgeDoorColors[storageMode].frame : fridgeSurfaces.frame }, cornerStyle]}>
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      pointerEvents={readOnly ? 'none' : 'auto'} onPress={readOnly ? undefined : onPress}
+      style={[styles.noStorage, getFridgeSurfaceStyle(storageMode), cornerStyle]}>
+      {areaHeader}
+      <View pointerEvents="none" style={[styles.pocketCavity,
+        { backgroundColor: storageMode ? fridgeDoorColors[storageMode].frame : fridgeSurfaces.frame }]}
+        onLayout={({ nativeEvent }) => {
+          const { width, height } = nativeEvent.layout;
+          setSize(current => current.width === width && current.height === height ? current : { width, height });
+        }}>
         {[angle, -angle].map((rotation, index) => (
           <View key={index} style={[styles.cross, {
             backgroundColor: storageMode ? `${fridgeDoorColors[storageMode].motif}66` : fridgeSurfaces.border,
@@ -121,8 +124,7 @@ function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyl
 }) {
   const positions = layout.positions.filter(position => position.areaId === area.id);
   const header = (
-    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      style={[styles.interiorHeader, area.isBody && styles.bodyHeader]}>
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.interiorHeader}>
       <Text numberOfLines={1} style={[styles.areaName, storageMode && { color: fridgeDoorColors[storageMode].ink }]}>
         {area.isBody ? storageMode ? getStorageModeName(storageMode) : '본체' : '도어포켓'}
       </Text>
@@ -131,11 +133,8 @@ function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyl
   return (
     <View style={styles.area}>
       {!area.isBody && positions.length === 0 ? (
-        <View style={[styles.areaMap, styles.placeholderFrame, cornerStyle]}>
-          <DoorWithoutStorage label={`${area.compartment} ${area.name}`} selected={selected} storageMode={storageMode}
-            cornerStyle={cornerStyle} onPress={() => onSelectArea(area.id)} />
-          <View pointerEvents="none" style={styles.placeholderHeader}>{header}</View>
-        </View>
+        <DoorWithoutStorage label={`${area.compartment} ${area.name}`} selected={selected} storageMode={storageMode}
+          cornerStyle={cornerStyle} areaHeader={header} onPress={() => onSelectArea(area.id)} />
       ) : <FridgeMap areas={[area]} positions={positions}
         ingredients={layout.ingredients} selectedAreaId={selected ? area.id : undefined} showIngredientCounts={false}
         showAreaLabels={false} minAreaHeight={0} fitHeight storageMode={storageMode} cornerStyle={cornerStyle}
@@ -627,6 +626,15 @@ const styles = StyleSheet.create({
     top: fridgeSurfaces.headerHeight,
     left: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
     right: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
+    bottom: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
+    borderRadius: fridgeSurfaces.cavityRadius,
+    overflow: 'hidden',
+  },
+  pocketCavity: {
+    flex: 1,
+    minHeight: 0,
+    marginHorizontal: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
+    marginBottom: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
     borderRadius: fridgeSurfaces.cavityRadius,
     overflow: 'hidden',
   },
@@ -668,20 +676,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 4,
-    paddingHorizontal: 6,
-  },
-  bodyHeader: {
     paddingHorizontal: 0,
-  },
-  placeholderFrame: {
-    borderRadius: fridgeSurfaces.radius,
-    overflow: 'hidden',
-  },
-  placeholderHeader: {
-    position: 'absolute',
-    top: fridgeSurfaces.frameWidth,
-    left: fridgeSurfaces.frameWidth,
-    right: fridgeSurfaces.frameWidth,
   },
   areaName: {
     minWidth: 0,
@@ -765,13 +760,11 @@ const styles = StyleSheet.create({
   noStorage: {
     flex: 1,
     minWidth: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: fridgeSurfaces.frameWidth,
     borderColor: fridgeSurfaces.interior,
     borderRadius: fridgeSurfaces.radius,
-    backgroundColor: fridgeSurfaces.frame,
+    backgroundColor: fridgeSurfaces.interior,
     boxShadow: fridgeSurfaces.recessedShadow,
   },
   cross: {

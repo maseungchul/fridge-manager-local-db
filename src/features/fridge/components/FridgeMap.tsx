@@ -136,7 +136,6 @@ export function FridgeMap({
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
             <View style={[styles.areaInterior, { minHeight: minAreaHeight },
                 getFridgeSurfaceStyle(storageMode),
-                !area.isBody && { backgroundColor: palette?.frame ?? fridgeSurfaces.frame },
                 cornerStyle,
                 areaSelected && !groupInteraction && { borderColor: selectionColor }]}>
               {areaHeader}
@@ -145,8 +144,7 @@ export function FridgeMap({
                   ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
                 accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
                 disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
-                style={[styles.areaContent, area.isBody && [styles.bodyCavity,
-                  { backgroundColor: palette?.frame ?? fridgeSurfaces.frame }]]}>
+                style={[styles.areaContent, { backgroundColor: palette?.frame ?? fridgeSurfaces.frame }]}>
                 {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
                 {positions.filter(position => position.areaId === area.id)
                   .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
@@ -230,7 +228,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  // 본체는 이름까지 흰 바탕에 두고, 색 배경과 굴곡은 아래 수납 영역에서만 표시한다.
+  // 본체·포켓은 이름과 좌우·하단 여백을 흰 바탕으로 두고 수납 영역에만 색을 적용한다.
   areaInterior: {
     flex: 1,
     minHeight: 240,
@@ -244,11 +242,10 @@ const styles = StyleSheet.create({
   areaContent: {
     flex: 1,
     minHeight: 0,
+    marginHorizontal: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
+    marginBottom: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
     paddingHorizontal: 5,
     paddingBottom: 5,
-  },
-  bodyCavity: {
-    marginHorizontal: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
     borderRadius: fridgeSurfaces.cavityRadius,
     overflow: 'hidden',
   },
