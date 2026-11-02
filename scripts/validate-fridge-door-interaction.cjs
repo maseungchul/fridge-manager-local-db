@@ -1945,6 +1945,52 @@ test('칸 구성에서 도면의 칸 선택·분할 편집을 연동하고 칸 �
   screen.unmount();
 });
 
+test('본체 1~4칸의 선택 배경은 선반 바깥의 동일한 수납 공간과 상하 여백을 사용한다', () => {
+  for (const mode of ['CHILLED', 'FROZEN']) {
+    for (let count = 1; count <= 4; count++) {
+      const draft = model.createRefrigeratorDraft();
+      const body = draft.rows[0].compartments[0];
+      body.slots = Array.from({ length: count }, (_, index) => ({ name: model.getSlotName(index), drawerCount: index % 2 ? 2 : 0 }));
+      const layout = model.getDraftLayout(draft);
+      const props = { ...layout, areas: layout.areas.filter(area => area.id === body.id),
+        storageMode: mode, fitHeight: true, showIngredientCounts: false, onSelectArea() {}, onSelectSlot() {} };
+      let firstHighlight;
+      for (let selectedSlotIndex = 0; selectedSlotIndex < count; selectedSlotIndex++) {
+        const tree = mapModule.FridgeMap({ ...props, selectedSlotIndex });
+        const slots = findAll(tree, node => node.type === 'Pressable' && node.props.accessibilityLabel?.includes('번째 칸'));
+        assert.equal(slots.length, count);
+        const content = find(tree, node => children(node).includes(slots[0]));
+        const contentStyle = flattenStyle(content.props.style);
+        assert.equal(contentStyle.paddingTop, contentStyle.paddingBottom);
+        slots.forEach((slot, index) => {
+          const style = flattenStyle(slot.props.style);
+          assert.equal(style.flex, 1);
+          assert.equal(style.borderTopWidth ?? 0, 0);
+          const shelf = find(slot, node => flattenStyle(node.props.style).height === 4);
+          if (index === 0) {
+            assert.equal(shelf, undefined);
+            assert.equal(style.marginTop ?? 0, 0);
+          } else {
+            const shelfStyle = flattenStyle(shelf.props.style);
+            assert.equal(style.marginTop, shelfStyle.height);
+            assert.equal(shelfStyle.top + shelfStyle.height, 0);
+          }
+        });
+        const highlight = find(slots[selectedSlotIndex], node => node.props.pointerEvents === 'none'
+          && flattenStyle(node.props.style).overflow === 'hidden');
+        const style = flattenStyle(highlight.props.style);
+        assert.equal(style.top, style.bottom);
+        assert.equal(contentStyle.paddingTop + style.top, contentStyle.paddingBottom + style.bottom);
+        assert(style.top > 0);
+        assert.equal(style.borderRadius, 6);
+        assert.equal(style.backgroundColor, `${tokens.fridgeDoorColors[mode].ink}33`);
+        if (firstHighlight) assert.deepEqual(style, firstHighlight);
+        else firstHighlight = style;
+      }
+    }
+  }
+});
+
 test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·기존 입력을 유지한다', () => {
   for (const drawerIndex of [0, 1]) {
     const { screen, viewport, row, target } = registrationFixture(2);

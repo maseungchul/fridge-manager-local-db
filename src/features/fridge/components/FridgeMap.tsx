@@ -15,6 +15,7 @@ import type { FridgeIngredient, StorageArea, SlotPosition, StorageMode } from '.
 
 const BODY_SHELF_HEIGHT = 4;
 const BODY_SHELF_SIDE_INSET = 3;
+const AREA_CONTENT_PADDING = 5;
 
 interface FridgeMapProps {
   // 호출자가 현재 실에 맞게 추린 표시 대상 영역이며 전달 순서대로 배치한다.
@@ -153,7 +154,7 @@ export function FridgeMap({
                 cornerStyle,
                 areaSelected && !groupInteraction && { borderColor: selectionColor }]}>
               {areaHeader}
-              <View style={[styles.areaContent, { backgroundColor: palette?.frame ?? fridgeSurfaces.frame }]}>
+              <View style={[styles.areaContent, area.isBody && styles.bodyContent, { backgroundColor: palette?.frame ?? fridgeSurfaces.frame }]}>
                 {/* 영역에 연결된 칸만 전달받은 순서대로 세로로 나열한다. */}
                 {positions.filter(position => position.areaId === area.id)
                   .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
@@ -167,7 +168,7 @@ export function FridgeMap({
                       style={[styles.slot, area.isBody && slotIndex > 0 && styles.slotSeparator]}>
                       {slotInteraction && selectedSlotIndex === slotIndex ? (
                         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-                          style={[styles.slotHighlight, { top: (area.isBody && slotIndex > 0 ? BODY_SHELF_HEIGHT : 0) + 4 }, slotSelection]} />
+                          style={[styles.slotHighlight, slotSelection]} />
                       ) : null}
                       <View style={styles.slotRow}>
                         {slotPositions.map((position, positionIndex) => {
@@ -261,32 +262,37 @@ const styles = StyleSheet.create({
     minHeight: 0,
     marginHorizontal: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
     marginBottom: fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth,
-    paddingHorizontal: 5,
-    paddingBottom: 5,
+    paddingHorizontal: AREA_CONTENT_PADDING,
+    paddingBottom: AREA_CONTENT_PADDING,
     borderRadius: fridgeSurfaces.cavityRadius,
     overflow: 'hidden',
+  },
+  // 본체 바깥 여백도 위아래로 맞춰 첫 칸과 마지막 칸의 선택 배경이 같은 간격을 유지한다.
+  bodyContent: {
+    paddingTop: AREA_CONTENT_PADDING,
   },
   slot: {
     flex: 1,
   },
-  // 선반과 같은 좌우 경계를 사용하고, 위쪽 선반 아래에서만 선택 배경을 칠한다.
+  // 선반을 제외한 각 수납 칸 안에서 같은 여백으로 선택 배경을 칠한다.
   slotHighlight: {
     position: 'absolute',
     left: BODY_SHELF_SIDE_INSET,
     right: BODY_SHELF_SIDE_INSET,
-    bottom: 0,
+    top: 4,
+    bottom: 4,
+    borderRadius: 6,
     overflow: 'hidden',
   },
-  // 기존 경계 공간을 유지하고 선은 별도 장식으로 그려 칸 높이가 바뀌지 않게 한다.
+  // 선반 공간을 칸 바깥에 확보해 실제 수납 칸을 같은 높이로 배분한다.
   slotSeparator: {
-    borderTopWidth: 1,
-    borderTopColor: 'transparent',
+    marginTop: BODY_SHELF_HEIGHT,
   },
   bodyShelf: {
     position: 'absolute',
     left: BODY_SHELF_SIDE_INSET,
     right: BODY_SHELF_SIDE_INSET,
-    top: 0,
+    top: -BODY_SHELF_HEIGHT,
     height: BODY_SHELF_HEIGHT,
     borderRadius: 2,
     backgroundColor: fridgeSurfaces.shelf,
