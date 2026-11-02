@@ -60,6 +60,8 @@ const HINGE_HEIGHT = 18;
 const MAP_HEIGHT = 540;
 const MAP_PADDING = 10;
 const FOCUS_PADDING = 24;
+const FOCUS_TARGET_HEIGHT = 260;
+const FOCUS_WIDE_TARGET_HEIGHT = 200;
 const SCROLL_INDICATOR_SPACE = 16;
 
 /** 전체 높이를 단별로 균등하게 나눈 문 크기와 좌표를 닫힌 도면·중앙 보기에서 공유한다. */
@@ -149,10 +151,11 @@ function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyl
 }
 
 /** 문 앞·뒷면을 같은 경첩으로 회전하고, 포켓 내부는 전환 중에도 유지하되 조작은 열림 완료 후 허용한다. */
-function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, gridEdges, children }: {
+function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, sourceSize, gridEdges, children }: {
   door: DraftDoor; label: string; phase: FridgeFocusPhase; progress: Animated.Value; selected: boolean; storageMode: StorageMode | null;
   style: AreaFrame; onSelect: () => void; unfoldOffset?: number; children?: ReactNode;
   bodyWidth?: number;
+  sourceSize?: { width: number; height: number };
   gridEdges?: GridEdges;
 }) {
   const drawer = door.kind === 'DRAWER';
@@ -161,7 +164,8 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   const leafWidth = Number(style.width) - style.paddingLeft - style.paddingRight;
   const verticalPadding = typeof style.paddingVertical === 'number' ? style.paddingVertical : 0;
   const faceHeight = style.height - verticalPadding * 2;
-  const artSize = Math.max(14, Math.min(56, leafWidth * 0.32, faceHeight * 0.28));
+  // 중앙 보기로 옮길 때도 앞면 인쇄는 닫힌 문의 크기를 기준으로 유지한다.
+  const artSize = Math.max(14, Math.min(56, (sourceSize?.width ?? leafWidth) * 0.32, (sourceSize?.height ?? faceHeight) * 0.28));
   const modeStyle = getFridgeSurfaceStyle(storageMode, 'exterior');
   const contactColor = '#c0c9cf';
   const gridCorners = gridEdges ? getGridCorners(gridEdges) : undefined;
@@ -257,7 +261,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, selectedAreaId, foc
   );
 }
 
-/** 닫힌 도면을 기준으로 펼친 위치를 계산하고, 높이가 넘칠 때만 본체·문을 같은 비율로 줄인다. */
+/** 작은 단은 형태에 맞는 목표 높이까지 확대하고, 본체 너비와 표시 영역 높이를 각각 제한한다. */
 export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFocusTarget, viewport: LayoutRectangle) {
   const rowIndex = draft.rows.findIndex(row => row.compartments.some(body => body.id === focus.areaId));
   if (rowIndex < 0) return null;
@@ -273,12 +277,22 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
   const leftDoors = group.doors.filter(({ door }) => door.kind === 'HINGED' && door.side === 'LEFT_DOOR');
   const rightDoors = group.doors.filter(({ door }) => door.kind === 'HINGED' && door.side === 'RIGHT_DOOR');
   const pocketCount = leftDoors.length + rightDoors.length;
-  const originalWidth = source.width / group.doors.length * (group.doors.length + pocketCount) + pocketCount * HINGE_LENGTH;
-  const originalScrollable = originalWidth > viewport.width - FOCUS_PADDING * 2 + 0.01;
-  const indicatorHeight = originalScrollable ? SCROLL_INDICATOR_SPACE : 0;
-  const fitRatio = source.height + indicatorHeight > viewport.height
-    ? Math.min(1, Math.max(1, viewport.height - FOCUS_PADDING * 2 - indicatorHeight) / source.height) : 1;
-  const unitWidth = source.width * fitRatio / group.doors.length;
+  const availableWidth = Math.max(1, viewport.width - FOCUS_PADDING * 2);
+  const availableHeight = Math.max(1, viewport.height - FOCUS_PADDING * 2);
+  // 1단의 분리된 양문 본체는 1도어와 같은 표시 크기·위치를 사용하고 원래 좌표로 복귀한다.
+  const singleRowTwoDoors = draft.rows.length === 1 && row.doors.length === 2 && group.doors.length === 1;
+  const focusBaseWidth = singleRowTwoDoors ? source.height * FRIDGE_ASPECT_RATIO : source.width;
+  // 가로로 긴 단은 높이 확대를 줄이되, 너비 제한 때문에 높이까지 작게 남지 않게 한다.
+  const wide = source.width > source.height;
+  const targetHeight = wide ? FOCUS_WIDE_TARGET_HEIGHT : FOCUS_TARGET_HEIGHT;
+  const preferredHeight = Math.max(source.height, targetHeight);
+  const heightRatio = Math.min(preferredHeight / source.height, availableHeight / source.height);
+  const targetRatio = wide ? heightRatio : Math.min(heightRatio, availableWidth / focusBaseWidth);
+  // 확대 뒤 새로 좌우 이동이 필요해지는 경우도 표시줄 높이를 먼저 확보한다.
+  const targetWidth = Math.min(focusBaseWidth * targetRatio, availableWidth) / group.doors.length * (group.doors.length + pocketCount) + pocketCount * HINGE_LENGTH;
+  const indicatorHeight = targetWidth > availableWidth + 0.01 ? SCROLL_INDICATOR_SPACE : 0;
+  const fitRatio = Math.min(targetRatio, Math.max(1, availableHeight - indicatorHeight) / source.height);
+  const unitWidth = Math.min(focusBaseWidth * fitRatio, availableWidth) / group.doors.length;
   const height = source.height * fitRatio;
   const width = unitWidth * (group.doors.length + pocketCount) + pocketCount * HINGE_LENGTH;
 
@@ -307,9 +321,9 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
     const unfoldOffset = pocket ? pocket.frame.left + (leftHinge ? frame.paddingRight : frame.paddingLeft) - unfoldedLeft : 0;
     return { door, frame, pocket, unfoldOffset };
   });
-  const scrollable = width > viewport.width - FOCUS_PADDING * 2 + 0.01;
+  const scrollable = width > availableWidth + 0.01;
   const contentHeight = height + (scrollable ? SCROLL_INDICATOR_SPACE : 0);
-  // 축소 후에도 하단 스크롤 표시줄까지 제목·툴바 사이의 표시 영역 안에 둔다.
+  // 크기를 조절한 뒤에도 하단 스크롤 표시줄까지 제목·툴바 사이의 표시 영역 안에 둔다.
   const focusedTop = Math.max(0, Math.min((viewport.height - height) / 2, viewport.height - contentHeight));
   // 한쪽 열림은 본체를 반대쪽 화면 끝에 맞추고, 양쪽 열림은 가운데에 둔다.
   const bodyLeft = leftDoors.length > 0 && rightDoors.length === 0
@@ -468,13 +482,14 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateY, 0] }) },
       ],
     }]}>
-      {/* 경첩은 문 뒷면이 드러난 뒤 표시하고, 축소 중에도 본체 중심과 높이를 따라간다. */}
+      {/* 경첩은 문 뒷면이 드러난 뒤 표시하고, 크기를 조절하는 동안에도 본체 중심과 높이를 따라간다. */}
       <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
         style={[StyleSheet.absoluteFill, {
           opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1], extrapolate: 'clamp' }),
           transformOrigin: [body.left + body.width / 2, body.height / 2, 0],
           transform: [...panelStyle(body).transform,
-            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [body.fromHeight / body.height, 1] }) }],
+            { scaleX: progress.interpolate({ inputRange: [0, 1], outputRange: [body.fromWidth / body.width, 1] }) },
+            { scaleY: progress.interpolate({ inputRange: [0, 1], outputRange: [body.fromHeight / body.height, 1] }) }],
           zIndex: 2,
         }]}>
         {pockets.map(({ door, frame }) => (
@@ -508,6 +523,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           return (
             <FridgeDoor key={door.id} door={door} label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${areaNames[door.side]}`}
               phase={phase} progress={progress} bodyWidth={body.width} gridEdges={gridEdges}
+              sourceSize={{ width: body.fromWidth * frame.width / body.width, height: body.fromHeight }}
               selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
               storageMode={group.body.storageMode}
               unfoldOffset={unfoldOffset} onSelect={() => onSelectArea(area.id)}
