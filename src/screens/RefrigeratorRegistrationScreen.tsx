@@ -9,6 +9,7 @@
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentRef } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { LayoutChangeEvent, LayoutRectangle } from 'react-native';
@@ -61,14 +62,14 @@ export function RefrigeratorRegistrationScreen({
   const [focusTarget, setFocusTarget] = useState<FridgeFocusTarget | null>(null);
   const [focusPhase, setFocusPhase] = useState<FridgeFocusPhase>('closed');
   const [focusBounds, setFocusBounds] = useState<LayoutRectangle | null>(null);
-  const focusViewport = useRef<View>(null);
+  const focusViewport = useRef<ComponentRef<typeof View>>(null);
   const focusViewportSize = useRef<{ width: number; height: number } | null>(null);
   const cancelRequested = useRef(false);
   const stepAnimation = useRef(new Animated.Value(0)).current;
   const stepChanging = useRef(false);
   const stepScrolls = {
-    basic: useRef<ScrollView>(null),
-    configuration: useRef<ScrollView>(null),
+    basic: useRef<ComponentRef<typeof ScrollView>>(null),
+    configuration: useRef<ComponentRef<typeof ScrollView>>(null),
   };
   const selectedRow = draft.rows.find(row => [...row.doors, ...row.compartments].some(area => area.id === selectedAreaId)) ?? draft.rows[0];
   const selectedDoor = selectedRow.doors.find(door => door.id === selectedAreaId && door.kind !== 'DRAWER');

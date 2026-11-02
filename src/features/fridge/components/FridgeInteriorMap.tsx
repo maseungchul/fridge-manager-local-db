@@ -228,7 +228,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, selectedAreaId, foc
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
   focus: FridgeInteriorMapProps['focus']; onFocus: FridgeInteriorMapProps['onFocus'];
 }) {
-  const frameRef = useRef<View>(null);
+  const frameRef = useRef<ComponentRef<typeof View>>(null);
   const progress = useAnimatedValue(0);
   const { body } = group;
   const selectedBody = selectedAreaId === body.id;
@@ -435,7 +435,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   onSelectSlot?: (areaId: string, index: number) => void;
 }) {
   const progress = useAnimatedValue(0);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const verticalScrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0, y: 0 });
   const [hintDismissed, setHintDismissed] = useState(false);

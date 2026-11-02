@@ -1633,7 +1633,8 @@ test('기본정보 도면은 단 개수·화면 너비가 바뀌어도 독립된
       assert.equal(children(controls).length, rowCount);
       const reservedWidth = children(editor).filter(child => child !== preview)
         .reduce((sum, child) => sum + flattenStyle(child.props.style).width, 0);
-      assert(frame.width + reservedWidth + tokens.spacing.xs * 2 <= availableWidth - tokens.spacing.lg * 2);
+      const gapWidth = flattenStyle(editor.props.style).gap * (children(editor).length - 1);
+      assert(frame.width + reservedWidth + gapWidth <= availableWidth - tokens.spacing.lg * 2);
       if (availableWidth === 375) assert(height > 240);
     }
   }
