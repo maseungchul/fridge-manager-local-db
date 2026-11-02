@@ -50,7 +50,7 @@ interface FridgeMapProps {
   cornerStyle?: ViewStyle;
   // 최초 등록에는 재료 정보가 없으므로 개수 표시를 숨길 수 있다. 홈은 기본값을 사용한다.
   showIngredientCounts?: boolean;
-  // 연결 관계를 도식으로 표시하는 전체 도면이나 축소 미리보기에서는 영역 제목을 숨긴다.
+  // 연결 관계를 도식으로 표시하는 등록 도면에서는 영역 제목을 숨긴다.
   showAreaLabels?: boolean;
   // 전체 도면의 행 높이에 맞춰 표시하며, 단독 사용 시 기존 최소 높이를 유지한다.
   minAreaHeight?: number;
@@ -58,8 +58,6 @@ interface FridgeMapProps {
   fitHeight?: boolean;
   // 문이 많은 등록 도면의 좁은 영역은 여백을 줄인다.
   compact?: boolean;
-  // 패널의 읽기 전용 축소 미리보기에서는 칸의 최소 터치 높이를 적용하지 않는다.
-  preview?: boolean;
   style?: StyleProp<ViewStyle>;
   // 도면 내부 상단의 구분 배지를 칸 선택 영역과 분리해 표시한다.
   areaHeader?: ReactNode;
@@ -74,12 +72,12 @@ interface FridgeMapProps {
   onSelectSlot?: (index: number) => void;
 }
 
-/** 일반 문은 세로 막대, 서랍은 상단에 파인 사다리꼴 홈으로 표시하고 축소 도면에서는 홈 높이를 줄인다. */
-export function DoorHandle({ horizontal = false, miniature = false, storageMode, style }: {
-  horizontal?: boolean; miniature?: boolean; storageMode?: StorageMode | null; style?: StyleProp<ViewStyle>;
+/** 일반 문은 세로 막대, 서랍은 상단에 파인 사다리꼴 홈으로 표시한다. */
+export function DoorHandle({ horizontal = false, storageMode, style }: {
+  horizontal?: boolean; storageMode?: StorageMode | null; style?: StyleProp<ViewStyle>;
 }) {
   const palette = storageMode ? fridgeDoorColors[storageMode] : null;
-  const depth = miniature ? 7 : 12;
+  const depth = 12;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.doorHandle, horizontal && [styles.horizontalHandle, { height: depth }], style]}>
@@ -95,9 +93,9 @@ export function DoorHandle({ horizontal = false, miniature = false, storageMode,
   );
 }
 
-/** 문 앞면의 중앙 그림·공간 이름을 공유하고, 축소 도면에서는 이름을 숨긴다. */
-export function DoorModeArt({ storageMode, size, miniature = false, drawer = false, style }: {
-  storageMode: StorageMode | null; size: number; miniature?: boolean; drawer?: boolean; style?: StyleProp<ViewStyle>;
+/** 문 앞면의 중앙 그림과 공간 이름을 공유한다. */
+export function DoorModeArt({ storageMode, size, drawer = false, style }: {
+  storageMode: StorageMode | null; size: number; drawer?: boolean; style?: StyleProp<ViewStyle>;
 }) {
   if (!storageMode) return null;
   const frozen = storageMode === 'FROZEN';
@@ -105,12 +103,12 @@ export function DoorModeArt({ storageMode, size, miniature = false, drawer = fal
   const color = palette.motif;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-      style={[styles.modeArt, miniature && styles.miniatureModeArt, drawer && !miniature && styles.drawerModeArt, style]}>
-      <View style={[styles.modePrint, miniature && styles.miniatureModePrint]}>
+      style={[styles.modeArt, drawer && styles.drawerModeArt, style]}>
+      <View style={styles.modePrint}>
         <MaterialDesignIcons name={frozen ? 'snowflake' : 'weather-windy'} size={size} color={color} accessible={false} />
-        {!miniature ? <Text numberOfLines={1} style={[styles.modeName, { color: palette.ink, fontSize: size < 24 ? 10 : 12 }]}>
+        <Text numberOfLines={1} style={[styles.modeName, { color: palette.ink, fontSize: size < 24 ? 10 : 12 }]}>
           {getStorageModeName(storageMode)}
-        </Text> : null}
+        </Text>
       </View>
     </View>
   );
@@ -128,14 +126,14 @@ function DoorPocketBin({ style }: { style?: StyleProp<ViewStyle> }) {
 /** 칸·좌우 분할의 전체 경로와 선택 상태를 접근성 정보로 함께 제공한다. */
 export function FridgeMap({
   areas, positions, ingredients, selectedPositionId, selectedAreaId, storageMode, cornerStyle, showIngredientCounts = true,
-  showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, preview = false, style, areaHeader, disabled = false, onSelectPosition, onSelectArea,
+  showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, style, areaHeader, disabled = false, onSelectPosition, onSelectArea,
   selectedSlotIndex, onSelectSlot,
 }: FridgeMapProps) {
-  const groupInteraction = !!onSelectArea && !preview;
-  const slotInteraction = !!onSelectSlot && !preview;
+  const groupInteraction = !!onSelectArea;
+  const slotInteraction = !!onSelectSlot;
   const Slot = slotInteraction ? Pressable : View;
   const Area = groupInteraction ? Pressable : View;
-  const Position = preview || groupInteraction ? View : FeedbackPressable;
+  const Position = groupInteraction ? View : FeedbackPressable;
   const palette = storageMode ? fridgeDoorColors[storageMode] : null;
   const selectionColor = palette?.ink ?? fridgeSurfaces.handle;
   const materialShadow = palette ? fridgeSurfaces.shelfShadow.map(shadow => ({ ...shadow, color: `${palette.motif}22` })) : fridgeSurfaces.shelfShadow;
@@ -191,11 +189,11 @@ export function FridgeMap({
                           const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
                           return (
                             <Position key={position.id} accessible={groupInteraction ? false : undefined}
-                              accessibilityRole={preview ? 'image' : groupInteraction ? undefined : 'button'} accessibilityLabel={getPositionPath(area, position)}
+                              accessibilityRole={groupInteraction ? undefined : 'button'} accessibilityLabel={getPositionPath(area, position)}
                               accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
-                              accessibilityState={{ selected, disabled }} disabled={disabled} onPress={preview || groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
+                              accessibilityState={{ selected, disabled }} disabled={disabled} onPress={groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
                               style={[styles.position, positionIndex > 0 && styles.positionSeparator,
-                                (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, !area.isBody && styles.pocketPosition, selected && !groupInteraction && !selectedAreaId && positionSelection, groupInteraction && styles.groupPosition]}>
+                                compact && styles.compactPosition, fitHeight && styles.fittedPosition, !area.isBody && styles.pocketPosition, selected && !groupInteraction && !selectedAreaId && positionSelection, groupInteraction && styles.groupPosition]}>
                               {positionIndex > 0 ? (
                                 <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
                                   style={[styles.positionDivider, shelfTheme]} />
@@ -234,15 +232,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  miniatureModeArt: {
-    borderRadius: 0,
-  },
   // 서랍형 손잡이는 위쪽에 있어 인쇄를 아래로 옮겨 작은 문에서도 겹치지 않게 한다.
   drawerModeArt: {
     paddingTop: 18,
-  },
-  miniatureModePrint: {
-    gap: 0,
   },
   modeName: {
     fontWeight: '600',
@@ -421,9 +413,6 @@ const styles = StyleSheet.create({
     minHeight: 0,
     paddingVertical: 2,
     gap: 0,
-  },
-  previewPosition: {
-    paddingHorizontal: 4,
   },
   positionCount: {
     color: colors.textMuted,

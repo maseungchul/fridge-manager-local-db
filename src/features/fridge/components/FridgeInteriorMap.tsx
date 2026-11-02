@@ -69,8 +69,8 @@ function getRowBounds(canvasHeight: number, count: number, index: number) {
 }
 
 /** 수납 면의 실측 크기로 두 대각선을 계산해 이름 영역과 흰 여백을 피해서 X선을 그린다. */
-export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, areaHeader, readOnly = false, onPress }: {
-  label: string; selected: boolean; readOnly?: boolean; onPress?: () => void;
+export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, areaHeader, onPress }: {
+  label: string; selected: boolean; onPress?: () => void;
   storageMode?: StorageMode | null;
   cornerStyle?: ViewStyle;
   areaHeader?: ReactNode;
@@ -80,8 +80,8 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
   const length = Math.hypot(width, height);
   const angle = Math.atan2(height, width) * 180 / Math.PI;
   return (
-    <Pressable accessibilityRole={readOnly ? 'image' : 'button'} accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
-      pointerEvents={readOnly ? 'none' : 'auto'} onPress={readOnly ? undefined : onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={`${label}, 수납 없음`} accessibilityState={{ selected }}
+      onPress={onPress}
       style={[styles.noStorage, getFridgeSurfaceStyle(storageMode), cornerStyle]}>
       {areaHeader}
       <View pointerEvents="none" style={[styles.pocketCavity,

@@ -21,16 +21,13 @@ export const colors = {
   frozen: '#2F6C9D',
   // 등록 도면의 보관 모드 배지와 선택 영역에 사용하는 옅은 배경색이다.
   chilledBackground: '#E4EDDE',
-  frozenBackground: '#E0EDF6',
   // 입력 필드 등의 테두리에 사용한다.
   border: '#D9D5CC',
   // 인증 시작 화면의 브랜드 장식에 사용하는 색상이다.
   sage: '#A8B7A1',
   // 냉장고 위치와 하단 메뉴의 선택 상태를 표시하는 옅은 배경색이다.
   sageLight: '#DCE5D4',
-  cream: '#E8D8BC',
   rose: '#D4B3AD',
-  blue: '#ACC2CC',
   // 버튼의 기본 배경, 누르는 동안의 배경, 글자·로딩 표시 색상을 구분한다.
   button: '#29322A',
   buttonPressed: '#1F261F',
@@ -51,7 +48,6 @@ export const fridgeSurfaces = {
   cavityRadius: 10,
   shelf: '#9DBDAB',
   pocket: '#F2FAF5CC',
-  pocketBorder: '#ABC7B7',
   handle: '#B3BDB8',
   handleLength: 80,
   ink: '#577062',
@@ -75,11 +71,11 @@ export const fridgeSurfaces = {
 export const fridgeDoorColors = {
   CHILLED: {
     background: '#D4E6DB', border: '#BED8CB', ink: '#416B57', motif: '#648F7A',
-    frame: '#CEDFD5', shelf: '#92B5A2', pocket: '#F1FAF4CC', pocketBorder: '#A7C5B4', handle: '#B4CBC0',
+    frame: '#CEDFD5', shelf: '#92B5A2', pocket: '#F1FAF4CC', handle: '#B4CBC0',
   },
   FROZEN: {
     background: '#D3E4F1', border: '#BDD7E8', ink: '#396B90', motif: '#648FAF',
-    frame: '#CEDFEC', shelf: '#94B8D2', pocket: '#F1F9FFCC', pocketBorder: '#A7C5DA', handle: '#B5CBD9',
+    frame: '#CEDFEC', shelf: '#94B8D2', pocket: '#F1F9FFCC', handle: '#B5CBD9',
   },
 } as const;
 
@@ -99,19 +95,11 @@ export function getFridgeSurfaceStyle(storageMode: keyof typeof fridgeDoorColors
   };
 }
 
-// padding, margin, gap에 사용하는 공통 간격이다. xs부터 xxl까지 크기가 커진다.
+// padding, margin, gap에 사용하는 공통 간격이다. xs부터 lg까지 크기가 커진다.
 // React Native 스타일의 숫자 값은 화면 밀도에 독립적인 논리 단위로 사용된다.
 export const spacing = {
   xs: 6,
   sm: 10,
   md: 16,
   lg: 24,
-  xl: 32,
-  xxl: 48,
-} as const;
-
-// 플로팅 탭과 선반의 외곽 반경이다. 안쪽 반경은 각 화면의 여백을 빼서 계산한다.
-export const radii = {
-  container: 22,
-  shelf: 14,
 } as const;

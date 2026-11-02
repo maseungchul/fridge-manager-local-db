@@ -104,7 +104,6 @@ function loadComponent(path) {
   const dependencies = {
     react: hooks, 'react-native': native,
     '@react-native-vector-icons/material-design-icons': { MaterialDesignIcons: 'Icon' },
-    '@/components/SecondaryButton': { SecondaryButton: 'SecondaryButton' },
     '@/components/PrimaryButton': { PrimaryButton: 'PrimaryButton' },
     '@/components/SelectionCheck': { SelectionCheck: 'SelectionCheck' },
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
@@ -383,7 +382,7 @@ test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이�
     const before = structuredClone(map.props.draft);
     const register = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
     const registerIcon = find(register, node => node.type === 'Icon');
-    assert.equal(registerIcon.props.name, 'check');
+    assert.equal(registerIcon.props.name, 'checkbox-marked-circle-plus-outline');
     assert.equal(registerIcon.props.size, 32);
     assert.equal(flattenStyle(register.props.style).width, 48);
     assert.equal(flattenStyle(register.props.style).height, 48);
@@ -775,10 +774,6 @@ test('본체·포켓의 흰색 이름 영역을 누르면 해당 영역의 선�
     node => children(node).includes(bodyMap.props.areaHeader));
   assert.equal(disabledFrame.props.disabled, true);
   assert.equal(disabledFrame.props.accessibilityState.disabled, true);
-  const previewFrame = find(mapModule.FridgeMap({ ...bodyMap.props, preview: true }),
-    node => children(node).includes(bodyMap.props.areaHeader));
-  assert.equal(previewFrame.type, 'View');
-  assert.equal(previewFrame.props.onPress, undefined);
   find(mapModule.FridgeMap(bodyMap.props), node => children(node).includes(bodyMap.props.areaHeader)).props.onPress();
   focus.render();
   assert.equal(focus.props.selectedAreaId, draft.rows[0].compartments[0].id);
@@ -1557,7 +1552,6 @@ test('열린 본체·포켓은 내부 상단에 공간 이름을 표시하고 �
     return name.props.children;
   });
   assert.deepEqual(labels, ['냉장실', '도어포켓']);
-  assert.equal(findAll(focus.tree, node => node.type === 'SecondaryButton').length, 0);
   const outside = find(children(focus.tree)[0], node => node.type === 'Pressable');
   assert.equal(outside.props.accessibilityRole, 'button');
   assert.equal(children(outside).length, 0);
@@ -2095,7 +2089,6 @@ test('카테고리를 다시 누르면 접고 하위 영역에 툴바 배경을 
       const chilled = find(tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel.endsWith('냉장'));
       assert.equal(find(chilled, node => node.type === 'Icon').props.name, 'weather-windy');
     }
-    assert.equal(find(tree, node => node.type === 'SecondaryButton'), undefined);
     assert.equal(find(tree, node => node.props.accessibilityRole === 'header'), undefined);
     const horizontalRows = findAll(panel, node => node.type === 'ScrollView' && node.props.horizontal);
     assert(horizontalRows.length > 0);
@@ -2450,16 +2443,14 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
   }
 });
 
-test('문의 크기와 관계없이 중앙 모드 그림만 표시하고 축소 도면에서는 이름을 숨긴다', () => {
+test('문의 크기와 관계없이 중앙 모드 그림과 공간 이름을 표시한다', () => {
   for (const mode of ['CHILLED', 'FROZEN']) {
     for (const size of [16, 56]) {
-      for (const miniature of [false, true]) {
-        const tree = mapModule.DoorModeArt({ storageMode: mode, size, miniature });
-        const icons = findAll(tree, node => node.type === 'Icon');
-        assert.equal(icons.length, 1);
-        assert.equal(icons[0].props.name, mode === 'CHILLED' ? 'weather-windy' : 'snowflake');
-        assert.equal(findAll(tree, node => node.type === 'Text').length, miniature ? 0 : 1);
-      }
+      const tree = mapModule.DoorModeArt({ storageMode: mode, size });
+      const icons = findAll(tree, node => node.type === 'Icon');
+      assert.equal(icons.length, 1);
+      assert.equal(icons[0].props.name, mode === 'CHILLED' ? 'weather-windy' : 'snowflake');
+      assert.equal(findAll(tree, node => node.type === 'Text').length, 1);
     }
   }
 });
