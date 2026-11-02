@@ -39,7 +39,6 @@ type RefrigeratorRegistrationScreenProps = NativeStackScreenProps<
 
 type RegistrationStep = 'basic' | 'configuration';
 
-const STRUCTURE_LABEL_WIDTH = 24;
 const STRUCTURE_CONTROL_WIDTH = QUANTITY_STEPPER_WIDTH + 8 + 32;
 const STRUCTURE_PREVIEW_MAX_WIDTH = 144;
 
@@ -57,7 +56,7 @@ export function RefrigeratorRegistrationScreen({
   const [isStepChanging, setIsStepChanging] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
   const structurePreviewWidth = Math.max(1, Math.min(STRUCTURE_PREVIEW_MAX_WIDTH,
-    stepWidth - spacing.lg * 2 - STRUCTURE_LABEL_WIDTH - STRUCTURE_CONTROL_WIDTH - spacing.xs * 2));
+    stepWidth - spacing.lg * 2 - STRUCTURE_CONTROL_WIDTH - spacing.xs));
   const [stepHeight, setStepHeight] = useState(0);
   const [focusTarget, setFocusTarget] = useState<FridgeFocusTarget | null>(null);
   const [focusPhase, setFocusPhase] = useState<FridgeFocusPhase>('closed');
@@ -329,15 +328,8 @@ export function RefrigeratorRegistrationScreen({
                           <Text style={styles.description}>단과 문의 개수를 설정해 주세요.</Text>
                         </View>
                         <View style={styles.structureDiagram}>
-                          {/* 도면 테두리 안쪽과 같은 높이를 나눠 단 이름·조절 버튼을 각 단의 중앙에 맞춘다. */}
+                          {/* 도면 테두리 안쪽과 같은 높이를 나눠 조절 버튼을 각 단의 중앙에 맞춘다. */}
                           <View style={[styles.structureEditor, { height: structurePreviewWidth / STRUCTURE_PREVIEW_ASPECT_RATIO }]}>
-                            <View style={styles.structureLabels}>
-                              {draft.rows.map((row, index) => (
-                                <View key={row.id} style={styles.structureLabelRow}>
-                                  <Text style={styles.label}>{index + 1}단</Text>
-                                </View>
-                              ))}
-                            </View>
                             <FridgeStructurePreview rows={draft.rows.map(row => ({ id: row.id, doorCount: row.doors.length }))}
                               style={{ width: structurePreviewWidth }} />
                             <View style={styles.structureControls}>
@@ -356,7 +348,6 @@ export function RefrigeratorRegistrationScreen({
                             </View>
                           </View>
                           <View style={styles.structureEditor}>
-                            <View style={styles.structureLabels} />
                             <PrimaryButton label="단 추가" icon="plus" iconColor={colors.chilled} variant="secondary"
                               style={[styles.addRowButton, { width: structurePreviewWidth }]}
                               labelStyle={styles.addRowLabel}
@@ -590,16 +581,8 @@ const styles = StyleSheet.create({
   },
   structureEditor: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     gap: spacing.xs,
-  },
-  structureLabels: {
-    width: STRUCTURE_LABEL_WIDTH,
-    paddingVertical: 1,
-  },
-  structureLabelRow: {
-    flex: 1,
-    justifyContent: 'center',
   },
   structureControls: {
     width: STRUCTURE_CONTROL_WIDTH,
