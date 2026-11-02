@@ -85,7 +85,6 @@ export function RefrigeratorRegistrationScreen({
   const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id);
   const adjacentBody = getAdjacentCompartment(selectedRow, selectedBody.id);
   const mergeIncludesDrawer = isDrawerBody || selectedRow.doors.some(door => door.kind === 'DRAWER' && adjacentBody?.doorIds.includes(door.id));
-  const mergeLimitExceeded = !!adjacentBody && selectedBody.slots.length + adjacentBody.slots.length > MAX_SLOTS;
   const storageEnabled = !selectedDoor || selectedDoor.storageEnabled;
   const selectedSlotIndex = Math.min(slotIndex, selectedArea.slots.length - 1);
   // 선택 대상에서 사용할 수 없는 하위 설정은 감추고, 해당 대상으로 돌아오면 다시 표시한다.
@@ -404,12 +403,15 @@ export function RefrigeratorRegistrationScreen({
                     onMerge={selectedAreaId && !selectedDoor && !isMergedBody && !mergeIncludesDrawer
                       ? () => {
                         setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id));
+                        setSlotIndex(0);
                         setFocusTarget(current => current ? { ...current, returnAreaId: selectedBody.doorIds[0] } : current);
                       } : undefined}
-                    mergeDisabled={!adjacentBody || mergeLimitExceeded}
-                    mergeLimitExceeded={mergeLimitExceeded}
+                    mergeDisabled={!adjacentBody}
                     onSplit={selectedAreaId && !selectedDoor && isMergedBody
-                      ? () => setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id, activeFocus.returnAreaId)) : undefined}
+                      ? () => {
+                        setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id, activeFocus.returnAreaId));
+                        setSlotIndex(0);
+                      } : undefined}
                   />
                 </View>
               ) : null}

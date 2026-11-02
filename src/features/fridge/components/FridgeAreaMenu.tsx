@@ -9,7 +9,7 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
-import { doorOpeningOptions, getSlotName, MAX_SLOTS, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
+import { doorOpeningOptions, getSlotName, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -35,7 +35,6 @@ interface FridgeAreaMenuProps {
   selectedSlotIndex: number;
   location: string;
   mergeDisabled?: boolean;
-  mergeLimitExceeded?: boolean;
   onOpeningChange: (doorId: string, opening: DoorOpening) => void;
   onStorageChange: (enabled: boolean) => void;
   onStorageModeChange: (mode: StorageMode) => void;
@@ -55,7 +54,7 @@ const categoryOptions = [
 /** 하위 설정과 카테고리 사이의 화살표로 관계를 표시하고, 같은 버튼을 다시 누르면 접는다. */
 export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, showOpeningAction, openingDisabled = false,
   openingDoors, storageEnabled, storageMode, showSlots, slots, maxSlotCount, selectedSlotIndex, location,
-  mergeDisabled = false, mergeLimitExceeded = false, onOpeningChange, onStorageChange, onStorageModeChange,
+  mergeDisabled = false, onOpeningChange, onStorageChange, onStorageModeChange,
   onSlotCountChange, onSlotStructureChange, onMerge, onSplit }: FridgeAreaMenuProps) {
   const categories = categoryOptions.filter(category => {
     switch (category.id) {
@@ -136,7 +135,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
         })}
         {storageEnabled !== undefined ? (
           <View style={[styles.action, styles.storageAction, disabled && styles.disabled]}>
-            <View style={styles.storageLabel}>
+            <View style={styles.actionLabel}>
               <MaterialDesignIcons name="tray-full" size={18} color={colors.text} accessible={false} />
               <Text accessible={false} numberOfLines={1} style={styles.label}>문 수납</Text>
             </View>
@@ -147,7 +146,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
         ) : null}
         {onMerge || onSplit ? (
           <FeedbackPressable accessibilityRole="button" accessibilityLabel={onSplit ? '문별로 본체 분리' : '이웃 본체와 합치기'}
-            accessibilityHint={!onSplit && mergeLimitExceeded ? `합치기는 두 본체의 칸이 합계 ${MAX_SLOTS}개 이하일 때 가능해요.` : undefined}
+            accessibilityHint={onSplit ? '분리한 본체마다 칸 구성이 1칸, 분할 없음으로 초기화됩니다.' : '합친 본체의 칸 구성이 1칸, 분할 없음으로 초기화됩니다.'}
             accessibilityState={{ disabled: disabled || (!onSplit && mergeDisabled) }} disabled={disabled || (!onSplit && mergeDisabled)}
             onPress={onSplit ?? onMerge} style={styles.action}>
             <MaterialDesignIcons name={onSplit ? 'arrow-expand-horizontal' : 'arrow-collapse-horizontal'} size={18} color={colors.text} accessible={false} />
@@ -219,7 +218,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
   },
-  storageLabel: {
+  actionLabel: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,

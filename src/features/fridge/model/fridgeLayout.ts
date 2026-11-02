@@ -112,11 +112,6 @@ export function getSlotName(index: number) {
   return `위에서 ${index + 1}번째 칸`;
 }
 
-/** 합치기·분리로 영역이 바뀐 칸의 구조를 보존하고 이름만 현재 순서로 맞춘다. */
-function renumberSlots(slots: SlotConfiguration[]): SlotConfiguration[] {
-  return slots.map((slot, index) => ({ ...slot, name: getSlotName(index) }));
-}
-
 function createDraftDoor(id: number, side: DraftDoor['side'] = 'LEFT_DOOR'): DraftDoor {
   return {
     id: `door-${id}`, kind: 'HINGED', side, storageEnabled: true,
@@ -185,7 +180,7 @@ export function getAdjacentCompartment(row: DraftRow, bodyId: string): DraftComp
   return index < 0 ? undefined : row.compartments[index + 1] ?? row.compartments[index - 1];
 }
 
-/** 이웃 본체와 합쳐도 선택한 식별자와 칸의 좌우 순서를 유지하며, 문은 양쪽 여닫이로 맞춘다. */
+/** 이웃 본체와 합쳐도 선택한 식별자는 유지하고, 본체 칸은 기본 구성으로 초기화한다. */
 export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, bodyId: string): RefrigeratorDraft {
   return { ...draft, rows: draft.rows.map(row => {
     if (row.id !== rowId) return row;
@@ -194,8 +189,8 @@ export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, 
     if (!selected || !adjacent) return row;
     const index = Math.min(row.compartments.indexOf(selected), row.compartments.indexOf(adjacent));
     const left = row.compartments[index], right = row.compartments[index + 1];
-    if (!left || !right || left.slots.length + right.slots.length > MAX_SLOTS) return row;
-    const merged = { ...selected, doorIds: [...left.doorIds, ...right.doorIds], slots: renumberSlots([...left.slots, ...right.slots]),
+    if (!left || !right) return row;
+    const merged = { ...createDraftCompartment(draft.nextId, [...left.doorIds, ...right.doorIds]), id: selected.id,
       storageMode: left.storageMode === right.storageMode ? left.storageMode : null };
     const doors = row.doors.map<DraftDoor>(door => merged.doorIds.includes(door.id) ? {
       ...door, kind: 'HINGED', side: door.id === merged.doorIds[0] ? 'LEFT_DOOR' : 'RIGHT_DOOR',
@@ -204,22 +199,18 @@ export function mergeDraftCompartments(draft: RefrigeratorDraft, rowId: string, 
   }) };
 }
 
-/** 칸을 순서대로 나누며, 복귀할 문에 기존 본체 식별자를 남겨 중앙 보기의 연결을 유지한다. */
+/** 분리한 본체마다 기본 칸을 만들고, 복귀할 문에 기존 본체 식별자를 남긴다. */
 export function splitDraftCompartment(draft: RefrigeratorDraft, rowId: string, bodyId: string, returnDoorId?: string): RefrigeratorDraft {
   let nextId = draft.nextId;
   const rows = draft.rows.map(row => row.id !== rowId ? row : { ...row,
     compartments: row.compartments.flatMap(body => {
       if (body.id !== bodyId || body.doorIds.length === 1) return [body];
       const retainedIndex = Math.max(0, body.doorIds.indexOf(returnDoorId ?? ''));
-      let slotIndex = 0;
       return body.doorIds.map((doorId, index) => {
-        const slotCount = Math.ceil((body.slots.length - slotIndex) / (body.doorIds.length - index));
-        const slots = body.slots.slice(slotIndex, slotIndex + slotCount);
-        slotIndex += slots.length;
         const compartment = createDraftCompartment(nextId, [doorId]);
         const id = index === retainedIndex ? body.id : compartment.id;
         if (index !== retainedIndex) nextId++;
-        return { ...compartment, id, storageMode: body.storageMode, slots: slots.length ? renumberSlots(slots) : compartment.slots };
+        return { ...compartment, id, storageMode: body.storageMode };
       });
     }),
   });

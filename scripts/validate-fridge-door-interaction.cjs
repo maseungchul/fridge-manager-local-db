@@ -965,7 +965,7 @@ test('양쪽 본체의 툴바에서 합치고 분리해도 선택·중앙 보기
   }
 });
 
-test('합산 4칸을 넘으면 합치기만 비활성화하고 안내 문구로 툴바 높이를 늘리지 않는다', () => {
+test('칸 수와 관계없이 합치고 분리하며 초기화 안내와 툴바 높이를 유지한다', () => {
   const single = registrationFixture();
   single.viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
   single.map.props.onFocus(single.target);
@@ -994,14 +994,27 @@ test('합산 4칸을 넘으면 합치기만 비활성화하고 안내 문구로 
       find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
       screen.render();
     }
-    assert.equal(menu().props.mergeDisabled, true);
-    assert.equal(menu().props.mergeLimitExceeded, true);
+    assert.equal(menu().props.mergeDisabled, false);
     toolbar.props = menu().props;
     toolbar.render();
-    assert.deepEqual(flowLayout(toolbar.tree), beforeLayout, '합산 제한 안내가 도면의 표시 영역을 줄이면 안 된다');
+    assert.deepEqual(flowLayout(toolbar.tree), beforeLayout, '초기화 안내가 도면의 표시 영역을 바꾸면 안 된다');
     const merge = find(toolbar.tree, node => node.props.accessibilityLabel === '이웃 본체와 합치기');
-    assert.equal(merge.props.disabled, true);
-    assert.match(merge.props.accessibilityHint, /합계 4개 이하/);
+    assert.equal(merge.props.disabled, false);
+    assert.match(merge.props.accessibilityHint, /1칸, 분할 없음/);
+    assert.equal(find(merge, node => node.type === 'Text' && node.props.children === '1칸 초기화'), undefined);
+    find(screen.tree, named('FridgeFocusView')).props.onSelectSlot(row.compartments[selectedIndex].id, 3);
+    screen.render();
+    merge.props.onPress();
+    screen.render();
+    assert.deepEqual(menu().props.slots, [{ name: '위에서 1번째 칸', drawerCount: 0 }]);
+    assert.equal(menu().props.selectedSlotIndex, 0);
+    const split = find(toolbarTree(screen), node => node.props.accessibilityLabel === '문별로 본체 분리');
+    assert.match(split.props.accessibilityHint, /1칸, 분할 없음/);
+    assert.equal(find(split, node => node.type === 'Text' && node.props.children === '1칸 초기화'), undefined);
+    split.props.onPress();
+    screen.render();
+    assert(find(screen.tree, named('FridgeFocusView')).props.draft.rows[0].compartments.every(body =>
+      body.slots.length === 1 && body.slots[0].drawerCount === 0));
     toolbar.unmount();
     screen.unmount();
   }
