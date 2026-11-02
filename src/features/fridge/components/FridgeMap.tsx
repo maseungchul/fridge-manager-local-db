@@ -195,8 +195,11 @@ export function FridgeMap({
                               accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
                               accessibilityState={{ selected, disabled }} disabled={disabled} onPress={preview || groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
                               style={[styles.position, positionIndex > 0 && styles.positionSeparator,
-                                positionIndex > 0 && palette && { borderLeftColor: palette.border },
                                 (compact || preview) && styles.compactPosition, (preview || fitHeight) && styles.fittedPosition, preview && styles.previewPosition, !area.isBody && styles.pocketPosition, selected && !groupInteraction && !selectedAreaId && positionSelection, groupInteraction && styles.groupPosition]}>
+                              {positionIndex > 0 ? (
+                                <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                                  style={[styles.positionDivider, shelfTheme]} />
+                              ) : null}
                               {!area.isBody ? <DoorPocketBin style={pocketTheme} /> : null}
                               {/* 좌우 분할은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                               {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
@@ -353,7 +356,18 @@ const styles = StyleSheet.create({
   },
   positionSeparator: {
     borderLeftWidth: POSITION_SEPARATOR_WIDTH,
-    borderLeftColor: fridgeSurfaces.border,
+    borderLeftColor: 'transparent',
+  },
+  // 기존 분할 경계 위에 선반과 같은 단면을 겹쳐 칸 배치·터치 너비는 유지한다.
+  positionDivider: {
+    position: 'absolute',
+    left: -(BODY_SHELF_HEIGHT + POSITION_SEPARATOR_WIDTH) / 2,
+    top: 4,
+    bottom: 4,
+    width: BODY_SHELF_HEIGHT,
+    borderRadius: 2,
+    backgroundColor: fridgeSurfaces.shelf,
+    boxShadow: fridgeSurfaces.shelfShadow,
   },
   // 포켓의 둥근 바닥과 칸 아래 여백을 같은 위치에 맞춘다.
   pocketPosition: {

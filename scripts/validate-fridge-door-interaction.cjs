@@ -2329,8 +2329,18 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
       if (area.props.area.isBody) {
         const shelf = find(tree, node => flattenStyle(node.props.style).height === 4);
         assert.equal(flattenStyle(shelf.props.style).backgroundColor, palette.shelf);
-        const divider = find(tree, node => node.props.accessibilityLabel?.includes('오른쪽'));
-        assert.equal(flattenStyle(divider.props.style).borderLeftColor, palette.border);
+        const rightPosition = find(tree, node => node.props.accessibilityLabel?.includes('오른쪽'));
+        assert.equal(flattenStyle(rightPosition.props.style).borderLeftWidth, 1);
+        assert.equal(flattenStyle(rightPosition.props.style).borderLeftColor, 'transparent');
+        const divider = children(rightPosition).find(node => flattenStyle(node.props.style).width === 4);
+        const dividerStyle = flattenStyle(divider.props.style);
+        assert.equal(dividerStyle.backgroundColor, palette.shelf);
+        assert.equal(dividerStyle.borderRadius, 2);
+        assert.equal(dividerStyle.top, 4);
+        assert.equal(dividerStyle.bottom, 4);
+        assert.equal(dividerStyle.boxShadow[0].color, palette.motif + '22');
+        assert.equal(divider.props.pointerEvents, 'none');
+        assert.equal(divider.props.importantForAccessibility, 'no-hide-descendants');
       } else {
         for (const bin of findAll(tree, named('DoorPocketBin'))) {
           const front = flattenStyle(children(bin.type(bin.props))[0].props.style);
