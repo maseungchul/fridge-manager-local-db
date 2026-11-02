@@ -1034,6 +1034,57 @@ test('합산 4칸을 넘으면 합치기만 비활성화하고 안내 문구로 
   }
 });
 
+test('3단은 칸 선택을 위해 높이를 함께 키우고 분리된 본체에도 최소 너비를 확보한다', () => {
+  const draft = model.addDraftRow(model.createRefrigeratorDraft());
+  for (const row of draft.rows) row.compartments[0].slots = Array.from({ length: 3 }, (_, index) => ({ name: `${index + 1}칸`, drawerCount: 0 }));
+  for (const [rowIndex, row] of draft.rows.entries()) {
+    for (const opening of ['LEFT_DOOR', 'RIGHT_DOOR', 'DRAWER']) {
+      const referenceDraft = model.setDraftDoorOpening(draft, row.id, row.doors[0].id, opening);
+      const reference = fixture(referenceDraft, rowIndex);
+      selectDoor(reference.compartment);
+      let twoDoors = model.changeDraftDoorCount(referenceDraft, row.id, 1);
+      for (const door of twoDoors.rows[rowIndex].doors) twoDoors = model.setDraftDoorOpening(twoDoors, row.id, door.id, opening);
+      for (const merged of opening === 'DRAWER' ? [false] : [false, true]) {
+        const current = merged ? model.mergeDraftCompartments(twoDoors, row.id, twoDoors.rows[rowIndex].compartments[0].id) : twoDoors;
+        for (const bodyIndex of merged ? [0] : [0, 1]) {
+          const { compartment, requests } = fixture(current, rowIndex + bodyIndex);
+          selectDoor(compartment);
+          for (const viewport of [
+            { x: 0, y: 120, width: 375, height: 600 },
+            { x: 0, y: 120, width: 320, height: 600 },
+            { x: 0, y: 120, width: 375, height: 240 },
+            { x: 0, y: 120, width: 375, height: 148 },
+          ]) {
+            const expected = getFridgeFocusGeometry(referenceDraft, reference.requests[0], viewport);
+            const geometry = getFridgeFocusGeometry(current, requests[0], viewport);
+            near(geometry.height, expected.height);
+            near(geometry.focusedTop, expected.focusedTop);
+            if (merged) near(geometry.body.width, expected.body.width);
+            else {
+              assert(geometry.body.width >= Math.min(220, expected.body.width));
+              assert(geometry.body.width <= expected.body.width);
+            }
+            near(geometry.body.fromHeight, 180);
+            near(geometry.body.fromWidth, merged ? 270 : 135);
+            assert(geometry.focusedTop + geometry.contentHeight <= viewport.height);
+            if (viewport.width === 375 && viewport.height === 600) {
+              near(expected.height, 320);
+              near(expected.body.width, 327);
+              near(expected.focusedTop, 140);
+              near(geometry.body.width, merged ? 327 : 220);
+            }
+            if (viewport.width === 320 && viewport.height === 600) {
+              near(expected.height, 320);
+              near(expected.body.width, 272);
+              near(geometry.body.width, merged ? 272 : 220);
+            }
+          }
+        }
+      }
+    }
+  }
+});
+
 test('포켓이 4칸인 넓은 본체는 화면 너비를 유지하면서 높이를 확대한다', () => {
   let draft = model.createRefrigeratorDraft();
   draft = model.addDraftRow(model.addDraftRow(draft));
@@ -1046,7 +1097,7 @@ test('포켓이 4칸인 넓은 본체는 화면 너비를 유지하면서 높이
     canvas: { x: 24, y: 210, width: 327, height: 540 } };
   const geometry = getFridgeFocusGeometry(draft, target, { x: 0, y: 120, width: 375, height: 600 });
   near(geometry.body.width, geometry.source.width);
-  near(geometry.height, 200);
+  near(geometry.height, 320);
   assert.equal(geometry.scrollable, true);
   assert(geometry.body.width > geometry.body.height);
   assert(geometry.pockets.every(({ frame }) => frame.height === geometry.body.height));
@@ -1069,10 +1120,10 @@ test('4단·4칸은 목표 높이까지 확대하되 문 개수·여는 방식�
         selectDoor(compartment);
         const geometry = getFridgeFocusGeometry(draft, requests[0], { x: 0, y: 100, width: 375, height: 500 });
         near(geometry.source.height, 135);
-        near(geometry.height, doorCount === 2 && !merged ? 260 : 200);
-        near(geometry.body.width, doorCount === 2 && !merged ? 260 : 327);
+        near(geometry.height, 320);
+        near(geometry.body.width, doorCount === 2 && !merged ? 220 : 327);
         assert(geometry.height > geometry.source.height);
-        if (doorCount === 2 && !merged) near(geometry.body.width, geometry.body.height);
+        if (doorCount === 2 && !merged) assert(geometry.body.width < geometry.body.height);
         else assert(geometry.body.width > geometry.body.height);
         if (geometry.scrollable) {
           const bodyLeft = geometry.focusedLeft + geometry.body.left;
@@ -1096,15 +1147,15 @@ test('작은 화면에서는 확대 뒤 필요한 표시줄까지 확보하고 �
     const current = model.setDraftDoorOpening(draft, rowId, draft.rows[0].doors[0].id, opening);
     const { compartment, requests } = fixture(current);
     selectDoor(compartment);
-    for (const { width, height, expectedHeight } of [
-      { width: 375, height: 500, expectedHeight: 260 },
-      { width: 320, height: 240, expectedHeight: opening === 'DRAWER' ? 192 : 176 },
-      { width: 260, height: 500, expectedHeight: 212 },
+    for (const { width, height, expectedHeight, expectedWidth } of [
+      { width: 375, height: 500, expectedHeight: 320, expectedWidth: 220 },
+      { width: 320, height: 240, expectedHeight: opening === 'DRAWER' ? 192 : 176, expectedWidth: 220 },
+      { width: 260, height: 500, expectedHeight: 320, expectedWidth: 212 },
     ]) {
       const viewport = { x: 0, y: 100, width, height };
       const geometry = getFridgeFocusGeometry(current, requests[0], viewport);
       near(geometry.height, expectedHeight);
-      near(geometry.body.width, expectedHeight);
+      near(geometry.body.width, expectedWidth);
       near(geometry.source.height, 135);
       near(geometry.source.width, 135);
       assert.equal(geometry.scrollable, opening !== 'DRAWER');
@@ -1135,8 +1186,8 @@ test('가로로 긴 단은 본체 너비까지 확대하고 왼쪽 열림은 오
       const viewport = { x: 0, y: 100, width: viewportWidth, height: 600 };
       const geometry = getFridgeFocusGeometry(current, requests[0], viewport);
       assert.equal(geometry.scrollable, true);
-      near(geometry.body.width, Math.min(viewportWidth - 48, 400));
-      near(geometry.height, 200);
+      near(geometry.body.width, viewportWidth - 48);
+      near(geometry.height, 320);
       const bodyLeft = geometry.focusedLeft + geometry.body.left;
       if (opening === 'LEFT_DOOR') {
         near(bodyLeft + geometry.body.width, viewportWidth - 24);

@@ -62,6 +62,8 @@ const MAP_PADDING = 10;
 const FOCUS_PADDING = 24;
 const FOCUS_TARGET_HEIGHT = 260;
 const FOCUS_WIDE_TARGET_HEIGHT = 200;
+const FOCUS_EXPANDED_HEIGHT = 320;
+const FOCUS_EXPANDED_MIN_WIDTH = 220;
 const SCROLL_INDICATOR_SPACE = 16;
 
 /** 전체 높이를 단별로 균등하게 나눈 문 크기와 좌표를 닫힌 도면·중앙 보기에서 공유한다. */
@@ -281,18 +283,24 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
   const availableHeight = Math.max(1, viewport.height - FOCUS_PADDING * 2);
   // 1단의 분리된 양문 본체는 1도어와 같은 표시 크기·위치를 사용하고 원래 좌표로 복귀한다.
   const singleRowTwoDoors = draft.rows.length === 1 && row.doors.length === 2 && group.doors.length === 1;
-  const focusBaseWidth = singleRowTwoDoors ? source.height * FRIDGE_ASPECT_RATIO : source.width;
+  // 3~4단은 높이를 함께 키우고, 분리된 본체도 칸 선택에 필요한 너비를 확보한다.
+  const useExpandedRowSize = draft.rows.length >= 3;
+  const focusBaseWidth = singleRowTwoDoors ? source.height * FRIDGE_ASPECT_RATIO : useExpandedRowSize ? focus.canvas.width : source.width;
   // 가로로 긴 단은 높이 확대를 줄이되, 너비 제한 때문에 높이까지 작게 남지 않게 한다.
-  const wide = source.width > source.height;
-  const targetHeight = wide ? FOCUS_WIDE_TARGET_HEIGHT : FOCUS_TARGET_HEIGHT;
+  const wide = focusBaseWidth > source.height;
+  const targetHeight = useExpandedRowSize ? FOCUS_EXPANDED_HEIGHT : wide ? FOCUS_WIDE_TARGET_HEIGHT : FOCUS_TARGET_HEIGHT;
   const preferredHeight = Math.max(source.height, targetHeight);
   const heightRatio = Math.min(preferredHeight / source.height, availableHeight / source.height);
   const targetRatio = wide ? heightRatio : Math.min(heightRatio, availableWidth / focusBaseWidth);
-  // 확대 뒤 새로 좌우 이동이 필요해지는 경우도 표시줄 높이를 먼저 확보한다.
-  const targetWidth = Math.min(focusBaseWidth * targetRatio, availableWidth) / group.doors.length * (group.doors.length + pocketCount) + pocketCount * HINGE_LENGTH;
+  // 확대 뒤 필요한 표시줄 공간을 확보하며, 3~4단의 높이 기준은 1도어로 통일한다.
+  const fitDoorCount = useExpandedRowSize ? 1 : group.doors.length;
+  const fitPocketCount = useExpandedRowSize ? Math.min(1, pocketCount) : pocketCount;
+  const targetWidth = Math.min(focusBaseWidth * targetRatio, availableWidth) / fitDoorCount * (fitDoorCount + fitPocketCount) + fitPocketCount * HINGE_LENGTH;
   const indicatorHeight = targetWidth > availableWidth + 0.01 ? SCROLL_INDICATOR_SPACE : 0;
   const fitRatio = Math.min(targetRatio, Math.max(1, availableHeight - indicatorHeight) / source.height);
-  const unitWidth = Math.min(focusBaseWidth * fitRatio, availableWidth) / group.doors.length;
+  const fittedWidth = Math.min(focusBaseWidth * fitRatio, availableWidth);
+  const bodyWidth = useExpandedRowSize ? Math.min(fittedWidth, Math.max(fittedWidth * group.width, FOCUS_EXPANDED_MIN_WIDTH)) : fittedWidth;
+  const unitWidth = bodyWidth / group.doors.length;
   const height = source.height * fitRatio;
   const width = unitWidth * (group.doors.length + pocketCount) + pocketCount * HINGE_LENGTH;
 
