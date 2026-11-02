@@ -353,7 +353,7 @@ test('닫힌 도면은 단을 여백 없이 붙이고 문에 선택 테두리를
   }
 });
 
-test('상단은 같은 크기의 좌우 화살표를 쓰고 내부 설정에서는 등록 문구와 이전 단계 이동을 유지한다', () => {
+test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이동과 입력 제한을 유지한다', () => {
   let cancelled = 0;
   const basic = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() { cancelled++; }, dispatch() {} } });
   const back = find(basic.tree, node => node.props.accessibilityLabel === '냉장고 등록 취소');
@@ -381,7 +381,14 @@ test('상단은 같은 크기의 좌우 화살표를 쓰고 내부 설정에서�
   for (const expanded of [false, true]) {
     const { screen, viewport, map, target } = registrationFixture(2);
     const before = structuredClone(map.props.draft);
-    assert(find(screen.tree, node => node.type === 'PrimaryButton' && node.props.label === '등록'));
+    const register = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
+    const registerIcon = find(register, node => node.type === 'Icon');
+    assert.equal(registerIcon.props.name, 'check');
+    assert.equal(registerIcon.props.size, 32);
+    assert.equal(flattenStyle(register.props.style).width, 48);
+    assert.equal(flattenStyle(register.props.style).height, 48);
+    assert.equal(find(register, node => node.type === 'Text'), undefined);
+    assert.equal(register.props.disabled, true);
     if (expanded) {
       viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
       map.props.onFocus(target);

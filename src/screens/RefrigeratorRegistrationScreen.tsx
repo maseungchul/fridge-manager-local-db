@@ -242,7 +242,7 @@ export function RefrigeratorRegistrationScreen({
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      {/* 왼쪽 화살표는 이전 화면으로 이동하고, 오른쪽은 다음·등록으로 고정한다. */}
+      {/* 상단 아이콘은 왼쪽 이전 이동, 오른쪽 다음 이동·등록으로 고정한다. */}
       <View style={[styles.header, activeFocus && styles.focusHeader]}>
         {/* 큰 도면이 헤더에 닿아도 제목·여백은 바깥 닫기로 처리하고 기존 버튼은 위에 유지한다. */}
         {activeFocus ? <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button"
@@ -253,7 +253,7 @@ export function RefrigeratorRegistrationScreen({
         <View style={styles.headerNavigation}>
           <FeedbackPressable accessibilityRole="button"
             accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : '기본 정보로 돌아가기'}
-            accessibilityState={{ disabled: isStepChanging || isFocusMoving }} style={styles.headerArrowButton}
+            accessibilityState={{ disabled: isStepChanging || isFocusMoving }} style={styles.headerIconButton}
             disabled={isStepChanging || isFocusMoving}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
             <MaterialDesignIcons name="arrow-left" size={32} color={colors.text} accessible={false} />
@@ -265,14 +265,16 @@ export function RefrigeratorRegistrationScreen({
         <View style={[styles.headerNavigation, styles.headerNextNavigation]}>
           {step === 'basic' ? (
             <FeedbackPressable accessibilityRole="button" accessibilityLabel="내부 설정으로 이동"
-              accessibilityState={{ disabled: !draft.name.trim() || isStepChanging }} style={styles.headerArrowButton}
+              accessibilityState={{ disabled: !draft.name.trim() || isStepChanging }} style={styles.headerIconButton}
               disabled={!draft.name.trim()} interactionBlocked={isStepChanging} onPress={() => changeStep('configuration')}>
               <MaterialDesignIcons name="arrow-right" size={32} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : (
             // DB 저장이 연결되기 전까지 등록 버튼은 비활성화한다.
-            <PrimaryButton label="등록" disabled interactionBlocked={isStepChanging} onPress={undefined}
-              style={styles.headerAction} labelStyle={styles.headerActionLabel} />
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 등록"
+              accessibilityState={{ disabled: true }} disabled interactionBlocked={isStepChanging} style={styles.headerIconButton}>
+              <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={32} color={colors.text} accessible={false} />
+            </FeedbackPressable>
           )}
         </View>
       </View>
@@ -494,7 +496,7 @@ const styles = StyleSheet.create({
   headerNextNavigation: {
     alignItems: 'flex-end',
   },
-  headerArrowButton: {
+  headerIconButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -504,14 +506,6 @@ const styles = StyleSheet.create({
   focusHeader: {
     zIndex: 40,
     backgroundColor: colors.background,
-  },
-  headerAction: {
-    width: 64,
-    height: 44,
-    borderRadius: 8,
-  },
-  headerActionLabel: {
-    fontSize: 13,
   },
   title: {
     flex: 1,
