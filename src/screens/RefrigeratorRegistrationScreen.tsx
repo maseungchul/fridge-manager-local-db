@@ -15,7 +15,6 @@ import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowD
 import type { LayoutChangeEvent, LayoutRectangle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { SecondaryButton } from '@/components/SecondaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantityStepper';
@@ -243,7 +242,7 @@ export function RefrigeratorRegistrationScreen({
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      {/* 왼쪽은 취소·이전, 오른쪽은 다음·등록으로 고정해 단계마다 같은 위치에서 조작한다. */}
+      {/* 왼쪽 화살표는 이전 화면으로 이동하고, 오른쪽은 다음·등록으로 고정한다. */}
       <View style={[styles.header, activeFocus && styles.focusHeader]}>
         {/* 큰 도면이 헤더에 닿아도 제목·여백은 바깥 닫기로 처리하고 기존 버튼은 위에 유지한다. */}
         {activeFocus ? <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button"
@@ -252,19 +251,30 @@ export function RefrigeratorRegistrationScreen({
           pointerEvents={focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={focusPhase !== 'open'}
           importantForAccessibility={focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
         <View style={styles.headerNavigation}>
-          <SecondaryButton label={step === 'basic' ? '취소' : '이전'} icon={step === 'basic' ? 'close' : 'arrow-left'}
-            accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : activeFocus ? '전체 도면으로 돌아가기' : '기본 정보로 돌아가기'}
+          <FeedbackPressable accessibilityRole="button"
+            accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : '기본 정보로 돌아가기'}
+            accessibilityState={{ disabled: isStepChanging || isFocusMoving }} style={styles.headerArrowButton}
             disabled={isStepChanging || isFocusMoving}
-            onPress={step === 'basic' ? cancelRegistration : activeFocus ? closeFocusedArea : () => changeStep('basic')} />
+            onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
+            <MaterialDesignIcons name="arrow-left" size={32} color={colors.text} accessible={false} />
+          </FeedbackPressable>
         </View>
         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
           pointerEvents={activeFocus ? 'none' : 'auto'}
           style={styles.title}>냉장고 등록</Text>
-        {/* DB 저장이 연결되기 전까지 등록 버튼은 비활성화한다. */}
-        <PrimaryButton label={step === 'basic' ? '다음' : '등록'}
-          disabled={step === 'basic' ? !draft.name.trim() : true} interactionBlocked={isStepChanging}
-          onPress={step === 'basic' ? () => changeStep('configuration') : undefined}
-          style={styles.headerAction} labelStyle={styles.headerActionLabel} />
+        <View style={[styles.headerNavigation, styles.headerNextNavigation]}>
+          {step === 'basic' ? (
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel="내부 설정으로 이동"
+              accessibilityState={{ disabled: !draft.name.trim() || isStepChanging }} style={styles.headerArrowButton}
+              disabled={!draft.name.trim()} interactionBlocked={isStepChanging} onPress={() => changeStep('configuration')}>
+              <MaterialDesignIcons name="arrow-right" size={32} color={colors.text} accessible={false} />
+            </FeedbackPressable>
+          ) : (
+            // DB 저장이 연결되기 전까지 등록 버튼은 비활성화한다.
+            <PrimaryButton label="등록" disabled interactionBlocked={isStepChanging} onPress={undefined}
+              style={styles.headerAction} labelStyle={styles.headerActionLabel} />
+          )}
+        </View>
       </View>
       {/* 단계별 스크롤·하단 도구를 함께 이동하며, 비활성 단계의 터치·접근성 탐색은 막는다. */}
       <View style={[styles.stepViewport, activeFocus && styles.focusStepViewport]} pointerEvents={isStepChanging ? 'none' : 'auto'}
@@ -480,6 +490,16 @@ const styles = StyleSheet.create({
   headerNavigation: {
     width: 64,
     alignItems: 'flex-start',
+  },
+  headerNextNavigation: {
+    alignItems: 'flex-end',
+  },
+  headerArrowButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   focusHeader: {
     zIndex: 40,

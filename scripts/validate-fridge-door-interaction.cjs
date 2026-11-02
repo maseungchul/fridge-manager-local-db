@@ -199,7 +199,7 @@ function registrationFixture(doorCount = 1, rowCount = 2) {
     find(screen.tree, node => node.props.accessibilityLabel === '1단 문 늘리기').props.onPress();
     screen.render();
   }
-  find(screen.tree, node => node.type === 'PrimaryButton' && node.props.label === '다음').props.onPress();
+  find(screen.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동').props.onPress();
   animations.at(-1).finish();
   screen.render();
   const viewport = find(screen.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
@@ -350,6 +350,59 @@ test('닫힌 도면은 단을 여백 없이 붙이고 문에 선택 테두리를
       }
       near(end, canvasStyle.width);
     }
+  }
+});
+
+test('상단은 같은 크기의 좌우 화살표를 쓰고 내부 설정에서는 등록 문구와 이전 단계 이동을 유지한다', () => {
+  let cancelled = 0;
+  const basic = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() { cancelled++; }, dispatch() {} } });
+  const back = find(basic.tree, node => node.props.accessibilityLabel === '냉장고 등록 취소');
+  const icon = find(back, node => node.type === 'Icon');
+  assert.equal(icon.props.name, 'arrow-left');
+  assert.equal(icon.props.size, 32);
+  assert.equal(find(back, node => node.type === 'Text'), undefined);
+  assert.equal(flattenStyle(back.props.style).width, 48);
+  assert.equal(flattenStyle(back.props.style).height, 48);
+  const next = () => find(basic.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동');
+  const nextIcon = find(next(), node => node.type === 'Icon');
+  assert.equal(nextIcon.props.name, 'arrow-right');
+  assert.equal(nextIcon.props.size, icon.props.size);
+  assert.deepEqual(flattenStyle(next().props.style), flattenStyle(back.props.style));
+  assert.equal(find(next(), node => node.type === 'Text'), undefined);
+  find(basic.tree, node => node.props.accessibilityLabel === '냉장고 이름').props.onChangeText('  ');
+  basic.render();
+  assert.equal(next().props.disabled, true);
+  find(basic.tree, node => node.props.accessibilityLabel === '냉장고 이름').props.onChangeText('우리 집 냉장고');
+  basic.render();
+  assert.equal(next().props.disabled, false);
+  back.props.onPress();
+  assert.equal(cancelled, 1);
+  basic.unmount();
+  for (const expanded of [false, true]) {
+    const { screen, viewport, map, target } = registrationFixture(2);
+    const before = structuredClone(map.props.draft);
+    assert(find(screen.tree, node => node.type === 'PrimaryButton' && node.props.label === '등록'));
+    if (expanded) {
+      viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+      map.props.onFocus(target);
+      screen.render();
+      assert.equal(find(screen.tree, node => node.props.accessibilityLabel === '기본 정보로 돌아가기').props.disabled, true);
+      find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+      screen.render();
+      find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('slots');
+      screen.render();
+    }
+    const previous = find(screen.tree, node => node.props.accessibilityLabel === '기본 정보로 돌아가기');
+    assert.equal(previous.props.disabled, false);
+    previous.props.onPress();
+    screen.render();
+    assert.equal(find(screen.tree, named('FridgeFocusView')), undefined);
+    animations.at(-1).finish();
+    screen.render();
+    assert(find(screen.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동'));
+    assert(find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록 취소'));
+    assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
+    screen.unmount();
   }
 });
 
@@ -1560,7 +1613,7 @@ test('도면 화면은 고정하고 기본 정보만 세로 스크롤을 허용�
   const screen = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
   const pageScrolls = () => findAll(screen.tree, node => node.type === 'ScrollView' && node.props.ref);
   assert.deepEqual(pageScrolls().map(node => node.props.scrollEnabled), [true, false]);
-  find(screen.tree, node => node.type === 'PrimaryButton' && node.props.label === '다음').props.onPress();
+  find(screen.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동').props.onPress();
   animations.at(-1).finish();
   screen.render();
   assert.deepEqual(pageScrolls().map(node => node.props.scrollEnabled), [false, false]);
