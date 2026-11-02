@@ -5,10 +5,10 @@
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ComponentRef, ReactNode } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import type { LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
-import { DoorHandle, DoorModeArt, FridgeMap } from '@/features/fridge/components/FridgeMap';
+import { DoorHandle, DoorModeArt, FridgeMap, getFridgeAreaEditSize } from '@/features/fridge/components/FridgeMap';
 import { areaNames, FRIDGE_ASPECT_RATIO, getDraftAreaLocation, getDraftLayout, getDraftRowGeometry, getStorageModeName } from '@/features/fridge/model/fridgeLayout';
 import type { DraftDoor, FridgeLayout, RefrigeratorDraft, StorageArea, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle } from '@/theme/tokens';
@@ -60,10 +60,6 @@ const HINGE_HEIGHT = 18;
 const MAP_HEIGHT = 540;
 const MAP_PADDING = 10;
 const FOCUS_PADDING = 24;
-const FOCUS_TARGET_HEIGHT = 260;
-const FOCUS_WIDE_TARGET_HEIGHT = 200;
-const FOCUS_EXPANDED_HEIGHT = 320;
-const FOCUS_EXPANDED_MIN_WIDTH = 220;
 const SCROLL_INDICATOR_SPACE = 16;
 
 /** 전체 높이를 단별로 균등하게 나눈 문 크기와 좌표를 닫힌 도면·중앙 보기에서 공유한다. */
@@ -263,7 +259,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, selectedAreaId, foc
   );
 }
 
-/** 작은 단은 형태에 맞는 목표 높이까지 확대하고, 본체 너비와 표시 영역 높이를 각각 제한한다. */
+/** 원본 비율로 최대한 확대하고, 수납 칸의 편집 크기가 부족한 방향만 보정한다. */
 export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFocusTarget, viewport: LayoutRectangle) {
   const rowIndex = draft.rows.findIndex(row => row.compartments.some(body => body.id === focus.areaId));
   if (rowIndex < 0) return null;
@@ -281,27 +277,28 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
   const pocketCount = leftDoors.length + rightDoors.length;
   const availableWidth = Math.max(1, viewport.width - FOCUS_PADDING * 2);
   const availableHeight = Math.max(1, viewport.height - FOCUS_PADDING * 2);
-  // 1단의 분리된 양문 본체는 1도어와 같은 표시 크기·위치를 사용하고 원래 좌표로 복귀한다.
-  const singleRowTwoDoors = draft.rows.length === 1 && row.doors.length === 2 && group.doors.length === 1;
-  // 3~4단은 높이를 함께 키우고, 분리된 본체도 칸 선택에 필요한 너비를 확보한다.
-  const useExpandedRowSize = draft.rows.length >= 3;
-  const focusBaseWidth = singleRowTwoDoors ? source.height * FRIDGE_ASPECT_RATIO : useExpandedRowSize ? focus.canvas.width : source.width;
-  // 가로로 긴 단은 높이 확대를 줄이되, 너비 제한 때문에 높이까지 작게 남지 않게 한다.
-  const wide = focusBaseWidth > source.height;
-  const targetHeight = useExpandedRowSize ? FOCUS_EXPANDED_HEIGHT : wide ? FOCUS_WIDE_TARGET_HEIGHT : FOCUS_TARGET_HEIGHT;
-  const preferredHeight = Math.max(source.height, targetHeight);
-  const heightRatio = Math.min(preferredHeight / source.height, availableHeight / source.height);
-  const targetRatio = wide ? heightRatio : Math.min(heightRatio, availableWidth / focusBaseWidth);
-  // 확대 뒤 필요한 표시줄 공간을 확보하며, 3~4단의 높이 기준은 1도어로 통일한다.
-  const fitDoorCount = useExpandedRowSize ? 1 : group.doors.length;
-  const fitPocketCount = useExpandedRowSize ? Math.min(1, pocketCount) : pocketCount;
-  const targetWidth = Math.min(focusBaseWidth * targetRatio, availableWidth) / fitDoorCount * (fitDoorCount + fitPocketCount) + fitPocketCount * HINGE_LENGTH;
-  const indicatorHeight = targetWidth > availableWidth + 0.01 ? SCROLL_INDICATOR_SPACE : 0;
-  const fitRatio = Math.min(targetRatio, Math.max(1, availableHeight - indicatorHeight) / source.height);
-  const fittedWidth = Math.min(focusBaseWidth * fitRatio, availableWidth);
-  const bodyWidth = useExpandedRowSize ? Math.min(fittedWidth, Math.max(fittedWidth * group.width, FOCUS_EXPANDED_MIN_WIDTH)) : fittedWidth;
-  const unitWidth = bodyWidth / group.doors.length;
-  const height = source.height * fitRatio;
+  const bodyMinimum = getFridgeAreaEditSize(group.body.slots, true);
+  const pocketMinimums = [...leftDoors, ...rightDoors].map(({ door }) =>
+    getFridgeAreaEditSize(door.storageEnabled ? door.slots : [], false));
+  const minimumWidth = Math.max(bodyMinimum.width, ...pocketMinimums.map(size => size.width * group.doors.length));
+  const minimumHeight = Math.max(bodyMinimum.height, ...pocketMinimums.map(size => size.height));
+  function fitSize(indicatorHeight: number) {
+    const availableBodyHeight = Math.max(1, availableHeight - indicatorHeight);
+    const minimumRatio = Math.max(minimumWidth / source.width, minimumHeight / source.height);
+    // 상하 이동이 필요할 때도 원본 비율로 필요한 편집 크기를 먼저 확보한다.
+    const ratio = Math.min(availableWidth / source.width,
+      minimumHeight > availableBodyHeight ? minimumRatio : availableBodyHeight / source.height);
+    return { width: Math.max(minimumWidth, source.width * ratio), height: Math.max(minimumHeight, source.height * ratio) };
+  }
+  function unfoldedWidth(bodyWidth: number) {
+    return bodyWidth / group.doors.length * (group.doors.length + pocketCount) + pocketCount * HINGE_LENGTH;
+  }
+  let size = fitSize(0);
+  // 너비 보정으로 새로 좌우 이동이 필요해지는 경우도 표시줄 높이를 확보한다.
+  if (unfoldedWidth(size.width) > availableWidth + 0.01) size = fitSize(SCROLL_INDICATOR_SPACE);
+  const unitWidth = size.width / group.doors.length;
+  const height = size.height;
+  const fitRatio = height / source.height;
   const width = unitWidth * (group.doors.length + pocketCount) + pocketCount * HINGE_LENGTH;
 
   function place(frame: { left: number; top: number; width: number; height: number }, original: LayoutRectangle) {
@@ -331,8 +328,11 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
   });
   const scrollable = width > availableWidth + 0.01;
   const contentHeight = height + (scrollable ? SCROLL_INDICATOR_SPACE : 0);
-  // 크기를 조절한 뒤에도 하단 스크롤 표시줄까지 제목·툴바 사이의 표시 영역 안에 둔다.
-  const focusedTop = Math.max(0, Math.min((viewport.height - height) / 2, viewport.height - contentHeight));
+  // 최소 편집 높이가 들어오지 않으면 칸을 줄이지 않고 내부 도면만 상하 이동한다.
+  const verticalScrollable = contentHeight > availableHeight + 0.01;
+  const scrollViewportHeight = verticalScrollable ? availableHeight : contentHeight;
+  const focusedTop = verticalScrollable ? Math.max(0, (viewport.height - availableHeight) / 2)
+    : Math.max(0, Math.min((viewport.height - height) / 2, viewport.height - contentHeight));
   // 한쪽 열림은 본체를 반대쪽 화면 끝에 맞추고, 양쪽 열림은 가운데에 둔다.
   const bodyLeft = leftDoors.length > 0 && rightDoors.length === 0
     ? viewport.width - FOCUS_PADDING - body.width
@@ -346,7 +346,7 @@ export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFo
   const left = source.x - viewport.x + (source.width - width) / 2;
   const top = source.y - viewport.y + (source.height - height) / 2;
   return { row, rowIndex, group, source, body, pockets, doors, width, height,
-    scrollable, fitRatio, contentHeight, contentWidth, initialScrollX, scrollPaddingLeft, focusedLeft, focusedTop,
+    scrollable, verticalScrollable, scrollViewportHeight, fitRatio, contentHeight, contentWidth, initialScrollX, scrollPaddingLeft, focusedLeft, focusedTop,
     left,
     top,
     translateX: focusedLeft - left,
@@ -436,18 +436,21 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
 }) {
   const progress = useAnimatedValue(0);
   const scrollRef = useRef<ScrollView>(null);
-  const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0 });
+  const verticalScrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0, y: 0 });
   const [hintDismissed, setHintDismissed] = useState(false);
   const geometry = getFridgeFocusGeometry(draft, target, viewport);
   const layout = getDraftLayout(draft);
   const open = phase === 'open';
-  const scrollKey = `${target.areaId}:${geometry?.width}:${geometry?.height}:${viewport.width}`;
+  const scrollKey = `${target.areaId}:${geometry?.width}:${geometry?.height}:${viewport.width}:${viewport.height}`;
   const initialScrollX = geometry?.initialScrollX ?? 0;
   const scrollable = geometry?.scrollable ?? false;
+  const verticalScrollable = geometry?.verticalScrollable ?? false;
 
   useEffect(() => {
     if (open && scrollable) scrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-  }, [open, scrollable, scrollKey, initialScrollX]);
+    if (open && verticalScrollable) verticalScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [open, scrollable, verticalScrollable, scrollKey, initialScrollX]);
 
   useEffect(() => {
     if (phase !== 'opening' && phase !== 'closing') return;
@@ -466,8 +469,11 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   if (!geometry) return null;
   const { row, rowIndex, group, body, pockets, doors } = geometry;
   const bodyCorners = getGridCorners(getGridEdges(row, rowIndex, draft.rows.length, group.body.doorIds));
-  const scrolling = open && geometry.scrollable;
+  const horizontalScrolling = open && geometry.scrollable;
+  const verticalScrolling = open && geometry.verticalScrollable;
+  const scrolling = horizontalScrolling || verticalScrolling;
   const scrollShift = scrollPosition.key === scrollKey ? scrollPosition.x - initialScrollX : 0;
+  const scrollShiftY = scrollPosition.key === scrollKey ? scrollPosition.y : 0;
   const area = layout.areas.find(candidate => candidate.id === group.body.id)!;
   function panelStyle(frame: typeof body) {
     return {
@@ -483,11 +489,11 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   // 닫을 때는 스크롤 위치도 같은 진행값으로 원점에 돌려 시작 화면으로 튀지 않게 한다.
   const scene = (
     <Animated.View onStartShouldSetResponder={() => !scrolling} style={[styles.compartment, {
-      left: scrolling ? geometry.scrollPaddingLeft : geometry.focusedLeft,
+      left: horizontalScrolling ? geometry.scrollPaddingLeft : geometry.focusedLeft,
       top: scrolling ? 0 : geometry.focusedTop, width: geometry.width, height: geometry.height,
       transform: scrolling ? [] : [
         { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateX, -scrollShift] }) },
-        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateY, 0] }) },
+        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateY, -scrollShiftY] }) },
       ],
     }]}>
       {/* 경첩은 문 뒷면이 드러난 뒤 표시하고, 크기를 조절하는 동안에도 본체 중심과 높이를 따라간다. */}
@@ -546,22 +552,36 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
       </Animated.View>
     </Animated.View>
   );
-  // 세로는 표시 영역에 맞추고, 가로로 넘치는 경우에만 좌우 이동을 허용한다.
-  const scrollScene = scrolling ? (
-    <ScrollView ref={scrollRef} horizontal scrollEnabled bounces={false} overScrollMode="never" removeClippedSubviews={false}
+  // 각 수납 칸의 편집 크기를 유지하고, 넘치는 방향에만 도면 내부 스크롤을 허용한다.
+  const horizontalScene = horizontalScrolling ? (
+    <ScrollView ref={scrollRef} horizontal scrollEnabled nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never" removeClippedSubviews={false}
       accessibilityLabel="냉장고 내부 도면, 좌우로 이동" showsHorizontalScrollIndicator
       contentOffset={{ x: initialScrollX, y: 0 }} scrollEventThrottle={16}
-      onScroll={({ nativeEvent }) => setScrollPosition({ key: scrollKey, x: nativeEvent.contentOffset.x })}
+      onScroll={({ nativeEvent }) => setScrollPosition(current => ({ key: scrollKey, x: nativeEvent.contentOffset.x,
+        y: current.key === scrollKey ? current.y : 0 }))}
       onScrollBeginDrag={() => { setHintDismissed(true); onScrollHintSeen?.(); }}
-      style={[styles.compartment, { left: 0, top: geometry.focusedTop,
-        width: viewport.width, height: geometry.height + SCROLL_INDICATOR_SPACE }]}>
+      style={[styles.compartment, { left: 0, top: verticalScrolling ? 0 : geometry.focusedTop,
+        width: viewport.width, height: geometry.contentHeight }]}>
       {/* 네이티브 스크롤 표시줄이 칸 위에 겹치지 않도록 도면 아래 공간을 남긴다. */}
-      <View style={{ width: geometry.contentWidth, height: geometry.height + SCROLL_INDICATOR_SPACE }}>
+      <View style={{ width: geometry.contentWidth, height: geometry.contentHeight }}>
         <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={onClose} />
         {scene}
       </View>
     </ScrollView>
   ) : scene;
+  const scrollScene = verticalScrolling ? (
+    <ScrollView ref={verticalScrollRef} horizontal={false} scrollEnabled nestedScrollEnabled directionalLockEnabled bounces={false}
+      overScrollMode="never" removeClippedSubviews={false} showsVerticalScrollIndicator scrollEventThrottle={16}
+      accessibilityLabel="냉장고 내부 도면, 위아래로 이동"
+      onScroll={({ nativeEvent }) => setScrollPosition(current => ({ key: scrollKey, y: nativeEvent.contentOffset.y,
+        x: current.key === scrollKey ? current.x : initialScrollX }))}
+      style={[styles.compartment, { left: 0, top: geometry.focusedTop, width: viewport.width, height: geometry.scrollViewportHeight }]}>
+      <View style={{ width: viewport.width, height: geometry.contentHeight }}>
+        <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={onClose} />
+        {horizontalScene}
+      </View>
+    </ScrollView>
+  ) : horizontalScene;
   return (
     // 배경 덮개는 툴바 공간까지 채우고, 중앙 좌표는 툴바를 제외한 viewport로 계산한다.
     <View style={[styles.focusOverlay, { height: Math.max(viewport.height, overlayHeight ?? viewport.height), bottom: undefined }]}
@@ -574,7 +594,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           accessibilityState={{ disabled: !open }} disabled={!open} onPress={onClose} />
       </Animated.View>
       {scrollScene}
-      {scrolling && !scrollHintBlocked ? <FridgeScrollHint enabled={scrollHintEnabled} dismissed={hintDismissed}
+      {horizontalScrolling && !scrollHintBlocked ? <FridgeScrollHint enabled={scrollHintEnabled} dismissed={hintDismissed}
         viewport={viewport} onSeen={onScrollHintSeen} /> : null}
     </View>
   );

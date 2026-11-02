@@ -11,11 +11,27 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle, spacing } from '@/theme/tokens';
 import { getPositionPath, getSlotName, getStorageModeName } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
-import type { FridgeIngredient, StorageArea, SlotPosition, StorageMode } from '../model/fridgeLayout';
+import type { FridgeIngredient, StorageArea, SlotConfiguration, SlotPosition, StorageMode } from '../model/fridgeLayout';
 
 const BODY_SHELF_HEIGHT = 4;
 const BODY_SHELF_SIDE_INSET = 3;
 const AREA_CONTENT_PADDING = 5;
+const POSITION_SEPARATOR_WIDTH = 1;
+const MIN_EDIT_CELL_SIZE = 72;
+
+/** 프레임·이름·선반 공간을 더해 실제 수납 칸마다 최소 편집 크기를 확보한다. */
+export function getFridgeAreaEditSize(slots: readonly SlotConfiguration[], isBody: boolean) {
+  const slotCount = Math.max(1, slots.length);
+  const columns = Math.max(1, ...slots.map(slot => slot.drawerCount === 2 ? 2 : 1));
+  const innerMargin = fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth;
+  return {
+    width: fridgeSurfaces.frameWidth * 2 + innerMargin * 2 + AREA_CONTENT_PADDING * 2
+      + columns * MIN_EDIT_CELL_SIZE + (columns - 1) * POSITION_SEPARATOR_WIDTH,
+    height: fridgeSurfaces.frameWidth * 2 + fridgeSurfaces.headerHeight + innerMargin
+      + AREA_CONTENT_PADDING * (isBody ? 2 : 1) + slotCount * MIN_EDIT_CELL_SIZE
+      + (isBody ? (slotCount - 1) * BODY_SHELF_HEIGHT : 0),
+  };
+}
 
 interface FridgeMapProps {
   // 호출자가 현재 실에 맞게 추린 표시 대상 영역이며 전달 순서대로 배치한다.
@@ -328,7 +344,7 @@ const styles = StyleSheet.create({
   // 각 칸은 영역 안의 남는 세로 공간을 나눠 가지며 최소 터치 높이를 유지한다.
   position: {
     flex: 1,
-    minHeight: 72,
+    minHeight: MIN_EDIT_CELL_SIZE,
     minWidth: 0,
     padding: 8,
     justifyContent: 'center',
@@ -336,7 +352,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   positionSeparator: {
-    borderLeftWidth: 1,
+    borderLeftWidth: POSITION_SEPARATOR_WIDTH,
     borderLeftColor: fridgeSurfaces.border,
   },
   // 포켓의 둥근 바닥과 칸 아래 여백을 같은 위치에 맞춘다.
