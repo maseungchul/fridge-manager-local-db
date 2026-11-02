@@ -274,6 +274,34 @@ test('어느 본체에서 합치고 분리해도 자동 위치명을 현재 영�
   }
 });
 
+test('왼쪽·오른쪽 열림에서 서랍형으로 바꾸면 해당 본체의 칸만 기본값으로 초기화한다', () => {
+  for (const opening of ['LEFT_DOOR', 'RIGHT_DOOR']) {
+    for (const selectedIndex of [0, 1]) {
+      for (const count of [1, 2, 3, 4]) {
+        let draft = createDraftWithSlots([count, count]);
+        const rowId = draft.rows[0].id;
+        const doorId = draft.rows[0].doors[selectedIndex].id;
+        draft = setDraftDoorOpening(draft, rowId, doorId, opening);
+        draft.rows[0].compartments[selectedIndex].slots.forEach(slot => { slot.drawerCount = 2; });
+        const snapshot = structuredClone(draft);
+        const drawer = setDraftDoorOpening(draft, rowId, doorId, 'DRAWER');
+        const body = drawer.rows[0].compartments[selectedIndex];
+        assert.deepEqual(body.slots, [{ name: '위에서 1번째 칸', drawerCount: 0 }]);
+        assert.equal(body.id, draft.rows[0].compartments[selectedIndex].id);
+        assert.equal(body.storageMode, 'FROZEN');
+        assert.strictEqual(drawer.rows[0].compartments[1 - selectedIndex], draft.rows[0].compartments[1 - selectedIndex]);
+        assert.deepEqual(drawer.rows[0].doors[selectedIndex].slots, draft.rows[0].doors[selectedIndex].slots);
+        assert.equal(drawer.rows[0].doors[selectedIndex].storageEnabled, draft.rows[0].doors[selectedIndex].storageEnabled);
+        assert.equal(drawer.rows[0].doors[selectedIndex].side, opening);
+        assert.equal(drawer.nextId, draft.nextId);
+        const restored = setDraftDoorOpening(drawer, rowId, doorId, opening);
+        assert.deepEqual(restored.rows[0].compartments[selectedIndex].slots, body.slots);
+        assert.deepEqual(draft, snapshot);
+      }
+    }
+  }
+});
+
 test('여는 방식을 바꿔도 닫힌 문과 본체의 폭·위치를 유지한다', () => {
   let draft = createRefrigeratorDraft();
   const rowId = draft.rows[0].id;

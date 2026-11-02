@@ -199,11 +199,12 @@ export function RefrigeratorRegistrationScreen({
     }) }));
   }
 
-  // 본체에 연결된 문의 여는 방식만 바꾸고 선택한 본체는 유지한다.
+  // 선택한 본체를 유지하되, 서랍형으로 초기화하면 편집 칸 선택도 처음으로 돌린다.
   function selectDoorOpening(doorId: string, opening: DoorOpening) {
     if (isMergedBody) return;
     Keyboard.dismiss();
     setDraft(current => setDraftDoorOpening(current, selectedRow.id, doorId, opening));
+    if (opening === 'DRAWER') setSlotIndex(0);
   }
 
   function updateSlots(update: (slots: SlotConfiguration[]) => SlotConfiguration[]) {

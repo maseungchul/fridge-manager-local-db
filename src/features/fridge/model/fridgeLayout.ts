@@ -164,13 +164,15 @@ export function changeDraftDoorCount(draft: RefrigeratorDraft, rowId: string, de
     rows: draft.rows.map(candidate => candidate.id === rowId ? nextRow : candidate) };
 }
 
-/** 여는 방식만 바꾸고 문·본체 연결과 칸 입력·수납 여부는 유지한다. */
+/** 서랍형 전환 시 본체 칸을 기본값으로 초기화하고, 문 수납과 연결은 유지한다. */
 export function setDraftDoorOpening(draft: RefrigeratorDraft, rowId: string, doorId: string, opening: DoorOpening): RefrigeratorDraft {
   return { ...draft, rows: draft.rows.map(row => row.id !== rowId ? row : {
     ...row, doors: row.doors.map(door => door.id !== doorId ? door : {
       ...door, kind: opening === 'DRAWER' ? 'DRAWER' : 'HINGED',
       side: opening === 'DRAWER' ? door.side : opening,
     }),
+    compartments: row.compartments.map(body => opening === 'DRAWER' && body.doorIds.includes(doorId)
+      ? { ...body, slots: createDraftCompartment(draft.nextId, body.doorIds).slots } : body),
   }) };
 }
 

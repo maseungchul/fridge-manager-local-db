@@ -2201,7 +2201,7 @@ test('본체 1~4칸의 선택 배경은 선반 바깥의 동일한 수납 공간
   }
 });
 
-test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·기존 입력을 유지한다', () => {
+test('서랍형 전환은 본체 칸을 초기화하고 합치기·칸 편집을 숨기며 보관 모드를 유지한다', () => {
   for (const drawerIndex of [0, 1]) {
     const { screen, viewport, row, target } = registrationFixture(2);
     viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
@@ -2227,7 +2227,10 @@ test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·�
     screen.render();
     find(panel(), node => node.type === 'SlotStructureSelector').props.onChange(2);
     screen.render();
-    const originalSlots = structuredClone(draft().rows[0].compartments[drawerIndex].slots);
+    assert.equal(draft().rows[0].compartments[drawerIndex].slots.length, 2);
+    const resetSlots = [{ name: '위에서 1번째 칸', drawerCount: 0 }];
+    const otherBody = structuredClone(draft().rows[0].compartments[1 - drawerIndex]);
+    const doorSlots = structuredClone(draft().rows[0].doors[drawerIndex].slots);
     closeSettings();
     menu().onOpeningChange(row.doors[drawerIndex].id, 'DRAWER');
     screen.render();
@@ -2247,7 +2250,10 @@ test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·�
     modes[1].props.onPress();
     screen.render();
     assert.equal(draft().rows[0].compartments[drawerIndex].storageMode, 'FROZEN');
-    assert.deepEqual(draft().rows[0].compartments[drawerIndex].slots, originalSlots);
+    assert.deepEqual(draft().rows[0].compartments[drawerIndex].slots, resetSlots);
+    assert.equal(menu().selectedSlotIndex, 0);
+    assert.deepEqual(draft().rows[0].compartments[1 - drawerIndex], otherBody);
+    assert.deepEqual(draft().rows[0].doors[drawerIndex].slots, doorSlots);
     closeSettings();
     menu().onOpeningChange(row.doors[drawerIndex].id, row.doors[drawerIndex].side);
     screen.render();
@@ -2255,7 +2261,7 @@ test('서랍형은 양쪽 합치기와 칸 편집을 숨기고 보관 모드·�
     openSettings();
     assert(find(panel(), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')));
     assert.equal(findAll(panel(), node => node.type === 'SlotStructureSelector').length, 1);
-    assert.deepEqual(draft().rows[0].compartments[drawerIndex].slots, originalSlots);
+    assert.deepEqual(draft().rows[0].compartments[drawerIndex].slots, resetSlots);
     closeSettings();
     menu().onOpeningChange(row.doors[drawerIndex].id, 'DRAWER');
     screen.render();
