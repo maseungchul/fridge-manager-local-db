@@ -13,7 +13,6 @@ import type { ComponentRef } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { ActivityIndicator, Alert, Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
-import type { LayoutChangeEvent, LayoutRectangle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
@@ -21,8 +20,8 @@ import { FormTextInput } from '@/components/FormTextInput';
 import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantityStepper';
 import { registerRefrigerator } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
-import { FridgeFocusView, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
-import type { FridgeFocusPhase, FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
+import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
+import type { FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
 import { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } from '@/features/fridge/components/FridgeAreaMenu';
 import type { FridgeMenuCategory } from '@/features/fridge/components/FridgeAreaMenu';
 import {
@@ -52,21 +51,14 @@ export function RefrigeratorRegistrationScreen({
   const { width: windowWidth } = useWindowDimensions();
   const [draft, setDraft] = useState(createRefrigeratorDraft);
   const [step, setStep] = useState<RegistrationStep>('basic');
-  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [menuCategory, setMenuCategory] = useState<FridgeMenuCategory | null>(null);
   const [slotIndex, setSlotIndex] = useState(0);
-  const [hasSeenScrollHint, setHasSeenScrollHint] = useState(false);
   const [isStepChanging, setIsStepChanging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
   const structurePreviewWidth = Math.max(1, Math.min(STRUCTURE_PREVIEW_MAX_WIDTH,
     stepWidth - spacing.lg * 2 - STRUCTURE_CONTROL_WIDTH - spacing.xs));
   const [stepHeight, setStepHeight] = useState(0);
-  const [focusTarget, setFocusTarget] = useState<FridgeFocusTarget | null>(null);
-  const [focusPhase, setFocusPhase] = useState<FridgeFocusPhase>('closed');
-  const [focusBounds, setFocusBounds] = useState<LayoutRectangle | null>(null);
-  const focusViewport = useRef<ComponentRef<typeof View>>(null);
-  const focusViewportSize = useRef<{ width: number; height: number } | null>(null);
   const leaveRequested = useRef(false);
   const saving = useRef(false);
   const stepAnimation = useRef(new Animated.Value(0)).current;
@@ -75,6 +67,12 @@ export function RefrigeratorRegistrationScreen({
     basic: useRef<ComponentRef<typeof ScrollView>>(null),
     configuration: useRef<ComponentRef<typeof ScrollView>>(null),
   };
+  const isFocusBlocked = useCallback(() => saving.current || stepChanging.current, []);
+  const {
+    selectedAreaId, setSelectedAreaId, setFocusTarget, focusPhase, focusBounds, focusViewport,
+    activeFocus, isFocusMoving, hasSeenScrollHint, markScrollHintSeen, finishFocusTransition,
+    resetFocus, layoutFocusViewport, openFocusedArea: openFocus, closeFocusedArea,
+  } = useFridgeFocus(FRIDGE_MENU_RESERVED_SPACE, isFocusBlocked);
   const selectedRow = draft.rows.find(row => [...row.doors, ...row.compartments].some(area => area.id === selectedAreaId)) ?? draft.rows[0];
   const selectedDoor = selectedRow.doors.find(door => door.id === selectedAreaId && door.kind !== 'DRAWER');
   const selectedBody = selectedRow.compartments.find(body => body.id === selectedAreaId
@@ -96,15 +94,6 @@ export function RefrigeratorRegistrationScreen({
     || menuCategory === 'opening' && (selectedDoor || isMergedBody)
     || menuCategory === 'slots' && (isDrawerBody || !storageEnabled)
     ? null : menuCategory;
-  const activeFocus = focusPhase === 'closed' ? null : focusTarget;
-  const isFocusMoving = focusPhase === 'opening' || focusPhase === 'closing';
-  const finishFocusTransition = useCallback((phase: FridgeFocusPhase) => {
-    setFocusPhase(phase);
-    if (phase === 'closed' && focusTarget) setSelectedAreaId(focusTarget.returnAreaId);
-  }, [focusTarget]);
-  // 중앙 보기를 닫았다 다시 열어도 같은 등록 화면에서는 안내를 반복하지 않는다.
-  const markScrollHintSeen = useCallback(() => setHasSeenScrollHint(true), []);
-
   useEffect(() => () => {
     stepChanging.current = false;
     stepAnimation.stopAnimation();
@@ -161,8 +150,7 @@ export function RefrigeratorRegistrationScreen({
     Keyboard.dismiss();
     setMenuCategory(null);
     setSlotIndex(0);
-    setSelectedAreaId(null);
-    setFocusPhase('closed');
+    resetFocus();
     stepScrolls[nextStep].current?.scrollTo({ y: 0, animated: false });
     stepChanging.current = true;
     setIsStepChanging(true);
@@ -186,32 +174,10 @@ export function RefrigeratorRegistrationScreen({
     setSelectedAreaId(id);
   }
 
-  // 펼칠 메뉴의 최대 높이를 항상 제외해 메뉴 표시 여부가 도면 중앙 위치를 바꾸지 않게 한다.
-  function layoutFocusViewport({ nativeEvent }: LayoutChangeEvent) {
-    const { width, height } = nativeEvent.layout;
-    if (width <= 0 || height <= 0) return;
-    const size = { width, height: Math.max(1, height - FRIDGE_MENU_RESERVED_SPACE) };
-    focusViewportSize.current = size;
-    setFocusBounds(current => !current || (current.width === size.width && current.height === size.height)
-      ? current : { ...current, ...size });
-  }
-
   function openFocusedArea(target: FridgeFocusTarget) {
     if (saving.current || activeFocus || stepChanging.current) return;
-    Keyboard.dismiss();
-    focusViewport.current?.measureInWindow((x, y, width, height) => {
-      if (width <= 0 || height <= 0 || saving.current || stepChanging.current) return;
-      setFocusBounds({ x, y, ...(focusViewportSize.current ?? { width, height: Math.max(1, height - FRIDGE_MENU_RESERVED_SPACE) }) });
-      setFocusTarget(target);
-      setSelectedAreaId(target.areaId);
-      setSlotIndex(0);
-      setFocusPhase('opening');
-    });
-  }
-
-  function closeFocusedArea() {
-    if (saving.current || !activeFocus || focusPhase !== 'open') return;
-    setFocusPhase('closing');
+    openFocus(target);
+    setSlotIndex(0);
   }
 
   // 문 수납을 꺼도 문 식별자·방향·칸 입력은 유지해 다시 켤 수 있다.

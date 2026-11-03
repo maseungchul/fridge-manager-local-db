@@ -29,8 +29,9 @@ function loadModule(path, dependencies) {
 const registration = loadModule('src/db/refrigeratorRegistration.ts', {
   '@/features/fridge/model/fridgeLayout': model,
 });
-const { registerRefrigerator, getRefrigeratorSummary } = loadModule('src/db/refrigeratorRepository.ts', {
+const { registerRefrigerator, getRefrigeratorSummary, getRefrigerator } = loadModule('src/db/refrigeratorRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/refrigeratorRegistration': registration,
+  '@/features/fridge/model/fridgeLayout': model,
 });
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 
@@ -39,6 +40,7 @@ function createConnectionAdapter(db) {
   return {
     async execAsync(sql) { db.exec(sql); },
     async getFirstAsync(sql, ...params) { return db.prepare(sql).get(...params) ?? null; },
+    async getAllAsync(sql, ...params) { return db.prepare(sql).all(...params); },
     async runAsync(sql, ...params) { return db.prepare(sql).run(...params); },
     async withTransactionAsync(task) {
       db.exec('BEGIN');
@@ -404,4 +406,128 @@ test('동시에 등록을 요청해도 냉장고 한 대와 완전한 구성만 
   assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_compartments').get().count, doorCount);
   assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_slots').get().count, doorCount * 3);
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+});
+
+test('미등록 DB의 전체 조회는 null을 반환하고 데이터를 만들지 않는다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const before = readStoredData(db);
+  assert.equal(await getRefrigerator(adapter), null);
+  assert.deepEqual(readStoredData(db), before);
+});
+
+test('전체 조회는 본체·문·숨긴 포켓 입력과 UUID를 유지하고 칸 이름을 생성한다', async t => {
+  const { db, adapter, databasePath } = await createRepositoryDatabase(t);
+  let draft = createTwoDoorDraft();
+  draft.name = '복원할 냉장고';
+  draft.rows[0].doors[1].storageEnabled = false;
+  draft.rows[0].doors[1].slots = createSlots(3);
+  draft = model.mergeDraftCompartments(draft, draft.rows[0].id, draft.rows[0].compartments[1].id);
+  draft.rows[0].compartments[0].slots = createSlots(4, 2);
+  draft = model.setDraftDoorOpening(draft, draft.rows[1].id, draft.rows[1].doors[0].id, 'DRAWER');
+  draft.rows[1].compartments[0].storageMode = 'FROZEN';
+  const id = await registerRefrigerator(adapter, draft);
+  const before = readStoredData(db);
+  const loaded = await getRefrigerator(adapter);
+  assert.equal(loaded.id, id);
+  assert.equal(loaded.name, draft.name);
+  assert.equal('nextId' in loaded, false);
+  assert.equal(loaded.rows.length, 2);
+  const upper = loaded.rows[0];
+  const lower = loaded.rows[1];
+  assert.deepEqual(upper.compartments[0].doorIds, upper.doors.map(door => door.id));
+  assert.deepEqual(upper.doors.map(door => door.side), ['LEFT_DOOR', 'RIGHT_DOOR']);
+  assert.equal(upper.doors[1].storageEnabled, false);
+  assert.equal(upper.doors[1].slots.length, 3);
+  assert.deepEqual(upper.compartments[0].slots.map(slot => slot.drawerCount), [2, 2, 2, 2]);
+  assert.equal(lower.doors[0].kind, 'DRAWER');
+  assert.equal(lower.doors[0].slots.length, 2);
+  assert.equal(lower.compartments[0].storageMode, 'FROZEN');
+  const ids = [loaded.id];
+  for (const row of loaded.rows) {
+    ids.push(row.id);
+    for (const area of [...row.compartments, ...row.doors]) {
+      ids.push(area.id);
+      assert.deepEqual(area.slots.map(slot => slot.name), area.slots.map((_, index) => model.getSlotName(index)));
+      ids.push(...area.slots.map(slot => slot.id));
+    }
+  }
+  assert.deepEqual(ids.sort(), Object.values(before).flat().map(row => row.id).sort());
+  const layout = model.getDraftLayout(loaded);
+  assert.equal(layout.positions.length, 11);
+  assert(layout.positions.every(position => position.areaId !== upper.doors[1].id && position.areaId !== lower.doors[0].id));
+  assert.deepEqual(
+    layout.positions.filter(position => position.slotId === upper.compartments[0].slots[0].id).map(position => position.id),
+    [`${upper.compartments[0].slots[0].id}-left`, `${upper.compartments[0].slots[0].id}-right`],
+  );
+  assert.deepEqual(readStoredData(db), before);
+
+  const reopened = new DatabaseSync(databasePath);
+  try {
+    const reopenedAdapter = createConnectionAdapter(reopened);
+    reopenedAdapter.withExclusiveTransactionAsync = adapter.withExclusiveTransactionAsync;
+    assert.deepEqual(await getRefrigerator(reopenedAdapter), loaded);
+  } finally {
+    reopened.close();
+  }
+});
+
+test('물리적 삽입 순서가 달라도 단·문·본체·칸은 저장된 배치 순서로 복원한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const draft = createTwoDoorDraft();
+  draft.rows[0].doors[0].side = 'RIGHT_DOOR';
+  draft.rows[0].doors[1].side = 'LEFT_DOOR';
+  draft.rows[0].compartments[0].slots = createSlots(4);
+  await registerRefrigerator(adapter, draft);
+  const expected = await getRefrigerator(adapter);
+  db.exec('BEGIN; PRAGMA defer_foreign_keys = ON;');
+  for (const table of Object.keys(readStoredData(db))) {
+    const rows = db.prepare(`SELECT * FROM ${table} ORDER BY rowid DESC`).all();
+    db.exec(`DELETE FROM ${table}`);
+    for (const row of rows) {
+      db.prepare(`INSERT INTO ${table} (${Object.keys(row).join(', ')}) VALUES (${Object.keys(row).map(() => '?').join(', ')})`)
+        .run(...Object.values(row));
+    }
+  }
+  db.exec('COMMIT;');
+  assert.deepEqual(await getRefrigerator(adapter), expected);
+  assert.deepEqual(expected.rows[0].doors.map(door => door.side), ['RIGHT_DOOR', 'LEFT_DOOR']);
+  assert.deepEqual(expected.rows[0].compartments.map(body => body.doorIds), expected.rows[0].doors.map(door => [door.id]));
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+});
+
+test('기존 칸 분할 값 1도 한 위치로 읽고 조회 과정에서는 DB 값을 바꾸지 않는다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+  db.exec('UPDATE refrigerator_slots SET drawer_count = 1 WHERE compartment_id IS NOT NULL');
+  const before = readStoredData(db);
+  const loaded = await getRefrigerator(adapter);
+  const layout = model.getDraftLayout(loaded);
+  for (const row of loaded.rows) {
+    const slot = row.compartments[0].slots[0];
+    assert.equal(slot.drawerCount, 1);
+    assert.deepEqual(layout.positions.filter(position => position.slotId === slot.id).map(position => position.id), [slot.id]);
+  }
+  assert.deepEqual(readStoredData(db), before);
+});
+
+test('누락된 구성은 미등록으로 오인하거나 임의로 채우지 않고 조회 오류로 알린다', async t => {
+  const cases = [
+    ['단 없음', db => { db.exec('DELETE FROM refrigerator_slots; DELETE FROM refrigerator_doors; DELETE FROM refrigerator_compartments; DELETE FROM refrigerator_rows;'); }],
+    ['문 없는 본체', db => {
+      const row = db.prepare('SELECT id FROM refrigerator_rows ORDER BY sort_order LIMIT 1').get();
+      db.prepare("INSERT INTO refrigerator_compartments VALUES ('orphan-body', ?, 'CHILLED', 'HINGED', 'LEFT_DOOR')").run(row.id);
+    }],
+    ['칸 순서 누락', db => { db.exec('DELETE FROM refrigerator_slots WHERE door_id IS NOT NULL AND sort_order = 0'); }],
+    ['단일 문의 방향 누락', db => { db.exec('UPDATE refrigerator_compartments SET side = NULL'); }],
+  ];
+  for (const [name, mutate] of cases) {
+    await t.test(name, async t => {
+      const { db, adapter } = await createRepositoryDatabase(t);
+      await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+      mutate(db);
+      const before = readStoredData(db);
+      await assert.rejects(getRefrigerator(adapter), /저장된 냉장고/);
+      assert.deepEqual(readStoredData(db), before);
+    });
+  }
 });

@@ -12,9 +12,10 @@ const model = require('../src/features/fridge/model/fridgeLayout.ts');
 const tokens = require('../src/theme/tokens.ts');
 const database = {};
 const alerts = [];
+const backHandlers = new Set();
 const repository = {
   async registerRefrigerator() { throw new Error('저장 동작을 지정하지 않았습니다.'); },
-  async getRefrigeratorSummary() { return null; },
+  async getRefrigerator() { return null; },
 };
 
 let current;
@@ -75,6 +76,11 @@ const native = {
   View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
   Keyboard: { dismiss() {} }, Platform: { OS: 'ios' },
   ActivityIndicator: 'ActivityIndicator', Alert: { alert(...args) { alerts.push(args); } },
+  BackHandler: { addEventListener(event, handler) {
+    assert.equal(event, 'hardwareBackPress');
+    backHandlers.add(handler);
+    return { remove() { backHandlers.delete(handler); } };
+  } },
   useWindowDimensions: () => ({ width: 375, height: 844 }),
   StyleSheet: { create: value => value, absoluteFill: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 } },
   useAnimatedValue: initial => hooks.useState(() => new AnimatedValue(initial))[0],
@@ -237,6 +243,16 @@ function deferred() {
   let reject;
   const promise = new Promise((onResolve, onReject) => { resolve = onResolve; reject = onReject; });
   return { promise, resolve, reject };
+}
+
+function savedRefrigerator(name) {
+  const draft = model.createRefrigeratorDraft();
+  for (const row of draft.rows) {
+    for (const area of [...row.compartments, ...row.doors]) {
+      area.slots = area.slots.map((slot, index) => ({ ...slot, id: `${area.id}-slot-${index}` }));
+    }
+  }
+  return { id: 'saved', name, rows: draft.rows };
 }
 const moving = focus => find(focus.tree, node => typeof node.props?.onStartShouldSetResponder === 'function');
 const toolbarTree = screen => FridgeAreaMenu(find(screen.tree, node => node.type === 'FridgeAreaMenu').props);
@@ -562,43 +578,190 @@ test('홈은 조회가 끝난 뒤 미등록 상태에서만 등록 버튼을 표
   assert.equal(destination, 'RefrigeratorRegistration');
 });
 
-test('홈으로 돌아오면 등록 이름을 다시 조회하고 늦은 이전 조회 결과를 무시한다', async t => {
-  const previous = repository.getRefrigeratorSummary;
-  t.after(() => { repository.getRefrigeratorSummary = previous; });
+test('홈으로 돌아오면 전체 도면을 다시 조회하고 늦은 이전 조회 결과를 무시한다', async t => {
+  const previous = repository.getRefrigerator;
+  t.after(() => { repository.getRefrigerator = previous; });
   const pending = deferred();
   let calls = 0;
-  repository.getRefrigeratorSummary = () => ++calls === 1 ? pending.promise : Promise.resolve({ id: 'saved', name: '등록한 냉장고' });
+  repository.getRefrigerator = () => ++calls === 1 ? pending.promise : Promise.resolve(savedRefrigerator('등록한 냉장고'));
   const home = mount(HomeScreen, { navigation: { navigate() {} } });
   t.after(() => home.unmount());
   home.focus();
   await new Promise(setImmediate);
   home.render();
-  assert(find(home.tree, node => node.type === 'Text' && node.props.children === '등록한 냉장고'));
+  assert.equal(find(home.tree, named('FridgeInteriorMap')).props.draft.name, '등록한 냉장고');
   assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
   pending.resolve(null);
   await new Promise(setImmediate);
   home.render();
-  assert(find(home.tree, node => node.type === 'Text' && node.props.children === '등록한 냉장고'));
+  assert.equal(find(home.tree, named('FridgeInteriorMap')).props.draft.name, '등록한 냉장고');
   assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
 });
 
 test('홈 조회 실패 시 등록으로 오인하지 않고 오류 표시 후 다시 조회한다', async t => {
-  const previous = repository.getRefrigeratorSummary;
-  t.after(() => { repository.getRefrigeratorSummary = previous; });
-  repository.getRefrigeratorSummary = async () => { throw new Error('조회 실패'); };
+  const previous = repository.getRefrigerator;
+  t.after(() => { repository.getRefrigerator = previous; });
+  repository.getRefrigerator = async () => { throw new Error('조회 실패'); };
   const home = mount(HomeScreen, { navigation: { navigate() {} } });
   t.after(() => home.unmount());
   await new Promise(setImmediate);
   home.render();
   assert(find(home.tree, node => node.props.accessibilityRole === 'alert'));
   assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
-  repository.getRefrigeratorSummary = async () => ({ id: 'saved', name: '저장된 냉장고' });
+  repository.getRefrigerator = async () => savedRefrigerator('저장된 냉장고');
   find(home.tree, node => node.props.label === '다시 불러오기').props.onPress();
   home.render();
   await new Promise(setImmediate);
   home.render();
-  assert(find(home.tree, node => node.type === 'Text' && node.props.children === '저장된 냉장고'));
+  assert.equal(find(home.tree, named('FridgeInteriorMap')).props.draft.name, '저장된 냉장고');
   assert.equal(find(home.tree, node => node.props.accessibilityRole === 'alert'), undefined);
+});
+
+test('홈은 최상단 냉장고 이름과 등록 화면의 전체 도면을 표시하고 별도 경로·칸 목록을 추가하지 않는다', async t => {
+  const previous = repository.getRefrigerator;
+  t.after(() => { repository.getRefrigerator = previous; });
+  const snapshot = savedRefrigerator('복원된 냉장고');
+  snapshot.rows[0].doors[0].storageEnabled = false;
+  snapshot.rows[0].compartments[0].slots[0].drawerCount = 2;
+  snapshot.rows[1].doors[0].kind = 'DRAWER';
+  snapshot.rows[1].compartments[0].storageMode = 'FROZEN';
+  repository.getRefrigerator = async () => structuredClone(snapshot);
+  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  t.after(() => home.unmount());
+  await new Promise(setImmediate);
+  home.render();
+  const map = find(home.tree, named('FridgeInteriorMap'));
+  const registration = registrationFixture();
+  t.after(() => registration.screen.unmount());
+  assert.strictEqual(map.type, find(registration.screen.tree, named('FridgeInteriorMap')).type);
+  assert.equal(map.props.fitHeight, true);
+  assert.equal(map.props.focus, null);
+  assert.deepEqual(map.props.draft, snapshot);
+  assert.equal(findAll(home.tree, named('FridgeInteriorMap')).length, 1);
+  assert.equal(find(home.tree, named('FridgeMap')), undefined);
+  assert.equal(find(home.tree, named('FridgeFocusView')), undefined);
+  assert.equal(find(home.tree, node => node.type === 'FridgeAreaMenu'), undefined);
+  const texts = findAll(home.tree, node => node.type === 'Text');
+  assert.equal(texts.length, 1);
+  assert.equal(texts[0].props.accessibilityRole, 'header');
+  assert.equal(texts[0].props.children, snapshot.name);
+  assert.equal(find(home.tree, node => node.type === 'ScrollView'), undefined);
+  assert.equal(find(home.tree, node => node.type === 'PrimaryButton'), undefined);
+});
+
+test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시와 바깥 닫기를 사용한다', async t => {
+  const previous = repository.getRefrigerator;
+  t.after(() => { repository.getRefrigerator = previous; });
+  for (const kind of ['HINGED', 'DRAWER']) {
+    await t.test(kind, async t => {
+      const snapshot = savedRefrigerator('표시할 냉장고');
+      snapshot.rows[0].doors[0].kind = kind;
+      snapshot.rows[0].doors[0].storageEnabled = false;
+      const before = structuredClone(snapshot);
+      let reads = 0;
+      repository.getRefrigerator = async () => { reads++; return structuredClone(snapshot); };
+      const home = mount(HomeScreen, { navigation: { navigate() {} } });
+      t.after(() => home.unmount());
+      await new Promise(setImmediate);
+      home.render();
+      const map = () => find(home.tree, named('FridgeInteriorMap'));
+      const viewport = find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
+      // 헤더·안전 영역 안에 중앙 보기를 넣으면 이름 높이만큼 중심이 밀린다.
+      assert.equal(find(find(home.tree, node => node.type === 'SafeAreaView'), node => node === viewport), undefined);
+      assert(children(home.tree).includes(viewport));
+      assert.deepEqual(flattenStyle(viewport.props.style), native.StyleSheet.absoluteFill);
+      viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 844 } } });
+      viewport.props.ref.current = { measureInWindow: callback => callback(0, 0, 375, 844) };
+      const row = snapshot.rows[0];
+      const target = { areaId: row.compartments[0].id,
+        returnAreaId: kind === 'DRAWER' ? row.compartments[0].id : row.doors[0].id,
+        canvas: { x: 52.5, y: 42, width: 270, height: 540 } };
+      map().props.onFocus(target);
+      home.render();
+      const focus = () => find(home.tree, named('FridgeFocusView'));
+      assert.strictEqual(focus().type, FridgeFocusView);
+      assert.equal(focus().props.phase, 'opening');
+      assert.deepEqual(focus().props.target, target);
+      assert.deepEqual(focus().props.viewport, { x: 0, y: 0, width: 375, height: 844 });
+      const geometry = getFridgeFocusGeometry(snapshot, target, focus().props.viewport);
+      near(geometry.focusedTop + geometry.height / 2, 844 / 2);
+      assert.equal(find(home.tree, node => node.type === 'SafeAreaView').props.accessibilityElementsHidden, true);
+      const overlay = mount(focus().type, focus().props);
+      t.after(() => overlay.unmount());
+      assertFocusAccess(overlay, 'opening');
+      const animation = animations.at(-1);
+      assert.equal(animation.config.duration, 480);
+      assert.equal([...backHandlers].at(-1)(), true);
+      home.render();
+      assert.equal(focus().props.phase, 'opening');
+      animation.finish();
+      home.render();
+      overlay.props = focus().props;
+      overlay.render();
+      assertFocusAccess(overlay, 'open');
+      const pockets = interiorAreas(overlay).filter(area => !area.props.area.isBody);
+      assert.equal(pockets.length, kind === 'DRAWER' ? 0 : 1);
+      if (pockets.length) {
+        assert.equal(pockets[0].props.layout.positions.filter(position => position.areaId === row.doors[0].id).length, 0);
+        assert(find(pockets[0].type(pockets[0].props), named('DoorWithoutStorage')));
+        pockets[0].props.onSelectArea(row.doors[0].id);
+        home.render();
+        assert.equal(focus().props.selectedAreaId, row.doors[0].id);
+      }
+      find(overlay.tree, node => node.props.accessibilityLabel === '냉장고 도면 바깥 영역 눌러 닫기').props.onPress();
+      home.render();
+      assert.equal(focus().props.phase, 'closing');
+      overlay.props = focus().props;
+      overlay.render();
+      assert.equal(animations.at(-1).config.duration, 420);
+      assertFocusAccess(overlay, 'closing');
+      animations.at(-1).finish();
+      home.render();
+      assert.equal(focus(), undefined);
+      assert.equal(map().props.focus, null);
+      assert.equal(map().props.selectedAreaId, target.returnAreaId);
+      assert.equal(backHandlers.size, 0);
+      assert.equal(find(home.tree, node => node.type === 'SafeAreaView').props.accessibilityElementsHidden, false);
+      assert.equal(reads, 1);
+      assert.deepEqual(map().props.draft, before);
+      assert.deepEqual(findAll(home.tree, node => node.type === 'Text').map(node => node.props.children), [snapshot.name]);
+    });
+  }
+});
+
+test('홈 도면의 뒤로가기는 열린 보기를 닫고 재조회 후 늦은 측정 결과는 무시한다', async t => {
+  const previous = repository.getRefrigerator;
+  t.after(() => { repository.getRefrigerator = previous; });
+  const snapshot = savedRefrigerator('다시 읽은 냉장고');
+  repository.getRefrigerator = async () => structuredClone(snapshot);
+  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  t.after(() => home.unmount());
+  await new Promise(setImmediate);
+  home.render();
+  const viewport = () => find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
+  const map = () => find(home.tree, named('FridgeInteriorMap'));
+  const focus = () => find(home.tree, named('FridgeFocusView'));
+  const target = { areaId: snapshot.rows[0].compartments[0].id, returnAreaId: snapshot.rows[0].doors[0].id,
+    canvas: { x: 52.5, y: 42, width: 270, height: 540 } };
+  viewport().props.ref.current = { measureInWindow: callback => callback(0, 24, 375, 520) };
+  map().props.onFocus(target);
+  home.render();
+  focus().props.onPhaseChange('open');
+  home.render();
+  assert.equal([...backHandlers].at(-1)(), true);
+  home.render();
+  assert.equal(focus().props.phase, 'closing');
+  focus().props.onPhaseChange('closed');
+  home.render();
+  let completeMeasurement;
+  viewport().props.ref.current = { measureInWindow: callback => { completeMeasurement = callback; } };
+  map().props.onFocus(target);
+  home.focus();
+  await new Promise(setImmediate);
+  completeMeasurement(0, 24, 375, 520);
+  home.render();
+  assert.equal(focus(), undefined);
+  assert.equal(map().props.focus, null);
 });
 
 test('문을 누르면 보기 버튼 없이 연결된 본체 전체의 화면 좌표를 전달한다', () => {

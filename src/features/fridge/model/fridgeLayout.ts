@@ -32,6 +32,8 @@ export const areaNames: Record<AreaType, string> = {
 };
 
 export interface SlotConfiguration {
+  // 저장된 칸은 UUID를 유지하고 신규 입력 칸은 저장할 때 발급한다.
+  id?: string;
   name: string;
   drawerCount: DrawerCount;
 }
@@ -98,6 +100,11 @@ export interface RefrigeratorDraft {
   name: string;
   nextId: number;
   rows: DraftRow[];
+}
+
+/** DB에서 복원한 구성은 저장된 식별자를 유지하며 초안용 증가 번호를 갖지 않는다. */
+export interface Refrigerator extends Pick<RefrigeratorDraft, 'name' | 'rows'> {
+  id: string;
 }
 
 // 실측 치수가 없는 등록 도면은 두 단계에서 같은 가로:세로 표시 비율을 사용한다.
@@ -228,8 +235,8 @@ export function getDraftAreaLocation(row: DraftRow, rowIndex: number, areaId: st
   return `${rowIndex + 1}단${row.doors.length === 1 ? '' : ` ${first === last ? first : `${first}~${last}`}번째`}`;
 }
 
-/** 현재 입력을 배치도로 변환한다. 위치와 영역 종류로 만든 임시 식별자는 DB에 저장하지 않는다. */
-export function getDraftLayout(draft: RefrigeratorDraft): FridgeLayout {
+/** 칸 UUID가 있으면 유지하고, 신규 입력 칸에는 도면용 임시 식별자를 사용한다. */
+export function getDraftLayout(draft: Pick<RefrigeratorDraft, 'rows'>): FridgeLayout {
   const areas: StorageArea[] = [];
   const positions: SlotPosition[] = [];
 
@@ -240,7 +247,7 @@ export function getDraftLayout(draft: RefrigeratorDraft): FridgeLayout {
         name: isDoor ? areaNames[area.side] : areaNames.BODY, isBody: !isDoor });
       if (!isDoor || area.storageEnabled) {
         area.slots.forEach((slot, index) => positions.push(...getSlotPositions(
-          `${area.id}-${index}`, area.id, getSlotName(index), slot.drawerCount,
+          slot.id ?? `${area.id}-${index}`, area.id, getSlotName(index), slot.drawerCount,
         )));
       }
     }

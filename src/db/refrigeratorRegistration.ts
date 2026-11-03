@@ -7,7 +7,7 @@ import {
   MAX_DOOR_SLOTS, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS,
 } from '@/features/fridge/model/fridgeLayout';
 import type {
-  DraftDoor, RefrigeratorDraft, SlotConfiguration, StorageMode,
+  DraftDoor, DrawerCount, RefrigeratorDraft, SlotConfiguration, StorageMode,
 } from '@/features/fridge/model/fridgeLayout';
 
 export interface RefrigeratorRegistrationData {
@@ -32,7 +32,7 @@ export interface RefrigeratorRegistrationData {
     compartment_id: string | null;
     door_id: string | null;
     sort_order: number;
-    drawer_count: 0 | 2;
+    drawer_count: DrawerCount;
   }[];
 }
 

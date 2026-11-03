@@ -1,20 +1,20 @@
 /**
  * @file
- * 등록 도면의 문을 누르면 본체와 연결된 도어 포켓을 함께 열어 화면 중앙에서 보여준다.
- * 문 수납은 기존 툴바·설정 패널에서 편집하며, 본체의 칸 표시와 선택 효과는 FridgeMap을 재사용한다.
+ * 등록·홈 도면의 문을 누르면 본체와 연결된 도어 포켓을 함께 열어 화면 중앙에서 보여준다.
+ * 문 수납·칸 편집은 호출자가 관리하며, 내부 표시와 선택 효과는 FridgeMap을 재사용한다.
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentRef, ReactNode } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
-import type { LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
+import { Animated, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
+import type { LayoutChangeEvent, LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
 import { DoorHandle, DoorModeArt, FridgeMap, getFridgeAreaEditSize } from '@/features/fridge/components/FridgeMap';
 import { areaNames, FRIDGE_ASPECT_RATIO, getDraftAreaLocation, getDraftLayout, getDraftRowGeometry, getStorageModeName } from '@/features/fridge/model/fridgeLayout';
 import type { DraftDoor, FridgeLayout, RefrigeratorDraft, StorageArea, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle } from '@/theme/tokens';
 
 interface FridgeInteriorMapProps {
-  draft: RefrigeratorDraft;
+  draft: Pick<RefrigeratorDraft, 'rows'>;
   selectedAreaId?: string;
   onSelectArea: (id: string) => void;
   focus?: FridgeFocusTarget | null;
@@ -33,6 +33,66 @@ type BodyGeometry = ReturnType<typeof getDraftRowGeometry>['groups'][number];
 type AreaFrame = ViewStyle & { height: number; paddingLeft: number; paddingRight: number };
 type GridEdges = { top: boolean; left: boolean; bottom: boolean; right: boolean };
 export type FridgeFocusPhase = 'closed' | 'opening' | 'open' | 'closing';
+
+/** 등록·홈에서 같은 중앙 보기 상태와 실측 좌표를 사용하고, 예약 공간은 호출자가 정한다. */
+export function useFridgeFocus(reservedBottom = 0, isBlocked?: () => boolean) {
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = useState<FridgeFocusTarget | null>(null);
+  const [focusPhase, setFocusPhase] = useState<FridgeFocusPhase>('closed');
+  const [focusBounds, setFocusBounds] = useState<LayoutRectangle | null>(null);
+  const [hasSeenScrollHint, setHasSeenScrollHint] = useState(false);
+  const focusViewport = useRef<ComponentRef<typeof View>>(null);
+  const viewportSize = useRef<{ width: number; height: number } | null>(null);
+  const openRequest = useRef(0);
+  const activeFocus = focusPhase === 'closed' ? null : focusTarget;
+  const isFocusMoving = focusPhase === 'opening' || focusPhase === 'closing';
+  const finishFocusTransition = useCallback((phase: FridgeFocusPhase) => {
+    setFocusPhase(phase);
+    if (phase === 'closed' && focusTarget) setSelectedAreaId(focusTarget.returnAreaId);
+  }, [focusTarget]);
+  const markScrollHintSeen = useCallback(() => setHasSeenScrollHint(true), []);
+  const resetFocus = useCallback(() => {
+    openRequest.current++;
+    setFocusPhase('closed');
+    setFocusTarget(null);
+    setSelectedAreaId(null);
+  }, []);
+
+  useEffect(() => () => { openRequest.current++; }, []);
+
+  function layoutFocusViewport({ nativeEvent }: LayoutChangeEvent) {
+    const { width, height } = nativeEvent.layout;
+    if (width <= 0 || height <= 0) return;
+    const size = { width, height: Math.max(1, height - reservedBottom) };
+    viewportSize.current = size;
+    setFocusBounds(current => !current || (current.width === size.width && current.height === size.height)
+      ? current : { ...current, ...size });
+  }
+
+  function openFocusedArea(target: FridgeFocusTarget) {
+    if (isBlocked?.() || activeFocus) return;
+    Keyboard.dismiss();
+    const request = ++openRequest.current;
+    focusViewport.current?.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0 || isBlocked?.() || request !== openRequest.current) return;
+      setFocusBounds({ x, y, ...(viewportSize.current ?? { width, height: Math.max(1, height - reservedBottom) }) });
+      setFocusTarget(target);
+      setSelectedAreaId(target.areaId);
+      setFocusPhase('opening');
+    });
+  }
+
+  const closeFocusedArea = useCallback(() => {
+    if (isBlocked?.() || !activeFocus || focusPhase !== 'open') return;
+    setFocusPhase('closing');
+  }, [activeFocus, focusPhase, isBlocked]);
+
+  return {
+    selectedAreaId, setSelectedAreaId, focusTarget, setFocusTarget, focusPhase, focusBounds, focusViewport,
+    activeFocus, isFocusMoving, hasSeenScrollHint, markScrollHintSeen, finishFocusTransition,
+    resetFocus, layoutFocusViewport, openFocusedArea, closeFocusedArea,
+  };
+}
 
 /** 냉장고 전체 배치에서 본체·문에 인접한 단과 문이 있는지 같은 기준으로 구한다. */
 function getGridEdges(row: RefrigeratorDraft['rows'][number], rowIndex: number, rowCount: number, doorIds: string[]): GridEdges {
@@ -260,7 +320,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, selectedAreaId, foc
 }
 
 /** 원본 비율로 최대한 확대하고, 수납 칸의 편집 크기가 부족한 방향만 보정한다. */
-export function getFridgeFocusGeometry(draft: RefrigeratorDraft, focus: FridgeFocusTarget, viewport: LayoutRectangle) {
+export function getFridgeFocusGeometry(draft: FridgeInteriorMapProps['draft'], focus: FridgeFocusTarget, viewport: LayoutRectangle) {
   const rowIndex = draft.rows.findIndex(row => row.compartments.some(body => body.id === focus.areaId));
   if (rowIndex < 0) return null;
   const row = draft.rows[rowIndex];
@@ -422,11 +482,11 @@ function FridgeScrollHint({ enabled, dismissed, viewport, onSeen }: {
   );
 }
 
-/** 연결된 문은 함께 선택 표시해 펼치고, 열린 본체·포켓의 개별 선택은 기존 툴바에 전달한다. */
+/** 연결된 문은 함께 펼치고, 열린 본체·포켓의 개별 선택은 호출자에게 전달한다. */
 export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId,
   scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea,
   selectedSlotIndex, onSelectSlot }: {
-  draft: RefrigeratorDraft; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
+  draft: FridgeInteriorMapProps['draft']; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
   overlayHeight?: number;
   selectedAreaId?: string; onPhaseChange: (phase: FridgeFocusPhase) => void; onClose: () => void;
   scrollHintEnabled?: boolean; scrollHintBlocked?: boolean; onScrollHintSeen?: () => void;
@@ -600,7 +660,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   );
 }
 
-/** 닫힌 도면은 단계 표시 아래에 비율을 유지해 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
+/** 닫힌 도면은 남은 표시 영역에 비율을 유지해 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
 export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false }: FridgeInteriorMapProps) {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const { width: viewportWidth } = viewportSize;
