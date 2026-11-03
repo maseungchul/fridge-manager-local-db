@@ -45,5 +45,4 @@ npm start
 <!-- ## 관련 문서
 
 - [요구사항](docs/requirements.md)
-- [DB 구조](docs/database-schema.md)
-- [냉장고 도면 구성](docs/fridge-layout-catalog.md) -->
+- [DB 구조](docs/database-schema.md) -->

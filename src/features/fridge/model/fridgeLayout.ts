@@ -123,7 +123,7 @@ function createDraftCompartment(id: number, doorIds: string[]): DraftCompartment
   return { id: `body-${id}`, doorIds, storageMode: 'CHILLED', slots: [{ name: getSlotName(0), drawerCount: 0 }] };
 }
 
-/** 2단에 각각 문·본체 하나로 시작하고, 유형 JSON 대신 단별 문 개수로 배치를 구성한다. */
+/** 2단에 각각 문·본체 하나로 시작하고, 단별 문 개수로 배치를 구성한다. */
 export function createRefrigeratorDraft(): RefrigeratorDraft {
   const draft = addDraftRow({ name: '우리 집 냉장고', nextId: 1, rows: [] });
   return addDraftRow(draft);
