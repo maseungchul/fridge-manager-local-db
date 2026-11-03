@@ -1,0 +1,48 @@
+# 냉장고 ERD (적용 예정)
+
+```mermaid
+erDiagram
+    refrigerators ||..|{ refrigerator_rows : "단 구성"
+    refrigerator_rows ||..|{ refrigerator_compartments : "본체 구성"
+    refrigerator_rows ||..|{ refrigerator_doors : "문 배치"
+    refrigerator_compartments ||..|{ refrigerator_doors : "개폐부 연결"
+    refrigerator_compartments |o..|{ refrigerator_slots : "본체 칸"
+    refrigerator_doors |o..|{ refrigerator_slots : "도어포켓 칸"
+
+    refrigerators {
+        TEXT id PK
+        TEXT name
+    }
+
+    refrigerator_rows {
+        TEXT id PK
+        TEXT refrigerator_id FK
+        INTEGER sort_order
+    }
+
+    refrigerator_compartments {
+        TEXT id PK
+        TEXT row_id FK
+        TEXT storage_mode "CHILLED / FROZEN"
+        TEXT kind "HINGED / DRAWER"
+        TEXT side "LEFT_DOOR / RIGHT_DOOR. 서랍형·공용은 NULL"
+    }
+
+    refrigerator_doors {
+        TEXT id PK
+        TEXT row_id FK
+        TEXT compartment_id FK
+        INTEGER sort_order
+        INTEGER storage_enabled "0 / 1"
+    }
+
+    refrigerator_slots {
+        TEXT id PK
+        TEXT compartment_id FK "NULL 허용"
+        TEXT door_id FK "NULL 허용"
+        INTEGER sort_order
+        INTEGER drawer_count "0 / 1 / 2"
+    }
+```
+
+칸은 본체와 문 중 하나만 참조하며 도어포켓의 `drawer_count`는 `0`이다. 복합 키와 상세 제약은 [DB 테이블 구조](database-schema.md)를 따른다.
