@@ -1,4 +1,4 @@
-# 로컬 DB 테이블 구조 (적용 예정)
+# 로컬 DB 테이블 구조
 
 ## refrigerators
 

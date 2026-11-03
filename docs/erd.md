@@ -1,4 +1,4 @@
-# 냉장고 ERD (적용 예정)
+# 냉장고 ERD
 
 ```mermaid
 erDiagram
