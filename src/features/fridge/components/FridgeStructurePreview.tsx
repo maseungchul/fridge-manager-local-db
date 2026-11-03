@@ -41,7 +41,6 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     overflow: 'hidden',
     backgroundColor: '#F6F8F5',
-    boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 6, color: '#5C6A6014' }],
   },
   row: {
     flex: 1,

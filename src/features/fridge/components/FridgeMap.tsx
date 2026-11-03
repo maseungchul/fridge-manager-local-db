@@ -151,9 +151,7 @@ export function FridgeMap({
     backgroundColor: palette.pocket, borderColor: palette.shelf,
   };
   // 개별 위치 테두리는 안쪽으로 그려 선택해도 칸 크기와 배경이 바뀌지 않게 한다.
-  const positionSelection: ViewStyle = { boxShadow: [
-    { inset: true, offsetX: 0, offsetY: 0, blurRadius: 0, spreadDistance: 2, color: selectionColor },
-  ] };
+  const positionSelection: ViewStyle = { ...StyleSheet.absoluteFill, borderWidth: 2, borderColor: selectionColor };
   const slotSelection: ViewStyle = { backgroundColor: palette?.selection ?? fridgeSurfaces.selection };
   // 본체는 1, 문 전체의 합도 1로 배분한다. 문 2개는 각각 0.5, 문 1개는 1이다.
   const doorCount = areas.filter(area => !area.isBody).length;
@@ -205,7 +203,7 @@ export function FridgeMap({
                               accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
                               accessibilityState={{ selected, disabled }} disabled={disabled} onPress={positionInteraction ? () => onSelectPosition?.(position.id) : undefined}
                               style={[styles.position, positionIndex > 0 && styles.positionSeparator,
-                                compact && styles.compactPosition, fitHeight && styles.fittedPosition, !area.isBody && styles.pocketPosition, selected && positionInteraction && !selectedAreaId && positionSelection, groupInteraction && styles.groupPosition]}>
+                                compact && styles.compactPosition, fitHeight && styles.fittedPosition, !area.isBody && styles.pocketPosition, groupInteraction && styles.groupPosition]}>
                               {positionIndex > 0 ? (
                                 <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
                                   style={[styles.positionDivider, shelfTheme]} />
@@ -216,6 +214,10 @@ export function FridgeMap({
                                 onSelect={slotInteraction ? () => onSelectSlot?.(slotIndex) : undefined} /> : null}
                               {/* 좌우 분할은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                               {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
+                              {selected && positionInteraction && !selectedAreaId ? (
+                                <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                                  style={positionSelection} />
+                              ) : null}
                             </Position>
                           );
                         })}
@@ -281,7 +283,6 @@ const styles = StyleSheet.create({
     borderRadius: fridgeSurfaces.radius,
     overflow: 'hidden',
     backgroundColor: fridgeSurfaces.interior,
-    boxShadow: fridgeSurfaces.recessedShadow,
   },
   areaContent: {
     flex: 1,
@@ -387,7 +388,6 @@ const styles = StyleSheet.create({
     width: 8,
     height: fridgeSurfaces.handleLength,
     borderRadius: 4,
-    boxShadow: fridgeSurfaces.hardwareShadow,
   },
   horizontalHandle: {
     left: 0,
@@ -395,7 +395,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     borderRadius: 0,
-    boxShadow: [],
   },
   drawerPull: {
     width: '50%',

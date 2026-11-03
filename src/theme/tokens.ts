@@ -1,6 +1,6 @@
 /**
  * @file
- * tokens는 화면과 공통 컴포넌트에서 재사용하는 색상·간격·도면 음영을 정의한다.
+ * tokens는 화면과 공통 컴포넌트에서 재사용하는 색상·간격·도면 치수를 정의한다.
  * 스타일에서 공통 토큰을 참조해 앱 전체의 디자인 기준을 맞춘다.
  * as const는 속성을 타입상 readonly로 만들고 각 값의 리터럴 타입을 유지한다.
  * 실제 객체를 런타임에 동결하는 기능은 아니다.
@@ -36,7 +36,7 @@ export const colors = {
   error: '#A6413B',
 } as const;
 
-// 냉장고 도면은 흰 프레임 안에 모드별 배경과 밝은 수납함을 배치하고, 옅은 음영으로 두께를 표현한다.
+// 냉장고 도면은 흰 프레임 안에 모드별 배경과 밝은 수납함을 배치한다.
 export const fridgeSurfaces = {
   border: '#BED6C9',
   exterior: '#D8E0DA',
@@ -53,16 +53,6 @@ export const fridgeSurfaces = {
   handleLength: 80,
   ink: '#577062',
   radius: 0,
-  raisedShadow: [
-    { offsetX: 0, offsetY: 3, blurRadius: 6, color: '#5C80651A' },
-    { inset: true, offsetX: 0, offsetY: 1, blurRadius: 0, color: '#FFFFFFC0' },
-  ],
-  recessedShadow: [
-    { offsetX: 0, offsetY: 2, blurRadius: 5, color: '#5C806514' },
-  ],
-  hardwareShadow: [
-    { offsetX: 0, offsetY: 1, blurRadius: 2, color: '#40535D14' },
-  ],
 } as const;
 
 // 문 앞면은 밝게, 열린 내부는 한 톤 진하게 구분하고 포켓 전면판은 밝은 반투명색을 사용한다.
@@ -87,12 +77,6 @@ export function getFridgeSurfaceStyle(storageMode: keyof typeof fridgeDoorColors
   return {
     backgroundColor: side === 'interior' ? fridgeSurfaces.interior : palette.background,
     borderColor: side === 'interior' ? fridgeSurfaces.interior : palette.border,
-    boxShadow: side === 'interior' ? [
-      { ...fridgeSurfaces.recessedShadow[0], color: `${palette.motif}14` },
-    ] : [
-      { ...fridgeSurfaces.raisedShadow[0], color: `${palette.motif}1A` },
-      fridgeSurfaces.raisedShadow[1],
-    ],
   };
 }
 

@@ -169,16 +169,13 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
   );
 }
 
-/** 도면 크기를 바꾸지 않고 선택 테두리와 옅은 그림자로 현재 영역을 표시한다. */
+/** 도면 크기를 바꾸지 않고 선택 테두리로 현재 영역을 표시한다. */
 function SelectionFrame({ storageMode, style }: { storageMode: StorageMode | null; style?: StyleProp<ViewStyle> }) {
   const color = storageMode ? fridgeDoorColors[storageMode].ink : fridgeSurfaces.handle;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.selectionFrame, {
         borderColor: color,
-        boxShadow: [
-          { offsetX: 0, offsetY: 2, blurRadius: 6, color: `${color}20` },
-        ],
       }, style]} />
   );
 }
@@ -241,7 +238,6 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
     ...gridCorners, borderWidth: 0,
     ...(gridEdges.right && { borderRightWidth: 4, borderRightColor: contactColor }),
     ...(gridEdges.bottom && { borderBottomWidth: 4, borderBottomColor: contactColor }),
-    boxShadow: [],
   } : undefined;
 
   return (
@@ -265,10 +261,6 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
           <DoorHandle horizontal={drawer} storageMode={storageMode} style={drawer ? styles.drawerHandle
             : [styles.doorHandle, door.side === 'LEFT_DOOR' ? styles.handleRight : styles.handleLeft]} />
         </Pressable>
-        <Animated.View pointerEvents="none" style={[styles.doorShade, gridCorners, {
-          backgroundColor: storageMode ? fridgeDoorColors[storageMode].motif : fridgeSurfaces.ink,
-          opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }),
-        }]} />
       </Animated.View>
       {!drawer && children ? (
         <Animated.View pointerEvents={phase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={phase !== 'open'}
@@ -280,7 +272,7 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
             transform: [{ perspective: 1200 }, { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, unfoldOffset] }) },
               { rotateY: progress.interpolate({ inputRange: [0, 1], outputRange: [leftHinge ? '180deg' : '-180deg', '0deg'] }) }],
           }]}>
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.exteriorFace, modeStyle, backCorners, styles.doorFlatSurface]} />
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.exteriorFace, modeStyle, backCorners]} />
           <View pointerEvents={phase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={phase !== 'open'}
             importantForAccessibility={phase === 'open' ? 'auto' : 'no-hide-descendants'}
             style={StyleSheet.absoluteFill}>{children}</View>
@@ -589,12 +581,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
             getFridgeSurfaceStyle(group.body.storageMode), bodyCorners]}>
           <View style={[styles.bodyCavity, {
             backgroundColor: group.body.storageMode ? fridgeDoorColors[group.body.storageMode].frame : fridgeSurfaces.frame,
-          }]}>
-            <Animated.View style={[StyleSheet.absoluteFill, styles.interiorShade, {
-              backgroundColor: group.body.storageMode ? fridgeDoorColors[group.body.storageMode].motif : fridgeSurfaces.ink,
-              opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0] }),
-            }]} />
-          </View>
+          }]} />
         </View>
         <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
           importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={StyleSheet.absoluteFill}>
@@ -704,7 +691,6 @@ export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, 
 }
 
 const styles = StyleSheet.create({
-  // 도면 프레임과 선택 그림자가 잘리지 않도록 여백을 확보한다.
   viewport: {
     paddingVertical: MAP_PADDING,
   },
@@ -765,7 +751,6 @@ const styles = StyleSheet.create({
     borderColor: fridgeSurfaces.interior,
     borderRadius: fridgeSurfaces.radius,
     backgroundColor: fridgeSurfaces.interior,
-    boxShadow: fridgeSurfaces.recessedShadow,
   },
   // 여닫는 동안에도 이름 자리의 흰 바탕과 둥근 본체 안쪽 면을 같은 위치에 유지한다.
   bodyCavity: {
@@ -801,7 +786,6 @@ const styles = StyleSheet.create({
     width: 8,
     borderRadius: 4,
     backgroundColor: fridgeSurfaces.handle,
-    boxShadow: fridgeSurfaces.hardwareShadow,
   },
   hingeConnection: {
     position: 'absolute',
@@ -832,13 +816,6 @@ const styles = StyleSheet.create({
     color: fridgeSurfaces.ink,
     fontSize: 11,
     fontWeight: '600',
-  },
-  interiorShade: {
-    position: 'absolute',
-    top: 3,
-    bottom: 3,
-    borderRadius: fridgeSurfaces.radius,
-    backgroundColor: fridgeSurfaces.ink,
   },
   selectedArea: {
     zIndex: 1,
@@ -874,22 +851,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backfaceVisibility: 'hidden',
   },
-  // 회전하는 면의 그림자 마스크가 모서리에 남지 않게 하고, 열린 내부의 음영은 별도로 유지한다.
-  doorFlatSurface: {
-    boxShadow: [],
-  },
-  doorShade: {
-    ...StyleSheet.absoluteFill,
-    borderRadius: fridgeSurfaces.radius,
-    backgroundColor: fridgeSurfaces.ink,
-  },
   exteriorFace: {
     flex: 1,
     borderWidth: 0,
     borderColor: fridgeSurfaces.border,
     borderRadius: fridgeSurfaces.radius,
     backgroundColor: fridgeSurfaces.exterior,
-    boxShadow: fridgeSurfaces.raisedShadow,
   },
   doorHandle: {
     top: '50%',
@@ -912,7 +879,6 @@ const styles = StyleSheet.create({
     borderColor: fridgeSurfaces.interior,
     borderRadius: fridgeSurfaces.radius,
     backgroundColor: fridgeSurfaces.interior,
-    boxShadow: fridgeSurfaces.recessedShadow,
   },
   cross: {
     position: 'absolute',

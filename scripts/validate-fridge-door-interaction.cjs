@@ -312,7 +312,8 @@ function assertFocusAccess(focus, phase) {
   assert.equal(flattenStyle(bodyFrame.props.style).backgroundColor, '#FFFFFF');
   assert.equal(flattenStyle(children(bodyFrame)[0].props.style).backgroundColor,
     frameMode ? tokens.fridgeDoorColors[frameMode].frame : tokens.fridgeSurfaces.frame);
-  if (frameMode) assert.equal(flattenStyle(bodyFrame.props.style).boxShadow[0].color, tokens.fridgeDoorColors[frameMode].motif + '14');
+  assert.equal(flattenStyle(bodyFrame.props.style).boxShadow, undefined);
+  assert.equal(children(children(bodyFrame)[0]).length, 0);
   assert.equal(flattenStyle(bodyFrame.props.style).opacity ?? 1, 1);
   assert.equal(flattenStyle(bodyPanel.props.style).opacity ?? 1, 1);
   assert.equal(bodyFrame.props.pointerEvents, 'none');
@@ -1388,7 +1389,7 @@ test('어느 문을 열어도 앞면·뒷면·본체·포켓·선택선이 직�
                 assert.deepEqual(corners(back.props.style), mirrored(expected));
                 const backSurface = flattenStyle(children(back)[0].props.style);
                 assert.deepEqual(corners(backSurface), mirrored(expected));
-                assert.deepEqual(backSurface.boxShadow, []);
+                assert.equal(backSurface.boxShadow, undefined);
               }
             }
             const areas = interiorAreas(focus);
@@ -1412,7 +1413,8 @@ test('어느 문을 열어도 앞면·뒷면·본체·포켓·선택선이 직�
               const selection = find(tree, named('SelectionFrame'));
               const selectedStyle = flattenStyle(selection.type(selection.props).props.style);
               assert.deepEqual(corners(selectedStyle), expected);
-              assert(selectedStyle.boxShadow.length > 0, '열린 내부 선택 영역의 음영은 유지해야 한다');
+              assert.equal(selectedStyle.boxShadow, undefined);
+              assert.equal(selectedStyle.borderWidth, 2);
             }
           };
           check('opening');
@@ -3273,7 +3275,7 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
       assert.equal(flattenStyle(content.props.style).backgroundColor, palette.frame);
       assert.equal(flattenStyle(content.props.style).marginBottom, flattenStyle(content.props.style).marginHorizontal);
       assert.equal(flattenStyle(content.props.style).borderRadius, tokens.fridgeSurfaces.cavityRadius);
-      assert.equal(flattenStyle(frame.props.style).boxShadow[0].color, palette.motif + '14');
+      assert.equal(flattenStyle(frame.props.style).boxShadow, undefined);
       assert.equal(flattenStyle(find(map.props.areaHeader, node => node.type === 'Text').props.style).color, palette.ink);
       if (area.props.area.isBody) {
         const shelf = find(tree, node => flattenStyle(node.props.style).height === 4);
@@ -3314,7 +3316,7 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
     assert.equal(flattenStyle(empty.tree.props.style).borderColor, '#FFFFFF');
     assert.equal(flattenStyle(empty.tree.props.style).backgroundColor, '#FFFFFF');
     assert.equal(flattenStyle(children(empty.tree).at(-1).props.style).backgroundColor, palette.frame);
-    assert.equal(flattenStyle(empty.tree.props.style).boxShadow[0].color, palette.motif + '14');
+    assert.equal(flattenStyle(empty.tree.props.style).boxShadow, undefined);
     empty.unmount();
     focus.unmount();
   }
@@ -3373,19 +3375,26 @@ test('열린 수납은 모드 배경과 연한 테마 손잡이·경첩을 유�
       }
       const handle = mapModule.DoorHandle({ storageMode: mode });
       assert.equal(flattenStyle(children(handle)[0].props.style).backgroundColor, tokens.fridgeDoorColors[mode].handle);
-      assert.deepEqual(flattenStyle(handle.props.style).boxShadow, tokens.fridgeSurfaces.hardwareShadow);
+      assert.equal(flattenStyle(handle.props.style).boxShadow, undefined);
       const hinges = find(focus.tree, named('DoorHinges'));
       const hinge = find(hinges.type(hinges.props), named('DoorHinge'));
       const pin = children(hinge.type(hinge.props))[0];
       assert.equal(flattenStyle(pin.props.style).backgroundColor, tokens.fridgeDoorColors[mode].handle);
-      assert.deepEqual(flattenStyle(pin.props.style).boxShadow, tokens.fridgeSurfaces.hardwareShadow);
+      assert.equal(flattenStyle(pin.props.style).boxShadow, undefined);
       const layout = model.getDraftLayout(draft);
       const individual = mapModule.FridgeMap({ ...layout, storageMode: mode,
         selectedPositionId: layout.positions[0].id, onSelectPosition() {} });
       const selectedSlot = find(individual, node => node.type === 'FeedbackPressable' && node.props.accessibilityState.selected);
       const slotStyle = flattenStyle(selectedSlot.props.style);
       assert.equal(slotStyle.backgroundColor, 'transparent');
-      assert.equal(slotStyle.boxShadow[0].color, tokens.fridgeDoorColors[mode].ink);
+      assert.equal(slotStyle.boxShadow, undefined);
+      const positionFrame = children(selectedSlot).at(-1);
+      const positionFrameStyle = flattenStyle(positionFrame.props.style);
+      assert.equal(positionFrameStyle.position, 'absolute');
+      assert.equal(positionFrameStyle.borderWidth, 2);
+      assert.equal(positionFrameStyle.borderColor, tokens.fridgeDoorColors[mode].ink);
+      assert.equal(positionFrame.props.pointerEvents, 'none');
+      assert.equal(positionFrame.props.importantForAccessibility, 'no-hide-descendants');
       focus.unmount();
     }
   }
@@ -3533,7 +3542,7 @@ test('기본정보 도면 UI는 내부 설정의 색상·손잡이·모서리 �
   try {
     Object.assign(tokens.fridgeSurfaces, {
       border: '#FF0000', exterior: '#000000', frame: '#000000', handle: '#FF0000',
-      handleLength: 160, radius: 40, raisedShadow: [],
+      handleLength: 160, radius: 40,
     });
     const changed = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
     assert.deepEqual(changed.FridgeStructurePreview(props), before);
