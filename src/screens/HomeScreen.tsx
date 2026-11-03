@@ -1,6 +1,6 @@
 /**
  * @file
- * 저장된 냉장고를 등록 화면과 같은 도면·문 열림·중앙 보기 컴포넌트로 표시한다.
+ * 저장된 냉장고를 공통 도면으로 표시하며, 홈에서는 영역 대신 개별 수납 칸을 선택한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeBottomTabScreenProps } from '@react-navigation/bottom-tabs/unstable';
@@ -16,6 +16,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
+import type { FridgeFocusPhase } from '@/features/fridge/components/FridgeInteriorMap';
 import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
@@ -31,17 +32,23 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | undefined>(undefined);
   const loadRequest = useRef(0);
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
     hasSeenScrollHint, markScrollHintSeen, finishFocusTransition, resetFocus,
     layoutFocusViewport, openFocusedArea, closeFocusedArea, diagramSizes,
   } = useFridgeFocus();
+  const finishHomeFocus = useCallback((phase: FridgeFocusPhase) => {
+    finishFocusTransition(phase);
+    if (phase === 'closed') setSelectedSlotIndex(undefined);
+  }, [finishFocusTransition]);
 
   // 홈 재진입·재시도 이전에 시작한 조회가 늦게 끝나도 최신 결과만 반영한다.
   const loadRefrigerator = useCallback(async () => {
     const request = ++loadRequest.current;
     resetFocus();
+    setSelectedSlotIndex(undefined);
     setIsLoading(true);
     setError(null);
     try {
@@ -58,7 +65,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useFocusEffect(useCallback(() => {
     void loadRefrigerator();
-    return () => { loadRequest.current++; resetFocus(); };
+    return () => { loadRequest.current++; resetFocus(); setSelectedSlotIndex(undefined); };
   }, [loadRefrigerator, resetFocus]));
 
   useEffect(() => {
@@ -105,8 +112,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           <FridgeFocusView draft={refrigerator} target={activeFocus} viewport={focusBounds} phase={focusPhase}
             sizeViewport={diagramSizes.opened}
             selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
-            onScrollHintSeen={markScrollHintSeen} onPhaseChange={finishFocusTransition}
-            onClose={closeFocusedArea} onSelectArea={setSelectedAreaId} />
+            selectedSlotIndex={selectedSlotIndex}
+            onSelectSlot={(areaId, index) => { setSelectedAreaId(areaId); setSelectedSlotIndex(index); }}
+            onScrollHintSeen={markScrollHintSeen} onPhaseChange={finishHomeFocus}
+            onClose={closeFocusedArea} />
         ) : null}
       </View>
     </View>

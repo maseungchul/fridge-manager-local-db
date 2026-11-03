@@ -1,7 +1,7 @@
 /**
  * @file
  * 홈 화면의 냉장고 배치도에서 영역·칸과 칸별 재료 수를 표시한다.
- * 칸을 누르면 식별자를 부모에 전달하고, 홈은 개별 칸·등록 미리보기는 영역 전체를 강조한다.
+ * 홈은 본체의 행·포켓의 수납함 전면을 선택하고, 등록 미리보기는 영역 전체를 강조한다.
  * 홈과 최초 등록 미리보기에서 공유하며 선택 상태와 데이터 변경은 호출자가 관리한다.
  */
 import type { ReactNode } from 'react';
@@ -18,6 +18,8 @@ const BODY_SHELF_SIDE_INSET = 3;
 const AREA_CONTENT_PADDING = 5;
 const POSITION_SEPARATOR_WIDTH = 1;
 const MIN_EDIT_CELL_SIZE = 72;
+const POCKET_BORDER_WIDTH = 3;
+const POCKET_BOTTOM_RADIUS = 12;
 
 /** 프레임·이름·선반 공간을 더해 실제 수납 칸마다 최소 편집 크기를 확보한다. */
 export function getFridgeAreaEditSize(slots: readonly SlotConfiguration[], isBody: boolean) {
@@ -63,11 +65,11 @@ interface FridgeMapProps {
   areaHeader?: ReactNode;
   // 구조 저장 중에는 다른 칸을 선택하지 못하도록 터치와 접근성 상태를 함께 제한한다.
   disabled?: boolean;
-  // 홈에서는 개별 칸·좌우 분할의 선택 위치를 변경한다.
+  // 개별 위치 선택 모드에서는 칸·좌우 분할의 선택 위치를 변경한다.
   onSelectPosition?: (id: string) => void;
   // 등록 도면은 칸 대신 문·본체 전체에서 터치와 눌림 효과를 처리한다.
   onSelectArea?: (id: string) => void;
-  // 등록 툴바에서 칸 구성을 펼친 동안에는 좌우 분할을 한 칸으로 묶어 선택한다.
+  // 홈과 등록 툴바의 칸 구성은 좌우 분할을 한 칸으로 묶어 선택한다.
   selectedSlotIndex?: number;
   onSelectSlot?: (index: number) => void;
 }
@@ -114,11 +116,19 @@ export function DoorModeArt({ storageMode, size, drawer = false, style }: {
   );
 }
 
-/** 윗면이 열린 U자형 포켓을 표시하며, 내용과 터치는 부모 칸이 관리한다. */
-function DoorPocketBin({ style }: { style?: StyleProp<ViewStyle> }) {
+/** U자형 포켓의 전면 안에서만 선택을 처리해 위쪽 빈 공간은 터치 대상에서 제외한다. */
+function DoorPocketBin({ style, selectionStyle, selected = false, disabled = false, label, onSelect }: {
+  style?: StyleProp<ViewStyle>; selectionStyle?: StyleProp<ViewStyle>; selected?: boolean;
+  disabled?: boolean; label?: string; onSelect?: () => void;
+}) {
+  const Bin = onSelect ? Pressable : View;
   return (
-    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.pocketBin}>
-      <View style={[styles.pocketBinFront, style]} />
+    <View pointerEvents={onSelect ? 'box-none' : 'none'} accessibilityElementsHidden={onSelect ? undefined : true}
+      importantForAccessibility={onSelect ? undefined : 'no-hide-descendants'} style={styles.pocketBin}>
+      <Bin accessibilityRole={onSelect ? 'button' : undefined} accessibilityLabel={label}
+        accessibilityState={onSelect ? { selected, disabled } : undefined} disabled={disabled}
+        onPress={onSelect ? event => { event.stopPropagation(); onSelect(); } : undefined}
+        style={[styles.pocketBinFront, style, selected && selectionStyle]} />
     </View>
   );
 }
@@ -131,21 +141,20 @@ export function FridgeMap({
 }: FridgeMapProps) {
   const groupInteraction = !!onSelectArea;
   const slotInteraction = !!onSelectSlot;
-  const Slot = slotInteraction ? Pressable : View;
+  const positionInteraction = !groupInteraction && !slotInteraction;
   const Area = groupInteraction ? Pressable : View;
-  const Position = groupInteraction ? View : FeedbackPressable;
+  const Position = positionInteraction ? FeedbackPressable : View;
   const palette = storageMode ? fridgeDoorColors[storageMode] : null;
   const selectionColor = palette?.ink ?? fridgeSurfaces.handle;
-  const materialShadow = palette ? fridgeSurfaces.shelfShadow.map(shadow => ({ ...shadow, color: `${palette.motif}22` })) : fridgeSurfaces.shelfShadow;
-  const shelfTheme = palette && { backgroundColor: palette.shelf, boxShadow: materialShadow };
+  const shelfTheme = palette && { backgroundColor: palette.shelf };
   const pocketTheme = palette && {
     backgroundColor: palette.pocket, borderColor: palette.shelf,
   };
-  // 홈의 개별 위치 테두리는 안쪽으로 그려 선택해도 칸 크기와 배경이 바뀌지 않게 한다.
+  // 개별 위치 테두리는 안쪽으로 그려 선택해도 칸 크기와 배경이 바뀌지 않게 한다.
   const positionSelection: ViewStyle = { boxShadow: [
     { inset: true, offsetX: 0, offsetY: 0, blurRadius: 0, spreadDistance: 2, color: selectionColor },
   ] };
-  const slotSelection: ViewStyle = { backgroundColor: `${selectionColor}33` };
+  const slotSelection: ViewStyle = { backgroundColor: palette?.selection ?? fridgeSurfaces.selection };
   // 본체는 1, 문 전체의 합도 1로 배분한다. 문 2개는 각각 0.5, 문 1개는 1이다.
   const doorCount = areas.filter(area => !area.isBody).length;
   const doorFlex = doorCount > 0 ? 1 / doorCount : 1;
@@ -154,6 +163,8 @@ export function FridgeMap({
     <View style={[styles.map, style]}>
       {areas.map(area => {
         const areaSelected = selectedAreaId === area.id;
+        const rowInteraction = slotInteraction && area.isBody;
+        const Slot = rowInteraction ? Pressable : View;
         return (
           <View key={area.id} style={[styles.area, { flex: area.isBody ? 1 : doorFlex }]}>
             {/* 홈은 칸별로, 등록 도면은 문·본체 전체를 한 번에 눌러 선택한다. */}
@@ -174,13 +185,14 @@ export function FridgeMap({
                   .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
                   // 위→아래 칸 순서를 유지하고 같은 칸의 좌우 분할만 한 행에 묶는다.
                   const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
+                  const slotLabel = `${area.compartment} → ${area.name} → ${getSlotName(slotIndex)}`;
                   return (
-                    <Slot key={firstPosition.slotId} accessibilityRole={slotInteraction ? 'button' : undefined}
-                      accessibilityLabel={slotInteraction ? `${area.compartment} → ${area.name} → ${getSlotName(slotIndex)}` : undefined}
-                      accessibilityState={slotInteraction ? { selected: selectedSlotIndex === slotIndex, disabled } : undefined}
-                      disabled={disabled} onPress={slotInteraction ? event => { event.stopPropagation(); onSelectSlot?.(slotIndex); } : undefined}
+                    <Slot key={firstPosition.slotId} accessibilityRole={rowInteraction ? 'button' : undefined}
+                      accessibilityLabel={rowInteraction ? slotLabel : undefined}
+                      accessibilityState={rowInteraction ? { selected: selectedSlotIndex === slotIndex, disabled } : undefined}
+                      disabled={disabled} onPress={rowInteraction ? event => { event.stopPropagation(); onSelectSlot?.(slotIndex); } : undefined}
                       style={[styles.slot, area.isBody && slotIndex > 0 && styles.slotSeparator]}>
-                      {slotInteraction && selectedSlotIndex === slotIndex ? (
+                      {rowInteraction && selectedSlotIndex === slotIndex ? (
                         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
                           style={[styles.slotHighlight, slotSelection]} />
                       ) : null}
@@ -188,17 +200,20 @@ export function FridgeMap({
                         {slotPositions.map((position, positionIndex) => {
                           const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
                           return (
-                            <Position key={position.id} accessible={groupInteraction ? false : undefined}
-                              accessibilityRole={groupInteraction ? undefined : 'button'} accessibilityLabel={getPositionPath(area, position)}
+                            <Position key={position.id} accessible={positionInteraction ? undefined : false}
+                              accessibilityRole={positionInteraction ? 'button' : undefined} accessibilityLabel={getPositionPath(area, position)}
                               accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
-                              accessibilityState={{ selected, disabled }} disabled={disabled} onPress={groupInteraction ? undefined : () => onSelectPosition?.(position.id)}
+                              accessibilityState={{ selected, disabled }} disabled={disabled} onPress={positionInteraction ? () => onSelectPosition?.(position.id) : undefined}
                               style={[styles.position, positionIndex > 0 && styles.positionSeparator,
-                                compact && styles.compactPosition, fitHeight && styles.fittedPosition, !area.isBody && styles.pocketPosition, selected && !groupInteraction && !selectedAreaId && positionSelection, groupInteraction && styles.groupPosition]}>
+                                compact && styles.compactPosition, fitHeight && styles.fittedPosition, !area.isBody && styles.pocketPosition, selected && positionInteraction && !selectedAreaId && positionSelection, groupInteraction && styles.groupPosition]}>
                               {positionIndex > 0 ? (
                                 <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
                                   style={[styles.positionDivider, shelfTheme]} />
                               ) : null}
-                              {!area.isBody ? <DoorPocketBin style={pocketTheme} /> : null}
+                              {!area.isBody ? <DoorPocketBin style={pocketTheme} selectionStyle={slotSelection}
+                                selected={slotInteraction && selectedSlotIndex === slotIndex} disabled={disabled}
+                                label={slotInteraction ? slotLabel : undefined}
+                                onSelect={slotInteraction ? () => onSelectSlot?.(slotIndex) : undefined} /> : null}
                               {/* 좌우 분할은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                               {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
                             </Position>
@@ -307,7 +322,6 @@ const styles = StyleSheet.create({
     height: BODY_SHELF_HEIGHT,
     borderRadius: 2,
     backgroundColor: fridgeSurfaces.shelf,
-    boxShadow: fridgeSurfaces.shelfShadow,
   },
   pocketBin: {
     position: 'absolute',
@@ -322,13 +336,13 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: '62%',
-    borderWidth: 3,
+    borderWidth: POCKET_BORDER_WIDTH,
     borderColor: fridgeSurfaces.shelf,
     borderTopWidth: 0,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
+    borderBottomLeftRadius: POCKET_BOTTOM_RADIUS,
+    borderBottomRightRadius: POCKET_BOTTOM_RADIUS,
     backgroundColor: fridgeSurfaces.pocket,
     overflow: 'hidden',
   },
@@ -359,7 +373,6 @@ const styles = StyleSheet.create({
     width: BODY_SHELF_HEIGHT,
     borderRadius: 2,
     backgroundColor: fridgeSurfaces.shelf,
-    boxShadow: fridgeSurfaces.shelfShadow,
   },
   // 포켓의 둥근 바닥과 칸 아래 여백을 같은 위치에 맞춘다.
   pocketPosition: {

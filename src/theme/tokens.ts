@@ -42,6 +42,7 @@ export const fridgeSurfaces = {
   exterior: '#D8E0DA',
   interior: '#FFFFFF',
   frame: '#D8E2DC',
+  selection: '#D1DBD5',
   frameWidth: 6,
   bodySideWidth: 10,
   headerHeight: 28,
@@ -59,23 +60,23 @@ export const fridgeSurfaces = {
   recessedShadow: [
     { offsetX: 0, offsetY: 2, blurRadius: 5, color: '#5C806514' },
   ],
-  shelfShadow: [
-    { offsetX: 0, offsetY: 2, blurRadius: 2, color: '#5C806522' },
-  ],
   hardwareShadow: [
     { offsetX: 0, offsetY: 1, blurRadius: 2, color: '#40535D14' },
   ],
 } as const;
 
 // 문 앞면은 밝게, 열린 내부는 한 톤 진하게 구분하고 포켓 전면판은 밝은 반투명색을 사용한다.
+// 선택 배경은 본체 바탕에 ink를 20% 합성한 고정색으로 두어 포켓에서도 같은 색을 표시한다.
 export const fridgeDoorColors = {
   CHILLED: {
     background: '#D4E6DB', border: '#BED8CB', ink: '#416B57', motif: '#648F7A',
     frame: '#CEDFD5', shelf: '#92B5A2', pocket: '#F1FAF4CC', handle: '#B4CBC0',
+    selection: '#B2C8BC',
   },
   FROZEN: {
     background: '#D3E4F1', border: '#BDD7E8', ink: '#396B90', motif: '#648FAF',
     frame: '#CEDFEC', shelf: '#94B8D2', pocket: '#F1F9FFCC', handle: '#B5CBD9',
+    selection: '#B0C8DA',
   },
 } as const;
 
