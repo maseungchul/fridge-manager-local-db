@@ -6,6 +6,7 @@
  * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
  * 편집은 저장된 구성을 불러오며, 전체 저장 실패 시 입력을 유지하고 성공 시 홈으로 돌아간다.
  * 편집 화면의 이름 변경은 구조 초안을 유지한 채 별도로 저장한다.
+ * 내부 설정의 홈 버튼은 툴바·하위 설정 위에 띄우고 저장하지 않은 초안을 종료한다.
  */
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -21,6 +22,7 @@ import { FormTextInput } from '@/components/FormTextInput';
 import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantityStepper';
 import { getRefrigerator, registerRefrigerator, updateRefrigerator, updateRefrigeratorName } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
+import { FridgeHomeButton } from '@/features/fridge/components/FridgeHomeButton';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
 import { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } from '@/features/fridge/components/FridgeAreaMenu';
@@ -33,7 +35,9 @@ import {
 import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { colors, spacing } from '@/theme/tokens';
-import { FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
+import {
+  FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE, FRIDGE_SUBMENU_HEIGHT, FRIDGE_SUBMENU_BOTTOM_SPACE,
+} from '@/features/fridge/components/fridgeDiagramLayout';
 
 type RefrigeratorRegistrationScreenProps = NativeStackScreenProps<
   RootStackParamList,
@@ -70,6 +74,7 @@ export function RefrigeratorRegistrationScreen({
   const structurePreviewWidth = Math.max(1, Math.min(STRUCTURE_PREVIEW_MAX_WIDTH,
     stepWidth - spacing.lg * 2 - STRUCTURE_CONTROL_WIDTH - spacing.xs));
   const [stepHeight, setStepHeight] = useState(0);
+  const [toolbarHeight, setToolbarHeight] = useState(0);
   const leaveRequested = useRef(false);
   const saving = useRef(false);
   const stepAnimation = useRef(new Animated.Value(0)).current;
@@ -105,6 +110,11 @@ export function RefrigeratorRegistrationScreen({
     || menuCategory === 'opening' && (selectedDoor || isMergedBody)
     || menuCategory === 'slots' && (isDrawerBody || !storageEnabled)
     ? null : menuCategory;
+  const isToolbarVisible = step === 'configuration' && !!activeFocus && focusPhase === 'open';
+  // 도면의 배치 공간을 바꾸지 않고 실제 툴바·하위 설정의 위쪽에 홈 버튼만 이동한다.
+  const homeButtonBottom = spacing.md + (isToolbarVisible
+    ? toolbarHeight + (activeMenuCategory ? FRIDGE_SUBMENU_HEIGHT + FRIDGE_SUBMENU_BOTTOM_SPACE : 0)
+    : insets.bottom);
   useEffect(() => () => {
     stepChanging.current = false;
     stepAnimation.stopAnimation();
@@ -146,7 +156,7 @@ export function RefrigeratorRegistrationScreen({
   });
 
   function cancelRegistration() {
-    if (saving.current) return;
+    if (saving.current || stepChanging.current || isFocusMoving) return;
     Keyboard.dismiss();
     stepChanging.current = false;
     stepAnimation.stopAnimation();
@@ -461,6 +471,7 @@ export function RefrigeratorRegistrationScreen({
               {pageStep === 'configuration' && activeFocus ? (
                 <View pointerEvents={focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={focusPhase !== 'open'}
                   importantForAccessibility={focusPhase === 'open' ? 'auto' : 'no-hide-descendants'}
+                  onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
                   style={[styles.configurationToolbar, { paddingBottom: insets.bottom, opacity: focusPhase === 'open' ? 1 : 0 }]}>
                   <FridgeAreaMenu disabled={!selectedAreaId || isSaving || isStepChanging || isFocusMoving}
                     activeCategory={activeMenuCategory} onCategoryChange={setMenuCategory}
@@ -499,6 +510,11 @@ export function RefrigeratorRegistrationScreen({
         </Animated.View>
       </View>
       </>}
+      {step === 'configuration' ? (
+        <FridgeHomeButton
+          disabled={isSaving || isStepChanging || isFocusMoving} onPress={cancelRegistration}
+          style={[styles.homeButtonPosition, { bottom: homeButtonBottom }]} />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -551,6 +567,11 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     backgroundColor: colors.toolbar,
     zIndex: 30,
+  },
+  homeButtonPosition: {
+    position: 'absolute',
+    left: spacing.lg,
+    zIndex: 40,
   },
   header: {
     flexDirection: 'row',

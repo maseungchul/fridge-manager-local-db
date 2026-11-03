@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo/ui": "~58.0.26",
     "@react-native-vector-icons/material-design-icons": "^13.1.5",
     "@react-navigation/bottom-tabs": "7.21.0",
     "@react-navigation/native": "7.5.1",

@@ -76,7 +76,7 @@ class AnimatedValue {
 }
 const native = {
   View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
-  Keyboard: { dismiss() {} }, Platform: { OS: 'ios' },
+  Keyboard: { dismiss() {} }, Platform: { OS: 'ios', Version: '26.1' },
   ActivityIndicator: 'ActivityIndicator', Alert: { alert(...args) { alerts.push(args); } },
   BackHandler: { addEventListener(event, handler) {
     assert.equal(event, 'hardwareBackPress');
@@ -111,6 +111,11 @@ let structureModule;
 let menuModule;
 let quantityStepperModule;
 let diagramLayoutModule;
+let iosHomeButtonModule;
+let defaultHomeButtonModule;
+const swiftUIModifiers = Object.fromEntries([
+  'accessibilityHint', 'accessibilityLabel', 'buttonBorderShape', 'buttonStyle', 'controlSize', 'disabled',
+].map(name => [name, value => ({ type: name, value })]));
 function loadComponent(path, overrides = {}) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: {
@@ -125,6 +130,11 @@ function loadComponent(path, overrides = {}) {
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
     '@/components/QuantityStepper': quantityStepperModule,
+    '@expo/ui/swift-ui': { Button: 'SwiftUIButton', Host: 'SwiftUIHost', Label: 'SwiftUILabel', RNHostView: 'RNHostView' },
+    '@expo/ui/swift-ui/modifiers': swiftUIModifiers,
+    '@/features/fridge/components/FridgeHomeButton': { FridgeHomeButton(props) {
+      return (native.Platform.OS === 'ios' ? iosHomeButtonModule : defaultHomeButtonModule).FridgeHomeButton(props);
+    } },
     'expo-sqlite': { useSQLiteContext: () => database },
     '@/db/refrigeratorRepository': repository,
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
@@ -159,6 +169,8 @@ function loadComponent(path, overrides = {}) {
   return module.exports;
 }
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
+iosHomeButtonModule = loadComponent('src/features/fridge/components/FridgeHomeButton.ios.tsx');
+defaultHomeButtonModule = loadComponent('src/features/fridge/components/FridgeHomeButton.tsx');
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
 diagramLayoutModule = loadComponent('src/features/fridge/components/fridgeDiagramLayout.ts');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
@@ -168,7 +180,7 @@ menuModule = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
 const { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } = menuModule;
 const { RefrigeratorRegistrationScreen } = loadComponent('src/screens/RefrigeratorRegistrationScreen.tsx');
 const { HomeScreen } = loadComponent('src/screens/HomeScreen.tsx');
-const children = node => node?.type === quantityStepperModule.QuantityStepper
+const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FridgeHomeButton'
   ? [node.type(node.props)] : [node?.props?.children].flat(Infinity).filter(child => child?.type);
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 function find(node, predicate) {
@@ -179,6 +191,10 @@ function find(node, predicate) {
   }
 }
 const named = name => node => node?.type?.name === name;
+const homeButton = screen => find(screen.tree, node => node.props.accessibilityLabel === '홈으로 이동'
+  || node.type === 'SwiftUIButton' && node.props.modifiers.some(modifier => modifier.type === 'accessibilityLabel' && modifier.value === '홈으로 이동'));
+const homeButtonDisabled = button => button.props.disabled
+  ?? button.props.modifiers.find(modifier => modifier.type === 'disabled').value;
 const doors = instance => children(instance.tree).filter(named('FridgeDoor'));
 const interior = instance => find(instance.tree, named('InteriorArea'));
 function fixture(draft = model.createRefrigeratorDraft(), groupIndex = 0, scrollY = 0) {
@@ -466,6 +482,140 @@ test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이�
   }
 });
 
+test('홈 버튼은 Material 홈 아이콘과 iOS 버전별 네이티브 스타일을 사용하고 Android 버튼을 유지한다', t => {
+  const previous = { ...native.Platform };
+  t.after(() => Object.assign(native.Platform, previous));
+  for (const [platform, version, expectedStyle] of [
+    ['ios', '26.1.1', 'glass'], ['ios', '18.7', 'bordered'], ['android', 35, null],
+  ]) {
+    native.Platform.OS = platform;
+    native.Platform.Version = version;
+    let pressed = 0;
+    const module = platform === 'ios' ? iosHomeButtonModule : defaultHomeButtonModule;
+    const control = mount(module.FridgeHomeButton, { disabled: false, onPress() { pressed++; } });
+    t.after(() => control.unmount());
+    const button = () => homeButton(control);
+    if (platform === 'ios') {
+      assert.equal(control.tree.type, 'SwiftUIHost');
+      assert.equal(control.tree.props.matchContents, true);
+      assert.equal(control.tree.props.ignoreSafeArea, 'all');
+      assert.equal(button().type, 'SwiftUIButton');
+      assert.equal(button().props.systemImage, undefined);
+      const label = button().props.children;
+      assert.equal(label.type, 'SwiftUILabel');
+      assert.equal(label.props.title, '홈');
+      assert.equal(label.props.icon.type, 'RNHostView');
+      assert.equal(label.props.icon.props.matchContents, true);
+      assert.equal(label.props.icon.props.children.type, 'Icon');
+      assert.equal(label.props.icon.props.children.props.name, 'home');
+      assert.equal(label.props.icon.props.children.props.pointerEvents, 'none');
+      assert.equal(button().props.modifiers.find(modifier => modifier.type === 'buttonStyle').value, expectedStyle);
+      assert.equal(button().props.modifiers.find(modifier => modifier.type === 'accessibilityLabel').value, '홈으로 이동');
+    } else {
+      assert.equal(button().type, 'FeedbackPressable');
+      assert.equal(find(control.tree, node => node.type === 'SwiftUIHost'), undefined);
+      assert.equal(find(control.tree, node => node.type === 'Icon').props.name, 'home');
+    }
+    button().props.onPress();
+    assert.equal(pressed, 1);
+    control.props.disabled = true;
+    control.render();
+    assert.equal(homeButtonDisabled(button()), true);
+  }
+});
+
+test('편집 내부 설정의 홈 버튼은 도면·메뉴·이전 단계를 거치거나 저장하지 않고 홈으로 이동한다', async t => {
+  for (const expanded of [false, true]) await t.test(expanded ? '도면·하위 메뉴 열림' : '전체 도면', async t => {
+    const previous = { ...repository };
+    t.after(() => Object.assign(repository, previous));
+    const saved = savedRefrigerator('홈으로 나갈 냉장고');
+    const before = structuredClone(saved);
+    repository.getRefrigerator = async () => structuredClone(saved);
+    let writes = 0;
+    repository.registerRefrigerator = repository.updateRefrigerator = async () => { writes++; };
+    let removed = 0;
+    const action = { type: 'GO_BACK' };
+    const screen = mount(RefrigeratorRegistrationScreen, {
+      navigation: {
+        goBack() { screen.preventRemove.onRemove({ data: { action } }); },
+        dispatch(value) { assert.strictEqual(value, action); removed++; },
+      }, route: { params: { refrigeratorId: saved.id } },
+    });
+    t.after(() => screen.unmount());
+    await new Promise(setImmediate);
+    screen.render();
+    assert.equal(homeButton(screen), undefined);
+    find(screen.tree, node => node.props.accessibilityLabel === '1단 문 늘리기').props.onPress();
+    screen.render();
+    find(screen.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동').props.onPress();
+    animations.at(-1).finish();
+    screen.render();
+    if (expanded) {
+      const viewport = find(screen.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
+      viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+      const map = find(screen.tree, named('FridgeInteriorMap'));
+      const row = map.props.draft.rows[0];
+      map.props.onFocus({ areaId: row.compartments[0].id, returnAreaId: row.doors[0].id,
+        canvas: { x: 24, y: 210, width: 327, height: 540 } });
+      screen.render();
+      find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+      screen.render();
+      find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('slots');
+      screen.render();
+    }
+    const animationCount = animations.length;
+    homeButton(screen).props.onPress();
+    assert.equal(removed, 1);
+    assert.equal(writes, 0);
+    assert.equal(animations.length, animationCount);
+    assert.deepEqual(saved, before);
+  });
+});
+
+test('홈 버튼은 안전 영역·실제 툴바·하위 메뉴 위로 이동하고 도면 위치와 크기를 유지한다', t => {
+  let removed = 0;
+  const { screen, viewport, map, target } = registrationFixture(2, 2, {
+    goBack() { removed++; }, dispatch() {},
+  });
+  t.after(() => screen.unmount());
+  const home = () => homeButton(screen);
+  const control = () => find(screen.tree, named('FridgeHomeButton'));
+  const position = () => flattenStyle(control().props.style);
+  assert.equal(position().position, 'absolute');
+  assert.equal(position().left, tokens.spacing.lg);
+  assert.equal(position().bottom, 34 + tokens.spacing.md);
+  const closedSize = structuredClone(map.props.layoutSize);
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  map.props.onFocus(target);
+  screen.render();
+  assert.equal(homeButtonDisabled(home()), true);
+  home().props.onPress();
+  assert.equal(removed, 0);
+  const toolbar = find(screen.tree, node => children(node).some(child => child.type === 'FridgeAreaMenu'));
+  toolbar.props.onLayout({ nativeEvent: { layout: { height: 120 } } });
+  find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+  screen.render();
+  assert.equal(homeButtonDisabled(home()), false);
+  assert.equal(position().bottom, 120 + tokens.spacing.md);
+  const focus = find(screen.tree, named('FridgeFocusView'));
+  const bounds = structuredClone(focus.props.viewport);
+  const openedSize = structuredClone(focus.props.sizeViewport);
+  find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('slots');
+  screen.render();
+  assert.equal(position().bottom, 120 + diagramLayoutModule.FRIDGE_SUBMENU_HEIGHT
+    + diagramLayoutModule.FRIDGE_SUBMENU_BOTTOM_SPACE + tokens.spacing.md);
+  assert.deepEqual(find(screen.tree, named('FridgeFocusView')).props.viewport, bounds);
+  assert.deepEqual(find(screen.tree, named('FridgeFocusView')).props.sizeViewport, openedSize);
+  assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.layoutSize, closedSize);
+  assert(children(screen.tree).includes(control()), '홈 버튼은 단계·도면 배치 밖에 떠 있어야 한다');
+  find(screen.tree, named('FridgeFocusView')).props.onClose();
+  screen.render();
+  assert.equal(homeButtonDisabled(home()), true);
+  assert.equal(position().bottom, 34 + tokens.spacing.md);
+  home().props.onPress();
+  assert.equal(removed, 0);
+});
+
 test('등록 체크는 한 번만 저장하고 입력·뒤로가기를 막으며 완료 후 홈으로 돌아간다', async t => {
   const previous = repository.registerRefrigerator;
   t.after(() => { repository.registerRefrigerator = previous; });
@@ -506,6 +656,9 @@ test('등록 체크는 한 번만 저장하고 입력·뒤로가기를 막으며
   assert.equal(content.props.pointerEvents, 'none');
   assert.equal(content.props.importantForAccessibility, 'no-hide-descendants');
   assert.equal(find(screen.tree, node => node.type === 'FridgeAreaMenu').props.disabled, true);
+  const home = homeButton(screen);
+  assert.equal(homeButtonDisabled(home), true);
+  home.props.onPress();
   const animationCount = animations.length;
   previousButton.props.onPress();
   screen.preventRemove.onRemove({ data: { action } });
