@@ -12,13 +12,12 @@ import { SlotStructureSelector } from '@/features/fridge/components/SlotStructur
 import { doorOpeningOptions, getSlotName, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, spacing } from '@/theme/tokens';
+import { FRIDGE_SUBMENU_HEIGHT, FRIDGE_SUBMENU_BOTTOM_SPACE, FRIDGE_TOOLBAR_ACTION_HEIGHT } from '@/features/fridge/components/fridgeDiagramLayout';
 
 export type FridgeMenuCategory = 'mode' | 'opening' | 'slots';
 
-const SUBMENU_HEIGHT = 82;
-const SUBMENU_BOTTOM_SPACE = 20;
 // 메뉴를 접어도 도면의 계산 영역은 같은 크기로 유지하고, 실제 툴바에는 빈 공간을 만들지 않는다.
-export const FRIDGE_MENU_RESERVED_SPACE = SUBMENU_HEIGHT + SUBMENU_BOTTOM_SPACE + spacing.sm;
+export { FRIDGE_MENU_RESERVED_SPACE } from '@/features/fridge/components/fridgeDiagramLayout';
 
 interface FridgeAreaMenuProps {
   disabled: boolean;
@@ -173,8 +172,8 @@ const styles = StyleSheet.create({
     bottom: '100%',
     left: spacing.lg,
     right: spacing.lg,
-    height: SUBMENU_HEIGHT,
-    marginBottom: SUBMENU_BOTTOM_SPACE,
+    height: FRIDGE_SUBMENU_HEIGHT,
+    marginBottom: FRIDGE_SUBMENU_BOTTOM_SPACE,
   },
   submenu: {
     height: '100%',
@@ -195,7 +194,7 @@ const styles = StyleSheet.create({
     flex: 1,
     maxWidth: 110,
     minWidth: 0,
-    minHeight: 56,
+    minHeight: FRIDGE_TOOLBAR_ACTION_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,

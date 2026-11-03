@@ -19,6 +19,7 @@ import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/f
 import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
+import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 
 type HomeScreenProps = CompositeScreenProps<
   NativeBottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -34,7 +35,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
     hasSeenScrollHint, markScrollHintSeen, finishFocusTransition, resetFocus,
-    layoutFocusViewport, openFocusedArea, closeFocusedArea,
+    layoutFocusViewport, openFocusedArea, closeFocusedArea, diagramSizes,
   } = useFridgeFocus();
 
   // 홈 재진입·재시도 이전에 시작한 조회가 늦게 끝나도 최신 결과만 반영한다.
@@ -90,7 +91,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             <View style={styles.diagram}>
               <View style={[StyleSheet.absoluteFill, styles.content]}>
                 <FridgeInteriorMap draft={refrigerator} selectedAreaId={selectedAreaId ?? undefined}
-                  onSelectArea={setSelectedAreaId} focus={activeFocus} onFocus={openFocusedArea} fitHeight />
+                  onSelectArea={setSelectedAreaId} focus={activeFocus} onFocus={openFocusedArea} fitHeight layoutSize={diagramSizes.closed} />
               </View>
             </View>
           </> : <>
@@ -102,6 +103,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       <View ref={focusViewport} collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
         {refrigerator && activeFocus && focusBounds ? (
           <FridgeFocusView draft={refrigerator} target={activeFocus} viewport={focusBounds} phase={focusPhase}
+            sizeViewport={diagramSizes.opened}
             selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
             onScrollHintSeen={markScrollHintSeen} onPhaseChange={finishFocusTransition}
             onClose={closeFocusedArea} onSelectArea={setSelectedAreaId} />
@@ -138,8 +140,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   headerIconButton: {
-    width: 48,
-    height: 48,
+    width: FRIDGE_HEADER_BUTTON_SIZE,
+    height: FRIDGE_HEADER_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 24,

@@ -6,12 +6,15 @@
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentRef, ReactNode } from 'react';
-import { Animated, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
+import { Animated, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LayoutChangeEvent, LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
 import { DoorHandle, DoorModeArt, FridgeMap, getFridgeAreaEditSize } from '@/features/fridge/components/FridgeMap';
 import { areaNames, FRIDGE_ASPECT_RATIO, getDraftAreaLocation, getDraftLayout, getDraftRowGeometry, getStorageModeName } from '@/features/fridge/model/fridgeLayout';
 import type { DraftDoor, FridgeLayout, RefrigeratorDraft, StorageArea, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle } from '@/theme/tokens';
+import { getFridgeDiagramSizes } from '@/features/fridge/components/fridgeDiagramLayout';
+import type { FridgeDiagramSize } from '@/features/fridge/components/fridgeDiagramLayout';
 
 interface FridgeInteriorMapProps {
   draft: Pick<RefrigeratorDraft, 'rows'>;
@@ -20,6 +23,7 @@ interface FridgeInteriorMapProps {
   focus?: FridgeFocusTarget | null;
   onFocus: (target: FridgeFocusTarget) => void;
   fitHeight?: boolean;
+  layoutSize?: FridgeDiagramSize;
 }
 
 /** 스크롤 위치를 포함한 원래 도면 좌표를 보관해 중앙 보기와 복귀에 함께 사용한다. */
@@ -34,8 +38,9 @@ type AreaFrame = ViewStyle & { height: number; paddingLeft: number; paddingRight
 type GridEdges = { top: boolean; left: boolean; bottom: boolean; right: boolean };
 export type FridgeFocusPhase = 'closed' | 'opening' | 'open' | 'closing';
 
-/** 등록·홈에서 같은 중앙 보기 상태와 실측 좌표를 사용하고, 예약 공간은 호출자가 정한다. */
+/** 등록·홈의 크기 기준과 보기 상태를 공유하며, 위치 계산용 예약 공간은 호출자가 정한다. */
 export function useFridgeFocus(reservedBottom = 0, isBlocked?: () => boolean) {
+  const diagramSizes = getFridgeDiagramSizes(useWindowDimensions(), useSafeAreaInsets());
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [focusTarget, setFocusTarget] = useState<FridgeFocusTarget | null>(null);
   const [focusPhase, setFocusPhase] = useState<FridgeFocusPhase>('closed');
@@ -90,7 +95,7 @@ export function useFridgeFocus(reservedBottom = 0, isBlocked?: () => boolean) {
   return {
     selectedAreaId, setSelectedAreaId, focusTarget, setFocusTarget, focusPhase, focusBounds, focusViewport,
     activeFocus, isFocusMoving, hasSeenScrollHint, markScrollHintSeen, finishFocusTransition,
-    resetFocus, layoutFocusViewport, openFocusedArea, closeFocusedArea,
+    resetFocus, layoutFocusViewport, openFocusedArea, closeFocusedArea, diagramSizes,
   };
 }
 
@@ -319,8 +324,9 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, selectedAreaId, foc
   );
 }
 
-/** 원본 비율로 최대한 확대하고, 수납 칸의 편집 크기가 부족한 방향만 보정한다. */
-export function getFridgeFocusGeometry(draft: FridgeInteriorMapProps['draft'], focus: FridgeFocusTarget, viewport: LayoutRectangle) {
+/** 공통 기준으로 크기를 정하고, 중앙 배치와 스크롤은 실제 표시 영역에 맞춘다. */
+export function getFridgeFocusGeometry(draft: FridgeInteriorMapProps['draft'], focus: FridgeFocusTarget,
+  viewport: LayoutRectangle, sizeViewport: FridgeDiagramSize = viewport) {
   const rowIndex = draft.rows.findIndex(row => row.compartments.some(body => body.id === focus.areaId));
   if (rowIndex < 0) return null;
   const row = draft.rows[rowIndex];
@@ -337,17 +343,17 @@ export function getFridgeFocusGeometry(draft: FridgeInteriorMapProps['draft'], f
   const pocketCount = leftDoors.length + rightDoors.length;
   const availableWidth = Math.max(1, viewport.width - FOCUS_PADDING * 2);
   const availableHeight = Math.max(1, viewport.height - FOCUS_PADDING * 2);
+  const sizingWidth = Math.max(1, sizeViewport.width - FOCUS_PADDING * 2);
+  const sizingHeight = Math.max(1, sizeViewport.height - FOCUS_PADDING * 2);
   const bodyMinimum = getFridgeAreaEditSize(group.body.slots, true);
   const pocketMinimums = [...leftDoors, ...rightDoors].map(({ door }) =>
     getFridgeAreaEditSize(door.storageEnabled ? door.slots : [], false));
   const minimumWidth = Math.max(bodyMinimum.width, ...pocketMinimums.map(size => size.width * group.doors.length));
   const minimumHeight = Math.max(bodyMinimum.height, ...pocketMinimums.map(size => size.height));
   function fitSize(indicatorHeight: number) {
-    const availableBodyHeight = Math.max(1, availableHeight - indicatorHeight);
-    const minimumRatio = Math.max(minimumWidth / source.width, minimumHeight / source.height);
-    // 상하 이동이 필요할 때도 원본 비율로 필요한 편집 크기를 먼저 확보한다.
-    const ratio = Math.min(availableWidth / source.width,
-      minimumHeight > availableBodyHeight ? minimumRatio : availableBodyHeight / source.height);
+    const availableBodyHeight = Math.max(1, sizingHeight - indicatorHeight);
+    // 가용 공간에 먼저 맞추고 부족한 축만 보정해, 최소 너비 때문에 세로 길이까지 커지지 않게 한다.
+    const ratio = Math.min(sizingWidth / source.width, availableBodyHeight / source.height);
     return { width: Math.max(minimumWidth, source.width * ratio), height: Math.max(minimumHeight, source.height * ratio) };
   }
   function unfoldedWidth(bodyWidth: number) {
@@ -355,7 +361,7 @@ export function getFridgeFocusGeometry(draft: FridgeInteriorMapProps['draft'], f
   }
   let size = fitSize(0);
   // 너비 보정으로 새로 좌우 이동이 필요해지는 경우도 표시줄 높이를 확보한다.
-  if (unfoldedWidth(size.width) > availableWidth + 0.01) size = fitSize(SCROLL_INDICATOR_SPACE);
+  if (unfoldedWidth(size.width) > sizingWidth + 0.01) size = fitSize(SCROLL_INDICATOR_SPACE);
   const unitWidth = size.width / group.doors.length;
   const height = size.height;
   const fitRatio = height / source.height;
@@ -485,9 +491,10 @@ function FridgeScrollHint({ enabled, dismissed, viewport, onSeen }: {
 /** 연결된 문은 함께 펼치고, 열린 본체·포켓의 개별 선택은 호출자에게 전달한다. */
 export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId,
   scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea,
-  selectedSlotIndex, onSelectSlot }: {
+  selectedSlotIndex, onSelectSlot, sizeViewport }: {
   draft: FridgeInteriorMapProps['draft']; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
   overlayHeight?: number;
+  sizeViewport?: FridgeDiagramSize;
   selectedAreaId?: string; onPhaseChange: (phase: FridgeFocusPhase) => void; onClose: () => void;
   scrollHintEnabled?: boolean; scrollHintBlocked?: boolean; onScrollHintSeen?: () => void;
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
@@ -499,7 +506,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const verticalScrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0, y: 0 });
   const [hintDismissed, setHintDismissed] = useState(false);
-  const geometry = getFridgeFocusGeometry(draft, target, viewport);
+  const geometry = getFridgeFocusGeometry(draft, target, viewport, sizeViewport);
   const layout = getDraftLayout(draft);
   const open = phase === 'open';
   const scrollKey = `${target.areaId}:${geometry?.width}:${geometry?.height}:${viewport.width}:${viewport.height}`;
@@ -660,11 +667,12 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   );
 }
 
-/** 닫힌 도면은 남은 표시 영역에 비율을 유지해 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
-export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false }: FridgeInteriorMapProps) {
+/** 닫힌 도면은 공통 크기 기준으로 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
+export function FridgeInteriorMap({ draft, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false, layoutSize }: FridgeInteriorMapProps) {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
-  const { width: viewportWidth } = viewportSize;
-  const maxHeight = fitHeight ? Math.min(MAP_HEIGHT, Math.max(1, viewportSize.height - MAP_PADDING * 2)) : MAP_HEIGHT;
+  const size = layoutSize ?? viewportSize;
+  const { width: viewportWidth } = size;
+  const maxHeight = fitHeight ? Math.min(MAP_HEIGHT, Math.max(1, size.height - MAP_PADDING * 2)) : MAP_HEIGHT;
   const mapWidth = Math.min(viewportWidth, maxHeight * FRIDGE_ASPECT_RATIO);
   const mapHeight = mapWidth / FRIDGE_ASPECT_RATIO;
   const rowGeometries = draft.rows.map(getDraftRowGeometry);

@@ -32,6 +32,7 @@ import {
 import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { colors, spacing } from '@/theme/tokens';
+import { FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 
 type RefrigeratorRegistrationScreenProps = NativeStackScreenProps<
   RootStackParamList,
@@ -79,7 +80,7 @@ export function RefrigeratorRegistrationScreen({
   const {
     selectedAreaId, setSelectedAreaId, setFocusTarget, focusPhase, focusBounds, focusViewport,
     activeFocus, isFocusMoving, hasSeenScrollHint, markScrollHintSeen, finishFocusTransition,
-    resetFocus, layoutFocusViewport, openFocusedArea: openFocus, closeFocusedArea,
+    resetFocus, layoutFocusViewport, openFocusedArea: openFocus, closeFocusedArea, diagramSizes,
   } = useFridgeFocus(FRIDGE_MENU_RESERVED_SPACE, isFocusBlocked);
   const selectedRow = draft.rows.find(row => [...row.doors, ...row.compartments].some(area => area.id === selectedAreaId)) ?? draft.rows[0];
   const selectedDoor = selectedRow.doors.find(door => door.id === selectedAreaId && door.kind !== 'DRAWER');
@@ -409,7 +410,7 @@ export function RefrigeratorRegistrationScreen({
                     <View style={[styles.sections, styles.configurationMap]}>
                       <View style={[styles.section, styles.configurationMap]}>
                         <FridgeInteriorMap draft={draft} selectedAreaId={selectedAreaId ?? undefined}
-                          onSelectArea={selectArea} focus={activeFocus} onFocus={openFocusedArea} fitHeight />
+                          onSelectArea={selectArea} focus={activeFocus} onFocus={openFocusedArea} fitHeight layoutSize={diagramSizes.closed} />
                       </View>
                     </View>
                   )}
@@ -420,6 +421,7 @@ export function RefrigeratorRegistrationScreen({
                 style={styles.scroll} onLayout={pageStep === 'configuration' ? layoutFocusViewport : undefined}>
                 {pageStep === 'configuration' && activeFocus && focusBounds ? (
                   <FridgeFocusView draft={draft} target={activeFocus} viewport={focusBounds} overlayHeight={stepHeight} phase={focusPhase}
+                    sizeViewport={diagramSizes.opened}
                     selectedAreaId={selectedAreaId ?? undefined}
                     scrollHintEnabled={!hasSeenScrollHint} onScrollHintSeen={markScrollHintSeen}
                     scrollHintBlocked={activeMenuCategory !== null}
@@ -540,8 +542,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   headerIconButton: {
-    width: 48,
-    height: 48,
+    width: FRIDGE_HEADER_BUTTON_SIZE,
+    height: FRIDGE_HEADER_BUTTON_SIZE,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
@@ -570,8 +572,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   stepBadge: {
-    width: 28,
-    height: 28,
+    width: FRIDGE_STEP_BADGE_SIZE,
+    height: FRIDGE_STEP_BADGE_SIZE,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,

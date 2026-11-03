@@ -83,7 +83,7 @@ const native = {
     return { remove() { backHandlers.delete(handler); } };
   } },
   useWindowDimensions: () => ({ width: 375, height: 844 }),
-  StyleSheet: { create: value => value, absoluteFill: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 } },
+  StyleSheet: { create: value => value, hairlineWidth: 1, absoluteFill: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 } },
   useAnimatedValue: initial => hooks.useState(() => new AnimatedValue(initial))[0],
   Easing: { cubic: value => value ** 3, inOut: easing => easing },
   Animated: {
@@ -109,6 +109,7 @@ let interiorModule;
 let structureModule;
 let menuModule;
 let quantityStepperModule;
+let diagramLayoutModule;
 function loadComponent(path, overrides = {}) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: {
@@ -128,6 +129,7 @@ function loadComponent(path, overrides = {}) {
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
     '@/features/fridge/components/FridgeInteriorMap': interiorModule,
+    '@/features/fridge/components/fridgeDiagramLayout': diagramLayoutModule,
     '@/features/fridge/components/FridgeAreaMenu': { ...menuModule, FridgeAreaMenu: 'FridgeAreaMenu' },
     '@/features/fridge/components/FridgeStructurePreview': {
       FridgeStructurePreview: 'FridgeStructurePreview',
@@ -157,6 +159,7 @@ function loadComponent(path, overrides = {}) {
 }
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
+diagramLayoutModule = loadComponent('src/features/fridge/components/fridgeDiagramLayout.ts');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
 structureModule = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
 const { FridgeInteriorMap, FridgeFocusView, getFridgeFocusGeometry } = interiorModule;
@@ -915,7 +918,7 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       assert.equal(focus().props.phase, 'opening');
       assert.deepEqual(focus().props.target, target);
       assert.deepEqual(focus().props.viewport, { x: 0, y: 0, width: 375, height: 844 });
-      const geometry = getFridgeFocusGeometry(snapshot, target, focus().props.viewport);
+      const geometry = getFridgeFocusGeometry(snapshot, target, focus().props.viewport, focus().props.sizeViewport);
       near(geometry.focusedTop + geometry.height / 2, 844 / 2);
       assert.equal(find(home.tree, node => node.type === 'SafeAreaView').props.accessibilityElementsHidden, true);
       const overlay = mount(focus().type, focus().props);
@@ -958,6 +961,92 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       assert.deepEqual(map().props.draft, before);
       assert.deepEqual(findAll(home.tree, node => node.type === 'Text').map(node => node.props.children), [snapshot.name]);
     });
+  }
+});
+
+test('홈·등록·편집은 닫힘·열림 크기를 공유하고 홈의 중앙 위치만 화면 전체를 기준으로 삼는다', async t => {
+  const previousGet = repository.getRefrigerator;
+  const previousWindow = native.useWindowDimensions;
+  t.after(() => { repository.getRefrigerator = previousGet; native.useWindowDimensions = previousWindow; });
+  for (const [width, height] of [[320, 568], [375, 844], [768, 1024]]) {
+    native.useWindowDimensions = () => ({ width, height });
+    for (const rowCount of [1, 2, 3, 4]) for (const doorCount of [1, 2]) {
+      const registration = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
+      t.after(() => registration.unmount());
+      const registrationMap = () => find(registration.tree, named('FridgeInteriorMap'));
+      while (registrationMap().props.draft.rows.length > rowCount) {
+        const count = registrationMap().props.draft.rows.length;
+        find(registration.tree, node => node.props.accessibilityLabel === `${count}단 삭제`).props.onPress();
+        registration.render();
+      }
+      while (registrationMap().props.draft.rows.length < rowCount) {
+        find(registration.tree, node => node.props.label === '단 추가').props.onPress();
+        registration.render();
+      }
+      if (doorCount === 2) for (let index = 0; index < rowCount; index++) {
+        find(registration.tree, node => node.props.accessibilityLabel === `${index + 1}단 문 늘리기`).props.onPress();
+        registration.render();
+      }
+      const saved = { id: 'shared-fridge', ...structuredClone(registrationMap().props.draft) };
+      repository.getRefrigerator = async () => structuredClone(saved);
+      const home = mount(HomeScreen, { navigation: { navigate() {} } });
+      const editor = mount(RefrigeratorRegistrationScreen, {
+        navigation: { goBack() {}, dispatch() {} }, route: { params: { refrigeratorId: saved.id } },
+      });
+      t.after(() => { home.unmount(); editor.unmount(); });
+      await new Promise(setImmediate);
+      home.render(); editor.render();
+      for (const screen of [registration, editor]) {
+        find(screen.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동').props.onPress();
+        animations.at(-1).finish();
+        screen.render();
+      }
+      const screens = [home, registration, editor];
+      const configs = screens.map(screen => find(screen.tree, named('FridgeInteriorMap')));
+      assert.deepEqual(configs[0].props.layoutSize, configs[1].props.layoutSize);
+      assert.deepEqual(configs[0].props.layoutSize, configs[2].props.layoutSize);
+      const maps = configs.map(config => mount(config.type, config.props));
+      t.after(() => maps.forEach(map => map.unmount()));
+      maps.forEach((map, index) => {
+        map.tree.props.onLayout({ nativeEvent: { layout: {
+          width: width - 48, height: configs[index].props.layoutSize.height + (index === 0 ? 120 : 0),
+        } } });
+        map.render();
+      });
+      const canvases = maps.map(map => flattenStyle(children(map.tree)[0].props.style));
+      assert.deepEqual(canvases[0], canvases[1]);
+      assert.deepEqual(canvases[0], canvases[2]);
+      const reference = diagramLayoutModule.getFridgeDiagramSizes({ width, height }, { top: 44, bottom: 34, left: 0, right: 0 });
+      const focuses = screens.map((screen, index) => {
+        const viewport = find(screen.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
+        const frame = index === 0 ? { x: 0, y: 0, width, height }
+          : { x: 0, y: 115, width, height: reference.opened.height + FRIDGE_MENU_RESERVED_SPACE };
+        viewport.props.onLayout({ nativeEvent: { layout: frame } });
+        viewport.props.ref.current = { measureInWindow: callback => callback(frame.x, frame.y, frame.width, frame.height) };
+        const row = configs[index].props.draft.rows[0];
+        configs[index].props.onFocus({ areaId: row.compartments[0].id, returnAreaId: row.doors[0].id,
+          canvas: { x: (width - canvases[index].width) / 2, y: 150, width: canvases[index].width, height: canvases[index].height } });
+        screen.render();
+        return find(screen.tree, named('FridgeFocusView'));
+      });
+      focuses.forEach(focus => assert.deepEqual(focus.props.sizeViewport, reference.opened));
+      const overlays = focuses.map(focus => mount(focus.type, focus.props));
+      t.after(() => overlays.forEach(overlay => overlay.unmount()));
+      const renderedSizes = overlays.map(overlay => {
+        const { width, height } = flattenStyle(moving(overlay).props.style);
+        return { width, height };
+      });
+      assert.deepEqual(renderedSizes[0], renderedSizes[1]);
+      assert.deepEqual(renderedSizes[0], renderedSizes[2]);
+      const geometries = focuses.map(({ props }) => getFridgeFocusGeometry(props.draft, props.target, props.viewport, props.sizeViewport));
+      for (const geometry of geometries.slice(1)) {
+        near(geometry.body.width, geometries[0].body.width);
+        near(geometry.height, geometries[0].height);
+        near(geometry.fitRatio, geometries[0].fitRatio);
+        assert.deepEqual(geometry.pockets.map(pocket => pocket.frame), geometries[0].pockets.map(pocket => pocket.frame));
+      }
+      near(geometries[0].focusedTop + geometries[0].height / 2, height / 2);
+    }
   }
 });
 
@@ -1659,6 +1748,42 @@ test('칸 수와 관계없이 합치고 분리하며 초기화 안내와 툴바 
   }
 });
 
+test('툴바가 표시 영역을 줄여도 세로로 긴 도면의 높이가 오히려 커지지 않는다', () => {
+  for (const side of ['LEFT_DOOR', 'RIGHT_DOOR']) {
+    for (const drawerCount of [2, 0]) {
+      const { screen, viewport, map, row, target } = registrationFixture(2, 1);
+      row.doors[0].side = side;
+      row.compartments[0].slots = Array.from({ length: 4 }, (_, index) => ({ name: model.getSlotName(index), drawerCount }));
+      const measuredTarget = { ...target, canvas: { x: 52.5, y: 160, width: 270, height: 540 } };
+      viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 600) };
+      map.props.onFocus(measuredTarget);
+      screen.render();
+      const focus = () => find(screen.tree, named('FridgeFocusView'));
+      const before = getFridgeFocusGeometry(focus().props.draft, measuredTarget, focus().props.viewport, focus().props.sizeViewport);
+      // 툴바가 실제 레이아웃에 들어오면서 줄어든 높이를 전달한다.
+      viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 480 } } });
+      screen.render();
+      const after = getFridgeFocusGeometry(focus().props.draft, measuredTarget, focus().props.viewport, focus().props.sizeViewport);
+      near(after.height, before.height);
+      near(after.body.width, before.body.width);
+      assert.equal(after.verticalScrollable, true);
+      assert(after.focusedTop + after.scrollViewportHeight <= focus().props.viewport.height);
+      focus().props.onPhaseChange('open');
+      screen.render();
+      for (const category of ['mode', 'slots', null]) {
+        find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange(category);
+        screen.render();
+        viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 480 } } });
+        screen.render();
+        const current = getFridgeFocusGeometry(focus().props.draft, measuredTarget, focus().props.viewport, focus().props.sizeViewport);
+        near(current.height, after.height);
+        near(current.body.width, after.body.width);
+      }
+      screen.unmount();
+    }
+  }
+});
+
 test('원본 비율을 유지해 확대하고 칸 수·좌우 분할 때문에 부족한 방향만 보정한다', () => {
   let draft = model.addDraftRow(model.addDraftRow(model.createRefrigeratorDraft()));
   const row = draft.rows[0];
@@ -1725,6 +1850,9 @@ test('현재 조합과 더 많은 단·문·칸에서도 모든 편집 칸의 �
                 const minimumHeight = Math.max(bodyMinimum.height, ...pocketMinimums.map(size => size.height));
                 assert(geometry.body.width >= minimumWidth - 1e-8);
                 assert(geometry.height >= minimumHeight - 1e-8);
+                const availableBodyHeight = Math.max(1, height - 48 - (geometry.scrollable ? 16 : 0));
+                assert(geometry.height <= Math.max(minimumHeight, availableBodyHeight) + 1e-8,
+                  '표시 높이와 칸의 최소 높이보다 더 크게 세로 길이를 늘리면 안 된다');
                 if (Math.abs(geometry.body.width / geometry.height - geometry.source.width / geometry.source.height) > 1e-8) {
                   assert(Math.abs(geometry.body.width - minimumWidth) < 1e-8 || Math.abs(geometry.height - minimumHeight) < 1e-8,
                     '편집 크기가 부족하지 않은 축까지 비율을 보정하면 안 된다');
