@@ -5,7 +5,7 @@
  */
 import { uuid } from 'expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { prepareRefrigeratorRegistration } from '@/db/refrigeratorRegistration';
+import { normalizeRefrigeratorName, prepareRefrigeratorRegistration } from '@/db/refrigeratorRegistration';
 import type { RefrigeratorRegistrationData } from '@/db/refrigeratorRegistration';
 import { getSlotName } from '@/features/fridge/model/fridgeLayout';
 import type { Refrigerator, RefrigeratorDraft, SlotConfiguration } from '@/features/fridge/model/fridgeLayout';
@@ -115,6 +115,14 @@ export async function registerRefrigerator(db: SQLiteDatabase, draft: Refrigerat
   });
 
   return data.refrigerator.id;
+}
+
+/** 구조와 위치 ID를 유지한 채 이름만 변경하고, 저장된 이름을 반환한다. */
+export async function updateRefrigeratorName(db: SQLiteDatabase, refrigeratorId: string, name: string): Promise<string> {
+  const normalizedName = normalizeRefrigeratorName(name);
+  const result = await db.runAsync('UPDATE refrigerators SET name = ? WHERE id = ?;', normalizedName, refrigeratorId);
+  if (result.changes !== 1) throw new Error('수정할 냉장고를 찾을 수 없습니다.');
+  return normalizedName;
 }
 
 /** 기존 ID를 유지해 구성을 수정하고, 사라진 위치만 자식부터 정리한다. */

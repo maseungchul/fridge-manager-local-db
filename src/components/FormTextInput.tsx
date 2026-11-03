@@ -97,10 +97,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 10,
     borderWidth: 1,
-    paddingRight: spacing.md,
+    // 높이 44인 버튼의 상하 여백과 오른쪽 테두리 안쪽 여백을 맞춘다.
+    paddingRight: 3,
   },
   inputWithTrailingElement: {
     flex: 1,
+    minWidth: 0,
     height: '100%',
     color: colors.text,
     fontSize: 16,

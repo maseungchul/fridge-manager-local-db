@@ -36,14 +36,20 @@ export interface RefrigeratorRegistrationData {
   }[];
 }
 
+/** 등록·전체 수정·이름 변경에서 같은 이름 규칙과 공백 제거를 적용한다. */
+export function normalizeRefrigeratorName(name: string): string {
+  const normalizedName = name.trim();
+  if (!normalizedName || normalizedName.length > 50) throw new Error('냉장고 이름은 1~50자로 입력해 주세요.');
+  return normalizedName;
+}
+
 /** 초안을 검증하고, 편집 시 남아 있는 구조의 ID는 유지하며 새 위치에만 UUID를 발급한다. */
 export function prepareRefrigeratorRegistration(
   draft: RefrigeratorDraft,
   createId: () => string,
   existing?: Refrigerator,
 ): RefrigeratorRegistrationData {
-  const name = draft.name.trim();
-  if (!name || name.length > 50) throw new Error('냉장고 이름은 1~50자로 입력해 주세요.');
+  const name = normalizeRefrigeratorName(draft.name);
   if (draft.rows.length < 1 || draft.rows.length > MAX_ROWS) {
     throw new Error(`냉장고는 1~${MAX_ROWS}단으로 구성해 주세요.`);
   }

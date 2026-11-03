@@ -16,6 +16,7 @@ const backHandlers = new Set();
 const repository = {
   async registerRefrigerator() { throw new Error('저장 동작을 지정하지 않았습니다.'); },
   async updateRefrigerator() { throw new Error('수정 동작을 지정하지 않았습니다.'); },
+  async updateRefrigeratorName() { throw new Error('이름 변경 동작을 지정하지 않았습니다.'); },
   async getRefrigerator() { return null; },
 };
 
@@ -641,6 +642,98 @@ test('홈의 편집 아이콘으로 저장된 구성을 열고 수정 저장 후
   assert.equal(registrations, 0);
   assert.deepEqual(find(home.tree, named('FridgeInteriorMap')).props.draft, saved);
   assert.equal(find(home.tree, node => node.props.accessibilityRole === 'header').props.children, saved.name);
+});
+
+test('이름 변경은 편집에서만 표시하고 구조 초안을 유지하며 저장 중 중복 요청·이동을 막는다', async t => {
+  const previous = { ...repository };
+  t.after(() => Object.assign(repository, previous));
+  const registration = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
+  t.after(() => registration.unmount());
+  assert.equal(find(registration.tree, node => node.type === 'FormTextInput').props.trailingElement, undefined);
+
+  const saved = savedRefrigerator('원래 이름');
+  repository.getRefrigerator = async () => structuredClone(saved);
+  const pending = deferred();
+  const calls = [];
+  repository.updateRefrigeratorName = (db, id, name) => {
+    assert.strictEqual(db, database);
+    calls.push({ id, name });
+    return pending.promise;
+  };
+  let removed = 0;
+  const screen = mount(RefrigeratorRegistrationScreen, {
+    navigation: { goBack() { removed++; }, dispatch() {} }, route: { params: { refrigeratorId: saved.id } },
+  });
+  t.after(() => screen.unmount());
+  await new Promise(setImmediate);
+  screen.render();
+  const input = () => find(screen.tree, node => node.type === 'FormTextInput');
+  const button = () => input().props.trailingElement;
+  assert.equal(button().props.disabled, true);
+  input().props.onChangeText('   ');
+  screen.render();
+  assert.equal(button().props.disabled, true);
+  input().props.onChangeText('  새 이름  ');
+  screen.render();
+  find(screen.tree, node => node.props.accessibilityLabel === '1단 문 늘리기').props.onPress();
+  screen.render();
+  const rows = structuredClone(find(screen.tree, named('FridgeInteriorMap')).props.draft.rows);
+  const save = button().props.onPress;
+  const saving = save();
+  await save();
+  screen.render();
+  assert.deepEqual(calls, [{ id: saved.id, name: '  새 이름  ' }]);
+  assert.equal(button().props.loading, true);
+  assert.equal(input().props.editable, false);
+  assert.equal(find(screen.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동').props.disabled, true);
+  screen.preventRemove.onRemove({ data: { action: { type: 'GO_BACK' } } });
+  assert.equal(removed, 0);
+  pending.resolve('새 이름');
+  await saving;
+  screen.render();
+  assert.equal(input().props.value, '새 이름');
+  assert.equal(button().props.disabled, true);
+  assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft.rows, rows);
+  assert.equal(removed, 0);
+  assert.deepEqual(alerts.at(-1), ['냉장고 이름 변경', '냉장고 이름을 변경했습니다.']);
+  find(screen.tree, node => node.props.accessibilityLabel === '냉장고 편집 취소').props.onPress();
+  assert.equal(removed, 1);
+  assert.equal(calls.length, 1);
+});
+
+test('이름 변경 실패 시 이름과 구조 초안을 유지해 다시 저장할 수 있다', async t => {
+  const previous = { ...repository };
+  t.after(() => Object.assign(repository, previous));
+  const saved = savedRefrigerator('원래 이름');
+  repository.getRefrigerator = async () => structuredClone(saved);
+  const calls = [];
+  repository.updateRefrigeratorName = async (db, id, name) => {
+    calls.push({ id, name });
+    if (calls.length === 1) throw new Error('검증용 이름 변경 실패');
+    return name;
+  };
+  const screen = mount(RefrigeratorRegistrationScreen, {
+    navigation: { goBack() { assert.fail('이름 변경 후 편집 화면을 유지해야 합니다.'); }, dispatch() {} },
+    route: { params: { refrigeratorId: saved.id } },
+  });
+  t.after(() => screen.unmount());
+  await new Promise(setImmediate);
+  screen.render();
+  const input = () => find(screen.tree, node => node.type === 'FormTextInput');
+  const button = () => input().props.trailingElement;
+  input().props.onChangeText('재시도할 이름');
+  screen.render();
+  const before = structuredClone(find(screen.tree, named('FridgeInteriorMap')).props.draft);
+  await button().props.onPress();
+  screen.render();
+  assert.deepEqual(alerts.at(-1), ['냉장고 이름 변경 실패', '검증용 이름 변경 실패']);
+  assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
+  assert.equal(button().props.disabled, false);
+  assert.equal(button().props.loading, false);
+  await button().props.onPress();
+  screen.render();
+  assert.deepEqual(calls, [{ id: saved.id, name: '재시도할 이름' }, { id: saved.id, name: '재시도할 이름' }]);
+  assert.equal(button().props.disabled, true);
 });
 
 test('편집을 취소하면 저장을 호출하지 않고 기존 구성을 유지한다', async t => {

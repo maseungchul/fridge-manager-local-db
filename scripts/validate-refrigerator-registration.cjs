@@ -29,7 +29,7 @@ function loadModule(path, dependencies) {
 const registration = loadModule('src/db/refrigeratorRegistration.ts', {
   '@/features/fridge/model/fridgeLayout': model,
 });
-const { registerRefrigerator, updateRefrigerator, getRefrigeratorSummary, getRefrigerator } = loadModule('src/db/refrigeratorRepository.ts', {
+const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRefrigeratorSummary, getRefrigerator } = loadModule('src/db/refrigeratorRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/refrigeratorRegistration': registration,
   '@/features/fridge/model/fridgeLayout': model,
 });
@@ -417,6 +417,51 @@ test('미등록·다른 냉장고 ID의 수정은 신규 데이터를 만들거�
   const before = readStoredData(db);
   await assert.rejects(updateRefrigerator(adapter, 'another-fridge', model.createRefrigeratorDraft()), /찾을 수 없/);
   assert.deepEqual(readStoredData(db), before);
+});
+
+test('이름만 변경하면 구조·위치 ID를 그대로 유지하고 재연결 후에도 이름을 복원한다', async t => {
+  const { db, adapter, databasePath } = await createRepositoryDatabase(t);
+  const id = await registerRefrigerator(adapter, createTwoDoorDraft());
+  const before = readStoredData(db);
+  const name = "  변경한 '냉장고'; --  ";
+  assert.equal(await updateRefrigeratorName(adapter, id, name), name.trim());
+  before.refrigerators[0].name = name.trim();
+  assert.deepEqual(readStoredData(db), before);
+  assert.equal((await getRefrigerator(adapter)).name, name.trim());
+  const reopened = new DatabaseSync(databasePath);
+  try {
+    assert.equal(reopened.prepare('SELECT name FROM refrigerators WHERE id = ?').get(id).name, name.trim());
+  } finally {
+    reopened.close();
+  }
+});
+
+test('잘못된 이름·미등록·다른 ID의 이름 변경은 기존 데이터를 보존한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  await assert.rejects(updateRefrigeratorName(adapter, 'missing', '새 이름'), /찾을 수 없/);
+  const id = await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+  const before = readStoredData(db);
+  for (const name of ['', ' \n\t ', '가'.repeat(51)]) {
+    await assert.rejects(updateRefrigeratorName(adapter, id, name), /이름은 1~50자/);
+    assert.deepEqual(readStoredData(db), before);
+  }
+  await assert.rejects(updateRefrigeratorName(adapter, 'another-fridge', '새 이름'), /찾을 수 없/);
+  assert.deepEqual(readStoredData(db), before);
+});
+
+test('이름 변경 실패 시 기존 이름과 구성을 보존하고 재시도할 수 있다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const id = await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+  const before = readStoredData(db);
+  db.exec(`
+    CREATE TRIGGER fail_name_change BEFORE UPDATE ON refrigerators
+    BEGIN SELECT RAISE(ABORT, '검증용 이름 변경 실패'); END;
+  `);
+  await assert.rejects(updateRefrigeratorName(adapter, id, '다시 저장할 이름'), /검증용 이름 변경 실패/);
+  assert.deepEqual(readStoredData(db), before);
+  db.exec('DROP TRIGGER fail_name_change;');
+  await updateRefrigeratorName(adapter, id, '다시 저장할 이름');
+  assert.equal((await getRefrigeratorSummary(adapter)).name, '다시 저장할 이름');
 });
 
 test('이름·모드·문 수납·좌우 분할을 수정해도 기존 ID와 위치 참조를 유지한다', async t => {
