@@ -130,8 +130,22 @@ function createDraftCompartment(id: number, doorIds: string[]): DraftCompartment
   return { id: `body-${id}`, doorIds, storageMode: 'CHILLED', slots: [{ name: getSlotName(0), drawerCount: 0 }] };
 }
 
-/** 2단에 각각 문·본체 하나로 시작하고, 단별 문 개수로 배치를 구성한다. */
-export function createRefrigeratorDraft(): RefrigeratorDraft {
+/** 저장된 구성을 편집용으로 복사하거나, 신규 등록은 문·본체 하나씩 있는 2단으로 시작한다. */
+export function createRefrigeratorDraft(refrigerator?: Refrigerator): RefrigeratorDraft {
+  if (refrigerator) {
+    const ids = refrigerator.rows.flatMap(row => [row, ...row.doors, ...row.compartments].map(area => area.id));
+    return {
+      name: refrigerator.name,
+      nextId: Math.max(0, ...ids.map(id => Number(/^(?:row|door|body)-(\d+)$/.exec(id)?.[1] ?? 0))) + 1,
+      rows: refrigerator.rows.map(row => ({
+        ...row,
+        doors: row.doors.map(door => ({ ...door, slots: door.slots.map(slot => ({ ...slot })) })),
+        compartments: row.compartments.map(body => ({
+          ...body, doorIds: [...body.doorIds], slots: body.slots.map(slot => ({ ...slot })),
+        })),
+      })),
+    };
+  }
   const draft = addDraftRow({ name: '우리 집 냉장고', nextId: 1, rows: [] });
   return addDraftRow(draft);
 }

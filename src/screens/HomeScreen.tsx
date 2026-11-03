@@ -7,11 +7,13 @@ import type { NativeBottomTabScreenProps } from '@react-navigation/bottom-tabs/u
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { colors, spacing } from '@/theme/tokens';
 import { SafeAreaView } from 'react-native-screens/experimental';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
@@ -80,6 +82,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           </> : refrigerator ? <>
             <View style={styles.header}>
               <Text accessibilityRole="header" style={styles.title}>{refrigerator.name}</Text>
+              <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 편집" style={styles.headerIconButton}
+                onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
+                <MaterialDesignIcons name="note-edit-outline" size={24} color={colors.text} accessible={false} />
+              </FeedbackPressable>
             </View>
             <View style={styles.diagram}>
               <View style={[StyleSheet.absoluteFill, styles.content]}>
@@ -116,14 +122,27 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   title: {
+    flex: 1,
     fontSize: 24,
     fontWeight: '700',
     color: colors.text,
+  },
+  headerIconButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
   },
   diagram: {
     flex: 1,

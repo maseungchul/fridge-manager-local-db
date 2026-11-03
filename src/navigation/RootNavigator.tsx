@@ -1,16 +1,16 @@
 /**
  * @file
  * RootNavigator는 앱에서 사용할 화면과 화면 전환 방식을 구성한다.
- * 기본 하단 탭을 시작 화면으로 표시하고 냉장고 등록을 별도 화면으로 연다.
+ * 기본 하단 탭을 시작 화면으로 표시하고 냉장고 등록·편집을 별도 화면으로 연다.
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MainTabNavigator } from '@/navigation/MainTabNavigator';
 import { RefrigeratorRegistrationScreen } from '@/screens/RefrigeratorRegistrationScreen';
 
-// 탭 전체와 냉장고 등록의 이동 경로를 정의한다. 두 화면 모두 별도 매개변수가 없다.
+// 냉장고 ID가 있으면 저장된 구성을 편집하고, 매개변수가 없으면 신규 등록한다.
 export type RootStackParamList = {
   MainTabs: undefined;
-  RefrigeratorRegistration: undefined;
+  RefrigeratorRegistration: { refrigeratorId: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();

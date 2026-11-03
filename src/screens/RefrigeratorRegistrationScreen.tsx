@@ -1,10 +1,10 @@
 /**
  * @file
- * 냉장고 최초 등록을 기본 정보·구조 선택과 내부 설정의 두 단계로 나눈다.
+ * 냉장고 등록·편집을 기본 정보·구조 선택과 내부 설정의 두 단계로 나눈다.
  * 단별 문 개수로 배치를 만들고 문 수납·본체 연결·내부 칸 설정을 제공한다.
  * 여는 방식·보관 모드·칸·본체 연결을 하단 카테고리에서 편집하고 초안에 즉시 반영한다.
  * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
- * 단계 이동·저장 실패 시 입력을 유지하고, 등록 성공 시 홈으로 돌아간다.
+ * 편집은 저장된 구성을 불러오며, 저장 실패 시 입력을 유지하고 성공 시 홈으로 돌아간다.
  */
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -18,7 +18,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantityStepper';
-import { registerRefrigerator } from '@/db/refrigeratorRepository';
+import { getRefrigerator, registerRefrigerator, updateRefrigerator } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
@@ -45,11 +45,19 @@ const STRUCTURE_PREVIEW_MAX_WIDTH = 144;
 
 export function RefrigeratorRegistrationScreen({
   navigation,
+  route,
 }: RefrigeratorRegistrationScreenProps) {
+  const refrigeratorId = route?.params?.refrigeratorId;
+  const isEditing = refrigeratorId !== undefined;
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const [draft, setDraft] = useState(createRefrigeratorDraft);
+  const [isLoading, setIsLoading] = useState(isEditing);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const loadedRefrigeratorId = useRef<string | null>(null);
+  const isUnavailable = isLoading || loadError !== null;
   const [step, setStep] = useState<RegistrationStep>('basic');
   const [menuCategory, setMenuCategory] = useState<FridgeMenuCategory | null>(null);
   const [slotIndex, setSlotIndex] = useState(0);
@@ -99,6 +107,24 @@ export function RefrigeratorRegistrationScreen({
     stepAnimation.stopAnimation();
   }, [stepAnimation]);
 
+  // 불러온 구성은 편집 초안으로 복사하고, 화면을 떠난 뒤 끝난 조회는 반영하지 않는다.
+  useEffect(() => {
+    if (refrigeratorId === undefined) return;
+    let mounted = true;
+    loadedRefrigeratorId.current = null;
+    getRefrigerator(db).then(refrigerator => {
+      if (!mounted) return;
+      if (!refrigerator || refrigerator.id !== refrigeratorId) throw new Error('수정할 냉장고를 찾을 수 없습니다.');
+      setDraft(createRefrigeratorDraft(refrigerator));
+      loadedRefrigeratorId.current = refrigerator.id;
+    }).catch(error => {
+      if (mounted) setLoadError(error instanceof Error ? error.message : '냉장고 정보를 불러오지 못했습니다.');
+    }).finally(() => {
+      if (mounted) setIsLoading(false);
+    });
+    return () => { mounted = false; };
+  }, [db, refrigeratorId, loadAttempt]);
+
   // 기기 뒤로가기는 하위 설정·중앙 보기·이전 단계 순서로 닫는다.
   usePreventRemove(step === 'configuration' || isStepChanging || isSaving, ({ data }) => {
     if (leaveRequested.current) {
@@ -128,16 +154,19 @@ export function RefrigeratorRegistrationScreen({
 
   // 상태가 다시 렌더링되기 전의 연속 탭도 막고, 실패한 초안은 그대로 재시도한다.
   async function saveRegistration() {
-    if (saving.current || stepChanging.current || isFocusMoving) return;
+    if (saving.current || stepChanging.current || isFocusMoving || isUnavailable
+      || isEditing && loadedRefrigeratorId.current !== refrigeratorId) return;
     Keyboard.dismiss();
     saving.current = true;
     setIsSaving(true);
     try {
-      await registerRefrigerator(db, draft);
+      if (refrigeratorId !== undefined) await updateRefrigerator(db, refrigeratorId, draft);
+      else await registerRefrigerator(db, draft);
     } catch (error) {
       saving.current = false;
       setIsSaving(false);
-      Alert.alert('냉장고 등록 실패', error instanceof Error ? error.message : '냉장고를 저장하지 못했습니다. 다시 시도해 주세요.');
+      Alert.alert(isEditing ? '냉장고 수정 실패' : '냉장고 등록 실패',
+        error instanceof Error ? error.message : '냉장고를 저장하지 못했습니다. 다시 시도해 주세요.');
       return;
     }
     leaveRequested.current = true;
@@ -146,7 +175,7 @@ export function RefrigeratorRegistrationScreen({
 
   // 두 단계의 초안을 공유하며, 들어올 단계의 스크롤만 초기화하고 본문을 좌우로 이동한다.
   function changeStep(nextStep: RegistrationStep) {
-    if (saving.current || stepChanging.current || nextStep === step) return;
+    if (saving.current || stepChanging.current || isUnavailable || nextStep === step) return;
     Keyboard.dismiss();
     setMenuCategory(null);
     setSlotIndex(0);
@@ -243,7 +272,7 @@ export function RefrigeratorRegistrationScreen({
           importantForAccessibility={!isSaving && focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
         <View style={styles.headerNavigation}>
           <FeedbackPressable accessibilityRole="button"
-            accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : '기본 정보로 돌아가기'}
+            accessibilityLabel={step === 'basic' ? (isEditing ? '냉장고 편집 취소' : '냉장고 등록 취소') : '기본 정보로 돌아가기'}
             accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
             disabled={isSaving || isStepChanging || isFocusMoving}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
@@ -252,24 +281,36 @@ export function RefrigeratorRegistrationScreen({
         </View>
         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
           pointerEvents={activeFocus ? 'none' : 'auto'}
-          style={styles.title}>냉장고 등록</Text>
+          style={styles.title}>{isEditing ? '냉장고 편집' : '냉장고 등록'}</Text>
         <View style={[styles.headerNavigation, styles.headerNextNavigation]}>
           {step === 'basic' ? (
             <FeedbackPressable accessibilityRole="button" accessibilityLabel="내부 설정으로 이동"
-              accessibilityState={{ disabled: !draft.name.trim() || isStepChanging }} style={styles.headerIconButton}
-              disabled={!draft.name.trim()} interactionBlocked={isStepChanging} onPress={() => changeStep('configuration')}>
+              accessibilityState={{ disabled: !draft.name.trim() || isStepChanging || isUnavailable }} style={styles.headerIconButton}
+              disabled={!draft.name.trim() || isUnavailable} interactionBlocked={isStepChanging} onPress={() => changeStep('configuration')}>
               <MaterialDesignIcons name="arrow-right" size={32} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : (
-            <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 등록"
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '냉장고 수정 저장' : '냉장고 등록'}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving, busy: isSaving }}
               disabled={isSaving} interactionBlocked={isStepChanging || isFocusMoving} onPress={saveRegistration} style={styles.headerIconButton}>
               {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 저장 중" />
-                : <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={32} color={colors.text} accessible={false} />}
+                : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={32} color={colors.text} accessible={false} />}
             </FeedbackPressable>
           )}
         </View>
       </View>
+      {isUnavailable ? (
+        <View style={styles.feedback}>
+          {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" /> : <>
+            <Text accessibilityRole="alert">{loadError}</Text>
+            <PrimaryButton label="다시 불러오기" onPress={() => {
+              setIsLoading(true);
+              setLoadError(null);
+              setLoadAttempt(attempt => attempt + 1);
+            }} />
+          </>}
+        </View>
+      ) : <>
       {/* 단계별 스크롤·하단 도구를 함께 이동하며, 비활성 단계의 터치·접근성 탐색은 막는다. */}
       <View style={[styles.stepViewport, activeFocus && styles.focusStepViewport]} pointerEvents={isStepChanging || isSaving ? 'none' : 'auto'}
         accessibilityElementsHidden={isSaving} importantForAccessibility={isSaving ? 'no-hide-descendants' : 'auto'}
@@ -427,7 +468,7 @@ export function RefrigeratorRegistrationScreen({
           ))}
         </Animated.View>
       </View>
-
+      </>}
     </SafeAreaView>
   );
 }
@@ -439,6 +480,13 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
+  },
+  feedback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
   stepViewport: {
     flex: 1,
