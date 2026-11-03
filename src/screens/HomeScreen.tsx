@@ -85,7 +85,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               <Text accessibilityRole="header" style={styles.title}>{refrigerator.name}</Text>
               <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 편집" style={styles.headerIconButton}
                 onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
-                <MaterialDesignIcons name="note-edit-outline" size={24} color={colors.text} accessible={false} />
+                <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
               </FeedbackPressable>
             </View>
             <View style={styles.diagram}>
