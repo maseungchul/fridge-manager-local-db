@@ -1,27 +1,85 @@
 /**
  * @file
- * 등록 초안의 검증·DB 레코드 변환을 실제 배치 모델과 함께 검사한다.
- * 화면·DB 저장을 거치지 않고 연결·분할·숨긴 포켓 입력의 보존을 확인한다.
+ * 등록 초안의 검증·변환과 SQLite 저장을 실제 배치 모델과 함께 검사한다.
+ * 네이티브 UUID·연결 인터페이스만 대체하고 SQL과 트랜잭션은 SQLite에서 실행한다.
  */
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
-const { readFileSync } = require('node:fs');
-const { resolve } = require('node:path');
+const { readFileSync, rmSync } = require('node:fs');
+const { tmpdir } = require('node:os');
+const { join, resolve } = require('node:path');
+const { DatabaseSync } = require('node:sqlite');
 const { test } = require('node:test');
 const ts = require('typescript');
 const model = require('../src/features/fridge/model/fridgeLayout.ts');
+const { initializeDatabase } = require('../src/db/initializeDatabase.ts');
 
 // 기존 컴포넌트 검사와 같이 경로 별칭만 실제 모델 모듈로 연결한다.
-const source = readFileSync(resolve(__dirname, '../src/db/refrigeratorRegistration.ts'), 'utf8');
-const output = ts.transpileModule(source, { compilerOptions: {
-  module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
-} }).outputText;
-const registrationModule = { exports: {} };
-new Function('require', 'module', 'exports', output)(
-  name => name === '@/features/fridge/model/fridgeLayout' ? model : require(name),
-  registrationModule, registrationModule.exports,
-);
-const prepare = draft => registrationModule.exports.prepareRefrigeratorRegistration(draft, randomUUID);
+function loadModule(path, dependencies) {
+  const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
+  const output = ts.transpileModule(source, { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+  } }).outputText;
+  const module = { exports: {} };
+  new Function('require', 'module', 'exports', output)(
+    name => name in dependencies ? dependencies[name] : require(name), module, module.exports,
+  );
+  return module.exports;
+}
+const registration = loadModule('src/db/refrigeratorRegistration.ts', {
+  '@/features/fridge/model/fridgeLayout': model,
+});
+const { registerRefrigerator, getRefrigeratorSummary } = loadModule('src/db/refrigeratorRepository.ts', {
+  expo: { uuid: { v4: randomUUID } }, '@/db/refrigeratorRegistration': registration,
+});
+const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
+
+function createConnectionAdapter(db) {
+  db.exec('PRAGMA foreign_keys = OFF; PRAGMA busy_timeout = 0;');
+  return {
+    async execAsync(sql) { db.exec(sql); },
+    async getFirstAsync(sql, ...params) { return db.prepare(sql).get(...params) ?? null; },
+    async runAsync(sql, ...params) { return db.prepare(sql).run(...params); },
+    async withTransactionAsync(task) {
+      db.exec('BEGIN');
+      try {
+        await task();
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    },
+  };
+}
+
+async function createRepositoryDatabase(t) {
+  const databasePath = join(tmpdir(), `fridge-registration-${randomUUID()}.db`);
+  const db = new DatabaseSync(databasePath);
+  t.after(() => {
+    db.close();
+    for (const suffix of ['', '-journal', '-wal', '-shm']) rmSync(databasePath + suffix, { force: true });
+  });
+  const adapter = createConnectionAdapter(db);
+  // Expo와 같이 별도 연결을 열어 초기화 연결의 외래 키 설정이 공유되지 않는 상태를 재현한다.
+  adapter.withExclusiveTransactionAsync = async task => {
+    const connection = new DatabaseSync(databasePath);
+    try {
+      const transaction = createConnectionAdapter(connection);
+      await transaction.withTransactionAsync(() => task(transaction));
+    } finally {
+      connection.close();
+    }
+  };
+  await initializeDatabase(adapter);
+  return { db, adapter, databasePath };
+}
+
+function readStoredData(db) {
+  return Object.fromEntries([
+    'refrigerators', 'refrigerator_rows', 'refrigerator_compartments', 'refrigerator_doors', 'refrigerator_slots',
+  ].map(table => [table, db.prepare(`SELECT * FROM ${table} ORDER BY id`).all()]));
+}
 
 function createTwoDoorDraft() {
   const draft = model.createRefrigeratorDraft();
@@ -214,4 +272,136 @@ test('서랍형 본체의 다중 칸과 좌우 분할을 거부한다', () => {
     draft.rows[0].compartments[0].slots = slots;
     assert.throws(() => prepare(draft), /칸은|분할할 수 없/);
   }
+});
+
+test('등록 구성을 파일 DB에 저장하고 커밋된 냉장고 ID를 반환한다', async t => {
+  const { db, adapter, databasePath } = await createRepositoryDatabase(t);
+  assert.equal(await getRefrigeratorSummary(adapter), null);
+  const draft = model.createRefrigeratorDraft();
+  draft.name = "  우리 집 '냉장고'; DROP TABLE refrigerators; --  ";
+  const before = structuredClone(draft);
+  const id = await registerRefrigerator(adapter, draft);
+  assert.deepEqual({ ...await getRefrigeratorSummary(adapter) }, { id, name: draft.name.trim() });
+  assert.match(id, /^[0-9a-f-]{36}$/);
+  assert.equal(db.prepare('SELECT name FROM refrigerators WHERE id = ?').get(id).name, draft.name.trim());
+  assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_rows').get().count, 2);
+  assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_compartments').get().count, 2);
+  assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_doors').get().count, 2);
+  assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_slots').get().count, 6);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  assert.deepEqual(draft, before);
+  const reopened = new DatabaseSync(databasePath);
+  try {
+    assert.equal(reopened.prepare('SELECT id FROM refrigerators').get().id, id);
+    assert.equal(reopened.prepare('SELECT count(*) AS count FROM refrigerator_slots').get().count, 6);
+  } finally {
+    reopened.close();
+  }
+});
+
+test('공용 본체·서랍형·좌우 분할과 숨긴 포켓 칸을 연결된 상태로 저장한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  let draft = createTwoDoorDraft();
+  draft.rows[0].doors[1].storageEnabled = false;
+  draft.rows[0].doors[1].slots = createSlots(3);
+  draft = model.mergeDraftCompartments(draft, draft.rows[0].id, draft.rows[0].compartments[0].id);
+  draft.rows[0].compartments[0].slots = createSlots(4, 2);
+  draft = model.setDraftDoorOpening(draft, draft.rows[1].id, draft.rows[1].doors[0].id, 'DRAWER');
+  draft.rows[1].compartments[0].storageMode = 'FROZEN';
+  await registerRefrigerator(adapter, draft);
+  const bodies = db.prepare(`
+    SELECT body.* FROM refrigerator_compartments AS body
+    JOIN refrigerator_rows AS row ON row.id = body.row_id ORDER BY row.sort_order
+  `).all();
+  assert.equal(bodies[0].kind, 'HINGED');
+  assert.equal(bodies[0].side, null);
+  assert.equal(bodies[1].kind, 'DRAWER');
+  assert.equal(bodies[1].side, null);
+  assert.equal(bodies[1].storage_mode, 'FROZEN');
+  const doors = db.prepare('SELECT * FROM refrigerator_doors WHERE compartment_id = ? ORDER BY sort_order').all(bodies[0].id);
+  assert.deepEqual(doors.map(door => door.sort_order), [0, 1]);
+  assert.equal(doors[1].storage_enabled, 0);
+  assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_slots WHERE door_id = ?').get(doors[1].id).count, 3);
+  assert.deepEqual(
+    db.prepare('SELECT drawer_count FROM refrigerator_slots WHERE compartment_id = ? ORDER BY sort_order').all(bodies[0].id)
+      .map(slot => slot.drawer_count),
+    [2, 2, 2, 2],
+  );
+  assert.equal(db.prepare(`
+    SELECT count(*) AS count FROM refrigerator_slots AS slot
+    JOIN refrigerator_doors AS door ON door.id = slot.door_id WHERE door.compartment_id = ?
+  `).get(bodies[1].id).count, 2);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+});
+
+test('등록된 냉장고가 있으면 기존 구성을 변경하지 않고 중복 등록을 거부한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const id = await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+  const before = readStoredData(db);
+  const draft = createTwoDoorDraft();
+  draft.name = '새 냉장고';
+  await assert.rejects(registerRefrigerator(adapter, draft), /이미 등록된 냉장고/);
+  assert.deepEqual(readStoredData(db), before);
+  assert.equal(db.prepare('SELECT id FROM refrigerators').get().id, id);
+});
+
+test('초안 검증 실패 시 DB에 일부 데이터를 남기지 않는다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const before = readStoredData(db);
+  const draft = model.createRefrigeratorDraft();
+  draft.rows[1].compartments[0].storageMode = null;
+  await assert.rejects(registerRefrigerator(adapter, draft), /냉장·냉동/);
+  assert.deepEqual(readStoredData(db), before);
+});
+
+for (const table of ['refrigerator_rows', 'refrigerator_compartments', 'refrigerator_doors', 'refrigerator_slots']) {
+  test(`${table} 저장 도중 실패하면 전체 등록을 롤백하고 다시 시도할 수 있다`, async t => {
+    const { db, adapter } = await createRepositoryDatabase(t);
+    const before = readStoredData(db);
+    db.exec(`
+      CREATE TRIGGER fail_registration BEFORE INSERT ON ${table}
+      WHEN (SELECT count(*) FROM ${table}) >= 1
+      BEGIN SELECT RAISE(ABORT, '검증용 저장 실패'); END;
+    `);
+    await assert.rejects(registerRefrigerator(adapter, model.createRefrigeratorDraft()), /검증용 저장 실패/);
+    assert.deepEqual(readStoredData(db), before);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2);
+    db.exec('DROP TRIGGER fail_registration');
+    const id = await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+    assert.equal(db.prepare('SELECT id FROM refrigerators').get().id, id);
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  });
+}
+
+test('전용 연결의 외래 키 검사가 꺼져 있어도 잘못된 연결은 커밋 전에 차단한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const before = readStoredData(db);
+  db.exec(`
+    CREATE TRIGGER break_slot_parent AFTER INSERT ON refrigerator_slots
+    WHEN NEW.compartment_id IS NOT NULL
+    BEGIN UPDATE refrigerator_slots SET compartment_id = 'missing-body-' || NEW.id WHERE id = NEW.id; END;
+  `);
+  await assert.rejects(registerRefrigerator(adapter, model.createRefrigeratorDraft()), /연결 정보가 올바르지/);
+  assert.deepEqual(readStoredData(db), before);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+});
+
+test('동시에 등록을 요청해도 냉장고 한 대와 완전한 구성만 저장된다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const results = await Promise.allSettled([
+    registerRefrigerator(adapter, model.createRefrigeratorDraft()),
+    registerRefrigerator(adapter, createTwoDoorDraft()),
+  ]);
+  const successes = results.filter(result => result.status === 'fulfilled');
+  const failures = results.filter(result => result.status === 'rejected');
+  assert.equal(successes.length, 1);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0].reason.message, /locked|busy|이미 등록/);
+  assert.equal(db.prepare('SELECT id FROM refrigerators').get().id, successes[0].value);
+  assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_rows').get().count, 2);
+  const doorCount = db.prepare('SELECT count(*) AS count FROM refrigerator_doors').get().count;
+  assert(doorCount === 2 || doorCount === 3);
+  assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_compartments').get().count, doorCount);
+  assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_slots').get().count, doorCount * 3);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
 });

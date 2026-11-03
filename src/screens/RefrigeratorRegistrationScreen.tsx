@@ -4,20 +4,22 @@
  * 단별 문 개수로 배치를 만들고 문 수납·본체 연결·내부 칸 설정을 제공한다.
  * 여는 방식·보관 모드·칸·본체 연결을 하단 카테고리에서 편집하고 초안에 즉시 반영한다.
  * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
- * 단계 이동 시 입력을 유지하고 취소 시 홈으로 돌아가며, DB 저장은 별도로 연결한다.
+ * 단계 이동·저장 실패 시 입력을 유지하고, 등록 성공 시 홈으로 돌아간다.
  */
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSQLiteContext } from 'expo-sqlite';
 import type { LayoutChangeEvent, LayoutRectangle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantityStepper';
+import { registerRefrigerator } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeFocusView, FridgeInteriorMap } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase, FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
@@ -45,6 +47,7 @@ const STRUCTURE_PREVIEW_MAX_WIDTH = 144;
 export function RefrigeratorRegistrationScreen({
   navigation,
 }: RefrigeratorRegistrationScreenProps) {
+  const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const [draft, setDraft] = useState(createRefrigeratorDraft);
@@ -54,6 +57,7 @@ export function RefrigeratorRegistrationScreen({
   const [slotIndex, setSlotIndex] = useState(0);
   const [hasSeenScrollHint, setHasSeenScrollHint] = useState(false);
   const [isStepChanging, setIsStepChanging] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
   const structurePreviewWidth = Math.max(1, Math.min(STRUCTURE_PREVIEW_MAX_WIDTH,
     stepWidth - spacing.lg * 2 - STRUCTURE_CONTROL_WIDTH - spacing.xs));
@@ -63,7 +67,8 @@ export function RefrigeratorRegistrationScreen({
   const [focusBounds, setFocusBounds] = useState<LayoutRectangle | null>(null);
   const focusViewport = useRef<ComponentRef<typeof View>>(null);
   const focusViewportSize = useRef<{ width: number; height: number } | null>(null);
-  const cancelRequested = useRef(false);
+  const leaveRequested = useRef(false);
+  const saving = useRef(false);
   const stepAnimation = useRef(new Animated.Value(0)).current;
   const stepChanging = useRef(false);
   const stepScrolls = {
@@ -106,11 +111,11 @@ export function RefrigeratorRegistrationScreen({
   }, [stepAnimation]);
 
   // 기기 뒤로가기는 하위 설정·중앙 보기·이전 단계 순서로 닫는다.
-  usePreventRemove(step === 'configuration' || isStepChanging, ({ data }) => {
-    if (cancelRequested.current) {
-      cancelRequested.current = false;
+  usePreventRemove(step === 'configuration' || isStepChanging || isSaving, ({ data }) => {
+    if (leaveRequested.current) {
+      leaveRequested.current = false;
       navigation.dispatch(data.action);
-    } else if (stepChanging.current || isFocusMoving) {
+    } else if (saving.current || stepChanging.current || isFocusMoving) {
       return;
     } else if (activeMenuCategory) {
       setMenuCategory(null);
@@ -122,18 +127,37 @@ export function RefrigeratorRegistrationScreen({
   });
 
   function cancelRegistration() {
+    if (saving.current) return;
     Keyboard.dismiss();
     stepChanging.current = false;
     stepAnimation.stopAnimation();
     stepAnimation.setValue(step === 'basic' ? 0 : 1);
     setIsStepChanging(false);
-    cancelRequested.current = true;
+    leaveRequested.current = true;
+    navigation.goBack();
+  }
+
+  // 상태가 다시 렌더링되기 전의 연속 탭도 막고, 실패한 초안은 그대로 재시도한다.
+  async function saveRegistration() {
+    if (saving.current || stepChanging.current || isFocusMoving) return;
+    Keyboard.dismiss();
+    saving.current = true;
+    setIsSaving(true);
+    try {
+      await registerRefrigerator(db, draft);
+    } catch (error) {
+      saving.current = false;
+      setIsSaving(false);
+      Alert.alert('냉장고 등록 실패', error instanceof Error ? error.message : '냉장고를 저장하지 못했습니다. 다시 시도해 주세요.');
+      return;
+    }
+    leaveRequested.current = true;
     navigation.goBack();
   }
 
   // 두 단계의 초안을 공유하며, 들어올 단계의 스크롤만 초기화하고 본문을 좌우로 이동한다.
   function changeStep(nextStep: RegistrationStep) {
-    if (stepChanging.current || nextStep === step) return;
+    if (saving.current || stepChanging.current || nextStep === step) return;
     Keyboard.dismiss();
     setMenuCategory(null);
     setSlotIndex(0);
@@ -156,6 +180,7 @@ export function RefrigeratorRegistrationScreen({
   }
 
   function selectArea(id: string) {
+    if (saving.current) return;
     Keyboard.dismiss();
     if (id !== selectedAreaId) setSlotIndex(0);
     setSelectedAreaId(id);
@@ -172,10 +197,10 @@ export function RefrigeratorRegistrationScreen({
   }
 
   function openFocusedArea(target: FridgeFocusTarget) {
-    if (activeFocus || stepChanging.current) return;
+    if (saving.current || activeFocus || stepChanging.current) return;
     Keyboard.dismiss();
     focusViewport.current?.measureInWindow((x, y, width, height) => {
-      if (width <= 0 || height <= 0 || stepChanging.current) return;
+      if (width <= 0 || height <= 0 || saving.current || stepChanging.current) return;
       setFocusBounds({ x, y, ...(focusViewportSize.current ?? { width, height: Math.max(1, height - FRIDGE_MENU_RESERVED_SPACE) }) });
       setFocusTarget(target);
       setSelectedAreaId(target.areaId);
@@ -185,13 +210,13 @@ export function RefrigeratorRegistrationScreen({
   }
 
   function closeFocusedArea() {
-    if (!activeFocus || focusPhase !== 'open') return;
+    if (saving.current || !activeFocus || focusPhase !== 'open') return;
     setFocusPhase('closing');
   }
 
   // 문 수납을 꺼도 문 식별자·방향·칸 입력은 유지해 다시 켤 수 있다.
   function updateDoorStorage(storageEnabled: boolean) {
-    if (!selectedDoor) return;
+    if (saving.current || !selectedDoor) return;
     Keyboard.dismiss();
     setDraft(current => ({ ...current, rows: current.rows.map(row => row.id !== selectedRow.id ? row : {
       ...row, doors: row.doors.map(door => door.id === selectedDoor.id ? { ...door, storageEnabled } : door),
@@ -200,14 +225,14 @@ export function RefrigeratorRegistrationScreen({
 
   // 선택한 본체를 유지하되, 서랍형으로 초기화하면 편집 칸 선택도 처음으로 돌린다.
   function selectDoorOpening(doorId: string, opening: DoorOpening) {
-    if (isMergedBody) return;
+    if (saving.current || isMergedBody) return;
     Keyboard.dismiss();
     setDraft(current => setDraftDoorOpening(current, selectedRow.id, doorId, opening));
     if (opening === 'DRAWER') setSlotIndex(0);
   }
 
   function updateSlots(update: (slots: SlotConfiguration[]) => SlotConfiguration[]) {
-    if (!storageEnabled || isDrawerBody) return;
+    if (saving.current || !storageEnabled || isDrawerBody) return;
     setDraft(current => ({ ...current, rows: current.rows.map(row => row.id !== selectedRow.id ? row : {
       ...row,
       doors: row.doors.map(door => door.id === selectedArea.id ? { ...door, slots: update(door.slots) } : door),
@@ -233,7 +258,7 @@ export function RefrigeratorRegistrationScreen({
 
   // 보관 모드는 본체를 선택한 경우에만 기록한다.
   function selectStorageMode(storageMode: StorageMode) {
-    if (selectedDoor) return;
+    if (saving.current || selectedDoor) return;
     Keyboard.dismiss();
     setDraft(current => ({ ...current, rows: current.rows.map(row => row.id !== selectedRow.id ? row : {
       ...row, compartments: row.compartments.map(body => body.id === selectedBody.id ? { ...body, storageMode } : body),
@@ -247,14 +272,14 @@ export function RefrigeratorRegistrationScreen({
         {/* 큰 도면이 헤더에 닿아도 제목·여백은 바깥 닫기로 처리하고 기존 버튼은 위에 유지한다. */}
         {activeFocus ? <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button"
           accessibilityLabel="제목 영역 눌러 냉장고 도면 닫기" onPress={closeFocusedArea}
-          disabled={focusPhase !== 'open'} accessibilityState={{ disabled: focusPhase !== 'open' }}
-          pointerEvents={focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={focusPhase !== 'open'}
-          importantForAccessibility={focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
+          disabled={isSaving || focusPhase !== 'open'} accessibilityState={{ disabled: isSaving || focusPhase !== 'open' }}
+          pointerEvents={!isSaving && focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={isSaving || focusPhase !== 'open'}
+          importantForAccessibility={!isSaving && focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
         <View style={styles.headerNavigation}>
           <FeedbackPressable accessibilityRole="button"
             accessibilityLabel={step === 'basic' ? '냉장고 등록 취소' : '기본 정보로 돌아가기'}
-            accessibilityState={{ disabled: isStepChanging || isFocusMoving }} style={styles.headerIconButton}
-            disabled={isStepChanging || isFocusMoving}
+            accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
+            disabled={isSaving || isStepChanging || isFocusMoving}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
             <MaterialDesignIcons name="arrow-left" size={32} color={colors.text} accessible={false} />
           </FeedbackPressable>
@@ -270,16 +295,18 @@ export function RefrigeratorRegistrationScreen({
               <MaterialDesignIcons name="arrow-right" size={32} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : (
-            // DB 저장이 연결되기 전까지 등록 버튼은 비활성화한다.
             <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 등록"
-              accessibilityState={{ disabled: true }} disabled interactionBlocked={isStepChanging} style={styles.headerIconButton}>
-              <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={32} color={colors.text} accessible={false} />
+              accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving, busy: isSaving }}
+              disabled={isSaving} interactionBlocked={isStepChanging || isFocusMoving} onPress={saveRegistration} style={styles.headerIconButton}>
+              {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 저장 중" />
+                : <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={32} color={colors.text} accessible={false} />}
             </FeedbackPressable>
           )}
         </View>
       </View>
       {/* 단계별 스크롤·하단 도구를 함께 이동하며, 비활성 단계의 터치·접근성 탐색은 막는다. */}
-      <View style={[styles.stepViewport, activeFocus && styles.focusStepViewport]} pointerEvents={isStepChanging ? 'none' : 'auto'}
+      <View style={[styles.stepViewport, activeFocus && styles.focusStepViewport]} pointerEvents={isStepChanging || isSaving ? 'none' : 'auto'}
+        accessibilityElementsHidden={isSaving} importantForAccessibility={isSaving ? 'no-hide-descendants' : 'auto'}
         onLayout={({ nativeEvent }) => {
           setStepWidth(nativeEvent.layout.width);
           setStepHeight(nativeEvent.layout.height);
@@ -398,7 +425,7 @@ export function RefrigeratorRegistrationScreen({
                 <View pointerEvents={focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={focusPhase !== 'open'}
                   importantForAccessibility={focusPhase === 'open' ? 'auto' : 'no-hide-descendants'}
                   style={[styles.configurationToolbar, { paddingBottom: insets.bottom, opacity: focusPhase === 'open' ? 1 : 0 }]}>
-                  <FridgeAreaMenu disabled={!selectedAreaId || isStepChanging || isFocusMoving}
+                  <FridgeAreaMenu disabled={!selectedAreaId || isSaving || isStepChanging || isFocusMoving}
                     activeCategory={activeMenuCategory} onCategoryChange={setMenuCategory}
                     showOpeningAction={!selectedDoor}
                     openingDisabled={isMergedBody}
@@ -415,6 +442,7 @@ export function RefrigeratorRegistrationScreen({
                     onOpeningChange={selectDoorOpening}
                     onMerge={selectedAreaId && !selectedDoor && !isMergedBody && !mergeIncludesDrawer
                       ? () => {
+                        if (saving.current) return;
                         setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id));
                         setSlotIndex(0);
                         setFocusTarget(current => current ? { ...current, returnAreaId: selectedBody.doorIds[0] } : current);
@@ -422,6 +450,7 @@ export function RefrigeratorRegistrationScreen({
                     mergeDisabled={!adjacentBody}
                     onSplit={selectedAreaId && !selectedDoor && isMergedBody
                       ? () => {
+                        if (saving.current) return;
                         setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id, activeFocus.returnAreaId));
                         setSlotIndex(0);
                       } : undefined}

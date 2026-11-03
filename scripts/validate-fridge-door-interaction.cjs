@@ -10,6 +10,12 @@ const { test } = require('node:test');
 const ts = require('typescript');
 const model = require('../src/features/fridge/model/fridgeLayout.ts');
 const tokens = require('../src/theme/tokens.ts');
+const database = {};
+const alerts = [];
+const repository = {
+  async registerRefrigerator() { throw new Error('저장 동작을 지정하지 않았습니다.'); },
+  async getRefrigeratorSummary() { return null; },
+};
 
 let current;
 const animations = [];
@@ -68,6 +74,7 @@ class AnimatedValue {
 const native = {
   View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
   Keyboard: { dismiss() {} }, Platform: { OS: 'ios' },
+  ActivityIndicator: 'ActivityIndicator', Alert: { alert(...args) { alerts.push(args); } },
   useWindowDimensions: () => ({ width: 375, height: 844 }),
   StyleSheet: { create: value => value, absoluteFill: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 } },
   useAnimatedValue: initial => hooks.useState(() => new AnimatedValue(initial))[0],
@@ -109,6 +116,8 @@ function loadComponent(path) {
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
     '@/components/QuantityStepper': quantityStepperModule,
+    'expo-sqlite': { useSQLiteContext: () => database },
+    '@/db/refrigeratorRepository': repository,
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
     '@/features/fridge/components/FridgeInteriorMap': interiorModule,
@@ -118,7 +127,20 @@ function loadComponent(path) {
       STRUCTURE_PREVIEW_ASPECT_RATIO: structureModule?.STRUCTURE_PREVIEW_ASPECT_RATIO,
     },
     '@/features/fridge/components/SlotStructureSelector': { SlotStructureSelector: 'SlotStructureSelector' },
-    '@react-navigation/native': { usePreventRemove() {} },
+    '@react-navigation/native': {
+      usePreventRemove(enabled, onRemove) { current.preventRemove = { enabled, onRemove }; },
+      useFocusEffect(effect) {
+        const instance = current;
+        hooks.useEffect(() => {
+          instance.focus = () => {
+            instance.focusCleanup?.();
+            instance.focusCleanup = effect();
+          };
+          instance.focus();
+          return () => instance.focusCleanup?.();
+        }, [effect]);
+      },
+    },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }) },
   };
   new Function('require', 'module', 'exports', output)(name => name in dependencies ? dependencies[name] : require(name), module, module.exports);
@@ -132,6 +154,7 @@ const { FridgeInteriorMap, FridgeFocusView, getFridgeFocusGeometry } = interiorM
 menuModule = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
 const { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } = menuModule;
 const { RefrigeratorRegistrationScreen } = loadComponent('src/screens/RefrigeratorRegistrationScreen.tsx');
+const { HomeScreen } = loadComponent('src/screens/HomeScreen.tsx');
 const children = node => node?.type === quantityStepperModule.QuantityStepper
   ? [node.type(node.props)] : [node?.props?.children].flat(Infinity).filter(child => child?.type);
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
@@ -188,8 +211,8 @@ function focusedFixture(draft, target, viewport = { x: 0, y: 120, width: 375, he
   focus = mount(FridgeFocusView, props);
   return { focus, phases, selected };
 }
-function registrationFixture(doorCount = 1, rowCount = 2) {
-  const screen = mount(RefrigeratorRegistrationScreen, { navigation: { goBack() {}, dispatch() {} } });
+function registrationFixture(doorCount = 1, rowCount = 2, navigation = { goBack() {}, dispatch() {} }) {
+  const screen = mount(RefrigeratorRegistrationScreen, { navigation });
   if (rowCount === 1) {
     find(screen.tree, node => node.props.accessibilityLabel === '2단 삭제').props.onPress();
     screen.render();
@@ -207,6 +230,13 @@ function registrationFixture(doorCount = 1, rowCount = 2) {
   const target = { areaId: row.compartments[0].id, returnAreaId: row.doors[0].id,
     canvas: { x: 24, y: 210, width: 327, height: 540 } };
   return { screen, viewport, map, row, target };
+}
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((onResolve, onReject) => { resolve = onResolve; reject = onReject; });
+  return { promise, resolve, reject };
 }
 const moving = focus => find(focus.tree, node => typeof node.props?.onStartShouldSetResponder === 'function');
 const toolbarTree = screen => FridgeAreaMenu(find(screen.tree, node => node.type === 'FridgeAreaMenu').props);
@@ -387,7 +417,7 @@ test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이�
     assert.equal(flattenStyle(register.props.style).width, 48);
     assert.equal(flattenStyle(register.props.style).height, 48);
     assert.equal(find(register, node => node.type === 'Text'), undefined);
-    assert.equal(register.props.disabled, true);
+    assert.equal(register.props.disabled, false);
     if (expanded) {
       viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
       map.props.onFocus(target);
@@ -410,6 +440,165 @@ test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이�
     assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
     screen.unmount();
   }
+});
+
+test('등록 체크는 한 번만 저장하고 입력·뒤로가기를 막으며 완료 후 홈으로 돌아간다', async t => {
+  const previous = repository.registerRefrigerator;
+  t.after(() => { repository.registerRefrigerator = previous; });
+  const pending = deferred();
+  const calls = [];
+  repository.registerRefrigerator = (db, draft) => {
+    calls.push({ db, draft: structuredClone(draft) });
+    return pending.promise;
+  };
+  let screen;
+  let removed = 0;
+  const action = { type: 'GO_BACK' };
+  const fixture = registrationFixture(2, 2, {
+    goBack() { screen.preventRemove.onRemove({ data: { action } }); },
+    dispatch(value) { assert.strictEqual(value, action); removed++; },
+  });
+  screen = fixture.screen;
+  t.after(() => screen.unmount());
+  fixture.viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  fixture.map.props.onFocus(fixture.target);
+  screen.render();
+  find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+  screen.render();
+  const draft = structuredClone(find(screen.tree, named('FridgeInteriorMap')).props.draft);
+  const previousButton = find(screen.tree, node => node.props.accessibilityLabel === '기본 정보로 돌아가기');
+  const register = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
+  const saving = register.props.onPress();
+  await register.props.onPress();
+  assert.equal(calls.length, 1);
+  assert.strictEqual(calls[0].db, database);
+  assert.deepEqual(calls[0].draft, draft);
+  screen.render();
+  const busy = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
+  assert.equal(busy.props.disabled, true);
+  assert.equal(busy.props.accessibilityState.busy, true);
+  assert(find(busy, node => node.type === 'ActivityIndicator'));
+  const content = find(screen.tree, node => node.type === 'View' && node.props.onLayout && node.props.accessibilityElementsHidden === true);
+  assert.equal(content.props.pointerEvents, 'none');
+  assert.equal(content.props.importantForAccessibility, 'no-hide-descendants');
+  assert.equal(find(screen.tree, node => node.type === 'FridgeAreaMenu').props.disabled, true);
+  const animationCount = animations.length;
+  previousButton.props.onPress();
+  screen.preventRemove.onRemove({ data: { action } });
+  find(screen.tree, named('FridgeFocusView')).props.onClose();
+  find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onStorageModeChange('FROZEN');
+  screen.render();
+  assert.equal(removed, 0);
+  assert.equal(animations.length, animationCount);
+  assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, draft);
+  pending.resolve('saved-fridge');
+  await saving;
+  assert.equal(removed, 1);
+  await register.props.onPress();
+  assert.equal(calls.length, 1);
+});
+
+test('등록 실패 시 오류를 알리고 초안을 유지해 다시 저장할 수 있다', async t => {
+  const previous = repository.registerRefrigerator;
+  t.after(() => { repository.registerRefrigerator = previous; });
+  const pending = deferred();
+  const calls = [];
+  repository.registerRefrigerator = (db, draft) => {
+    calls.push(structuredClone(draft));
+    return calls.length === 1 ? pending.promise : Promise.resolve('saved-fridge');
+  };
+  let removed = 0;
+  const { screen, map } = registrationFixture(1, 2, { goBack() { removed++; }, dispatch() {} });
+  t.after(() => screen.unmount());
+  const before = structuredClone(map.props.draft);
+  const saving = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록').props.onPress();
+  pending.reject(new Error('냉장·냉동을 선택해 주세요.'));
+  await saving;
+  screen.render();
+  assert.deepEqual(alerts.at(-1), ['냉장고 등록 실패', '냉장·냉동을 선택해 주세요.']);
+  assert.equal(removed, 0);
+  assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
+  const retry = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
+  assert.equal(retry.props.disabled, false);
+  assert.equal(retry.props.accessibilityState.busy, false);
+  assert.equal(find(screen.tree, node => node.props.accessibilityLabel === '기본 정보로 돌아가기').props.disabled, false);
+  await retry.props.onPress();
+  assert.equal(removed, 1);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1], before);
+});
+
+test('문을 열고 닫는 중에는 등록 저장을 시작하지 않는다', async t => {
+  const previous = repository.registerRefrigerator;
+  t.after(() => { repository.registerRefrigerator = previous; });
+  let calls = 0;
+  repository.registerRefrigerator = async () => { calls++; };
+  const { screen, viewport, map, target } = registrationFixture();
+  t.after(() => screen.unmount());
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+  map.props.onFocus(target);
+  screen.render();
+  const register = () => find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
+  assert.equal(register().props.accessibilityState.disabled, true);
+  await register().props.onPress();
+  find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
+  screen.render();
+  find(screen.tree, named('FridgeFocusView')).props.onClose();
+  screen.render();
+  assert.equal(register().props.accessibilityState.disabled, true);
+  await register().props.onPress();
+  assert.equal(calls, 0);
+});
+
+test('홈은 조회가 끝난 뒤 미등록 상태에서만 등록 버튼을 표시한다', async t => {
+  let destination;
+  const home = mount(HomeScreen, { navigation: { navigate(route) { destination = route; } } });
+  t.after(() => home.unmount());
+  assert(find(home.tree, node => node.type === 'ActivityIndicator'));
+  assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
+  await new Promise(setImmediate);
+  home.render();
+  find(home.tree, node => node.props.label === '냉장고 등록하기').props.onPress();
+  assert.equal(destination, 'RefrigeratorRegistration');
+});
+
+test('홈으로 돌아오면 등록 이름을 다시 조회하고 늦은 이전 조회 결과를 무시한다', async t => {
+  const previous = repository.getRefrigeratorSummary;
+  t.after(() => { repository.getRefrigeratorSummary = previous; });
+  const pending = deferred();
+  let calls = 0;
+  repository.getRefrigeratorSummary = () => ++calls === 1 ? pending.promise : Promise.resolve({ id: 'saved', name: '등록한 냉장고' });
+  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  t.after(() => home.unmount());
+  home.focus();
+  await new Promise(setImmediate);
+  home.render();
+  assert(find(home.tree, node => node.type === 'Text' && node.props.children === '등록한 냉장고'));
+  assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
+  pending.resolve(null);
+  await new Promise(setImmediate);
+  home.render();
+  assert(find(home.tree, node => node.type === 'Text' && node.props.children === '등록한 냉장고'));
+  assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
+});
+
+test('홈 조회 실패 시 등록으로 오인하지 않고 오류 표시 후 다시 조회한다', async t => {
+  const previous = repository.getRefrigeratorSummary;
+  t.after(() => { repository.getRefrigeratorSummary = previous; });
+  repository.getRefrigeratorSummary = async () => { throw new Error('조회 실패'); };
+  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  t.after(() => home.unmount());
+  await new Promise(setImmediate);
+  home.render();
+  assert(find(home.tree, node => node.props.accessibilityRole === 'alert'));
+  assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
+  repository.getRefrigeratorSummary = async () => ({ id: 'saved', name: '저장된 냉장고' });
+  find(home.tree, node => node.props.label === '다시 불러오기').props.onPress();
+  home.render();
+  await new Promise(setImmediate);
+  home.render();
+  assert(find(home.tree, node => node.type === 'Text' && node.props.children === '저장된 냉장고'));
+  assert.equal(find(home.tree, node => node.props.accessibilityRole === 'alert'), undefined);
 });
 
 test('문을 누르면 보기 버튼 없이 연결된 본체 전체의 화면 좌표를 전달한다', () => {
