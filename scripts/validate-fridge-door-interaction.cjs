@@ -1,6 +1,6 @@
 /**
  * @file
- * 실제 등록 도면 컴포넌트의 문 전환 상태·선택 대상·접근성 경계를 검사한다.
+ * 실제 등록·홈 도면의 문 전환·선택·접근성 경계와 기본 탭 구성을 검사한다.
  * 훅과 애니메이션 완료 신호만 대체하며, 네이티브 화면의 움직임·터치 감각은 별도 확인한다.
  */
 const assert = require('node:assert/strict');
@@ -108,7 +108,7 @@ let interiorModule;
 let structureModule;
 let menuModule;
 let quantityStepperModule;
-function loadComponent(path) {
+function loadComponent(path, overrides = {}) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022,
@@ -148,6 +148,8 @@ function loadComponent(path) {
       },
     },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }) },
+    'react-native-screens/experimental': { SafeAreaView: 'SafeAreaView' },
+    ...overrides,
   };
   new Function('require', 'module', 'exports', output)(name => name in dependencies ? dependencies[name] : require(name), module, module.exports);
   return module.exports;
@@ -564,6 +566,69 @@ test('문을 열고 닫는 중에는 등록 저장을 시작하지 않는다', a
   assert.equal(register().props.accessibilityState.disabled, true);
   await register().props.onPress();
   assert.equal(calls, 0);
+});
+
+test('하단 메뉴는 OS 기본 탭 3개로 연결하고 등록은 탭 밖에서 연다', async t => {
+  for (const platform of ['ios', 'android']) {
+    await t.test(platform, async t => {
+      const previousPlatform = native.Platform.OS;
+      native.Platform.OS = platform;
+      t.after(() => { native.Platform.OS = previousPlatform; });
+      const requests = [];
+      const { ShoppingScreen } = loadComponent('src/screens/ShoppingScreen.tsx');
+      const { SettingsScreen } = loadComponent('src/screens/SettingsScreen.tsx');
+      const { MainTabNavigator } = loadComponent('src/navigation/MainTabNavigator.tsx', {
+        '@react-navigation/bottom-tabs/unstable': {
+          createNativeBottomTabNavigator: () => ({ Navigator: 'NativeTabs', Screen: 'NativeTabScreen' }),
+        },
+        '@react-native-vector-icons/material-design-icons': { MaterialDesignIcons: {
+          async getImageSource(name, size) {
+            requests.push({ name, size });
+            return { uri: `file:///${name}.png`, width: size, height: size, scale: 1 };
+          },
+        } },
+        '@/screens/HomeScreen': { HomeScreen },
+        '@/screens/ShoppingScreen': { ShoppingScreen },
+        '@/screens/SettingsScreen': { SettingsScreen },
+      });
+      const tabs = mount(MainTabNavigator, {});
+      t.after(() => tabs.unmount());
+      await new Promise(setImmediate);
+      tabs.render();
+      assert.equal(tabs.tree.type, 'NativeTabs');
+      assert.equal(tabs.tree.props.initialRouteName, 'Home');
+      assert.equal(tabs.tree.props.screenOptions.headerShown, false);
+      const routes = children(tabs.tree);
+      assert.deepEqual(routes.map(route => route.props.name), ['Home', 'Shopping', 'Settings']);
+      assert.deepEqual(routes.map(route => route.props.options.title), ['냉장고', '장보기', '설정']);
+      assert.deepEqual(routes.map(route => route.props.component), [HomeScreen, ShoppingScreen, SettingsScreen]);
+      assert.deepEqual(requests.map(request => request.name), ['fridge-outline', 'cart-outline', 'cog-outline']);
+      for (const [index, route] of routes.entries()) {
+        assert.equal(route.props.options.tabBarIcon.type, 'image');
+        assert.equal(route.props.options.tabBarIcon.source.uri, `file:///${requests[index].name}.png`);
+      }
+      const { RootNavigator } = loadComponent('src/navigation/RootNavigator.tsx', {
+        '@react-navigation/native-stack': {
+          createNativeStackNavigator: () => ({ Navigator: 'Stack', Screen: 'StackScreen' }),
+        },
+        '@/navigation/MainTabNavigator': { MainTabNavigator },
+        '@/screens/RefrigeratorRegistrationScreen': { RefrigeratorRegistrationScreen },
+      });
+      const root = mount(RootNavigator, {});
+      t.after(() => root.unmount());
+      const stackRoutes = children(root.tree);
+      assert.deepEqual(stackRoutes.map(route => route.props.name), ['MainTabs', 'RefrigeratorRegistration']);
+      assert.strictEqual(stackRoutes[0].props.component, MainTabNavigator);
+      assert.strictEqual(stackRoutes[1].props.component, RefrigeratorRegistrationScreen);
+      assert.equal(stackRoutes[1].props.options.gestureEnabled, false);
+      for (const [Component, title] of [[ShoppingScreen, '장보기'], [SettingsScreen, '설정']]) {
+        const screen = mount(Component, {});
+        t.after(() => screen.unmount());
+        assert.deepEqual(screen.tree.props.edges, { top: true, bottom: true, left: true, right: true });
+        assert.deepEqual(findAll(screen.tree, node => node.type === 'Text').map(node => node.props.children), [title]);
+      }
+    });
+  }
 });
 
 test('홈은 조회가 끝난 뒤 미등록 상태에서만 등록 버튼을 표시한다', async t => {

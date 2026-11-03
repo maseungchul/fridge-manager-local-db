@@ -3,19 +3,25 @@
  * 저장된 냉장고를 등록 화면과 같은 도면·문 열림·중앙 보기 컴포넌트로 표시한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeBottomTabScreenProps } from '@react-navigation/bottom-tabs/unstable';
+import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { colors, spacing } from '@/theme/tokens';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-screens/experimental';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
+import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 
-type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+type HomeScreenProps = CompositeScreenProps<
+  NativeBottomTabScreenProps<MainTabParamList, 'Home'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const db = useSQLiteContext();
@@ -64,6 +70,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   return (
     <View style={styles.container}>
       <SafeAreaView style={[styles.container, (isLoading || error !== null || !refrigerator) && styles.feedback]}
+        edges={{ top: true, bottom: true, left: true, right: true }}
         pointerEvents={activeFocus ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus}
         importantForAccessibility={activeFocus ? 'no-hide-descendants' : 'auto'}>
         {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" />

@@ -1,15 +1,15 @@
 /**
  * @file
  * RootNavigator는 앱에서 사용할 화면과 화면 전환 방식을 구성한다.
- * 로그인 분기 없이 홈 화면을 시작 화면으로 표시한다.
+ * 기본 하단 탭을 시작 화면으로 표시하고 냉장고 등록을 별도 화면으로 연다.
  */
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { HomeScreen } from '@/screens/HomeScreen';
+import { MainTabNavigator } from '@/navigation/MainTabNavigator';
 import { RefrigeratorRegistrationScreen } from '@/screens/RefrigeratorRegistrationScreen';
 
-// 화면 이름과 전달할 매개변수의 타입을 정의한다. 두 화면 모두 별도 매개변수가 없다.
+// 탭 전체와 냉장고 등록의 이동 경로를 정의한다. 두 화면 모두 별도 매개변수가 없다.
 export type RootStackParamList = {
-  Home: undefined;
+  MainTabs: undefined;
   RefrigeratorRegistration: undefined;
 };
 
@@ -24,7 +24,7 @@ export function RootNavigator() {
         headerShown: false,
       }}
     >
-      <Stack.Screen component={HomeScreen} name="Home" />
+      <Stack.Screen component={MainTabNavigator} name="MainTabs" />
       <Stack.Screen
         component={RefrigeratorRegistrationScreen}
         name="RefrigeratorRegistration"
