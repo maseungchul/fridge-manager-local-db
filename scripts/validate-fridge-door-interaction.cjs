@@ -83,7 +83,7 @@ class AnimatedValue {
 }
 const native = {
   View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', FlatList: 'FlatList', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
-  Keyboard: { dismiss() {} }, Platform: { OS: 'ios', Version: '26.1' },
+  Keyboard: { dismiss() {}, isVisible() { return false; }, addListener() { return { remove() {} }; } }, Platform: { OS: 'ios', Version: '26.1' },
   ActivityIndicator: 'ActivityIndicator', Alert: { alert(...args) { alerts.push(args); } },
   BackHandler: { addEventListener(event, handler) {
     assert.equal(event, 'hardwareBackPress');
@@ -121,7 +121,8 @@ let diagramLayoutModule;
 let iosHomeButtonModule;
 let defaultHomeButtonModule;
 const swiftUIModifiers = Object.fromEntries([
-  'accessibilityHint', 'accessibilityLabel', 'buttonBorderShape', 'buttonStyle', 'controlSize', 'disabled',
+  'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'buttonBorderShape', 'buttonStyle', 'controlSize', 'datePickerStyle',
+  'disabled', 'environment', 'frame', 'onGeometryChange', 'tint',
 ].map(name => [name, value => ({ type: name, value })]));
 function loadComponent(path, overrides = {}) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
@@ -139,12 +140,19 @@ function loadComponent(path, overrides = {}) {
     '@/components/QuantityStepper': quantityStepperModule,
     '@/constants/alertTitles': { alertTitles },
     '@/features/fridge/constants/messages': { fridgeMessages },
-    '@expo/ui/swift-ui': { Button: 'SwiftUIButton', Host: 'SwiftUIHost', Label: 'SwiftUILabel', RNHostView: 'RNHostView' },
+    '@expo/ui/swift-ui': { Button: 'SwiftUIButton', DatePicker: 'SwiftUIDatePicker', Host: 'SwiftUIHost', Label: 'SwiftUILabel', RNHostView: 'RNHostView', Spacer: 'SwiftUISpacer' },
     '@expo/ui/swift-ui/modifiers': swiftUIModifiers,
+    '@expo/ui/jetpack-compose': { Box: 'ComposeBox', Host: 'ComposeHost' },
+    '@expo/ui/jetpack-compose/modifiers': {
+      fillMaxSize: () => ({ type: 'fillMaxSize' }),
+      onGloballyPositioned: callback => ({ type: 'onGloballyPositioned', value: callback }),
+    },
     '@expo/ui/community/bottom-sheet': { BottomSheet: 'BottomSheet' },
     '@/features/ingredient/model/ingredient': ingredientModel,
     '@expo/ui/community/datetime-picker': { DateTimePicker: 'DateTimePicker' },
     '@/features/ingredient/components/IngredientExpirationCalendar': { IngredientExpirationCalendar: 'IngredientExpirationCalendar' },
+    '@/features/ingredient/components/IngredientDateFieldAnchor': { IngredientDateFieldAnchor: 'IngredientDateFieldAnchor' },
+    '@/features/ingredient/components/IngredientExpirationDatePicker': { IngredientExpirationDatePicker: 'IngredientExpirationDatePicker' },
     '@/features/fridge/components/FridgeHomeButton': { FridgeHomeButton(props) {
       return (native.Platform.OS === 'ios' ? iosHomeButtonModule : defaultHomeButtonModule).FridgeHomeButton(props);
     } },
@@ -307,10 +315,17 @@ async function ingredientFormFixture(t, onClose = () => {}) {
   find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
   animations.at(-1).finish();
   sheet.render();
+  const input = label => find(sheet.tree, node => node.props.accessibilityLabel === label);
   return {
     sheet,
-    input: label => find(sheet.tree, node => node.props.accessibilityLabel === label),
+    input,
     save: () => find(sheet.tree, node => node.props.accessibilityLabel === '재료 등록'),
+    openCalendar() {
+      input('유통기한 날짜 선택').props.onPress();
+      sheet.render();
+      find(sheet.tree, node => node.type === 'IngredientDateFieldAnchor').props.onMeasure({ x: 24, y: 360, width: 327, height: 52 });
+      sheet.render();
+    },
   };
 }
 const moving = focus => find(focus.tree, node => typeof node.props?.onStartShouldSetResponder === 'function');
@@ -1694,7 +1709,7 @@ test('추가도 같은 시트의 축소 높이를 기본으로 사용하고 날�
   const previous = { ...ingredientRepository };
   t.after(() => Object.assign(ingredientRepository, previous));
   ingredientRepository.getIngredientsByPosition = async () => [];
-  const { sheet, input, save } = await ingredientFormFixture(t);
+  const { sheet, input, save, openCalendar } = await ingredientFormFixture(t);
   assert.equal(sheet.tree.type, 'BottomSheet');
   assert.equal(sheet.tree.props.index, 0);
   assert.equal(input('재료 시트 닫기'), undefined);
@@ -1721,13 +1736,19 @@ test('추가도 같은 시트의 축소 높이를 기본으로 사용하고 날�
   input('재료 수량').props.onChangeText('2개');
   sheet.render();
   assert.equal(save().props.disabled, false);
-  input('유통기한 날짜 선택').props.onPress();
-  sheet.render();
+  openCalendar();
   assert.equal(save().props.disabled, true);
   const picker = find(sheet.tree, node => node.type === 'IngredientExpirationCalendar');
   assert.equal(picker.props.value, null);
+  assert.deepEqual(picker.props.anchor, { x: 24, y: 360, width: 327, height: 52 });
+  assert.equal(find(find(sheet.tree, node => node.type === 'ScrollView'), node => node.type === 'IngredientExpirationCalendar'), undefined);
   assert.equal(find(sheet.tree, node => node.props.label === '이 날짜로 선택'), undefined);
-  picker.props.onSelect('2026-11-04');
+  picker.props.onDismiss();
+  sheet.render();
+  assert.equal(find(sheet.tree, node => node.type === 'IngredientExpirationCalendar'), undefined);
+  assert.equal(save().props.disabled, false);
+  openCalendar();
+  find(sheet.tree, node => node.type === 'IngredientExpirationCalendar').props.onSelect('2026-11-04');
   sheet.render();
   assert(find(input('유통기한 날짜 선택'), node => node.props.children === '2026-11-04'));
   assert.equal(find(sheet.tree, node => node.type === 'IngredientExpirationCalendar'), undefined);
@@ -1748,31 +1769,180 @@ test('추가도 같은 시트의 축소 높이를 기본으로 사용하고 날�
   assert.equal(input('재료 수량').props.value, '2개');
 });
 
-test('네이티브 달력은 날짜 변경을 즉시 전달하고 Android의 초기값 알림과 저장 중 입력을 제외한다', async t => {
+test('날짜 팝업은 키보드가 닫힌 뒤 네이티브 화면 좌표를 받고 이전 요청의 측정 결과를 무시한다', async t => {
+  const previousKeyboard = { ...native.Keyboard };
+  t.after(() => Object.assign(native.Keyboard, previousKeyboard));
+  let keyboardVisible = true;
+  let keyboardHidden;
+  native.Keyboard.isVisible = () => keyboardVisible;
+  native.Keyboard.addListener = (event, callback) => {
+    assert.equal(event, 'keyboardDidHide');
+    keyboardHidden = callback;
+    return { remove() {} };
+  };
+  const { sheet, input } = await ingredientFormFixture(t);
+  const measurement = () => find(sheet.tree, node => node.type === 'IngredientDateFieldAnchor');
+  const popup = () => find(sheet.tree, node => node.type === 'IngredientExpirationCalendar');
+  input('유통기한 날짜 선택').props.onPress();
+  sheet.render();
+  assert.equal(measurement(), undefined);
+  assert.equal(popup(), undefined);
+  input('재료 목록으로 돌아가기').props.onPress();
+  keyboardHidden();
+  sheet.render();
+  assert.equal(measurement(), undefined);
+  animations.at(-1).finish();
+  sheet.render();
+  input('재료 추가').props.onPress();
+  animations.at(-1).finish();
+  sheet.render();
+
+  input('유통기한 날짜 선택').props.onPress();
+  keyboardVisible = false;
+  keyboardHidden();
+  sheet.render();
+  const firstMeasurement = measurement().props.onMeasure;
+  input('재료 목록으로 돌아가기').props.onPress();
+  firstMeasurement({ x: 33, y: 752, width: 327, height: 52 });
+  sheet.render();
+  assert.equal(popup(), undefined);
+  animations.at(-1).finish();
+  sheet.render();
+  input('재료 추가').props.onPress();
+  animations.at(-1).finish();
+  sheet.render();
+  input('유통기한 날짜 선택').props.onPress();
+  sheet.render();
+  const earlierMeasurement = measurement().props.onMeasure;
+  input('유통기한 날짜 선택').props.onPress();
+  sheet.render();
+  const latestMeasurement = measurement().props.onMeasure;
+  earlierMeasurement({ x: 24, y: 330, width: 343, height: 52 });
+  sheet.render();
+  assert.equal(popup(), undefined);
+  const frame = { x: 33, y: 752, width: 327, height: 52 };
+  latestMeasurement(frame);
+  sheet.render();
+  assert.deepEqual(popup().props.anchor, frame);
+  assert.equal(measurement(), undefined);
+  latestMeasurement({ ...frame, y: 330 });
+  sheet.render();
+  assert.deepEqual(popup().props.anchor, frame);
+  popup().props.onDismiss();
+  latestMeasurement({ ...frame, y: 330 });
+  sheet.render();
+  assert.equal(popup(), undefined);
+});
+
+test('날짜 입력 영역은 iOS·Android 네이티브의 창 좌표와 실제 폭을 전달하고 터치를 가로채지 않는다', () => {
+  const frame = { x: 33, y: 752, width: 327, height: 52 };
+  for (const [platform, modifierType] of [['ios', 'onGeometryChange'], ['android', 'onGloballyPositioned']]) {
+    const { IngredientDateFieldAnchor } = loadComponent(`src/features/ingredient/components/IngredientDateFieldAnchor.${platform}.tsx`);
+    const measured = [];
+    const anchor = IngredientDateFieldAnchor({ onMeasure(value) { measured.push(value); } });
+    assert.equal(anchor.props.pointerEvents, 'none');
+    assert.deepEqual(anchor.props.style, native.StyleSheet.absoluteFill);
+    const observer = children(anchor)[0].props.modifiers.find(modifier => modifier.type === modifierType);
+    observer.value(frame);
+    assert.deepEqual(measured, [frame]);
+  }
+});
+
+test('iOS 날짜 선택기는 고정 프레임 여백을 제외해 측정하고 표시 배율을 보정하며 날짜 변경을 전달한다', t => {
+  const { IngredientExpirationDatePicker } = loadComponent('src/features/ingredient/components/IngredientExpirationDatePicker.ios.tsx');
+  const selected = [];
+  const measured = [];
+  const value = new Date(2028, 1, 29, 12);
+  const host = mount(IngredientExpirationDatePicker, {
+    value, width: 381.25, height: 375, disabled: false,
+    onChange(date) { selected.push(date); }, onContentHeight(height) { measured.push(height); },
+  });
+  t.after(() => host.unmount());
+  assert.equal(host.tree.type, 'SwiftUIHost');
+  assert.equal(host.tree.props.matchContents, false);
+  assert.equal(host.tree.props.style.height, 375);
+  assert.equal(host.tree.props.alignment, 'topLeading');
+  const picker = () => find(host.tree, node => node.type === 'SwiftUIDatePicker');
+  assert.strictEqual(picker().props.selection, value);
+  assert.deepEqual(picker().props.displayedComponents, ['date']);
+  const fixedFrame = () => picker().props.modifiers.find(modifier => modifier.type === 'frame').value;
+  assert.deepEqual(fixedFrame(), { width: 381.25, height: 375, alignment: 'topLeading' });
+  const measure = () => picker().props.modifiers.find(modifier => modifier.type === 'onGeometryChange').value;
+  assert(picker().props.modifiers.findIndex(modifier => modifier.type === 'onGeometryChange')
+    < picker().props.modifiers.findIndex(modifier => modifier.type === 'frame'));
+  measure()({ x: 24, y: 200, width: 305, height: 268 });
+  host.render();
+  assert.deepEqual(measured, [335]);
+  assert.equal(host.tree.props.style.height, 375);
+  measure()({ x: 24, y: 200, width: 305, height: 328 });
+  host.render();
+  assert.deepEqual(measured, [335, 410]);
+  assert.equal(host.tree.props.style.height, 410);
+  assert.equal(fixedFrame().height, 375);
+  const changed = new Date(2028, 2, 1, 12);
+  picker().props.onDateChange(changed);
+  assert.deepEqual(selected, [changed]);
+});
+
+test('날짜 팝업은 iOS의 높이를 일정하게 유지하고 버튼 위아래에 붙어 네이티브 날짜 변경을 전달한다', async t => {
   for (const platform of ['ios', 'android']) await t.test(platform, t => {
     const previousPlatform = native.Platform.OS;
+    const previousWindow = native.useWindowDimensions;
     native.Platform.OS = platform;
     t.after(() => { native.Platform.OS = previousPlatform; });
     const selected = [];
-    const calendar = mount(IngredientExpirationCalendar, { value: '2028-02-29', onSelect(date) { selected.push(date); } });
+    let dismissed = 0;
+    const calendar = mount(IngredientExpirationCalendar, {
+      value: '2028-02-29', anchor: { x: 24, y: 360, width: 327, height: 52 },
+      onSelect(date) { selected.push(date); }, onDismiss() { dismissed++; },
+    });
     t.after(() => calendar.unmount());
-    assert.equal(calendar.tree.type, 'DateTimePicker');
-    assert.equal(calendar.tree.props.display, 'inline');
-    assert.equal(calendar.tree.props.presentation, 'inline');
-    assert.equal(calendar.tree.props.value.getFullYear(), 2028);
-    assert.equal(calendar.tree.props.value.getMonth(), 1);
-    assert.equal(calendar.tree.props.value.getDate(), 29);
+    const picker = () => find(calendar.tree, node => node.type === 'IngredientExpirationDatePicker');
+    assert.equal(calendar.tree.type, 'Modal');
+    assert.equal(picker().props.value.getFullYear(), 2028);
+    assert.equal(picker().props.value.getMonth(), 1);
+    assert.equal(picker().props.value.getDate(), 29);
+    const popup = () => find(calendar.tree, node => node.type === 'View' && flattenStyle(node.props.style).position === 'absolute');
+    const calendarContent = find(calendar.tree, node => flattenStyle(node.props.style).transform);
+    if (platform === 'android') calendarContent.props.onLayout({ nativeEvent: { layout: { height: 340 } } });
+    else picker().props.onContentHeight(335);
+    calendar.render();
+    assert.equal(flattenStyle(popup().props.style).height, platform === 'ios' ? 290 : 362);
+    assert.equal(picker().props.height, platform === 'ios' ? 375 : undefined);
+    assert.equal(flattenStyle(popup().props.style).width, 327);
+    assert.equal(flattenStyle(popup().props.style).left, 24);
+    assert.equal(flattenStyle(calendarContent.props.style).transform[0].scale, platform === 'ios' ? 0.8 : 1);
+    assert(flattenStyle(popup().props.style).top >= 412);
+    assert(flattenStyle(popup().props.style).top + flattenStyle(popup().props.style).height <= 800);
+    native.useWindowDimensions = () => ({ width: 393, height: 852 });
+    t.after(() => { native.useWindowDimensions = previousWindow; });
+    calendar.props = { ...calendar.props, anchor: { x: 33, y: 752, width: 327, height: 52 } };
+    calendar.render();
+    assert.equal(flattenStyle(popup().props.style).width, 327);
+    assert.equal(flattenStyle(popup().props.style).left, 33);
+    assert.equal(flattenStyle(popup().props.style).height, platform === 'ios' ? 290 : 362);
+    assert.equal(flattenStyle(popup().props.style).top + flattenStyle(popup().props.style).height, 746);
+    native.useWindowDimensions = () => ({ width: 800, height: 1024 });
+    calendar.props = { ...calendar.props, anchor: { x: 123, y: 700, width: 327, height: 52 } };
+    calendar.render();
+    assert.equal(flattenStyle(popup().props.style).width, 327);
+    assert.equal(flattenStyle(popup().props.style).left, 123);
+    assert(flattenStyle(popup().props.style).top + flattenStyle(popup().props.style).height <= 700);
+    calendar.tree.props.onRequestClose();
+    find(calendar.tree, node => node.props.accessibilityLabel === '유통기한 달력 닫기').props.onPress();
+    children(calendar.tree)[0].props.onAccessibilityEscape();
+    assert.equal(dismissed, 3);
     assert.deepEqual(selected, []);
     if (platform === 'android') {
-      calendar.tree.props.onValueChange({}, new Date(2028, 1, 29, 0, 0));
+      picker().props.onChange(new Date(2028, 1, 29, 0, 0));
       assert.deepEqual(selected, []);
     }
-    calendar.tree.props.onValueChange({}, new Date(2028, 2, 1, 0, 30));
+    picker().props.onChange(new Date(2028, 2, 1, 0, 30));
     assert.deepEqual(selected, ['2028-03-01']);
     calendar.props = { ...calendar.props, disabled: true };
     calendar.render();
-    assert.equal(calendar.tree.props.disabled, true);
-    calendar.tree.props.onValueChange({}, new Date(2028, 2, 2, 23, 30));
+    assert.equal(picker().props.disabled, true);
+    picker().props.onChange(new Date(2028, 2, 2, 23, 30));
     assert.deepEqual(selected, ['2028-03-01']);
   });
 });
@@ -1879,11 +2049,10 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
     assert.equal(input.expirationDate, '2026-11-30');
     return persisted;
   };
-  const { sheet, input, save } = await ingredientFormFixture(t);
+  const { sheet, input, save, openCalendar } = await ingredientFormFixture(t);
   input('재료명').props.onChangeText('우유');
   input('재료 수량').props.onChangeText('반 통');
-  input('유통기한 날짜 선택').props.onPress();
-  sheet.render();
+  openCalendar();
   find(sheet.tree, node => node.type === 'IngredientExpirationCalendar').props.onSelect('2026-11-30');
   sheet.render();
   const alertCount = alerts.length;

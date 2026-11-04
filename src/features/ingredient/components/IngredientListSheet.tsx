@@ -5,6 +5,7 @@
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
+import type { LayoutRectangle } from 'react-native';
 import { BottomSheet } from '@expo/ui/community/bottom-sheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -16,6 +17,7 @@ import { getIngredientsByPosition, registerIngredient } from '@/db/ingredientRep
 import type { SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
+import { IngredientDateFieldAnchor } from '@/features/ingredient/components/IngredientDateFieldAnchor';
 import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -30,6 +32,7 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
   const db = useSQLiteContext();
   const sheetRef = useRef<BottomSheet>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
+  const datePicker = useRef<{ request: number; keyboardSubscription?: ReturnType<typeof Keyboard.addListener> }>({ request: 0 });
   const saving = useRef(false);
   const transition = useRef<{ active: boolean; animation?: Animated.CompositeAnimation }>({ active: false });
   const panelProgress = useAnimatedValue(0);
@@ -42,7 +45,9 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
   const [draft, setDraft] = useState<Pick<Ingredient, 'name' | 'quantity' | 'expirationDate'>>({
     name: '', quantity: '', expirationDate: null,
   });
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [datePickerAnchor, setDatePickerAnchor] = useState<LayoutRectangle | null>(null);
+  const [datePickerMeasurement, setDatePickerMeasurement] = useState<number | null>(null);
+  const isDatePickerOpen = datePickerAnchor !== null;
   const [reloadCount, setReloadCount] = useState(0);
   const [result, setResult] = useState<{ requestKey: string; ingredients: Ingredient[]; error: string | null } | null>(null);
   const { slotId } = position;
@@ -53,7 +58,7 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
   const error = currentResult?.error ?? null;
   const isLoading = currentResult === null;
   const canSave = !!draft.name.trim() && !!draft.quantity.trim()
-    && draft.name.trim().length <= 50 && draft.quantity.trim().length <= 50 && !isDatePickerOpen;
+    && draft.name.trim().length <= 50 && draft.quantity.trim().length <= 50 && !isDatePickerOpen && datePickerMeasurement === null;
 
   useEffect(() => {
     let active = true;
@@ -72,7 +77,13 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
 
   useEffect(() => {
     const currentTransition = transition.current;
-    return () => { currentTransition.active = false; currentTransition.animation?.stop(); };
+    const currentDatePicker = datePicker.current;
+    return () => {
+      currentTransition.active = false;
+      currentTransition.animation?.stop();
+      currentDatePicker.request++;
+      currentDatePicker.keyboardSubscription?.remove();
+    };
   }, []);
 
   // 제목·버튼·본문을 함께 전환하고 완료 전까지 연속 조작을 막는다.
@@ -102,6 +113,7 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
 
   function closeSheet() {
     if (saving.current || transition.current.active) return;
+    dismissDatePicker();
     Keyboard.dismiss();
     sheetRef.current?.close();
   }
@@ -109,27 +121,48 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
   function returnToList() {
     if (saving.current || transition.current.active) return;
     Keyboard.dismiss();
-    setIsDatePickerOpen(false);
+    dismissDatePicker();
     setSaveError(null);
     changePanel(false);
   }
 
+  function dismissDatePicker() {
+    datePicker.current.request++;
+    datePicker.current.keyboardSubscription?.remove();
+    datePicker.current.keyboardSubscription = undefined;
+    setDatePickerMeasurement(null);
+    setDatePickerAnchor(null);
+  }
+
   function toggleDatePicker() {
     if (saving.current || transition.current.active) return;
+    dismissDatePicker();
+    if (isDatePickerOpen) return;
+    const request = datePicker.current.request;
+    const measureAnchor = () => {
+      if (request !== datePicker.current.request || saving.current || transition.current.active) return;
+      datePicker.current.keyboardSubscription?.remove();
+      datePicker.current.keyboardSubscription = undefined;
+      setDatePickerMeasurement(request);
+    };
+    // 키보드가 사라진 뒤 네이티브 측정기를 새로 마운트해 최종 화면 위치를 받는다.
+    const keyboardVisible = Keyboard.isVisible();
+    if (keyboardVisible) datePicker.current.keyboardSubscription = Keyboard.addListener('keyboardDidHide', measureAnchor);
     Keyboard.dismiss();
-    setIsDatePickerOpen(!isDatePickerOpen);
+    if (!keyboardVisible) measureAnchor();
   }
 
   function selectExpirationDate(date: string) {
     if (saving.current || transition.current.active) return;
     setDraft(current => ({ ...current, expirationDate: date }));
-    setIsDatePickerOpen(false);
+    dismissDatePicker();
   }
 
   async function saveIngredient() {
     if (saving.current || transition.current.active || !canSave) return;
     saving.current = true;
     setIsSaving(true);
+    dismissDatePicker();
     setSaveError(null);
     Keyboard.dismiss();
     try {
@@ -213,6 +246,15 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
                               onChangeText={quantity => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, quantity })); }} />
                             <Text style={styles.fieldLabel}>유통기한 (선택)</Text>
                             <View style={styles.dateRow}>
+                              {datePickerMeasurement !== null ? (
+                                <IngredientDateFieldAnchor key={datePickerMeasurement} onMeasure={frame => {
+                                  if (datePickerMeasurement !== datePicker.current.request || saving.current || transition.current.active
+                                    || frame.width <= 0 || frame.height <= 0) return;
+                                  datePicker.current.request++;
+                                  setDatePickerMeasurement(null);
+                                  setDatePickerAnchor(frame);
+                                }} />
+                              ) : null}
                               <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 날짜 선택"
                                 accessibilityState={{ disabled: isSaving || isChanging, expanded: isDatePickerOpen }}
                                 disabled={isSaving} interactionBlocked={isChanging}
@@ -226,17 +268,12 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
                                   onPress={() => {
                                     if (saving.current || transition.current.active) return;
                                     setDraft(current => ({ ...current, expirationDate: null }));
-                                    setIsDatePickerOpen(false);
+                                    dismissDatePicker();
                                   }}>
                                   <Text style={styles.clearDate}>선택 해제</Text>
                                 </FeedbackPressable>
                               ) : null}
                             </View>
-                            {isDatePickerOpen ? (
-                              <View style={styles.calendar}>
-                                <IngredientExpirationCalendar value={draft.expirationDate} disabled={isSaving || isChanging} onSelect={selectExpirationDate} />
-                              </View>
-                            ) : null}
                             {saveError ? <Text accessibilityRole="alert" style={styles.error}>{saveError}</Text> : null}
                           </ScrollView>
                         ) : isLoading ? (
@@ -279,6 +316,10 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
               ))}
             </Animated.View>
           </View>
+          {datePickerAnchor ? (
+            <IngredientExpirationCalendar value={draft.expirationDate} anchor={datePickerAnchor}
+              disabled={isSaving || isChanging} onSelect={selectExpirationDate} onDismiss={dismissDatePicker} />
+          ) : null}
         </View>
     </BottomSheet>
   );
@@ -334,5 +375,4 @@ const styles = StyleSheet.create({
     gap: spacing.sm, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
   clearDateButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: 10 },
   clearDate: { color: colors.textMuted, fontSize: 14 },
-  calendar: { marginTop: spacing.md, gap: spacing.sm, marginBottom: spacing.md },
 });
