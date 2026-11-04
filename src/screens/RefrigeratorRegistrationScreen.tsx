@@ -70,6 +70,7 @@ export function RefrigeratorRegistrationScreen({
   const [step, setStep] = useState<RegistrationStep>('basic');
   const [menuCategory, setMenuCategory] = useState<FridgeMenuCategory | null>(null);
   const [slotIndex, setSlotIndex] = useState(0);
+  const [selectedPositionId, setSelectedPositionId] = useState<string | undefined>(undefined);
   const [isStepChanging, setIsStepChanging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [stepWidth, setStepWidth] = useState(windowWidth);
@@ -220,6 +221,7 @@ export function RefrigeratorRegistrationScreen({
     Keyboard.dismiss();
     setMenuCategory(null);
     setSlotIndex(0);
+    setSelectedPositionId(undefined);
     resetFocus();
     stepScrolls[nextStep].current?.scrollTo({ y: 0, animated: false });
     stepChanging.current = true;
@@ -240,7 +242,10 @@ export function RefrigeratorRegistrationScreen({
   function selectArea(id: string) {
     if (saving.current) return;
     Keyboard.dismiss();
-    if (id !== selectedAreaId) setSlotIndex(0);
+    if (id !== selectedAreaId) {
+      setSlotIndex(0);
+      setSelectedPositionId(undefined);
+    }
     setSelectedAreaId(id);
   }
 
@@ -248,6 +253,7 @@ export function RefrigeratorRegistrationScreen({
     if (saving.current || activeFocus || stepChanging.current) return;
     openFocus(target);
     setSlotIndex(0);
+    setSelectedPositionId(undefined);
   }
 
   // 문 수납을 꺼도 문 식별자·방향·칸 입력은 유지해 다시 켤 수 있다.
@@ -264,7 +270,10 @@ export function RefrigeratorRegistrationScreen({
     if (saving.current || isMergedBody) return;
     Keyboard.dismiss();
     setDraft(current => setDraftDoorOpening(current, selectedRow.id, doorId, opening));
-    if (opening === 'DRAWER') setSlotIndex(0);
+    if (opening === 'DRAWER') {
+      setSlotIndex(0);
+      setSelectedPositionId(undefined);
+    }
   }
 
   function updateSlots(update: (slots: SlotConfiguration[]) => SlotConfiguration[]) {
@@ -280,6 +289,7 @@ export function RefrigeratorRegistrationScreen({
   function changeSlotCount(delta: -1 | 1) {
     Keyboard.dismiss();
     if (delta === -1) setSlotIndex(index => Math.max(0, Math.min(index, selectedArea.slots.length - 2)));
+    if (delta === -1 && slotIndex >= selectedArea.slots.length - 1) setSelectedPositionId(undefined);
     updateSlots(slots => {
       const nextCount = slots.length + delta;
       if (nextCount < 1 || nextCount > maxSlotCount) return slots;
@@ -288,7 +298,10 @@ export function RefrigeratorRegistrationScreen({
   }
 
   function updateSlot(index: number, changes: Partial<SlotConfiguration>) {
-    if (selectedDoor && changes.drawerCount !== undefined) return;
+    if (saving.current || selectedDoor && changes.drawerCount !== undefined) return;
+    if (changes.drawerCount !== undefined && changes.drawerCount !== selectedArea.slots[index]?.drawerCount) {
+      setSelectedPositionId(undefined);
+    }
     updateSlots(slots => slots.map((slot, slotIndex) => slotIndex === index ? { ...slot, ...changes } : slot));
   }
 
@@ -470,7 +483,8 @@ export function RefrigeratorRegistrationScreen({
                     scrollHintEnabled={!hasSeenScrollHint} onScrollHintSeen={markScrollHintSeen}
                     scrollHintBlocked={activeMenuCategory !== null}
                     selectedSlotIndex={activeMenuCategory === 'slots' && canEditSlotStructure ? selectedSlotIndex : undefined}
-                    onSelectSlot={(areaId, index) => { selectArea(areaId); setSlotIndex(index); }}
+                    selectedPositionId={selectedPositionId}
+                    onSelectSlot={(areaId, index, positionId) => { selectArea(areaId); setSlotIndex(index); setSelectedPositionId(positionId); }}
                     onPhaseChange={finishFocusTransition} onClose={closeFocusedArea} onSelectArea={selectArea} />
                 ) : null}
               </View>
@@ -499,6 +513,7 @@ export function RefrigeratorRegistrationScreen({
                         if (saving.current) return;
                         setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id));
                         setSlotIndex(0);
+                        setSelectedPositionId(undefined);
                         setFocusTarget(current => current ? { ...current, returnAreaId: selectedBody.doorIds[0] } : current);
                       } : undefined}
                     mergeDisabled={!adjacentBody}
@@ -507,6 +522,7 @@ export function RefrigeratorRegistrationScreen({
                         if (saving.current) return;
                         setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id, activeFocus.returnAreaId));
                         setSlotIndex(0);
+                        setSelectedPositionId(undefined);
                       } : undefined}
                   />
                 </View>

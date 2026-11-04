@@ -1,7 +1,7 @@
 /**
  * @file
  * 홈 화면의 냉장고 배치도에서 영역·칸과 칸별 재료 수를 표시한다.
- * 홈은 본체의 행·포켓의 수납함 전면을 선택하고, 등록 미리보기는 영역 전체를 강조한다.
+ * 홈은 본체의 칸·좌우 위치와 포켓의 수납함 전면을 선택하고, 등록 미리보기는 영역 전체를 강조한다.
  * 홈과 최초 등록 미리보기에서 공유하며 선택 상태와 데이터 변경은 호출자가 관리한다.
  */
 import type { ReactNode } from 'react';
@@ -14,24 +14,28 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotConfiguration, SlotPosition, StorageMode } from '../model/fridgeLayout';
 
 const BODY_SHELF_HEIGHT = 4;
-const BODY_SHELF_SIDE_INSET = 3;
+const CELL_SEPARATOR_INSET = 4;
+const BODY_CELL_GAP = BODY_SHELF_HEIGHT + CELL_SEPARATOR_INSET * 2;
+const BODY_EDGE_INSET = BODY_CELL_GAP / 2;
+const BODY_CELL_RADIUS = 6;
 const AREA_CONTENT_PADDING = 5;
 const POSITION_SEPARATOR_WIDTH = 1;
 const MIN_EDIT_CELL_SIZE = 72;
 const POCKET_BORDER_WIDTH = 3;
 const POCKET_BOTTOM_RADIUS = 12;
 
-/** 프레임·이름·선반 공간을 더해 실제 수납 칸마다 최소 편집 크기를 확보한다. */
+/** 프레임·이름·구분선과 여백을 더해 실제 수납 칸마다 최소 편집 크기를 확보한다. */
 export function getFridgeAreaEditSize(slots: readonly SlotConfiguration[], isBody: boolean) {
   const slotCount = Math.max(1, slots.length);
   const columns = Math.max(1, ...slots.map(slot => slot.drawerCount === 2 ? 2 : 1));
   const innerMargin = fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth;
+  const horizontalPadding = isBody ? BODY_EDGE_INSET : AREA_CONTENT_PADDING;
   return {
-    width: fridgeSurfaces.frameWidth * 2 + innerMargin * 2 + AREA_CONTENT_PADDING * 2
-      + columns * MIN_EDIT_CELL_SIZE + (columns - 1) * POSITION_SEPARATOR_WIDTH,
+    width: fridgeSurfaces.frameWidth * 2 + innerMargin * 2 + horizontalPadding * 2
+      + columns * MIN_EDIT_CELL_SIZE + (columns - 1) * (isBody ? BODY_CELL_GAP : POSITION_SEPARATOR_WIDTH),
     height: fridgeSurfaces.frameWidth * 2 + fridgeSurfaces.headerHeight + innerMargin
-      + AREA_CONTENT_PADDING * (isBody ? 2 : 1) + slotCount * MIN_EDIT_CELL_SIZE
-      + (isBody ? (slotCount - 1) * BODY_SHELF_HEIGHT : 0),
+      + (isBody ? BODY_EDGE_INSET * 2 : AREA_CONTENT_PADDING) + slotCount * MIN_EDIT_CELL_SIZE
+      + (isBody ? (slotCount - 1) * BODY_CELL_GAP : 0),
   };
 }
 
@@ -69,9 +73,9 @@ interface FridgeMapProps {
   onSelectPosition?: (id: string) => void;
   // 등록 도면은 칸 대신 문·본체 전체에서 터치와 눌림 효과를 처리한다.
   onSelectArea?: (id: string) => void;
-  // 홈과 등록 툴바의 칸 구성은 좌우 분할을 한 칸으로 묶어 선택한다.
+  // 칸 구성은 행 번호를 유지하고 좌우 분할의 개별 선택 ID를 함께 전달한다.
   selectedSlotIndex?: number;
-  onSelectSlot?: (index: number) => void;
+  onSelectSlot?: (index: number, positionId?: string) => void;
 }
 
 /** 일반 문은 세로 막대, 서랍은 상단에 파인 사다리꼴 홈으로 표시한다. */
@@ -143,7 +147,6 @@ export function FridgeMap({
   const slotInteraction = !!onSelectSlot;
   const positionInteraction = !groupInteraction && !slotInteraction;
   const Area = groupInteraction ? Pressable : View;
-  const Position = positionInteraction ? FeedbackPressable : View;
   const palette = storageMode ? fridgeDoorColors[storageMode] : null;
   const selectionColor = palette?.ink ?? fridgeSurfaces.handle;
   const shelfTheme = palette && { backgroundColor: palette.shelf };
@@ -162,7 +165,7 @@ export function FridgeMap({
       {areas.map(area => {
         const areaSelected = selectedAreaId === area.id;
         const rowInteraction = slotInteraction && area.isBody;
-        const Slot = rowInteraction ? Pressable : View;
+        const Position = rowInteraction ? Pressable : positionInteraction ? FeedbackPressable : View;
         return (
           <View key={area.id} style={[styles.area, { flex: area.isBody ? 1 : doorFlex }]}>
             {/* 홈은 칸별로, 등록 도면은 문·본체 전체를 한 번에 눌러 선택한다. */}
@@ -184,34 +187,38 @@ export function FridgeMap({
                   // 위→아래 칸 순서를 유지하고 같은 칸의 좌우 분할만 한 행에 묶는다.
                   const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
                   const slotLabel = `${area.compartment} → ${area.name} → ${getSlotName(slotIndex)}`;
+                  // 칸 삭제·분할 변경으로 선택 ID가 사라지면 해당 행의 첫 위치를 선택한다.
+                  const selectedSlotPositionId = slotPositions.some(position => position.id === selectedPositionId)
+                    ? selectedPositionId : firstPosition.id;
                   return (
-                    <Slot key={firstPosition.slotId} accessibilityRole={rowInteraction ? 'button' : undefined}
-                      accessibilityLabel={rowInteraction ? slotLabel : undefined}
-                      accessibilityState={rowInteraction ? { selected: selectedSlotIndex === slotIndex, disabled } : undefined}
-                      disabled={disabled} onPress={rowInteraction ? event => { event.stopPropagation(); onSelectSlot?.(slotIndex); } : undefined}
+                    <View key={firstPosition.slotId}
                       style={[styles.slot, area.isBody && slotIndex > 0 && styles.slotSeparator]}>
-                      {rowInteraction && selectedSlotIndex === slotIndex ? (
-                        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-                          style={[styles.slotHighlight, slotSelection]} />
-                      ) : null}
                       <View style={styles.slotRow}>
                         {slotPositions.map((position, positionIndex) => {
-                          const selected = selectedAreaId ? areaSelected : selectedPositionId === position.id;
+                          const selected = rowInteraction
+                            ? selectedSlotIndex === slotIndex && selectedSlotPositionId === position.id
+                            : selectedAreaId ? areaSelected : selectedPositionId === position.id;
                           return (
-                            <Position key={position.id} accessible={positionInteraction ? undefined : false}
-                              accessibilityRole={positionInteraction ? 'button' : undefined} accessibilityLabel={getPositionPath(area, position)}
+                            <Position key={position.id} accessible={rowInteraction || positionInteraction ? undefined : false}
+                              accessibilityRole={rowInteraction || positionInteraction ? 'button' : undefined} accessibilityLabel={getPositionPath(area, position)}
                               accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
-                              accessibilityState={{ selected, disabled }} disabled={disabled} onPress={positionInteraction ? () => onSelectPosition?.(position.id) : undefined}
-                              style={[styles.position, positionIndex > 0 && styles.positionSeparator,
+                              accessibilityState={{ selected, disabled }} disabled={disabled}
+                              onPress={rowInteraction ? event => { event.stopPropagation(); onSelectSlot?.(slotIndex, position.id); }
+                                : positionInteraction ? () => onSelectPosition?.(position.id) : undefined}
+                              style={[styles.position, positionIndex > 0 && (area.isBody ? styles.bodyPositionSeparator : styles.positionSeparator),
                                 compact && styles.compactPosition, fitHeight && styles.fittedPosition, !area.isBody && styles.pocketPosition, groupInteraction && styles.groupPosition]}>
+                              {rowInteraction && selected ? (
+                                <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                                  style={[styles.bodyCellHighlight, slotSelection]} />
+                              ) : null}
                               {positionIndex > 0 ? (
                                 <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-                                  style={[styles.positionDivider, shelfTheme]} />
+                                  style={[styles.positionDivider, area.isBody && styles.bodyPositionDivider, shelfTheme]} />
                               ) : null}
                               {!area.isBody ? <DoorPocketBin style={pocketTheme} selectionStyle={slotSelection}
                                 selected={slotInteraction && selectedSlotIndex === slotIndex} disabled={disabled}
                                 label={slotInteraction ? slotLabel : undefined}
-                                onSelect={slotInteraction ? () => onSelectSlot?.(slotIndex) : undefined} /> : null}
+                                onSelect={slotInteraction ? () => onSelectSlot?.(slotIndex, firstPosition.id) : undefined} /> : null}
                               {/* 좌우 분할은 서로 다른 선택 ID로 재료 수를 집계한다. */}
                               {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
                               {selected && positionInteraction && !selectedAreaId ? (
@@ -225,7 +232,7 @@ export function FridgeMap({
                       {area.isBody && slotIndex > 0 ? (
                         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.bodyShelf, shelfTheme]} />
                       ) : null}
-                    </Slot>
+                    </View>
                   );
                 })}
               </View>
@@ -294,34 +301,33 @@ const styles = StyleSheet.create({
     borderRadius: fridgeSurfaces.cavityRadius,
     overflow: 'hidden',
   },
-  // 본체 바깥 여백도 위아래로 맞춰 첫 칸과 마지막 칸의 선택 배경이 같은 간격을 유지한다.
+  // 구분선 중심까지의 반간격을 바깥에도 적용하고 선택 배경과 외곽 모서리의 중심을 맞춘다.
   bodyContent: {
-    paddingTop: AREA_CONTENT_PADDING,
+    paddingHorizontal: BODY_EDGE_INSET,
+    paddingTop: BODY_EDGE_INSET,
+    paddingBottom: BODY_EDGE_INSET,
+    borderRadius: BODY_EDGE_INSET + BODY_CELL_RADIUS,
   },
   slot: {
     flex: 1,
   },
-  // 선반을 제외한 각 수납 칸 안에서 같은 여백으로 선택 배경을 칠한다.
-  slotHighlight: {
-    position: 'absolute',
-    left: BODY_SHELF_SIDE_INSET,
-    right: BODY_SHELF_SIDE_INSET,
-    top: 4,
-    bottom: 4,
-    borderRadius: 6,
+  // 좌우 분할도 선택한 위치의 내부 면만 칠하고 구분선 주변은 비워 둔다.
+  bodyCellHighlight: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: BODY_CELL_RADIUS,
     overflow: 'hidden',
   },
-  // 선반 공간을 칸 바깥에 확보해 실제 수납 칸을 같은 높이로 배분한다.
+  // 선반과 양옆 여백을 칸 바깥에 확보해 선택 배경과 선반이 겹치지 않게 한다.
   slotSeparator: {
-    marginTop: BODY_SHELF_HEIGHT,
+    marginTop: BODY_CELL_GAP,
   },
   bodyShelf: {
     position: 'absolute',
-    left: BODY_SHELF_SIDE_INSET,
-    right: BODY_SHELF_SIDE_INSET,
-    top: -BODY_SHELF_HEIGHT,
+    left: 0,
+    right: 0,
+    top: -(BODY_CELL_GAP + BODY_SHELF_HEIGHT) / 2,
     height: BODY_SHELF_HEIGHT,
-    borderRadius: 2,
+    borderRadius: 0,
     backgroundColor: fridgeSurfaces.shelf,
   },
   pocketBin: {
@@ -365,15 +371,24 @@ const styles = StyleSheet.create({
     borderLeftWidth: POSITION_SEPARATOR_WIDTH,
     borderLeftColor: 'transparent',
   },
-  // 기존 분할 경계 위에 선반과 같은 단면을 겹쳐 칸 배치·터치 너비는 유지한다.
+  bodyPositionSeparator: {
+    marginLeft: BODY_CELL_GAP,
+  },
+  // 구분선은 터치와 접근성 탐색을 가로채지 않는 별도 장식으로 표시한다.
   positionDivider: {
     position: 'absolute',
     left: -(BODY_SHELF_HEIGHT + POSITION_SEPARATOR_WIDTH) / 2,
-    top: 4,
-    bottom: 4,
+    top: CELL_SEPARATOR_INSET,
+    bottom: CELL_SEPARATOR_INSET,
     width: BODY_SHELF_HEIGHT,
-    borderRadius: 2,
+    borderRadius: 0,
     backgroundColor: fridgeSurfaces.shelf,
+  },
+  // 좌우 칸 사이의 중앙에 놓고 모든 행에서 선택 배경과 같은 높이로 끝낸다.
+  bodyPositionDivider: {
+    left: -(BODY_CELL_GAP + BODY_SHELF_HEIGHT) / 2,
+    top: 0,
+    bottom: 0,
   },
   // 포켓의 둥근 바닥과 칸 아래 여백을 같은 위치에 맞춘다.
   pocketPosition: {

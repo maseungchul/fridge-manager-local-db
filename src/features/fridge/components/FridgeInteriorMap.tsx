@@ -181,12 +181,13 @@ function SelectionFrame({ storageMode, style }: { storageMode: StorageMode | nul
 }
 
 /** 열린 본체에는 보관 모드의 공간 이름을, 문 수납에는 도어포켓 이름만 표시한다. */
-function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyle, onSelectArea, selectedSlotIndex, onSelectSlot, disabled = false }: {
+function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyle, onSelectArea, selectedSlotIndex, selectedPositionId, onSelectSlot, disabled = false }: {
   area: StorageArea; layout: FridgeLayout; compact: boolean; selected: boolean;
   storageMode: StorageMode | null; onSelectArea?: FridgeInteriorMapProps['onSelectArea'];
   cornerStyle?: ViewStyle;
   selectedSlotIndex?: number;
-  onSelectSlot?: (index: number) => void;
+  selectedPositionId?: string;
+  onSelectSlot?: (index: number, positionId?: string) => void;
   disabled?: boolean;
 }) {
   const positions = layout.positions.filter(position => position.areaId === area.id);
@@ -206,7 +207,7 @@ function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyl
         ingredients={layout.ingredients} selectedAreaId={onSelectArea && selected ? area.id : undefined} showIngredientCounts={false}
         showAreaLabels={false} minAreaHeight={0} fitHeight storageMode={storageMode} cornerStyle={cornerStyle}
         compact={compact} style={styles.areaMap} areaHeader={header}
-        selectedSlotIndex={selectedSlotIndex} onSelectSlot={onSelectSlot}
+        selectedSlotIndex={selectedSlotIndex} selectedPositionId={selectedPositionId} onSelectSlot={onSelectSlot}
         disabled={disabled}
         onSelectArea={onSelectArea ? () => onSelectArea(area.id) : undefined} />}
       {selected && onSelectArea ? <SelectionFrame storageMode={storageMode} style={[StyleSheet.absoluteFill, cornerStyle]} /> : null}
@@ -487,7 +488,7 @@ function FridgeScrollHint({ enabled, dismissed, viewport, onSeen }: {
 /** 연결된 문은 함께 펼치고, 홈은 칸 선택·등록과 편집은 영역 선택을 호출자에게 전달한다. */
 export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId,
   scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea,
-  selectedSlotIndex, onSelectSlot, sizeViewport }: {
+  selectedSlotIndex, selectedPositionId, onSelectSlot, sizeViewport }: {
   draft: FridgeInteriorMapProps['draft']; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
   overlayHeight?: number;
   sizeViewport?: FridgeDiagramSize;
@@ -495,7 +496,8 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   scrollHintEnabled?: boolean; scrollHintBlocked?: boolean; onScrollHintSeen?: () => void;
   onSelectArea?: FridgeInteriorMapProps['onSelectArea'];
   selectedSlotIndex?: number;
-  onSelectSlot?: (areaId: string, index: number) => void;
+  selectedPositionId?: string;
+  onSelectSlot?: (areaId: string, index: number, positionId?: string) => void;
 }) {
   const progress = useAnimatedValue(0);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -586,9 +588,10 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
           importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={StyleSheet.absoluteFill}>
           <InteriorArea area={area} layout={layout} selected={selectedAreaId === area.id} storageMode={group.body.storageMode}
+            selectedPositionId={selectedAreaId === area.id ? selectedPositionId : undefined}
             selectedSlotIndex={selectedAreaId === area.id ? selectedSlotIndex : undefined} disabled={!onSelectArea && !open}
             onSelectSlot={onSelectSlot && (!onSelectArea || open && selectedSlotIndex !== undefined)
-              ? index => { if (open) onSelectSlot(area.id, index); } : undefined}
+              ? (index, positionId) => { if (open) onSelectSlot(area.id, index, positionId); } : undefined}
             cornerStyle={bodyCorners} compact={body.width < 120} onSelectArea={onSelectArea} />
         </View>
         {doors.map(({ door, frame, pocket, unfoldOffset }) => {
@@ -605,7 +608,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
               {pocket ? <InteriorArea area={layout.areas.find(candidate => candidate.id === door.id)!} layout={layout}
                 selected={selectedAreaId === door.id} storageMode={group.body.storageMode} compact={pocket.frame.width < 120}
                 selectedSlotIndex={!onSelectArea && selectedAreaId === door.id ? selectedSlotIndex : undefined} disabled={!onSelectArea && !open}
-                onSelectSlot={!onSelectArea && onSelectSlot ? index => { if (open) onSelectSlot(door.id, index); } : undefined}
+                onSelectSlot={!onSelectArea && onSelectSlot ? (index, positionId) => { if (open) onSelectSlot(door.id, index, positionId); } : undefined}
                 cornerStyle={getGridCorners(gridEdges, true)} onSelectArea={onSelectArea} /> : null}
             </FridgeDoor>
           );

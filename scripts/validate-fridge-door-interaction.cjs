@@ -1259,7 +1259,7 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
   }
 });
 
-test('홈은 본체 행·포켓 전면만 선택하고 닫기·재조회 시 선택을 초기화한다', async t => {
+test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫기·재조회 시 선택을 초기화한다', async t => {
   const previous = repository.getRefrigerator;
   t.after(() => { repository.getRefrigerator = previous; });
   const saved = savedRefrigerator('칸 선택용 냉장고');
@@ -1359,16 +1359,20 @@ test('홈은 본체 행·포켓 전면만 선택하고 닫기·재조회 시 선
   animations.at(-1).finish();
   refresh();
   const animationCount = animations.length;
-  const expectedIds = [
-    row.compartments[0].slots[0].id, 'ordinary-slot', ...row.doors[0].slots.map(slot => slot.id),
+  const expected = [
+    { id: `${row.compartments[0].slots[0].id}-left`, slotIndex: 0, areaId: row.compartments[0].id },
+    { id: `${row.compartments[0].slots[0].id}-right`, slotIndex: 0, areaId: row.compartments[0].id },
+    { id: 'ordinary-slot', slotIndex: 1, areaId: row.compartments[0].id },
+    ...row.doors[0].slots.map((slot, index) => ({ id: slot.id, slotIndex: index, areaId: row.doors[0].id })),
   ];
-  assert.equal(slots().length, expectedIds.length);
-  for (const [index, id] of expectedIds.entries()) {
+  assert.equal(slots().length, expected.length);
+  for (const [index, { id, slotIndex, areaId }] of expected.entries()) {
     assert.equal(slots()[index].button.props.disabled, false);
     press(slots()[index]);
     refresh();
-    assert.equal(focus().props.selectedSlotIndex, index % 2);
-    assert.equal(focus().props.selectedAreaId, index < 2 ? row.compartments[0].id : row.doors[0].id);
+    assert.equal(focus().props.selectedSlotIndex, slotIndex);
+    assert.equal(focus().props.selectedPositionId, id);
+    assert.equal(focus().props.selectedAreaId, areaId);
     const selected = slots().filter(slot => slot.button.props.accessibilityState.selected);
     assert.equal(selected.length, 1);
     assert.equal(selected[0].id, id);
@@ -1392,6 +1396,7 @@ test('홈은 본체 행·포켓 전면만 선택하고 닫기·재조회 시 선
   assert.equal(focus(), undefined);
   open();
   assert.equal(focus().props.selectedSlotIndex, undefined);
+  assert.equal(focus().props.selectedPositionId, undefined);
   focus().props.onPhaseChange('open');
   home.render();
   focus().props.onSelectSlot(row.compartments[0].id, 0);
@@ -1403,6 +1408,7 @@ test('홈은 본체 행·포켓 전면만 선택하고 닫기·재조회 시 선
   assert.equal(reads, 2);
   open();
   assert.equal(focus().props.selectedSlotIndex, undefined);
+  assert.equal(focus().props.selectedPositionId, undefined);
 });
 
 test('홈·등록·편집은 닫힘·열림 크기를 공유하고 홈의 중앙 위치만 화면 전체를 기준으로 삼는다', async t => {
@@ -2240,7 +2246,7 @@ test('원본 비율을 유지해 확대하고 칸 수·좌우 분할 때문에 �
   row.compartments[0].slots = Array.from({ length: 4 }, (_, index) => ({ name: model.getSlotName(index), drawerCount: 0 }));
   const moreSlots = getFridgeFocusGeometry(draft, requests[0], viewport);
   near(moreSlots.body.width, original.body.width);
-  near(moreSlots.height, 354);
+  near(moreSlots.height, 380);
   near(moreSlots.body.fromWidth, original.source.width);
   near(moreSlots.body.fromHeight, original.source.height);
 
@@ -2255,7 +2261,7 @@ test('원본 비율을 유지해 확대하고 칸 수·좌우 분할 때문에 �
   near(before.height, 552);
   draft.rows[0].compartments[0].slots[0].drawerCount = 2;
   const divided = getFridgeFocusGeometry(draft, narrow.requests[0], viewport);
-  near(divided.body.width, 175);
+  near(divided.body.width, 188);
   near(divided.height, 536);
   assert(divided.body.width > divided.source.width * divided.fitRatio);
 });
@@ -2365,7 +2371,10 @@ test('작은 화면에서도 실제 렌더링 여백·선반·분할선을 제�
     for (const slot of slots) {
       const row = children(slot).find(node => flattenStyle(node.props.style).flexDirection === 'row');
       const positions = children(row);
-      const divider = positions.reduce((sum, node) => sum + (flattenStyle(node.props.style).borderLeftWidth ?? 0), 0);
+      const divider = positions.reduce((sum, node) => {
+        const style = flattenStyle(node.props.style);
+        return sum + (style.borderLeftWidth ?? 0) + (style.marginLeft ?? 0);
+      }, 0);
       const cellWidth = (areaWidth - frameStyle.borderWidth * 2 - contentStyle.marginHorizontal * 2
         - contentStyle.paddingHorizontal * 2 - divider) / positions.length;
       assert(cellWidth >= 72 - 1e-8);
@@ -2387,7 +2396,7 @@ for (const opening of ['LEFT_DOOR', 'DRAWER']) {
     const geometry = getFridgeFocusGeometry(draft, requests[0], viewport);
     const { focus } = focusedFixture(draft, requests[0], viewport);
     const selected = [];
-    focus.props = { ...focus.props, selectedSlotIndex: 0, onSelectSlot: (id, index) => selected.push({ id, index }) };
+    focus.props = { ...focus.props, selectedSlotIndex: 0, onSelectSlot: (id, index, positionId) => selected.push({ id, index, positionId }) };
     focus.render();
     assertFocusAccess(focus, 'opening');
     animations.at(-1).finish();
@@ -2414,10 +2423,10 @@ for (const opening of ['LEFT_DOOR', 'DRAWER']) {
     focus.render();
     const area = interiorAreas(focus).find(node => node.props.area.isBody);
     const map = find(area.type(area.props), node => node.type === mapModule.FridgeMap);
-    const slots = findAll(mapModule.FridgeMap(map.props), node => node.props.accessibilityLabel?.endsWith('위에서 4번째 칸'));
-    assert.equal(slots.length, 1);
-    slots[0].props.onPress({ stopPropagation() {} });
-    assert.deepEqual(selected, [{ id: row.compartments[0].id, index: 3 }]);
+    const slots = findAll(mapModule.FridgeMap(map.props), node => node.type === 'Pressable' && node.props.accessibilityLabel?.includes('위에서 4번째 칸'));
+    assert.equal(slots.length, 2);
+    slots[1].props.onPress({ stopPropagation() {} });
+    assert.deepEqual(selected, [{ id: row.compartments[0].id, index: 3, positionId: map.props.positions.at(-1).id }]);
     assert.equal(resets.length, 0);
     focus.props.onClose();
     focus.render();
@@ -2448,7 +2457,7 @@ test('가로로 긴 단은 본체 너비까지 확대하고 왼쪽 열림은 오
       const geometry = getFridgeFocusGeometry(current, requests[0], viewport);
       assert.equal(geometry.scrollable, true);
       near(geometry.body.width, viewportWidth - 48);
-      near(geometry.height, 354);
+      near(geometry.height, 380);
       const bodyLeft = geometry.focusedLeft + geometry.body.left;
       if (opening === 'LEFT_DOOR') {
         near(bodyLeft + geometry.body.width, viewportWidth - 24);
@@ -3321,9 +3330,14 @@ test('칸 구성에서 도면의 칸 선택·분할 편집을 연동하고 칸 �
   find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('칸 늘리기')).props.onPress();
   screen.render();
   const overlay = mount(FridgeFocusView, focus().props);
-  const body = interiorAreas(overlay).find(node => node.props.area.isBody);
-  const map = find(body.type(body.props), node => node.type === mapModule.FridgeMap);
-  const tree = mapModule.FridgeMap(map.props);
+  const renderMap = () => {
+    overlay.props = focus().props;
+    overlay.render();
+    const body = interiorAreas(overlay).find(node => node.props.area.isBody);
+    const map = find(body.type(body.props), node => node.type === mapModule.FridgeMap);
+    return mapModule.FridgeMap(map.props);
+  };
+  const tree = renderMap();
   const slotButtons = findAll(tree, node => node.type === 'Pressable' && node.props.accessibilityLabel?.includes('번째 칸'));
   assert.equal(slotButtons.length, 2);
   assert.equal(slotButtons[0].props.accessibilityState.selected, true);
@@ -3332,12 +3346,12 @@ test('칸 구성에서 도면의 칸 선택·분할 편집을 연동하고 칸 �
   screen.render();
   assert.equal(stopped, true);
   assert.equal(focus().props.selectedSlotIndex, 1);
-  const selectedTree = mapModule.FridgeMap({ ...map.props, selectedSlotIndex: 1 });
+  const selectedTree = renderMap();
   const selectedSlot = find(selectedTree, node => node.type === 'Pressable'
     && node.props.accessibilityLabel?.includes('번째 칸') && node.props.accessibilityState.selected);
-  assert.equal(flattenStyle(selectedSlot.props.style).backgroundColor, undefined);
+  assert.equal(flattenStyle(selectedSlot.props.style).backgroundColor, 'transparent');
   const highlight = find(selectedSlot, node => node.props.pointerEvents === 'none' && flattenStyle(node.props.style).overflow === 'hidden');
-  const shelf = find(selectedSlot, node => flattenStyle(node.props.style).height === 4);
+  const shelf = find(selectedTree, node => flattenStyle(node.props.style).height === 4);
   const highlightStyle = flattenStyle(highlight.props.style);
   const shelfStyle = flattenStyle(shelf.props.style);
   assert(highlightStyle.top >= shelfStyle.top + shelfStyle.height);
@@ -3348,9 +3362,30 @@ test('칸 구성에서 도면의 칸 선택·분할 편집을 연동하고 칸 �
   selector.props.onChange(2);
   screen.render();
   assert.equal(menu().slots[1].drawerCount, 2);
+  const halves = findAll(renderMap(), node => node.type === 'Pressable' && node.props.accessibilityLabel?.includes('위에서 2번째 칸'));
+  assert.equal(halves.length, 2);
+  for (const half of halves) {
+    half.props.onPress({ stopPropagation() {} });
+    screen.render();
+    assert.equal(focus().props.selectedPositionId, half.key);
+    const selected = findAll(renderMap(), node => node.type === 'Pressable'
+      && node.props.accessibilityLabel?.includes('번째 칸') && node.props.accessibilityState?.selected);
+    assert.equal(selected.length, 1);
+    assert.equal(selected[0].key, half.key);
+    assert(find(selected[0], node => node.props.pointerEvents === 'none' && flattenStyle(node.props.style).backgroundColor === tokens.fridgeDoorColors.CHILLED.selection));
+  }
+  menu().onSlotStructureChange(0);
+  screen.render();
+  assert.equal(focus().props.selectedPositionId, undefined);
+  menu().onSlotStructureChange(2);
+  screen.render();
+  const firstHalf = find(renderMap(), node => node.type === 'Pressable'
+    && node.props.accessibilityLabel?.includes('번째 칸') && node.props.accessibilityState?.selected);
+  assert.match(firstHalf.props.accessibilityLabel, /왼쪽/);
   find(toolbarTree(screen), node => node.props.accessibilityLabel?.endsWith('칸 줄이기')).props.onPress();
   screen.render();
   assert.equal(focus().props.selectedSlotIndex, 0);
+  assert.equal(focus().props.selectedPositionId, undefined);
   menu().onCategoryChange(null);
   screen.render();
   assert.equal(focus().props.selectedSlotIndex, undefined);
@@ -3362,7 +3397,7 @@ test('칸 구성에서 도면의 칸 선택·분할 편집을 연동하고 칸 �
   screen.unmount();
 });
 
-test('본체 1~4칸의 선택 배경은 기존 합성색을 불투명하게 표시하고 수납 공간과 상하 여백을 유지한다', () => {
+test('본체 1~4칸은 바깥·선반 여백을 균등하게 유지하고 좌우 위치를 개별 선택한다', () => {
   for (const mode of ['CHILLED', 'FROZEN', null]) {
     const palette = mode ? tokens.fridgeDoorColors[mode] : tokens.fridgeSurfaces;
     const foreground = mode ? palette.ink : palette.handle;
@@ -3371,46 +3406,85 @@ test('본체 1~4칸의 선택 배경은 기존 합성색을 불투명하게 표�
       + parseInt(palette.frame.slice(offset, offset + 2), 16) * 0.8,
     ).toString(16).padStart(2, '0')).join('').toUpperCase();
     for (let count = 1; count <= 4; count++) {
-      const draft = model.createRefrigeratorDraft();
-      const body = draft.rows[0].compartments[0];
-      body.slots = Array.from({ length: count }, (_, index) => ({ name: model.getSlotName(index), drawerCount: index % 2 ? 2 : 0 }));
-      const layout = model.getDraftLayout(draft);
-      const props = { ...layout, areas: layout.areas.filter(area => area.id === body.id),
-        storageMode: mode, fitHeight: true, showIngredientCounts: false, onSelectArea() {}, onSelectSlot() {} };
-      let firstHighlight;
-      for (let selectedSlotIndex = 0; selectedSlotIndex < count; selectedSlotIndex++) {
-        const tree = mapModule.FridgeMap({ ...props, selectedSlotIndex });
-        const slots = findAll(tree, node => node.type === 'Pressable' && node.props.accessibilityLabel?.includes('번째 칸'));
-        assert.equal(slots.length, count);
-        const content = find(tree, node => children(node).includes(slots[0]));
-        const contentStyle = flattenStyle(content.props.style);
-        assert.equal(contentStyle.paddingTop, contentStyle.paddingBottom);
-        slots.forEach((slot, index) => {
-          const style = flattenStyle(slot.props.style);
-          assert.equal(style.flex, 1);
-          assert.equal(style.borderTopWidth ?? 0, 0);
-          const shelf = find(slot, node => flattenStyle(node.props.style).height === 4);
-          if (index === 0) {
-            assert.equal(shelf, undefined);
-            assert.equal(style.marginTop ?? 0, 0);
-          } else {
-            const shelfStyle = flattenStyle(shelf.props.style);
-            assert.equal(shelfStyle.boxShadow, undefined);
-            assert.equal(style.marginTop, shelfStyle.height);
-            assert.equal(shelfStyle.top + shelfStyle.height, 0);
-          }
-        });
-        const highlight = find(slots[selectedSlotIndex], node => node.props.pointerEvents === 'none'
-          && flattenStyle(node.props.style).overflow === 'hidden');
-        const style = flattenStyle(highlight.props.style);
-        assert.equal(style.top, style.bottom);
-        assert.equal(contentStyle.paddingTop + style.top, contentStyle.paddingBottom + style.bottom);
-        assert(style.top > 0);
-        assert.equal(style.borderRadius, 6);
-        assert.equal(style.backgroundColor, composite);
-        assert.equal(style.backgroundColor, palette.selection);
-        if (firstHighlight) assert.deepEqual(style, firstHighlight);
-        else firstHighlight = style;
+      for (const split of [false, true]) {
+        const draft = model.createRefrigeratorDraft();
+        const body = draft.rows[0].compartments[0];
+        body.slots = Array.from({ length: count }, (_, index) => ({ name: model.getSlotName(index), drawerCount: split ? 2 : 0 }));
+        const layout = model.getDraftLayout(draft);
+        const props = { ...layout, areas: layout.areas.filter(area => area.id === body.id),
+          storageMode: mode, fitHeight: true, showIngredientCounts: false, onSelectArea() {}, onSelectSlot() {} };
+        const bodyPositions = layout.positions.filter(position => position.areaId === body.id);
+        let firstHighlight;
+        for (const [selectionIndex, selectedPosition] of bodyPositions.entries()) {
+          const selectedSlotIndex = Math.floor(selectionIndex / (split ? 2 : 1));
+          const tree = mapModule.FridgeMap({ ...props, selectedSlotIndex, selectedPositionId: selectedPosition.id });
+          const content = find(tree, node => flattenStyle(node.props.style).backgroundColor === palette.frame);
+          const slots = children(content);
+          assert.equal(slots.length, count);
+          const contentStyle = flattenStyle(content.props.style);
+          assert.equal(contentStyle.paddingTop, 6);
+          assert.equal(contentStyle.paddingTop, contentStyle.paddingBottom);
+          assert.equal(contentStyle.paddingHorizontal, contentStyle.paddingTop);
+          slots.forEach((slot, index) => {
+            const style = flattenStyle(slot.props.style);
+            assert.equal(style.flex, 1);
+            assert.equal(style.borderTopWidth ?? 0, 0);
+            const shelf = find(slot, node => flattenStyle(node.props.style).height === 4);
+            if (index === 0) {
+              assert.equal(shelf, undefined);
+              assert.equal(style.marginTop ?? 0, 0);
+            } else {
+              const shelfStyle = flattenStyle(shelf.props.style);
+              assert.equal(shelfStyle.boxShadow, undefined);
+              assert.equal(shelfStyle.borderRadius, 0);
+              assert.equal(style.marginTop, 12);
+              assert.equal(style.marginTop, contentStyle.paddingTop + contentStyle.paddingBottom);
+              assert.equal(style.marginTop + shelfStyle.top + shelfStyle.height / 2, contentStyle.paddingTop);
+              assert.equal(-shelfStyle.top - shelfStyle.height / 2, contentStyle.paddingBottom);
+              assert.equal(shelfStyle.left, 0);
+              assert.equal(shelfStyle.right, 0);
+            }
+            const row = children(slot).find(node => flattenStyle(node.props.style).flexDirection === 'row');
+            const positions = children(row);
+            assert.equal(positions.length, split ? 2 : 1);
+            assert.equal(findAll(slot, node => node.props.pointerEvents === 'none'
+              && flattenStyle(node.props.style).overflow === 'hidden').length, index === selectedSlotIndex ? 1 : 0);
+            assert.equal(children(slot).some(node => flattenStyle(node.props.style).backgroundColor === palette.selection), false);
+            positions.forEach((position, positionIndex) => {
+              const selected = position.key === selectedPosition.id;
+              assert.equal(position.type, 'Pressable');
+              assert.equal(position.props.accessibilityState.selected, selected);
+              const positionStyle = flattenStyle(position.props.style);
+              assert.equal(positionStyle.flex, 1);
+              assert.equal(positionStyle.minHeight, 0);
+              assert.equal(positionStyle.borderLeftWidth ?? 0, 0);
+              if (positionIndex > 0) {
+                assert.equal(positionStyle.marginLeft, 12);
+                const divider = find(position, node => flattenStyle(node.props.style).width === 4);
+                const dividerStyle = flattenStyle(divider.props.style);
+                assert.equal(dividerStyle.top, 0);
+                assert.equal(dividerStyle.bottom, 0);
+                assert.equal(positionStyle.marginLeft, contentStyle.paddingHorizontal * 2);
+                assert.equal(dividerStyle.left + positionStyle.marginLeft + dividerStyle.width / 2, contentStyle.paddingHorizontal);
+                assert.equal(-dividerStyle.left - dividerStyle.width / 2, contentStyle.paddingHorizontal);
+              }
+              const highlight = find(position, node => node.props.pointerEvents === 'none'
+                && flattenStyle(node.props.style).overflow === 'hidden');
+              if (!selected) {
+                assert.equal(highlight, undefined);
+                return;
+              }
+              const highlightStyle = flattenStyle(highlight.props.style);
+              for (const edge of ['top', 'bottom', 'left', 'right']) assert.equal(highlightStyle[edge], 0);
+              assert.equal(highlightStyle.borderRadius, 6);
+              assert.equal(contentStyle.borderRadius - highlightStyle.borderRadius, contentStyle.paddingTop);
+              assert.equal(highlightStyle.backgroundColor, composite);
+              assert.equal(highlightStyle.backgroundColor, palette.selection);
+              if (firstHighlight) assert.deepEqual(highlightStyle, firstHighlight);
+              else firstHighlight = highlightStyle;
+            });
+          });
+        }
       }
     }
   }
@@ -3541,9 +3615,7 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
   for (const mode of ['CHILLED', 'FROZEN']) {
     const draft = model.createRefrigeratorDraft();
     draft.rows[0].compartments[0].storageMode = mode;
-    draft.rows[0].compartments[0].slots = [
-      { name: model.getSlotName(0), drawerCount: 2 }, { name: model.getSlotName(1), drawerCount: 0 },
-    ];
+    draft.rows[0].compartments[0].slots = Array.from({ length: 4 }, (_, index) => ({ name: model.getSlotName(index), drawerCount: 2 }));
     const { compartment, requests } = fixture(draft);
     selectDoor(compartment);
     const { focus } = focusedFixture(draft, requests[0]);
@@ -3557,24 +3629,28 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
       const content = children(frame).at(-1);
       assert.equal(flattenStyle(content.props.style).backgroundColor, palette.frame);
       assert.equal(flattenStyle(content.props.style).marginBottom, flattenStyle(content.props.style).marginHorizontal);
-      assert.equal(flattenStyle(content.props.style).borderRadius, tokens.fridgeSurfaces.cavityRadius);
+      assert.equal(flattenStyle(content.props.style).borderRadius, area.props.area.isBody ? 12 : tokens.fridgeSurfaces.cavityRadius);
       assert.equal(flattenStyle(frame.props.style).boxShadow, undefined);
       assert.equal(flattenStyle(find(map.props.areaHeader, node => node.type === 'Text').props.style).color, palette.ink);
       if (area.props.area.isBody) {
         const shelf = find(tree, node => flattenStyle(node.props.style).height === 4);
         assert.equal(flattenStyle(shelf.props.style).backgroundColor, palette.shelf);
-        const rightPosition = find(tree, node => node.props.accessibilityLabel?.includes('오른쪽'));
-        assert.equal(flattenStyle(rightPosition.props.style).borderLeftWidth, 1);
-        assert.equal(flattenStyle(rightPosition.props.style).borderLeftColor, 'transparent');
-        const divider = children(rightPosition).find(node => flattenStyle(node.props.style).width === 4);
-        const dividerStyle = flattenStyle(divider.props.style);
-        assert.equal(dividerStyle.backgroundColor, palette.shelf);
-        assert.equal(dividerStyle.borderRadius, 2);
-        assert.equal(dividerStyle.top, 4);
-        assert.equal(dividerStyle.bottom, 4);
-        assert.equal(dividerStyle.boxShadow, undefined);
-        assert.equal(divider.props.pointerEvents, 'none');
-        assert.equal(divider.props.importantForAccessibility, 'no-hide-descendants');
+        assert.equal(flattenStyle(shelf.props.style).borderRadius, 0);
+        const rightPositions = findAll(tree, node => node.props.accessibilityLabel?.includes('오른쪽'));
+        assert.equal(rightPositions.length, 4);
+        rightPositions.forEach(rightPosition => {
+          assert.equal(flattenStyle(rightPosition.props.style).borderLeftWidth ?? 0, 0);
+          assert.equal(flattenStyle(rightPosition.props.style).marginLeft, 12);
+          const divider = children(rightPosition).find(node => flattenStyle(node.props.style).width === 4);
+          const dividerStyle = flattenStyle(divider.props.style);
+          assert.equal(dividerStyle.backgroundColor, palette.shelf);
+          assert.equal(dividerStyle.borderRadius, 0);
+          assert.equal(dividerStyle.top, 0);
+          assert.equal(dividerStyle.bottom, 0);
+          assert.equal(dividerStyle.boxShadow, undefined);
+          assert.equal(divider.props.pointerEvents, 'none');
+          assert.equal(divider.props.importantForAccessibility, 'no-hide-descendants');
+        });
       } else {
         for (const bin of findAll(tree, named('DoorPocketBin'))) {
           const front = flattenStyle(children(bin.type(bin.props))[0].props.style);

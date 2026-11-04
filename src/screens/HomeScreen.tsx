@@ -36,7 +36,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | undefined>(undefined);
+  const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const loadRequest = useRef(0);
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
@@ -45,14 +45,14 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   } = useFridgeFocus();
   const finishHomeFocus = useCallback((phase: FridgeFocusPhase) => {
     finishFocusTransition(phase);
-    if (phase === 'closed') setSelectedSlotIndex(undefined);
+    if (phase === 'closed') setSelectedSlot(null);
   }, [finishFocusTransition]);
 
   // 홈 재진입·재시도 이전에 시작한 조회가 늦게 끝나도 최신 결과만 반영한다.
   const loadRefrigerator = useCallback(async () => {
     const request = ++loadRequest.current;
     resetFocus();
-    setSelectedSlotIndex(undefined);
+    setSelectedSlot(null);
     setIsLoading(true);
     setError(null);
     try {
@@ -69,7 +69,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useFocusEffect(useCallback(() => {
     void loadRefrigerator();
-    return () => { loadRequest.current++; resetFocus(); setSelectedSlotIndex(undefined); };
+    return () => { loadRequest.current++; resetFocus(); setSelectedSlot(null); };
   }, [loadRefrigerator, resetFocus]));
 
   useEffect(() => {
@@ -126,8 +126,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           <FridgeFocusView draft={refrigerator} target={activeFocus} viewport={focusBounds} phase={focusPhase}
             sizeViewport={diagramSizes.opened}
             selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
-            selectedSlotIndex={selectedSlotIndex}
-            onSelectSlot={(areaId, index) => { setSelectedAreaId(areaId); setSelectedSlotIndex(index); }}
+            selectedSlotIndex={selectedSlot?.index} selectedPositionId={selectedSlot?.positionId}
+            onSelectSlot={(areaId, index, positionId) => { setSelectedAreaId(areaId); setSelectedSlot({ index, positionId }); }}
             onScrollHintSeen={markScrollHintSeen} onPhaseChange={finishHomeFocus}
             onClose={closeFocusedArea} />
         ) : null}
