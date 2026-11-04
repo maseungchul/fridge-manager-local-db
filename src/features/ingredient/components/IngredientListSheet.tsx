@@ -1,7 +1,7 @@
 /**
  * @file
  * 선택한 위치의 재료 목록과 등록 폼을 스와이프로 닫는 네이티브 시트에 표시한다.
- * 조회·등록은 여기서 처리하고, 도면의 선택과 시트 종료는 호출자가 관리한다.
+ * 조회·등록은 여기서 처리하고, 저장 결과 전달 후 도면 갱신과 시트 종료는 호출자가 관리한다.
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, Platform, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
@@ -24,12 +24,13 @@ import { colors, spacing } from '@/theme/tokens';
 interface IngredientListSheetProps {
   position: SlotPosition;
   onClose: () => void;
+  onRegistered?: (ingredient: Ingredient) => void;
 }
 
 // iOS의 기본 medium·large 전환을 위해 비율 지정은 Android·웹에서만 사용한다.
 const SHEET_SNAP_POINTS = ['50%', '100%'];
 
-export function IngredientListSheet({ position, onClose }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, onClose, onRegistered }: IngredientListSheetProps) {
   const db = useSQLiteContext();
   const sheetRef = useRef<BottomSheet>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
@@ -166,14 +167,16 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
     dismissDatePicker();
     setSaveError(null);
     Keyboard.dismiss();
+    let ingredient: Ingredient;
     try {
-      await registerIngredient(db, { ...draft, slotId, drawerNumber });
+      ingredient = await registerIngredient(db, { ...draft, slotId, drawerNumber });
     } catch {
       setSaveError('재료를 저장하지 못했습니다. 보관 위치와 입력 내용을 확인하고 다시 시도해 주세요.');
       saving.current = false;
       setIsSaving(false);
       return;
     }
+    onRegistered?.(ingredient);
     // 성공 알림을 확인하고 목록 전환이 끝날 때까지 잠금을 유지해 중복 등록을 막는다.
     Alert.alert(alertTitles.info, '재료를 등록했습니다.', [{ text: '확인', onPress: () => {
       if (!saving.current || transition.current.active) return;

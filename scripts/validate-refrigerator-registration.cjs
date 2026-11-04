@@ -35,7 +35,7 @@ const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRef
 });
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 const ingredientRegistration = require('../src/db/ingredientRegistration.ts');
-const { getIngredientsByPosition, registerIngredient } = loadModule('src/db/ingredientRepository.ts', {
+const { getIngredients, getIngredientsByPosition, registerIngredient } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
 });
 
@@ -99,6 +99,7 @@ function createSlots(count, drawerCount = 0) {
 
 test('재료 목록은 칸·좌우·포켓을 구분하고 유통기한·이름 순서로 조회한다', async t => {
   const { db, adapter } = await createRepositoryDatabase(t);
+  assert.deepEqual(await getIngredients(adapter), []);
   const draft = createTwoDoorDraft();
   draft.rows[0].compartments[0].slots[0].drawerCount = 2;
   await registerRefrigerator(adapter, draft);
@@ -128,6 +129,13 @@ test('재료 목록은 칸·좌우·포켓을 구분하고 유통기한·이름 
   assert.deepEqual(await getIngredientsByPosition(adapter, { slotId: 'missing', drawerNumber: 0 }), []);
   assert.deepEqual(await getIngredientsByPosition(adapter, { slotId: "' OR 1 = 1 --", drawerNumber: 0 }), []);
   assert.deepEqual(await getIngredientsByPosition(adapter, { slotId: refrigerator.rows[0].doors[0].slots[1].id, drawerNumber: 0 }), []);
+  const ingredients = await getIngredients(adapter);
+  const layout = model.getDraftLayout(refrigerator, ingredients);
+  assert.equal(ingredients.length, 8);
+  assert.equal(layout.ingredients.length, ingredients.length);
+  for (const [positionId, count] of [[`${bodySlotId}-left`, 5], [`${bodySlotId}-right`, 1], [pocketSlotId, 1], [otherSlotId, 1]]) {
+    assert.equal(layout.ingredients.filter(ingredient => ingredient.positionId === positionId).length, count);
+  }
   assert.deepEqual(db.prepare('SELECT * FROM ingredients ORDER BY id').all(), before);
 });
 
@@ -172,6 +180,7 @@ test('수동 등록 재료는 선택한 좌우·포켓에 저장되고 파일 DB
   const reopened = new DatabaseSync(databasePath);
   try {
     assert.deepEqual(reopened.prepare('SELECT * FROM ingredients ORDER BY id').all(), db.prepare('SELECT * FROM ingredients ORDER BY id').all());
+    assert.deepEqual(await getIngredients(createConnectionAdapter(reopened)), await getIngredients(adapter));
   } finally { reopened.close(); }
 });
 

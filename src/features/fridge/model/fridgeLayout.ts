@@ -247,8 +247,8 @@ export function getDraftAreaLocation(row: DraftRow, rowIndex: number, areaId: st
   return `${rowIndex + 1}단${row.doors.length === 1 ? '' : ` ${first === last ? first : `${first}~${last}`}번째`}`;
 }
 
-/** 칸 UUID가 있으면 유지하고, 신규 입력 칸에는 도면용 임시 식별자를 사용한다. */
-export function getDraftLayout(draft: Pick<RefrigeratorDraft, 'rows'>): FridgeLayout {
+/** 칸 식별자를 유지하고, 저장된 재료는 칸 ID·좌우 번호가 같은 도면 위치에 연결한다. */
+export function getDraftLayout(draft: Pick<RefrigeratorDraft, 'rows'>, ingredients: Ingredient[] = []): FridgeLayout {
   const areas: StorageArea[] = [];
   const positions: SlotPosition[] = [];
 
@@ -265,7 +265,10 @@ export function getDraftLayout(draft: Pick<RefrigeratorDraft, 'rows'>): FridgeLa
     }
   }
 
-  return { areas, positions, ingredients: [] };
+  return { areas, positions, ingredients: ingredients.flatMap(({ slotId, drawerNumber, ...ingredient }) => {
+    const position = positions.find(position => position.slotId === slotId && (position.drawerNumber ?? 0) === drawerNumber);
+    return position ? [{ ...ingredient, positionId: position.id }] : [];
+  }) };
 }
 
 /** 본체와 닫힌 문을 같은 0~1 기준선에 배치해 문을 열어도 본체 폭·위치를 유지한다. */

@@ -44,7 +44,7 @@ interface FridgeMapProps {
   areas: StorageArea[];
   // 칸·개별 서랍의 선택 위치를 받고 영역과 원래 칸 ID로 묶어서 표시한다.
   positions: SlotPosition[];
-  // 칸별 재료 개수 표시에 사용한다. 등록 미리보기에서는 빈 목록이다.
+  // 칸별 재료 등록 건수 배지에 사용한다. 등록 미리보기에서는 빈 목록이다.
   ingredients: FridgeIngredient[];
   // 부모가 관리하는 선택 상태다. 이 컴포넌트 내부에 별도 선택 상태를 만들지 않는다.
   selectedPositionId?: string;
@@ -121,9 +121,9 @@ export function DoorModeArt({ storageMode, size, drawer = false, style }: {
 }
 
 /** U자형 포켓의 전면 안에서만 선택을 처리해 위쪽 빈 공간은 터치 대상에서 제외한다. */
-function DoorPocketBin({ style, selectionStyle, selected = false, disabled = false, label, onSelect }: {
+function DoorPocketBin({ style, selectionStyle, selected = false, disabled = false, label, onSelect, children }: {
   style?: StyleProp<ViewStyle>; selectionStyle?: StyleProp<ViewStyle>; selected?: boolean;
-  disabled?: boolean; label?: string; onSelect?: () => void;
+  disabled?: boolean; label?: string; onSelect?: () => void; children?: ReactNode;
 }) {
   const Bin = onSelect ? Pressable : View;
   return (
@@ -132,7 +132,7 @@ function DoorPocketBin({ style, selectionStyle, selected = false, disabled = fal
       <Bin accessibilityRole={onSelect ? 'button' : undefined} accessibilityLabel={label}
         accessibilityState={onSelect ? { selected, disabled } : undefined} disabled={disabled}
         onPress={onSelect ? event => { event.stopPropagation(); onSelect(); } : undefined}
-        style={[styles.pocketBinFront, style, selected && selectionStyle]} />
+        style={[styles.pocketBinFront, style, selected && selectionStyle]}>{children}</Bin>
     </View>
   );
 }
@@ -198,9 +198,18 @@ export function FridgeMap({
                           const selected = rowInteraction
                             ? selectedSlotIndex === slotIndex && selectedSlotPositionId === position.id
                             : selectedAreaId ? areaSelected : selectedPositionId === position.id;
+                          // 좌우 분할은 위치별로 집계하고, 수량 문자열과 관계없이 등록 한 건을 하나로 센다.
+                          const ingredientCount = showIngredientCounts ? ingredients.filter(ingredient => ingredient.positionId === position.id).length : 0;
+                          const countLabel = showIngredientCounts ? `, 재료 ${ingredientCount}건` : '';
+                          const badge = ingredientCount > 0 ? (
+                            <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                              style={[styles.ingredientBadge, { backgroundColor: palette?.ink ?? fridgeSurfaces.ink }]}>
+                              <Text style={styles.ingredientBadgeText}>{ingredientCount > 99 ? '99+' : ingredientCount}</Text>
+                            </View>
+                          ) : null;
                           return (
                             <Position key={position.id} accessible={rowInteraction || positionInteraction ? undefined : false}
-                              accessibilityRole={rowInteraction || positionInteraction ? 'button' : undefined} accessibilityLabel={getPositionPath(area, position)}
+                              accessibilityRole={rowInteraction || positionInteraction ? 'button' : undefined} accessibilityLabel={`${getPositionPath(area, position)}${countLabel}`}
                               accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
                               accessibilityState={{ selected, disabled }} disabled={disabled}
                               onPress={rowInteraction ? event => { event.stopPropagation(); onSelectSlot?.(slotIndex, position.id); }
@@ -215,12 +224,10 @@ export function FridgeMap({
                                 <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
                                   style={[styles.positionDivider, area.isBody && styles.bodyPositionDivider, shelfTheme]} />
                               ) : null}
-                              {!area.isBody ? <DoorPocketBin style={pocketTheme} selectionStyle={slotSelection}
+                              {area.isBody ? badge : <DoorPocketBin style={pocketTheme} selectionStyle={slotSelection}
                                 selected={slotInteraction && selectedSlotIndex === slotIndex} disabled={disabled}
-                                label={slotInteraction ? slotLabel : undefined}
-                                onSelect={slotInteraction ? () => onSelectSlot?.(slotIndex, firstPosition.id) : undefined} /> : null}
-                              {/* 좌우 분할은 서로 다른 선택 ID로 재료 수를 집계한다. */}
-                              {showIngredientCounts ? <Text style={styles.positionCount}>{ingredients.filter(ingredient => ingredient.positionId === position.id).length}개</Text> : null}
+                                label={slotInteraction ? `${slotLabel}${countLabel}` : undefined}
+                                onSelect={slotInteraction ? () => onSelectSlot?.(slotIndex, firstPosition.id) : undefined}>{badge}</DoorPocketBin>}
                               {selected && positionInteraction && !selectedAreaId ? (
                                 <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
                                   style={positionSelection} />
@@ -441,8 +448,23 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     gap: 0,
   },
-  positionCount: {
-    color: colors.textMuted,
-    fontSize: 11,
+  ingredientBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ingredientBadgeText: {
+    color: colors.buttonText,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    includeFontPadding: false,
   },
 });

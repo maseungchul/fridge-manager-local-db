@@ -23,6 +23,7 @@ const repository = {
   async getRefrigerator() { return null; },
 };
 const ingredientRepository = {
+  async getIngredients() { return []; },
   async getIngredientsByPosition() { return []; },
   async registerIngredient() { throw new Error('재료 등록 동작을 지정하지 않았습니다.'); },
 };
@@ -1477,6 +1478,71 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
   assert.equal(focus().props.selectedPositionId, undefined);
 });
 
+test('홈의 재료 배지는 저장 직후 선택·열림을 유지하며 갱신되고 재진입 시 DB에서 복원한다', async t => {
+  const previousGet = repository.getRefrigerator;
+  const previousIngredients = ingredientRepository.getIngredients;
+  t.after(() => { repository.getRefrigerator = previousGet; ingredientRepository.getIngredients = previousIngredients; });
+  const saved = savedRefrigerator('재료 배지 냉장고');
+  const row = saved.rows[0];
+  const slotId = row.compartments[0].slots[0].id;
+  row.compartments[0].slots[0].drawerCount = 2;
+  const persisted = [{ id: 'first', name: '우유', quantity: '2개', expirationDate: null, slotId, drawerNumber: 1 }];
+  repository.getRefrigerator = async () => saved;
+  let reads = 0;
+  ingredientRepository.getIngredients = async db => { assert.strictEqual(db, database); reads++; return [...persisted]; };
+  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  t.after(() => home.unmount());
+  await new Promise(setImmediate);
+  home.render();
+  const viewport = find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 0, 375, 844) };
+  const target = { areaId: row.compartments[0].id, returnAreaId: row.doors[0].id,
+    canvas: { x: 52.5, y: 130, width: 270, height: 540 } };
+  const focus = () => find(home.tree, named('FridgeFocusView'));
+  const open = () => {
+    find(home.tree, named('FridgeInteriorMap')).props.onFocus(target);
+    home.render();
+    focus().props.onPhaseChange('open');
+    home.render();
+  };
+  open();
+  const overlay = mount(focus().type, focus().props);
+  t.after(() => overlay.unmount());
+  const badgeCounts = () => {
+    overlay.props = focus().props;
+    overlay.render();
+    const body = interiorAreas(overlay).find(area => area.props.area.isBody);
+    const map = find(body.type(body.props), node => node.type === mapModule.FridgeMap);
+    return findAll(mapModule.FridgeMap(map.props), node => node.type === 'Text' && typeof node.props.children === 'number')
+      .map(node => node.props.children);
+  };
+  assert.deepEqual(badgeCounts(), [1]);
+  focus().props.onSelectSlot(row.compartments[0].id, 0, `${slotId}-left`);
+  home.render();
+  const animationCount = animations.length;
+  const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
+  const ingredient = { ...persisted[0], id: 'second' };
+  persisted.push(ingredient);
+  sheet.props.onRegistered(ingredient);
+  home.render();
+  assert.deepEqual(badgeCounts(), [2]);
+  assert.equal(reads, 1);
+  assert.equal(animations.length, animationCount);
+  assert.equal(focus().props.phase, 'open');
+  assert.equal(focus().props.selectedPositionId, `${slotId}-left`);
+  assert(find(home.tree, node => node.type === 'IngredientListSheet'));
+  sheet.props.onClose();
+  home.render();
+  assert.deepEqual(badgeCounts(), [2]);
+  home.focus();
+  await new Promise(setImmediate);
+  home.render();
+  assert.equal(focus(), undefined);
+  open();
+  assert.deepEqual(badgeCounts(), [2]);
+  assert.equal(reads, 2);
+});
+
 test('재료 시트는 절반 높이에서 시작하고 스와이프 닫기와 빈 목록·조회 중을 구분한다', async t => {
   const previous = ingredientRepository.getIngredientsByPosition;
   t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
@@ -2071,6 +2137,9 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   ingredientRepository.registerIngredient = (db, input) => { assert.strictEqual(db, database); calls.push(input); return pending.promise; };
   let closed = 0;
   const { sheet, input, save } = await ingredientFormFixture(t, () => { closed++; });
+  const registered = [];
+  sheet.props = { ...sheet.props, onRegistered: ingredient => registered.push(ingredient) };
+  sheet.render();
   const nativeClose = [];
   sheet.tree.props.ref.current = { close() { nativeClose.push(true); } };
   input('재료명').props.onChangeText(' 계란 ');
@@ -2099,10 +2168,12 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   assert.equal(closed, 0);
   assert.equal(nativeClose.length, 0);
   assert.equal(alerts.length, alertCount);
+  assert.deepEqual(registered, []);
   persisted.push({ id: 'saved-item', name: '계란', quantity: '2개', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
   pending.resolve(persisted[0]);
   await Promise.all([firstSave, duplicateSave]);
   sheet.render();
+  assert.deepEqual(registered, persisted);
   assert.equal(alerts.length, alertCount + 1);
   const success = alerts.at(-1);
   assert.deepEqual(success.slice(0, 2), ['알림', '재료를 등록했습니다.']);
@@ -2120,6 +2191,7 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   sheet.render();
   assert.equal(calls.length, 1);
   assert.equal(alerts.length, alertCount + 1);
+  assert.deepEqual(registered, persisted);
   assert.equal(animations.length, animationCount);
   assert.equal(input('재료명').props.value, ' 계란 ');
   assert.equal(closed, 0);
@@ -2163,6 +2235,9 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
     return persisted;
   };
   const { sheet, input, save, openCalendar } = await ingredientFormFixture(t);
+  const registered = [];
+  sheet.props = { ...sheet.props, onRegistered: ingredient => registered.push(ingredient) };
+  sheet.render();
   input('재료명').props.onChangeText('우유');
   input('재료 수량').props.onChangeText('반 통');
   openCalendar();
@@ -2175,6 +2250,7 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
   sheet.render();
   assert.equal(alerts.length, alertCount);
   assert.match(find(sheet.tree, node => node.props.accessibilityRole === 'alert').props.children, /재료를 저장하지 못했습니다/);
+  assert.deepEqual(registered, []);
   assert.equal(input('재료명').props.value, '우유');
   assert.equal(input('재료 수량').props.value, '반 통');
   assert.equal(save().props.accessibilityState.busy, false);
@@ -2193,6 +2269,7 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
   assert.equal(save(), undefined);
   assert.equal(find(sheet.tree, node => node.props.accessibilityRole === 'alert').props.children, '재료 목록을 불러오지 못했습니다.');
   assert.equal(writes, 2);
+  assert.deepEqual(registered, [persisted]);
   find(sheet.tree, node => node.props.label === '다시 불러오기').props.onPress();
   sheet.render();
   await new Promise(setImmediate);
@@ -3954,8 +4031,41 @@ test('도면의 칸명은 숨기고 자동 위치 안내·선택·재료 집계�
   const withIngredients = mapModule.FridgeMap({ ...props, showIngredientCounts: true,
     ingredients: [{ id: 'ingredient-1', positionId: layout.positions[1].id }] });
   const counts = findAll(withIngredients, node => node.type === 'Text');
-  assert.equal(counts.length, layout.positions.length);
-  assert.equal(counts[1].props.children.join(''), '1개');
+  assert.equal(counts.length, 1);
+  assert.equal(counts[0].props.children, 1);
+  const position = find(withIngredients, node => node.type === 'FeedbackPressable' && node.key === layout.positions[1].id);
+  assert.match(position.props.accessibilityLabel, /재료 1건$/);
+});
+
+test('재료 배지는 좌우·포켓을 구분하고 빈 칸·편집에서는 숨기며 100건부터 99+로 표시한다', () => {
+  const draft = savedRefrigerator('배지 표시 냉장고');
+  draft.rows[0].compartments[0].slots[0].drawerCount = 2;
+  const layout = model.getDraftLayout(draft);
+  const [left, right, pocket] = layout.positions;
+  const ingredients = [left, ...Array.from({ length: 100 }, () => right), pocket]
+    .map((position, index) => ({ id: `item-${index}`, positionId: position.id }));
+  for (const storageMode of ['CHILLED', 'FROZEN']) {
+    const props = { ...layout, ingredients, storageMode, showAreaLabels: false, onSelectSlot() {} };
+    const tree = mapModule.FridgeMap(props);
+    assert.deepEqual(findAll(tree, node => node.type === 'Text').map(node => node.props.children), [1, '99+', 1]);
+    const leftButton = find(tree, node => node.type === 'Pressable' && node.key === left.id);
+    const rightButton = find(tree, node => node.type === 'Pressable' && node.key === right.id);
+    assert.match(leftButton.props.accessibilityLabel, /재료 1건$/);
+    assert.match(rightButton.props.accessibilityLabel, /재료 100건$/);
+    const bin = find(tree, named('DoorPocketBin'));
+    const renderedBin = bin.type(bin.props);
+    const front = children(renderedBin)[0];
+    assert.equal(renderedBin.props.pointerEvents, 'box-none');
+    assert.equal(front.type, 'Pressable');
+    const badge = children(front)[0];
+    assert.equal(badge.props.pointerEvents, 'none');
+    assert.equal(badge.props.accessibilityElementsHidden, true);
+    assert.match(front.props.accessibilityLabel, /재료 1건$/);
+    for (const hidden of [{ ...props, showIngredientCounts: false }, { ...props, ingredients: [] }]) {
+      const hiddenTree = mapModule.FridgeMap(hidden);
+      assert.equal(findAll(hiddenTree, node => node.type === 'Text').length, 0);
+    }
+  }
 });
 
 test('이름 입력 없이 본체 칸의 분할을 편집하고 포켓은 개수 조절만 표시한다', () => {

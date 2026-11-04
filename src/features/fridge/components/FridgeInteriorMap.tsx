@@ -12,6 +12,7 @@ import type { LayoutChangeEvent, LayoutRectangle, StyleProp, ViewStyle } from 'r
 import { DoorHandle, DoorModeArt, FridgeMap, getFridgeAreaEditSize } from '@/features/fridge/components/FridgeMap';
 import { areaNames, FRIDGE_ASPECT_RATIO, getDraftAreaLocation, getDraftLayout, getDraftRowGeometry, getStorageModeName } from '@/features/fridge/model/fridgeLayout';
 import type { DraftDoor, FridgeLayout, RefrigeratorDraft, StorageArea, StorageMode } from '@/features/fridge/model/fridgeLayout';
+import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle } from '@/theme/tokens';
 import { getFridgeDiagramSizes } from '@/features/fridge/components/fridgeDiagramLayout';
 import type { FridgeDiagramSize } from '@/features/fridge/components/fridgeDiagramLayout';
@@ -204,7 +205,7 @@ function InteriorArea({ area, layout, compact, selected, storageMode, cornerStyl
         <DoorWithoutStorage label={`${area.compartment} ${area.name}`} selected={selected} storageMode={storageMode}
           cornerStyle={cornerStyle} areaHeader={header} onPress={onSelectArea ? () => onSelectArea(area.id) : undefined} />
       ) : <FridgeMap areas={[area]} positions={positions}
-        ingredients={layout.ingredients} selectedAreaId={onSelectArea && selected ? area.id : undefined} showIngredientCounts={false}
+        ingredients={layout.ingredients} selectedAreaId={onSelectArea && selected ? area.id : undefined} showIngredientCounts={!onSelectArea}
         showAreaLabels={false} minAreaHeight={0} fitHeight storageMode={storageMode} cornerStyle={cornerStyle}
         compact={compact} style={styles.areaMap} areaHeader={header}
         selectedSlotIndex={selectedSlotIndex} selectedPositionId={selectedPositionId} onSelectSlot={onSelectSlot}
@@ -488,8 +489,9 @@ function FridgeScrollHint({ enabled, dismissed, viewport, onSeen }: {
 /** 연결된 문은 함께 펼치고, 홈은 칸 선택·등록과 편집은 영역 선택을 호출자에게 전달한다. */
 export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId,
   scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea,
-  selectedSlotIndex, selectedPositionId, onSelectSlot, sizeViewport }: {
+  selectedSlotIndex, selectedPositionId, onSelectSlot, sizeViewport, ingredients }: {
   draft: FridgeInteriorMapProps['draft']; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
+  ingredients?: Ingredient[];
   overlayHeight?: number;
   sizeViewport?: FridgeDiagramSize;
   selectedAreaId?: string; onPhaseChange: (phase: FridgeFocusPhase) => void; onClose: () => void;
@@ -505,7 +507,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0, y: 0 });
   const [hintDismissed, setHintDismissed] = useState(false);
   const geometry = getFridgeFocusGeometry(draft, target, viewport, sizeViewport);
-  const layout = getDraftLayout(draft);
+  const layout = getDraftLayout(draft, ingredients);
   const open = phase === 'open';
   const scrollKey = `${target.areaId}:${geometry?.width}:${geometry?.height}:${viewport.width}:${viewport.height}`;
   const initialScrollX = geometry?.initialScrollX ?? 0;

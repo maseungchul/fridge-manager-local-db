@@ -16,12 +16,14 @@ import { SafeAreaView } from 'react-native-screens/experimental';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
+import { getIngredients } from '@/db/ingredientRepository';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase } from '@/features/fridge/components/FridgeInteriorMap';
 import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
 import { IngredientListSheet } from '@/features/ingredient/components/IngredientListSheet';
+import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
@@ -36,6 +38,7 @@ const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCou
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const db = useSQLiteContext();
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
@@ -61,8 +64,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     setError(null);
     try {
       const result = await getRefrigerator(db);
+      const storedIngredients = result ? await getIngredients(db) : [];
       if (request === loadRequest.current) {
         setRefrigerator(result);
+        setIngredients(storedIngredients);
       }
     } catch {
       if (request === loadRequest.current) setError('냉장고 정보를 불러오지 못했습니다.');
@@ -134,7 +139,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         accessibilityElementsHidden={isIngredientListOpen} importantForAccessibility={isIngredientListOpen ? 'no-hide-descendants' : 'auto'}
         style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
         {refrigerator && activeFocus && focusBounds ? (
-          <FridgeFocusView draft={refrigerator} target={activeFocus} viewport={focusBounds} phase={focusPhase}
+          <FridgeFocusView draft={refrigerator} ingredients={ingredients} target={activeFocus} viewport={focusBounds} phase={focusPhase}
             sizeViewport={diagramSizes.opened}
             selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
             selectedSlotIndex={selectedSlot?.index} selectedPositionId={selectedSlot?.positionId}
@@ -151,6 +156,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       </View>
       {isIngredientListOpen && focusPhase === 'open' && selectedPosition ? (
         <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
+          onRegistered={ingredient => setIngredients(current => [...current, ingredient])}
           onClose={() => setIsIngredientListOpen(false)} />
       ) : null}
     </View>
