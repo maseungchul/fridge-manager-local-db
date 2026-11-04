@@ -26,7 +26,7 @@ interface IngredientListSheetProps {
   onClose: () => void;
 }
 
-const SHEET_SNAP_POINTS = ['50%', '90%'];
+const SHEET_SNAP_POINTS = ['50%', '100%'];
 
 export function IngredientListSheet({ position, onClose }: IngredientListSheetProps) {
   const db = useSQLiteContext();
