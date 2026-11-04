@@ -1777,7 +1777,7 @@ test('네이티브 달력은 날짜 변경을 즉시 전달하고 Android의 초
   });
 });
 
-test('재료 저장 중 입력·닫기·중복 요청을 막고 성공하면 입력을 비우고 목록을 갱신한다', async t => {
+test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·닫기를 막고 확인 후 목록을 갱신한다', async t => {
   const previous = { ...ingredientRepository };
   t.after(() => Object.assign(ingredientRepository, previous));
   const pending = deferred();
@@ -1793,6 +1793,8 @@ test('재료 저장 중 입력·닫기·중복 요청을 막고 성공하면 입
   input('재료명').props.onChangeText(' 계란 ');
   input('재료 수량').props.onChangeText(' 2개 ');
   sheet.render();
+  const alertCount = alerts.length;
+  const animationCount = animations.length;
   const firstSave = save().props.onPress();
   const duplicateSave = save().props.onPress();
   sheet.render();
@@ -1813,10 +1815,36 @@ test('재료 저장 중 입력·닫기·중복 요청을 막고 성공하면 입
   assert.equal(input('재료명').props.value, ' 계란 ');
   assert.equal(closed, 0);
   assert.equal(nativeClose.length, 0);
+  assert.equal(alerts.length, alertCount);
   persisted.push({ id: 'saved-item', name: '계란', quantity: '2개', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
   pending.resolve(persisted[0]);
   await Promise.all([firstSave, duplicateSave]);
   sheet.render();
+  assert.equal(alerts.length, alertCount + 1);
+  const success = alerts.at(-1);
+  assert.deepEqual(success.slice(0, 2), ['알림', '재료를 등록했습니다.']);
+  assert.equal(success[2].length, 1);
+  assert.equal(success[2][0].text, '확인');
+  assert.equal(success[3].cancelable, false);
+  assert.equal(animations.length, animationCount);
+  assert.equal(save().props.disabled, true);
+  assert.equal(input('재료명').props.value, ' 계란 ');
+  await save().props.onPress();
+  input('재료명').props.onChangeText('확인 전 변경 금지');
+  input('재료 목록으로 돌아가기').props.onPress();
+  children(sheet.tree)[0].props.onAccessibilityEscape();
+  sheet.tree.props.onClose();
+  sheet.render();
+  assert.equal(calls.length, 1);
+  assert.equal(alerts.length, alertCount + 1);
+  assert.equal(animations.length, animationCount);
+  assert.equal(input('재료명').props.value, ' 계란 ');
+  assert.equal(closed, 0);
+  assert.equal(nativeClose.length, 0);
+  success[2][0].onPress();
+  success[2][0].onPress();
+  sheet.render();
+  assert.equal(animations.length, animationCount + 1);
   assert.equal(animations.at(-1).config.toValue, 0);
   assert.equal(input('재료명').props.value, ' 계란 ');
   assert.equal(sheet.tree.props.enablePanDownToClose, false);
@@ -1858,8 +1886,10 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
   sheet.render();
   find(sheet.tree, node => node.type === 'IngredientExpirationCalendar').props.onSelect('2026-11-30');
   sheet.render();
+  const alertCount = alerts.length;
   await save().props.onPress();
   sheet.render();
+  assert.equal(alerts.length, alertCount);
   assert.match(find(sheet.tree, node => node.props.accessibilityRole === 'alert').props.children, /재료를 저장하지 못했습니다/);
   assert.equal(input('재료명').props.value, '우유');
   assert.equal(input('재료 수량').props.value, '반 통');
@@ -1867,6 +1897,9 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
   assert.equal(save().props.disabled, false);
   assert.equal(sheet.tree.props.enablePanDownToClose, true);
   await save().props.onPress();
+  sheet.render();
+  assert.equal(alerts.length, alertCount + 1);
+  alerts.at(-1)[2][0].onPress();
   sheet.render();
   animations.at(-1).finish();
   sheet.render();

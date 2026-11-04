@@ -4,13 +4,14 @@
  * 조회·등록은 여기서 처리하고, 도면의 선택과 시트 종료는 호출자가 관리한다.
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
 import { BottomSheet } from '@expo/ui/community/bottom-sheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { alertTitles } from '@/constants/alertTitles';
 import { getIngredientsByPosition, registerIngredient } from '@/db/ingredientRepository';
 import type { SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
@@ -133,15 +134,23 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
     Keyboard.dismiss();
     try {
       await registerIngredient(db, { ...draft, slotId, drawerNumber });
-      changePanel(false, () => setDraft({ name: '', quantity: '', expirationDate: null }));
-      // 저장 후 재조회가 실패해도 등록 폼으로 돌아가지 않아 중복 등록을 막는다.
-      setReloadCount(count => count + 1);
     } catch {
       setSaveError('재료를 저장하지 못했습니다. 보관 위치와 입력 내용을 확인하고 다시 시도해 주세요.');
-    } finally {
       saving.current = false;
       setIsSaving(false);
+      return;
     }
+    // 성공 알림을 확인하고 목록 전환이 끝날 때까지 잠금을 유지해 중복 등록을 막는다.
+    Alert.alert(alertTitles.info, '재료를 등록했습니다.', [{ text: '확인', onPress: () => {
+      if (!saving.current || transition.current.active) return;
+      changePanel(false, () => {
+        setDraft({ name: '', quantity: '', expirationDate: null });
+        saving.current = false;
+        setIsSaving(false);
+      });
+      // 저장 후 재조회가 실패해도 등록 폼으로 돌아가지 않아 중복 등록을 막는다.
+      setReloadCount(count => count + 1);
+    } }], { cancelable: false });
   }
 
   return (
