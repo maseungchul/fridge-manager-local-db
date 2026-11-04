@@ -3,6 +3,8 @@
  * 냉장고 등록·편집과 배치도에서 사용하는 타입·표시 이름·기본값·변환 함수를 정의한다.
  * 사용자가 구성한 문 배치·본체 연결과 보관 모드를 분리하고, DB 저장은 호출자가 관리한다.
  */
+import type { Ingredient } from '@/features/ingredient/model/ingredient';
+
 export type StorageMode = 'CHILLED' | 'FROZEN';
 export type AreaType = 'LEFT_DOOR' | 'BODY' | 'RIGHT_DOOR';
 export type DoorOpening = Exclude<AreaType, 'BODY'> | 'DRAWER';
@@ -57,12 +59,8 @@ export interface SlotPosition {
 }
 
 /** 배치도의 개별 선택 위치에 연결한 재료 표시 정보다. 등록 미리보기에서는 빈 목록이다. */
-export interface FridgeIngredient {
-  id: string;
-  name: string;
-  quantity: string;
+export interface FridgeIngredient extends Omit<Ingredient, 'slotId' | 'drawerNumber'> {
   positionId: string;
-  expirationDate: string | null;
 }
 
 /** 등록 미리보기와 홈에서 공유하는 배치도 데이터다. DB 저장 구조와 구분한다. */

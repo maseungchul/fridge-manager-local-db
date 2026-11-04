@@ -368,7 +368,7 @@ for (const table of ['refrigerator_rows', 'refrigerator_compartments', 'refriger
     `);
     await assert.rejects(registerRefrigerator(adapter, model.createRefrigeratorDraft()), /검증용 저장 실패/);
     assert.deepEqual(readStoredData(db), before);
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 3);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
     db.exec('DROP TRIGGER fail_registration');
     const id = await registerRefrigerator(adapter, model.createRefrigeratorDraft());
     assert.equal(db.prepare('SELECT id FROM refrigerators').get().id, id);
@@ -610,6 +610,44 @@ test('참조 중인 칸을 없애는 수정은 전용 연결의 외래 키 설�
     assert.deepEqual(readStoredData(db), before);
     assert.equal(db.prepare('SELECT slot_id FROM position_refs').get().slot_id, slotId);
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  });
+});
+
+test('재료가 있는 위치를 없애거나 숨기는 편집은 전체를 롤백하고 일반 편집은 보존한다', async t => {
+  for (const foreignKeys of [false, true]) await t.test(`foreign_keys=${foreignKeys}`, async t => {
+    const { db, adapter, databasePath } = await createRepositoryDatabase(t, foreignKeys);
+    const id = await registerRefrigerator(adapter, createTwoDoorDraft());
+    const loaded = await getRefrigerator(adapter);
+    const row = loaded.rows[0];
+    const insert = db.prepare('INSERT INTO ingredients VALUES (?, ?, ?, ?, ?, ?)');
+    insert.run('body-item', '계란', '2개', null, row.compartments[0].slots[0].id, 0);
+    insert.run('pocket-item', '우유', '반 통', '2026-11-30', row.doors[0].slots[0].id, 0);
+    const before = readStoredData(db);
+    const ingredients = db.prepare('SELECT * FROM ingredients ORDER BY id').all();
+    for (const change of [
+      draft => { draft.rows[0].compartments[0].slots[0].drawerCount = 2; return draft; },
+      draft => model.removeDraftRow(draft, row.id),
+      draft => model.mergeDraftCompartments(draft, row.id, row.compartments[0].id),
+      draft => { draft.rows[0].doors[0].storageEnabled = false; return draft; },
+      draft => model.setDraftDoorOpening(draft, row.id, row.doors[0].id, 'DRAWER'),
+    ]) {
+      const draft = change(model.createRefrigeratorDraft(loaded));
+      draft.name = '실패하면 반영하지 않을 이름';
+      await assert.rejects(updateRefrigerator(adapter, id, draft), /재료를 먼저 이동하거나 삭제|연결 정보|FOREIGN KEY/);
+      assert.deepEqual(readStoredData(db), before);
+      assert.deepEqual(db.prepare('SELECT * FROM ingredients ORDER BY id').all(), ingredients);
+    }
+    const draft = model.createRefrigeratorDraft(loaded);
+    draft.name = '재료가 있는 냉장고';
+    draft.rows[0].compartments[0].storageMode = 'FROZEN';
+    await updateRefrigerator(adapter, id, draft);
+    assert.equal((await getRefrigerator(adapter)).name, draft.name);
+    assert.deepEqual(db.prepare('SELECT * FROM ingredients ORDER BY id').all(), ingredients);
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+    const reopened = new DatabaseSync(databasePath);
+    try {
+      assert.deepEqual(reopened.prepare('SELECT * FROM ingredients ORDER BY id').all(), ingredients);
+    } finally { reopened.close(); }
   });
 });
 

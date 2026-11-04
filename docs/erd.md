@@ -8,6 +8,7 @@ erDiagram
     refrigerator_compartments ||..|{ refrigerator_doors : "개폐부 연결"
     refrigerator_compartments |o..|{ refrigerator_slots : "본체 칸"
     refrigerator_doors |o..|{ refrigerator_slots : "도어포켓 칸"
+    refrigerator_slots ||..o{ ingredients : "재료 보관"
 
     refrigerators {
         TEXT id PK
@@ -43,6 +44,17 @@ erDiagram
         INTEGER sort_order
         INTEGER drawer_count "0 / 1 / 2"
     }
+
+    ingredients {
+        TEXT id PK
+        TEXT name
+        TEXT quantity "단위 포함 문자열"
+        TEXT expiration_date "YYYY-MM-DD, NULL 허용"
+        TEXT slot_id FK
+        INTEGER drawer_number "분할 없음 0 / 왼쪽 1 / 오른쪽 2"
+    }
 ```
 
 칸은 본체와 문 중 하나만 참조하며 도어포켓의 `drawer_count`는 `0`이다. 복합 키와 상세 제약은 [DB 테이블 구조](database-schema.md)를 따른다.
+
+재료는 칸과 좌우 번호를 함께 참조한다. 재료가 있는 칸의 삭제·분할 변경과 포켓 숨김은 재료를 이동·삭제한 뒤 허용한다.

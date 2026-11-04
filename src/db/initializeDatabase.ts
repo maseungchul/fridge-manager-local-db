@@ -5,7 +5,7 @@
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 /** 연결마다 외래 키 검사를 켜고 현재 버전에 필요한 초기화를 실행한다. */
 export async function initializeDatabase(db: SQLiteDatabase) {
@@ -81,7 +81,7 @@ async function migrateVersion2(db: SQLiteDatabase) {
   `);
 }
 
-/** 냉장고·단·본체·문·칸의 테이블과 하위 데이터의 연쇄 삭제 제약을 생성한다. */
+/** 냉장고 구조·재료 테이블을 생성하고 재료가 참조하는 보관 위치를 보호한다. */
 async function createTables(db: SQLiteDatabase) {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS refrigerators (
@@ -133,5 +133,77 @@ async function createTables(db: SQLiteDatabase) {
       ),
       CHECK (door_id IS NULL OR drawer_count = 0)
     );
+
+    CREATE TABLE IF NOT EXISTS ingredients (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50 AND length(trim(name)) > 0),
+      quantity TEXT NOT NULL CHECK (length(quantity) BETWEEN 1 AND 50 AND length(trim(quantity)) > 0),
+      expiration_date TEXT CHECK (
+        expiration_date IS NULL OR (
+          expiration_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+          AND date(expiration_date, '+0 days') IS expiration_date
+        )
+      ),
+      slot_id TEXT NOT NULL REFERENCES refrigerator_slots (id) ON DELETE RESTRICT,
+      drawer_number INTEGER NOT NULL DEFAULT 0 CHECK (drawer_number IN (0, 1, 2))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ingredients_position ON ingredients (slot_id, drawer_number);
+
+    CREATE TRIGGER IF NOT EXISTS protect_ingredient_slot_split
+    BEFORE UPDATE OF drawer_count ON refrigerator_slots
+    WHEN (OLD.drawer_count = 2) != (NEW.drawer_count = 2)
+      AND EXISTS (SELECT 1 FROM ingredients WHERE slot_id = OLD.id)
+    BEGIN
+      SELECT RAISE(ABORT, '재료를 먼저 이동하거나 삭제한 후 칸의 분할을 변경해 주세요.');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS protect_ingredient_door_storage
+    BEFORE UPDATE OF storage_enabled, compartment_id ON refrigerator_doors
+    WHEN EXISTS (
+      SELECT 1 FROM ingredients AS ingredient
+      JOIN refrigerator_slots AS slot ON slot.id = ingredient.slot_id
+      WHERE slot.door_id = OLD.id
+    ) AND (
+      NEW.storage_enabled = 0
+      OR (SELECT kind FROM refrigerator_compartments WHERE id = NEW.compartment_id) = 'DRAWER'
+    )
+    BEGIN
+      SELECT RAISE(ABORT, '도어포켓의 재료를 먼저 이동하거나 삭제해 주세요.');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS protect_ingredient_drawer_conversion
+    BEFORE UPDATE OF kind ON refrigerator_compartments
+    WHEN NEW.kind = 'DRAWER' AND EXISTS (
+      SELECT 1 FROM ingredients AS ingredient
+      JOIN refrigerator_slots AS slot ON slot.id = ingredient.slot_id
+      JOIN refrigerator_doors AS door ON door.id = slot.door_id
+      WHERE door.compartment_id = OLD.id
+    )
+    BEGIN
+      SELECT RAISE(ABORT, '도어포켓의 재료를 먼저 이동하거나 삭제해 주세요.');
+    END;
   `);
+
+  // 등록·이동 시 분할 설정과 실제 사용할 수 있는 도어포켓에 맞는 위치만 허용한다.
+  for (const [name, event] of [
+    ['insert', 'INSERT'], ['update', 'UPDATE OF slot_id, drawer_number'],
+  ]) {
+    await db.execAsync(`
+      CREATE TRIGGER IF NOT EXISTS validate_ingredient_position_${name}
+      BEFORE ${event} ON ingredients
+      WHEN NOT EXISTS (
+        SELECT 1 FROM refrigerator_slots AS slot
+        LEFT JOIN refrigerator_doors AS door ON door.id = slot.door_id
+        LEFT JOIN refrigerator_compartments AS body ON body.id = door.compartment_id
+        WHERE slot.id = NEW.slot_id
+          AND ((slot.drawer_count = 2 AND NEW.drawer_number IN (1, 2))
+            OR (slot.drawer_count IN (0, 1) AND NEW.drawer_number = 0))
+          AND (slot.door_id IS NULL OR (door.storage_enabled = 1 AND body.kind = 'HINGED'))
+      )
+      BEGIN
+        SELECT RAISE(ABORT, '재료를 보관할 수 없는 위치입니다.');
+      END;
+    `);
+  }
 }
