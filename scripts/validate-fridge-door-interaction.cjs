@@ -21,6 +21,10 @@ const repository = {
   async updateRefrigeratorName() { throw new Error('이름 변경 동작을 지정하지 않았습니다.'); },
   async getRefrigerator() { return null; },
 };
+const ingredientRepository = {
+  async getIngredientsByPosition() { return []; },
+  async registerIngredient() { throw new Error('재료 등록 동작을 지정하지 않았습니다.'); },
+};
 
 let current;
 const animations = [];
@@ -77,7 +81,7 @@ class AnimatedValue {
   stopAnimation() {}
 }
 const native = {
-  View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
+  View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', FlatList: 'FlatList', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
   Keyboard: { dismiss() {} }, Platform: { OS: 'ios', Version: '26.1' },
   ActivityIndicator: 'ActivityIndicator', Alert: { alert(...args) { alerts.push(args); } },
   BackHandler: { addEventListener(event, handler) {
@@ -136,11 +140,16 @@ function loadComponent(path, overrides = {}) {
     '@/features/fridge/constants/messages': { fridgeMessages },
     '@expo/ui/swift-ui': { Button: 'SwiftUIButton', Host: 'SwiftUIHost', Label: 'SwiftUILabel', RNHostView: 'RNHostView' },
     '@expo/ui/swift-ui/modifiers': swiftUIModifiers,
+    '@expo/ui/community/bottom-sheet': { BottomSheet: 'BottomSheet' },
+    '@expo/ui/community/datetime-picker': { DateTimePicker: 'DateTimePicker' },
+    '@/features/ingredient/components/IngredientExpirationCalendar': { IngredientExpirationCalendar: 'IngredientExpirationCalendar' },
     '@/features/fridge/components/FridgeHomeButton': { FridgeHomeButton(props) {
       return (native.Platform.OS === 'ios' ? iosHomeButtonModule : defaultHomeButtonModule).FridgeHomeButton(props);
     } },
     'expo-sqlite': { useSQLiteContext: () => database },
     '@/db/refrigeratorRepository': repository,
+    '@/db/ingredientRepository': ingredientRepository,
+    '@/features/ingredient/components/IngredientListSheet': { IngredientListSheet: 'IngredientListSheet' },
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
     '@/features/fridge/components/FridgeInteriorMap': interiorModule,
@@ -184,6 +193,8 @@ menuModule = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
 const { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } = menuModule;
 const { RefrigeratorRegistrationScreen } = loadComponent('src/screens/RefrigeratorRegistrationScreen.tsx');
 const { HomeScreen } = loadComponent('src/screens/HomeScreen.tsx');
+const { IngredientListSheet } = loadComponent('src/features/ingredient/components/IngredientListSheet.tsx');
+const { IngredientExpirationCalendar } = loadComponent('src/features/ingredient/components/IngredientExpirationCalendar.tsx');
 const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FridgeHomeButton'
   ? [node.type(node.props)] : [node?.props?.children].flat(Infinity).filter(child => child?.type);
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
@@ -280,6 +291,24 @@ function savedRefrigerator(name) {
     }
   }
   return { id: 'saved', name, rows: draft.rows };
+}
+
+/** 목록의 추가 버튼을 눌러 등록 폼을 열고, 실제 필드·저장 이벤트로 검사한다. */
+async function ingredientFormFixture(t, onClose = () => {}) {
+  const sheet = mount(IngredientListSheet, {
+    position: { id: 'slot-left', slotId: 'slot', drawerNumber: 1 },
+    onClose,
+  });
+  t.after(() => sheet.unmount());
+  await new Promise(setImmediate);
+  sheet.render();
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
+  sheet.render();
+  return {
+    sheet,
+    input: label => find(sheet.tree, node => node.props.accessibilityLabel === label),
+    save: () => find(sheet.tree, node => node.props.accessibilityLabel === '재료 등록'),
+  };
 }
 const moving = focus => find(focus.tree, node => typeof node.props?.onStartShouldSetResponder === 'function');
 const toolbarTree = screen => FridgeAreaMenu(find(screen.tree, node => node.type === 'FridgeAreaMenu').props);
@@ -1238,6 +1267,8 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       home.render();
       assert.equal(focus().props.selectedAreaId, row.compartments[0].id);
       assert.equal(focus().props.selectedSlotIndex, 0);
+      find(home.tree, node => node.type === 'IngredientListSheet').props.onClose();
+      home.render();
       find(overlay.tree, node => node.props.accessibilityLabel === '냉장고 도면 바깥 영역 눌러 닫기').props.onPress();
       home.render();
       assert.equal(focus().props.phase, 'closing');
@@ -1356,6 +1387,7 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
   for (const slot of slots()) press(slot);
   home.render();
   assert.equal(focus().props.selectedSlotIndex, undefined);
+  assert.equal(find(home.tree, node => node.type === 'IngredientListSheet'), undefined);
   animations.at(-1).finish();
   refresh();
   const animationCount = animations.length;
@@ -1376,6 +1408,21 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
     const selected = slots().filter(slot => slot.button.props.accessibilityState.selected);
     assert.equal(selected.length, 1);
     assert.equal(selected[0].id, id);
+    const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
+    const layout = model.getDraftLayout(saved);
+    const position = layout.positions.find(position => position.id === id);
+    assert.deepEqual(sheet.props.position, position);
+    assert.equal(focus().props.scrollHintBlocked, true);
+    const coveredViewport = find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
+    assert.equal(coveredViewport.props.pointerEvents, 'none');
+    assert.equal(coveredViewport.props.accessibilityElementsHidden, true);
+    // 목록을 닫아도 열린 도면과 현재 칸의 선택은 유지한다.
+    if (index === expected.length - 1) assert.equal([...backHandlers].at(-1)(), true);
+    else sheet.props.onClose();
+    home.render();
+    assert.equal(find(home.tree, node => node.type === 'IngredientListSheet'), undefined);
+    assert.equal(focus().props.phase, 'open');
+    assert.equal(focus().props.selectedPositionId, id);
     const after = getFridgeFocusGeometry(saved, target, focus().props.viewport, focus().props.sizeViewport);
     near(after.height, before.height);
     near(after.body.width, before.body.width);
@@ -1409,6 +1456,313 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
   open();
   assert.equal(focus().props.selectedSlotIndex, undefined);
   assert.equal(focus().props.selectedPositionId, undefined);
+});
+
+test('재료 시트는 절반 높이에서 시작하고 스와이프 닫기와 빈 목록·조회 중을 구분한다', async t => {
+  const previous = ingredientRepository.getIngredientsByPosition;
+  t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
+  const pending = deferred();
+  const requests = [];
+  ingredientRepository.getIngredientsByPosition = (db, position) => {
+    assert.strictEqual(db, database);
+    requests.push(position);
+    return pending.promise;
+  };
+  let closed = 0;
+  const sheet = mount(IngredientListSheet, {
+    position: { id: 'slot-left', slotId: 'slot', drawerNumber: 1 },
+    onClose() { closed++; },
+  });
+  t.after(() => sheet.unmount());
+  const nativeClose = [];
+  sheet.tree.props.ref.current = { close() { nativeClose.push(true); } };
+  assert.equal(sheet.tree.type, 'BottomSheet');
+  assert.equal(sheet.tree.props.index, 0);
+  assert.deepEqual(sheet.tree.props.snapPoints, ['50%', '90%']);
+  assert.equal(sheet.tree.props.enableDynamicSizing, false);
+  assert.equal(sheet.tree.props.enablePanDownToClose, true);
+  assert(find(sheet.tree, node => node.props.accessibilityLabel === '재료 목록 불러오는 중'));
+  assert.equal(find(sheet.tree, node => node.type === 'FlatList'), undefined);
+  assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.disabled, true);
+  pending.resolve([]);
+  await new Promise(setImmediate);
+  sheet.render();
+  assert.deepEqual(requests, [{ slotId: 'slot', drawerNumber: 1 }]);
+  const list = find(sheet.tree, node => node.type === 'FlatList');
+  assert.deepEqual(list.props.data, []);
+  assert(find(list.props.ListEmptyComponent, node => node.props.children === '아직 보관 중인 재료가 없어요'));
+  assert.equal(find(sheet.tree, node => node.props.accessibilityRole === 'alert'), undefined);
+  assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.disabled, false);
+  assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '재료 시트 닫기'), undefined);
+  const panel = children(sheet.tree)[0];
+  assert.equal(panel.props.accessibilityViewIsModal, true);
+  assert.equal(flattenStyle(panel.props.style).height, undefined);
+  panel.props.onAccessibilityEscape();
+  assert.equal(nativeClose.length, 1);
+  assert.equal(closed, 0);
+  sheet.tree.props.onClose();
+  assert.equal(closed, 1);
+});
+
+test('재료 목록은 수량과 날짜 유무를 표시하고 분할 없는 칸은 번호 0으로 조회한다', async t => {
+  const previous = ingredientRepository.getIngredientsByPosition;
+  t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
+  const ingredients = [
+    { id: 'milk', name: '우유', quantity: '반 통', expirationDate: '2026-11-30', slotId: 'pocket', drawerNumber: 0 },
+    { id: 'eggs', name: '계란', quantity: '2개', expirationDate: null, slotId: 'pocket', drawerNumber: 0 },
+  ];
+  ingredientRepository.getIngredientsByPosition = async (db, position) => {
+    assert.deepEqual(position, { slotId: 'pocket', drawerNumber: 0 });
+    return ingredients;
+  };
+  const sheet = mount(IngredientListSheet, {
+    position: { id: 'pocket', slotId: 'pocket' }, onClose() {},
+  });
+  t.after(() => sheet.unmount());
+  await new Promise(setImmediate);
+  sheet.render();
+  const list = find(sheet.tree, node => node.type === 'FlatList');
+  assert.deepEqual(list.props.data, ingredients);
+  for (const item of ingredients) {
+    assert.equal(list.props.keyExtractor(item), item.id);
+    const rendered = list.props.renderItem({ item });
+    const texts = findAll(rendered, node => node.type === 'Text').map(node => node.props.children);
+    assert.deepEqual(texts, [item.name, item.quantity,
+      item.expirationDate ? `유통기한 ${item.expirationDate}` : '유통기한 미입력']);
+  }
+});
+
+test('재료 조회 실패는 빈 목록으로 표시하지 않고 패널에서 다시 불러온다', async t => {
+  const previous = ingredientRepository.getIngredientsByPosition;
+  t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
+  let calls = 0;
+  ingredientRepository.getIngredientsByPosition = async () => {
+    if (++calls === 1) throw new Error('검증용 조회 실패');
+    return [];
+  };
+  const sheet = mount(IngredientListSheet, {
+    position: { id: 'slot', slotId: 'slot' }, onClose() {},
+  });
+  t.after(() => sheet.unmount());
+  await new Promise(setImmediate);
+  sheet.render();
+  assert.equal(find(sheet.tree, node => node.props.accessibilityRole === 'alert').props.children, '재료 목록을 불러오지 못했습니다.');
+  assert.equal(find(sheet.tree, node => node.type === 'FlatList'), undefined);
+  assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.disabled, true);
+  const retry = find(sheet.tree, node => node.props.label === '다시 불러오기').props.onPress();
+  sheet.render();
+  assert(find(sheet.tree, node => node.type === 'ActivityIndicator'));
+  await retry;
+  sheet.render();
+  assert.equal(calls, 2);
+  assert.equal(find(sheet.tree, node => node.props.accessibilityRole === 'alert'), undefined);
+  assert.deepEqual(find(sheet.tree, node => node.type === 'FlatList').props.data, []);
+});
+
+test('이전 위치의 조회가 늦게 끝나도 새 위치의 재료 목록을 덮어쓰지 않는다', async t => {
+  const previous = ingredientRepository.getIngredientsByPosition;
+  t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
+  const left = deferred();
+  const right = deferred();
+  ingredientRepository.getIngredientsByPosition = (db, position) => position.drawerNumber === 1 ? left.promise : right.promise;
+  const sheet = mount(IngredientListSheet, {
+    position: { id: 'slot-left', slotId: 'slot', drawerNumber: 1 }, onClose() {},
+  });
+  t.after(() => sheet.unmount());
+  sheet.props = { ...sheet.props, position: { id: 'slot-right', slotId: 'slot', drawerNumber: 2 } };
+  sheet.render();
+  const ingredients = [{ id: 'right-item', name: '오른쪽 재료', quantity: '1개', expirationDate: null }];
+  right.resolve(ingredients);
+  await new Promise(setImmediate);
+  sheet.render();
+  assert.deepEqual(find(sheet.tree, node => node.type === 'FlatList').props.data, ingredients);
+  left.resolve([{ id: 'left-item', name: '늦은 왼쪽 재료' }]);
+  await new Promise(setImmediate);
+  sheet.render();
+  assert.deepEqual(find(sheet.tree, node => node.type === 'FlatList').props.data, ingredients);
+});
+
+test('추가는 같은 시트를 확대하고 날짜 선택·해제와 목록 복귀 후 입력 유지를 지원한다', async t => {
+  const previous = { ...ingredientRepository };
+  t.after(() => Object.assign(ingredientRepository, previous));
+  ingredientRepository.getIngredientsByPosition = async () => [];
+  const { sheet, input, save } = await ingredientFormFixture(t);
+  assert.equal(sheet.tree.type, 'BottomSheet');
+  assert.equal(sheet.tree.props.index, 1);
+  assert.equal(input('재료 시트 닫기'), undefined);
+  assert.equal(find(sheet.tree, node => node.type === 'Modal'), undefined);
+  const header = find(sheet.tree, node => children(node).includes(save()));
+  assert.equal(flattenStyle(header.props.style).alignItems, 'center');
+  const title = find(header, node => node.props.accessibilityRole === 'header');
+  const heading = find(header, node => children(node).includes(title));
+  assert.equal(flattenStyle(heading.props.style).justifyContent, 'center');
+  assert.equal(flattenStyle(heading.props.style).minHeight, 48);
+  for (const button of [input('재료 목록으로 돌아가기'), save()]) {
+    assert.equal(flattenStyle(button.props.style).width, 48);
+    assert.equal(flattenStyle(button.props.style).height, 48);
+    assert.equal(find(button, node => node.type === 'Icon').props.size, 32);
+  }
+  assert.equal(find(save(), node => node.type === 'Icon').props.name, 'checkbox-marked-circle-plus-outline');
+  assert.equal(find(sheet.tree, node => node.props.label === '저장'), undefined);
+  assert.equal(save().props.disabled, true);
+  const quantityFocus = [];
+  input('재료 수량').props.ref.current = { focus() { quantityFocus.push(true); } };
+  input('재료명').props.onSubmitEditing();
+  assert.equal(quantityFocus.length, 1);
+  input('재료명').props.onChangeText('계란');
+  input('재료 수량').props.onChangeText('2개');
+  sheet.render();
+  assert.equal(save().props.disabled, false);
+  input('유통기한 날짜 선택').props.onPress();
+  sheet.render();
+  assert.equal(save().props.disabled, true);
+  const picker = find(sheet.tree, node => node.type === 'IngredientExpirationCalendar');
+  assert.equal(picker.props.value, null);
+  assert.equal(find(sheet.tree, node => node.props.label === '이 날짜로 선택'), undefined);
+  picker.props.onSelect('2026-11-04');
+  sheet.render();
+  assert(find(input('유통기한 날짜 선택'), node => node.props.children === '2026-11-04'));
+  assert.equal(find(sheet.tree, node => node.type === 'IngredientExpirationCalendar'), undefined);
+  assert.equal(save().props.disabled, false);
+  input('유통기한 선택 해제').props.onPress();
+  sheet.render();
+  assert(find(input('유통기한 날짜 선택'), node => node.props.children === '날짜 선택'));
+  input('재료 목록으로 돌아가기').props.onPress();
+  sheet.render();
+  assert.equal(sheet.tree.props.index, 0);
+  assert(find(sheet.tree, node => node.type === 'FlatList'));
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
+  sheet.render();
+  assert.equal(input('재료명').props.value, '계란');
+  assert.equal(input('재료 수량').props.value, '2개');
+});
+
+test('네이티브 달력은 날짜 변경을 즉시 전달하고 Android의 초기값 알림과 저장 중 입력을 제외한다', async t => {
+  for (const platform of ['ios', 'android']) await t.test(platform, t => {
+    const previousPlatform = native.Platform.OS;
+    native.Platform.OS = platform;
+    t.after(() => { native.Platform.OS = previousPlatform; });
+    const selected = [];
+    const calendar = mount(IngredientExpirationCalendar, { value: '2028-02-29', onSelect(date) { selected.push(date); } });
+    t.after(() => calendar.unmount());
+    assert.equal(calendar.tree.type, 'DateTimePicker');
+    assert.equal(calendar.tree.props.display, 'inline');
+    assert.equal(calendar.tree.props.presentation, 'inline');
+    assert.equal(calendar.tree.props.value.getFullYear(), 2028);
+    assert.equal(calendar.tree.props.value.getMonth(), 1);
+    assert.equal(calendar.tree.props.value.getDate(), 29);
+    assert.deepEqual(selected, []);
+    if (platform === 'android') {
+      calendar.tree.props.onValueChange({}, new Date(2028, 1, 29, 0, 0));
+      assert.deepEqual(selected, []);
+    }
+    calendar.tree.props.onValueChange({}, new Date(2028, 2, 1, 0, 30));
+    assert.deepEqual(selected, ['2028-03-01']);
+    calendar.props = { ...calendar.props, disabled: true };
+    calendar.render();
+    assert.equal(calendar.tree.props.disabled, true);
+    calendar.tree.props.onValueChange({}, new Date(2028, 2, 2, 23, 30));
+    assert.deepEqual(selected, ['2028-03-01']);
+  });
+});
+
+test('재료 저장 중 입력·닫기·중복 요청을 막고 성공하면 입력을 비우고 목록을 갱신한다', async t => {
+  const previous = { ...ingredientRepository };
+  t.after(() => Object.assign(ingredientRepository, previous));
+  const pending = deferred();
+  const calls = [];
+  const queries = [];
+  const persisted = [];
+  ingredientRepository.getIngredientsByPosition = async (db, position) => { queries.push(position); return [...persisted]; };
+  ingredientRepository.registerIngredient = (db, input) => { assert.strictEqual(db, database); calls.push(input); return pending.promise; };
+  let closed = 0;
+  const { sheet, input, save } = await ingredientFormFixture(t, () => { closed++; });
+  const nativeClose = [];
+  sheet.tree.props.ref.current = { close() { nativeClose.push(true); } };
+  input('재료명').props.onChangeText(' 계란 ');
+  input('재료 수량').props.onChangeText(' 2개 ');
+  sheet.render();
+  const firstSave = save().props.onPress();
+  const duplicateSave = save().props.onPress();
+  sheet.render();
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], { name: ' 계란 ', quantity: ' 2개 ', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
+  assert.equal(save().props.accessibilityState.busy, true);
+  assert(find(save(), node => node.props.accessibilityLabel === '재료 등록 중'));
+  assert.equal(sheet.tree.props.enablePanDownToClose, false);
+  assert.equal(input('재료명').props.editable, false);
+  assert.equal(input('재료 수량').props.editable, false);
+  assert.equal(input('재료 시트 닫기'), undefined);
+  assert.equal(input('재료 목록으로 돌아가기').props.disabled, true);
+  input('재료명').props.onChangeText('저장 중 변경 금지');
+  input('재료 목록으로 돌아가기').props.onPress();
+  children(sheet.tree)[0].props.onAccessibilityEscape();
+  sheet.tree.props.onClose();
+  sheet.render();
+  assert.equal(input('재료명').props.value, ' 계란 ');
+  assert.equal(closed, 0);
+  assert.equal(nativeClose.length, 0);
+  persisted.push({ id: 'saved-item', name: '계란', quantity: '2개', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
+  pending.resolve(persisted[0]);
+  await Promise.all([firstSave, duplicateSave]);
+  sheet.render();
+  await new Promise(setImmediate);
+  sheet.render();
+  assert.equal(sheet.tree.props.index, 0);
+  assert.equal(sheet.tree.props.enablePanDownToClose, true);
+  assert.deepEqual(queries, [{ slotId: 'slot', drawerNumber: 1 }, { slotId: 'slot', drawerNumber: 1 }]);
+  assert.deepEqual(find(sheet.tree, node => node.type === 'FlatList').props.data, persisted);
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
+  sheet.render();
+  assert.equal(input('재료명').props.value, '');
+  assert.equal(input('재료 수량').props.value, '');
+  assert.equal(save().props.disabled, true);
+});
+
+test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회 실패는 중복 등록 없이 복구한다', async t => {
+  const previous = { ...ingredientRepository };
+  t.after(() => Object.assign(ingredientRepository, previous));
+  let reads = 0;
+  let writes = 0;
+  const persisted = { id: 'item', name: '우유', quantity: '반 통', expirationDate: '2026-11-30', slotId: 'slot', drawerNumber: 1 };
+  ingredientRepository.getIngredientsByPosition = async () => {
+    if (++reads === 2) throw new Error('검증용 저장 후 조회 실패');
+    return reads === 1 ? [] : [persisted];
+  };
+  ingredientRepository.registerIngredient = async (db, input) => {
+    if (++writes === 1) throw new Error('내부 DB 오류');
+    assert.equal(input.expirationDate, '2026-11-30');
+    return persisted;
+  };
+  const { sheet, input, save } = await ingredientFormFixture(t);
+  input('재료명').props.onChangeText('우유');
+  input('재료 수량').props.onChangeText('반 통');
+  input('유통기한 날짜 선택').props.onPress();
+  sheet.render();
+  find(sheet.tree, node => node.type === 'IngredientExpirationCalendar').props.onSelect('2026-11-30');
+  sheet.render();
+  await save().props.onPress();
+  sheet.render();
+  assert.match(find(sheet.tree, node => node.props.accessibilityRole === 'alert').props.children, /재료를 저장하지 못했습니다/);
+  assert.equal(input('재료명').props.value, '우유');
+  assert.equal(input('재료 수량').props.value, '반 통');
+  assert.equal(save().props.accessibilityState.busy, false);
+  assert.equal(save().props.disabled, false);
+  assert.equal(sheet.tree.props.enablePanDownToClose, true);
+  await save().props.onPress();
+  sheet.render();
+  await new Promise(setImmediate);
+  sheet.render();
+  assert.equal(input('재료명'), undefined);
+  assert.equal(save(), undefined);
+  assert.equal(find(sheet.tree, node => node.props.accessibilityRole === 'alert').props.children, '재료 목록을 불러오지 못했습니다.');
+  assert.equal(writes, 2);
+  find(sheet.tree, node => node.props.label === '다시 불러오기').props.onPress();
+  sheet.render();
+  await new Promise(setImmediate);
+  sheet.render();
+  assert.deepEqual(find(sheet.tree, node => node.type === 'FlatList').props.data, [persisted]);
+  assert.equal(writes, 2);
 });
 
 test('홈·등록·편집은 닫힘·열림 크기를 공유하고 홈의 중앙 위치만 화면 전체를 기준으로 삼는다', async t => {

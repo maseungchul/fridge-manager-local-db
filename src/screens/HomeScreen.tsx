@@ -1,7 +1,7 @@
 /**
  * @file
  * 저장된 냉장고를 공통 도면으로 표시하며, 홈에서는 영역 대신 개별 수납 칸을 선택한다.
- * 미등록 상태에서는 공통 냉장고 도식과 안내·등록 버튼을 표시한다.
+ * 선택한 칸은 재료 목록 패널로 연결하고, 미등록 상태에서는 안내·등록 버튼을 표시한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeBottomTabScreenProps } from '@react-navigation/bottom-tabs/unstable';
@@ -19,7 +19,9 @@ import { getRefrigerator } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase } from '@/features/fridge/components/FridgeInteriorMap';
+import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
+import { IngredientListSheet } from '@/features/ingredient/components/IngredientListSheet';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
@@ -37,6 +39,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
+  const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
   const loadRequest = useRef(0);
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
@@ -45,7 +48,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   } = useFridgeFocus();
   const finishHomeFocus = useCallback((phase: FridgeFocusPhase) => {
     finishFocusTransition(phase);
-    if (phase === 'closed') setSelectedSlot(null);
+    if (phase === 'closed') { setSelectedSlot(null); setIsIngredientListOpen(false); }
   }, [finishFocusTransition]);
 
   // 홈 재진입·재시도 이전에 시작한 조회가 늦게 끝나도 최신 결과만 반영한다.
@@ -53,6 +56,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     const request = ++loadRequest.current;
     resetFocus();
     setSelectedSlot(null);
+    setIsIngredientListOpen(false);
     setIsLoading(true);
     setError(null);
     try {
@@ -69,17 +73,22 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   useFocusEffect(useCallback(() => {
     void loadRefrigerator();
-    return () => { loadRequest.current++; resetFocus(); setSelectedSlot(null); };
+    return () => { loadRequest.current++; resetFocus(); setSelectedSlot(null); setIsIngredientListOpen(false); };
   }, [loadRefrigerator, resetFocus]));
 
   useEffect(() => {
     if (!activeFocus) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      closeFocusedArea();
+      if (isIngredientListOpen) setIsIngredientListOpen(false);
+      else closeFocusedArea();
       return true;
     });
     return () => subscription.remove();
-  }, [activeFocus, closeFocusedArea]);
+  }, [activeFocus, closeFocusedArea, isIngredientListOpen]);
+
+  const layout = refrigerator ? getDraftLayout(refrigerator) : null;
+  const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
+    && position.areaId === selectedAreaId);
 
   return (
     <View style={styles.container}>
@@ -121,17 +130,29 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           )}
       </SafeAreaView>
       {/* 이름과 안전 영역의 여백을 제외하지 않은 화면 전체를 중앙 보기의 기준으로 사용한다. */}
-      <View ref={focusViewport} collapsable={false} pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
+      <View ref={focusViewport} collapsable={false} pointerEvents={isIngredientListOpen ? 'none' : 'box-none'}
+        accessibilityElementsHidden={isIngredientListOpen} importantForAccessibility={isIngredientListOpen ? 'no-hide-descendants' : 'auto'}
+        style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
         {refrigerator && activeFocus && focusBounds ? (
           <FridgeFocusView draft={refrigerator} target={activeFocus} viewport={focusBounds} phase={focusPhase}
             sizeViewport={diagramSizes.opened}
             selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
             selectedSlotIndex={selectedSlot?.index} selectedPositionId={selectedSlot?.positionId}
-            onSelectSlot={(areaId, index, positionId) => { setSelectedAreaId(areaId); setSelectedSlot({ index, positionId }); }}
+            scrollHintBlocked={isIngredientListOpen}
+            onSelectSlot={(areaId, index, positionId) => {
+              if (focusPhase !== 'open') return;
+              setSelectedAreaId(areaId);
+              setSelectedSlot({ index, positionId });
+              setIsIngredientListOpen(!!layout?.positions.some(position => position.id === positionId && position.areaId === areaId));
+            }}
             onScrollHintSeen={markScrollHintSeen} onPhaseChange={finishHomeFocus}
             onClose={closeFocusedArea} />
         ) : null}
       </View>
+      {isIngredientListOpen && focusPhase === 'open' && selectedPosition ? (
+        <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
+          onClose={() => setIsIngredientListOpen(false)} />
+      ) : null}
     </View>
   );
 }
