@@ -368,7 +368,7 @@ for (const table of ['refrigerator_rows', 'refrigerator_compartments', 'refriger
     `);
     await assert.rejects(registerRefrigerator(adapter, model.createRefrigeratorDraft()), /검증용 저장 실패/);
     assert.deepEqual(readStoredData(db), before);
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 3);
     db.exec('DROP TRIGGER fail_registration');
     const id = await registerRefrigerator(adapter, model.createRefrigeratorDraft());
     assert.equal(db.prepare('SELECT id FROM refrigerators').get().id, id);
@@ -684,10 +684,12 @@ test('물리적 삽입 순서가 달라도 단·문·본체·칸은 저장된 �
   draft.rows[0].compartments[0].slots = createSlots(4);
   await registerRefrigerator(adapter, draft);
   const expected = await getRefrigerator(adapter);
-  db.exec('BEGIN; PRAGMA defer_foreign_keys = ON;');
-  for (const table of Object.keys(readStoredData(db))) {
-    const rows = db.prepare(`SELECT * FROM ${table} ORDER BY rowid DESC`).all();
-    db.exec(`DELETE FROM ${table}`);
+  // 연쇄 삭제 전에 전체 원본을 보관하고 자식부터 비운 뒤 부모부터 다시 삽입한다.
+  const stored = Object.keys(readStoredData(db)).map(table => [table,
+    db.prepare(`SELECT * FROM ${table} ORDER BY rowid DESC`).all()]);
+  db.exec('BEGIN;');
+  for (const [table] of [...stored].reverse()) db.exec(`DELETE FROM ${table}`);
+  for (const [table, rows] of stored) {
     for (const row of rows) {
       db.prepare(`INSERT INTO ${table} (${Object.keys(row).join(', ')}) VALUES (${Object.keys(row).map(() => '?').join(', ')})`)
         .run(...Object.values(row));
