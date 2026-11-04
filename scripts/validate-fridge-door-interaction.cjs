@@ -1496,7 +1496,7 @@ test('재료 시트는 절반 높이에서 시작하고 스와이프 닫기와 �
   sheet.tree.props.ref.current = { close() { nativeClose.push(true); } };
   assert.equal(sheet.tree.type, 'BottomSheet');
   assert.equal(sheet.tree.props.index, 0);
-  assert.deepEqual(sheet.tree.props.snapPoints, ['50%', '100%']);
+  assert.equal(sheet.tree.props.snapPoints, undefined);
   assert.equal(sheet.tree.props.enableDynamicSizing, false);
   assert.equal(sheet.tree.props.enablePanDownToClose, true);
   assert(find(sheet.tree, node => node.props.accessibilityLabel === '재료 목록 불러오는 중'));

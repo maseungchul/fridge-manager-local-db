@@ -4,7 +4,7 @@
  * 조회·등록은 여기서 처리하고, 도면의 선택과 시트 종료는 호출자가 관리한다.
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, Platform, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
 import type { LayoutRectangle } from 'react-native';
 import { BottomSheet } from '@expo/ui/community/bottom-sheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -26,6 +26,7 @@ interface IngredientListSheetProps {
   onClose: () => void;
 }
 
+// iOS의 기본 medium·large 전환을 위해 비율 지정은 Android·웹에서만 사용한다.
 const SHEET_SNAP_POINTS = ['50%', '100%'];
 
 export function IngredientListSheet({ position, onClose }: IngredientListSheetProps) {
@@ -187,7 +188,7 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
   }
 
   return (
-    <BottomSheet ref={sheetRef} index={0} snapPoints={SHEET_SNAP_POINTS} handleComponent={null}
+    <BottomSheet ref={sheetRef} index={0} snapPoints={Platform.OS === 'ios' ? undefined : SHEET_SNAP_POINTS} handleComponent={null}
       enableDynamicSizing={false} enablePanDownToClose={!isSaving && !isChanging} backgroundStyle={styles.panel}
       onClose={() => { if (!saving.current && !transition.current.active) onClose(); }}>
         <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}>
