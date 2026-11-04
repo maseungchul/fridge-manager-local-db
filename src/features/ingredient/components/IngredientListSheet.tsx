@@ -4,7 +4,7 @@
  * 조회·등록은 여기서 처리하고, 도면의 선택과 시트 종료는 호출자가 관리한다.
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
 import { BottomSheet } from '@expo/ui/community/bottom-sheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -14,6 +14,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { getIngredientsByPosition, registerIngredient } from '@/db/ingredientRepository';
 import type { SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
+import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
 import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -29,6 +30,11 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
   const sheetRef = useRef<BottomSheet>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const saving = useRef(false);
+  const transition = useRef<{ active: boolean; animation?: Animated.CompositeAnimation }>({ active: false });
+  const panelProgress = useAnimatedValue(0);
+  const { width: windowWidth } = useWindowDimensions();
+  const [pageWidth, setPageWidth] = useState(windowWidth);
+  const [isChanging, setIsChanging] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -63,42 +69,71 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
     return () => { active = false; };
   }, [db, slotId, drawerNumber, requestKey]);
 
+  useEffect(() => {
+    const currentTransition = transition.current;
+    return () => { currentTransition.active = false; currentTransition.animation?.stop(); };
+  }, []);
+
+  // 제목·버튼·본문을 함께 전환하고 완료 전까지 연속 조작을 막는다.
+  function changePanel(adding: boolean, onComplete?: () => void) {
+    if (transition.current.active || adding === isAdding) return;
+    Keyboard.dismiss();
+    transition.current.active = true;
+    setIsChanging(true);
+    setIsAdding(adding);
+    const target = adding ? 1 : 0;
+    const animation = Animated.timing(panelProgress, { toValue: target, duration: 240, useNativeDriver: true });
+    transition.current.animation = animation;
+    animation.start(({ finished }) => {
+      if (!transition.current.active) return;
+      if (!finished) panelProgress.setValue(target);
+      transition.current.active = false;
+      setIsChanging(false);
+      onComplete?.();
+    });
+  }
+
+  function startAdding() {
+    if (saving.current || transition.current.active || isLoading || error !== null) return;
+    setSaveError(null);
+    changePanel(true);
+  }
+
   function closeSheet() {
-    if (saving.current) return;
+    if (saving.current || transition.current.active) return;
     Keyboard.dismiss();
     sheetRef.current?.close();
   }
 
   function returnToList() {
-    if (saving.current) return;
+    if (saving.current || transition.current.active) return;
     Keyboard.dismiss();
     setIsDatePickerOpen(false);
     setSaveError(null);
-    setIsAdding(false);
+    changePanel(false);
   }
 
   function toggleDatePicker() {
-    if (saving.current) return;
+    if (saving.current || transition.current.active) return;
     Keyboard.dismiss();
     setIsDatePickerOpen(!isDatePickerOpen);
   }
 
   function selectExpirationDate(date: string) {
-    if (saving.current) return;
+    if (saving.current || transition.current.active) return;
     setDraft(current => ({ ...current, expirationDate: date }));
     setIsDatePickerOpen(false);
   }
 
   async function saveIngredient() {
-    if (saving.current || !canSave) return;
+    if (saving.current || transition.current.active || !canSave) return;
     saving.current = true;
     setIsSaving(true);
     setSaveError(null);
     Keyboard.dismiss();
     try {
       await registerIngredient(db, { ...draft, slotId, drawerNumber });
-      setDraft({ name: '', quantity: '', expirationDate: null });
-      setIsAdding(false);
+      changePanel(false, () => setDraft({ name: '', quantity: '', expirationDate: null }));
       // 저장 후 재조회가 실패해도 등록 폼으로 돌아가지 않아 중복 등록을 막는다.
       setReloadCount(count => count + 1);
     } catch {
@@ -110,103 +145,130 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
   }
 
   return (
-    <BottomSheet ref={sheetRef} index={isAdding ? 1 : 0} snapPoints={SHEET_SNAP_POINTS}
-      enableDynamicSizing={false} enablePanDownToClose={!isSaving} backgroundStyle={styles.panel}
-      onClose={() => { if (!saving.current) onClose(); }}>
+    <BottomSheet ref={sheetRef} index={0} snapPoints={SHEET_SNAP_POINTS} handleComponent={null}
+      enableDynamicSizing={false} enablePanDownToClose={!isSaving && !isChanging} backgroundStyle={styles.panel}
+      onClose={() => { if (!saving.current && !transition.current.active) onClose(); }}>
         <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}>
-          <View style={styles.header}>
-            {isAdding ? (
-              <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 목록으로 돌아가기"
-                disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={styles.headerIconButton}>
-                <MaterialDesignIcons name="arrow-left" size={32} color={colors.text} accessible={false} />
-              </FeedbackPressable>
-            ) : null}
-            <View style={styles.heading}>
-              <Text accessibilityRole="header" style={styles.title}>{isAdding ? '재료 추가' : '재료 목록'}</Text>
-            </View>
-            {isAdding ? (
-              <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 등록"
-                accessibilityState={{ disabled: !canSave || isSaving, busy: isSaving }} disabled={!canSave || isSaving}
-                onPress={saveIngredient} style={styles.headerIconButton}>
-                {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel="재료 등록 중" />
-                  : <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={32} color={colors.text} accessible={false} />}
-              </FeedbackPressable>
-            ) : (
-              <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 추가"
-                accessibilityState={{ disabled: isLoading || error !== null }} disabled={isLoading || error !== null}
-                onPress={() => { setSaveError(null); setIsAdding(true); }} style={styles.headerIconButton}>
-                <MaterialDesignIcons name="plus" size={32} color={colors.text} accessible={false} />
-              </FeedbackPressable>
-            )}
-          </View>
-          <View style={styles.content}>
-            {isAdding ? (
-              <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
-                <FormTextInput label="재료명" accessibilityLabel="재료명" placeholder="예: 계란"
-                  value={draft.name} maxLength={50} editable={!isSaving} returnKeyType="next"
-                  onSubmitEditing={() => quantityInput.current?.focus()}
-                  onChangeText={name => { if (!saving.current) setDraft(current => ({ ...current, name })); }} />
-                <FormTextInput ref={quantityInput} label="수량" accessibilityLabel="재료 수량" placeholder="예: 2개, 반 통, 500g"
-                  value={draft.quantity} maxLength={50} editable={!isSaving} returnKeyType="done"
-                  onChangeText={quantity => { if (!saving.current) setDraft(current => ({ ...current, quantity })); }} />
-                <Text style={styles.fieldLabel}>유통기한 (선택)</Text>
-                <View style={styles.dateRow}>
-                  <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 날짜 선택"
-                    accessibilityState={{ disabled: isSaving, expanded: isDatePickerOpen }} disabled={isSaving}
-                    onPress={toggleDatePicker} style={styles.dateButton}>
-                    <MaterialDesignIcons name="calendar-outline" size={22} color={colors.text} accessible={false} />
-                    <Text style={styles.positionName}>{draft.expirationDate ?? '날짜 선택'}</Text>
-                  </FeedbackPressable>
-                  {draft.expirationDate ? (
-                    <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 선택 해제"
-                      disabled={isSaving} accessibilityState={{ disabled: isSaving }} style={styles.clearDateButton}
-                      onPress={() => {
-                        if (saving.current) return;
-                        setDraft(current => ({ ...current, expirationDate: null }));
-                        setIsDatePickerOpen(false);
-                      }}>
-                      <Text style={styles.clearDate}>선택 해제</Text>
-                    </FeedbackPressable>
+          {/* 시스템 표시기의 가변 색상 대신 고정색으로 표시하고, 드래그는 네이티브 시트에 맡긴다. */}
+          <View style={styles.dragIndicator} pointerEvents="none" accessible={false} />
+          <View style={styles.content} onLayout={({ nativeEvent }) => {
+            if (nativeEvent.layout.width > 0) setPageWidth(nativeEvent.layout.width);
+          }}>
+            <Animated.View style={[styles.pageTrack, { width: pageWidth * 2, transform: [{
+              translateX: panelProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -pageWidth] }),
+            }] }]}>
+              {([false, true] as const).map(addingPage => (
+                <View key={addingPage ? 'add' : 'list'} style={[styles.page, { width: pageWidth }]}
+                  pointerEvents={addingPage === isAdding && !isChanging && !isSaving ? 'auto' : 'none'}
+                  accessibilityElementsHidden={addingPage !== isAdding || isChanging}
+                  importantForAccessibility={addingPage === isAdding && !isChanging ? 'auto' : 'no-hide-descendants'}>
+                  {addingPage === isAdding || isChanging ? (
+                    <>
+                      <View style={styles.header}>
+                        {addingPage ? (
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 목록으로 돌아가기"
+                            disabled={isSaving} interactionBlocked={isChanging} accessibilityState={{ disabled: isSaving || isChanging }}
+                            onPress={returnToList} style={styles.headerIconButton}>
+                            <MaterialDesignIcons name="arrow-left" size={32} color={colors.text} accessible={false} />
+                          </FeedbackPressable>
+                        ) : null}
+                        <View style={styles.heading}>
+                          <Text accessibilityRole="header" style={[styles.title, addingPage && styles.centeredTitle]}>{addingPage ? '재료 추가' : '재료 목록'}</Text>
+                        </View>
+                        {addingPage ? (
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 등록"
+                            accessibilityState={{ disabled: !canSave || isSaving || isChanging, busy: isSaving }}
+                            disabled={!canSave || isSaving} interactionBlocked={isChanging}
+                            onPress={saveIngredient} style={styles.headerIconButton}>
+                            {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel="재료 등록 중" />
+                              : <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={32} color={colors.text} accessible={false} />}
+                          </FeedbackPressable>
+                        ) : (
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 추가"
+                            accessibilityState={{ disabled: isLoading || error !== null || isChanging }} disabled={isLoading || error !== null}
+                            interactionBlocked={isChanging} onPress={startAdding} style={styles.headerIconButton}>
+                            <MaterialDesignIcons name="plus" size={32} color={colors.text} accessible={false} />
+                          </FeedbackPressable>
+                        )}
+                      </View>
+                      <View style={styles.pageContent}>
+                        {addingPage ? (
+                          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
+                            <FormTextInput label="재료명" accessibilityLabel="재료명" placeholder="예: 계란"
+                              value={draft.name} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="next"
+                              onSubmitEditing={() => quantityInput.current?.focus()}
+                              onChangeText={name => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, name })); }} />
+                            <FormTextInput ref={quantityInput} label="수량" accessibilityLabel="재료 수량" placeholder="예: 2개, 반 통, 500g"
+                              value={draft.quantity} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="done"
+                              onChangeText={quantity => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, quantity })); }} />
+                            <Text style={styles.fieldLabel}>유통기한 (선택)</Text>
+                            <View style={styles.dateRow}>
+                              <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 날짜 선택"
+                                accessibilityState={{ disabled: isSaving || isChanging, expanded: isDatePickerOpen }}
+                                disabled={isSaving} interactionBlocked={isChanging}
+                                onPress={toggleDatePicker} style={styles.dateButton}>
+                                <MaterialDesignIcons name="calendar-outline" size={22} color={colors.text} accessible={false} />
+                                <Text style={styles.positionName}>{draft.expirationDate ?? '날짜 선택'}</Text>
+                              </FeedbackPressable>
+                              {draft.expirationDate ? (
+                                <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 선택 해제"
+                                  disabled={isSaving} interactionBlocked={isChanging} accessibilityState={{ disabled: isSaving || isChanging }} style={styles.clearDateButton}
+                                  onPress={() => {
+                                    if (saving.current || transition.current.active) return;
+                                    setDraft(current => ({ ...current, expirationDate: null }));
+                                    setIsDatePickerOpen(false);
+                                  }}>
+                                  <Text style={styles.clearDate}>선택 해제</Text>
+                                </FeedbackPressable>
+                              ) : null}
+                            </View>
+                            {isDatePickerOpen ? (
+                              <View style={styles.calendar}>
+                                <IngredientExpirationCalendar value={draft.expirationDate} disabled={isSaving || isChanging} onSelect={selectExpirationDate} />
+                              </View>
+                            ) : null}
+                            {saveError ? <Text accessibilityRole="alert" style={styles.error}>{saveError}</Text> : null}
+                          </ScrollView>
+                        ) : isLoading ? (
+                          <View style={styles.feedback}>
+                            <ActivityIndicator color={colors.text} accessibilityLabel="재료 목록 불러오는 중" />
+                          </View>
+                        ) : error ? (
+                          <View style={styles.feedback}>
+                            <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
+                            <PrimaryButton label="다시 불러오기" onPress={() => setReloadCount(count => count + 1)}
+                              variant="secondary" style={styles.retryButton} />
+                          </View>
+                        ) : (
+                          <FlatList data={ingredients} keyExtractor={item => item.id}
+                            style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.emptyList : undefined}
+                            ListEmptyComponent={
+                              <View style={styles.emptyState}>
+                                <MaterialDesignIcons name="tray-plus" size={40} color={colors.textMuted} accessible={false} />
+                                <Text style={styles.emptyTitle}>아직 보관 중인 재료가 없어요</Text>
+                                <Text style={styles.emptyDescription}>이 칸에 보관할 재료를 추가해 보세요.</Text>
+                              </View>
+                            }
+                            renderItem={({ item }) => {
+                              const expiration = getIngredientExpirationStatus(item.expirationDate);
+                              return (
+                                <View style={styles.item}>
+                                  <View style={styles.itemInfo}>
+                                    <Text style={styles.itemName}>{item.name}</Text>
+                                    <Text style={styles.quantity}>{item.quantity}</Text>
+                                  </View>
+                                  <Text style={[styles.expirationDate, expiration.isUrgent && styles.urgentExpiration]}>{expiration.label}</Text>
+                                </View>
+                              );
+                            }} />
+                        )}
+                      </View>
+                    </>
                   ) : null}
                 </View>
-                {isDatePickerOpen ? (
-                  <View style={styles.calendar}>
-                    <IngredientExpirationCalendar value={draft.expirationDate} disabled={isSaving} onSelect={selectExpirationDate} />
-                  </View>
-                ) : null}
-                {saveError ? <Text accessibilityRole="alert" style={styles.error}>{saveError}</Text> : null}
-              </ScrollView>
-            ) : isLoading ? (
-              <View style={styles.feedback}>
-                <ActivityIndicator color={colors.text} accessibilityLabel="재료 목록 불러오는 중" />
-              </View>
-            ) : error ? (
-              <View style={styles.feedback}>
-                <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
-                <PrimaryButton label="다시 불러오기" onPress={() => setReloadCount(count => count + 1)}
-                  variant="secondary" style={styles.retryButton} />
-              </View>
-            ) : (
-              <FlatList data={ingredients} keyExtractor={item => item.id}
-                style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.emptyList : undefined}
-                ListEmptyComponent={
-                  <View style={styles.emptyState}>
-                    <MaterialDesignIcons name="tray-plus" size={40} color={colors.textMuted} accessible={false} />
-                    <Text style={styles.emptyTitle}>아직 보관 중인 재료가 없어요</Text>
-                    <Text style={styles.emptyDescription}>이 칸에 보관할 재료를 추가해 보세요.</Text>
-                  </View>
-                }
-                renderItem={({ item }) => (
-                  <View style={styles.item}>
-                    <Text style={styles.itemName}>{item.name}</Text>
-                    <Text style={styles.quantity}>{item.quantity}</Text>
-                    <Text style={styles.expirationDate}>
-                      {item.expirationDate ? `유통기한 ${item.expirationDate}` : '유통기한 미입력'}
-                    </Text>
-                  </View>
-                )} />
-            )}
+              ))}
+            </Animated.View>
           </View>
         </View>
     </BottomSheet>
@@ -217,6 +279,10 @@ const styles = StyleSheet.create({
   panel: {
     flex: 1,
     backgroundColor: colors.surface,
+  },
+  dragIndicator: {
+    alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
+    marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4',
   },
   header: {
     flexDirection: 'row',
@@ -230,8 +296,12 @@ const styles = StyleSheet.create({
   },
   heading: { flex: 1, minHeight: 48, justifyContent: 'center' },
   title: { color: colors.text, fontSize: 22, lineHeight: 28, fontWeight: '700', includeFontPadding: false },
+  centeredTitle: { textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  content: { flex: 1 },
+  content: { flex: 1, overflow: 'hidden' },
+  pageTrack: { flex: 1, flexDirection: 'row' },
+  page: { height: '100%' },
+  pageContent: { flex: 1 },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
   retryButton: { alignSelf: 'stretch' },
@@ -240,11 +310,13 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   emptyDescription: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },
-  item: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs,
+  item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   itemName: { color: colors.text, fontSize: 17, fontWeight: '600' },
   quantity: { color: colors.text, fontSize: 15 },
-  expirationDate: { color: colors.textMuted, fontSize: 14 },
+  itemInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
+  expirationDate: { color: colors.textMuted, fontSize: 14, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  urgentExpiration: { color: colors.error },
   form: { padding: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
   positionName: { color: colors.text, fontSize: 16, flexShrink: 1 },
