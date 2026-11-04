@@ -1,33 +1,40 @@
 /**
  * @file
- * iOS 유통기한 달력을 일정한 레이아웃 제약으로 배치하고 내용 높이를 전달한다.
- * 고정 프레임의 정렬 여백을 제외하며 날짜 선택은 SwiftUI DatePicker가 처리한다.
+ * iOS 유통기한 달력을 UIKit 날짜 선택기에 직접 연결한다.
+ * 네이티브의 실제 크기를 입력 폭에 맞춰 표시하고 날짜 변경을 즉시 전달한다.
  */
-import { DatePicker, Host } from '@expo/ui/swift-ui';
-import { datePickerStyle, disabled as disabledModifier, environment, frame, onGeometryChange, tint } from '@expo/ui/swift-ui/modifiers';
-import { useState } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
 import { colors } from '@/theme/tokens';
 import type { IngredientExpirationDatePickerProps } from './IngredientExpirationDatePicker';
 
-export function IngredientExpirationDatePicker({ value, width, height, disabled, onChange, onContentHeight }: IngredientExpirationDatePickerProps) {
-  const [contentHeight, setContentHeight] = useState(0);
+export function IngredientExpirationDatePicker({ value, width, disabled, layoutFrozen = false, onChange, onContentHeight }: IngredientExpirationDatePickerProps) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const selected = useRef(false);
+  // Fabric의 날짜 선택기는 고유 크기를 사용하므로 비율을 유지해 입력 폭에 맞춘다.
+  const scale = size.width > 0 ? width / size.width : 1;
+  const contentHeight = size.height * scale;
+
+  useEffect(() => {
+    if (!layoutFrozen && !selected.current && contentHeight > 0) onContentHeight?.(contentHeight);
+  }, [contentHeight, layoutFrozen, onContentHeight]);
 
   return (
-    <Host matchContents={false} style={{ width, height: Math.max(height ?? 0, contentHeight) }}
-      alignment="topLeading" colorScheme="light" ignoreSafeArea="all">
-      <DatePicker selection={value} displayedComponents={['date']} onDateChange={onChange}
-        modifiers={[
-          datePickerStyle('graphical'),
-          // 프레임 여백을 제외해 측정하고, 부모의 표시 배율은 너비 비율로 보정한다.
-          onGeometryChange(bounds => {
-            if (bounds.width <= 0 || bounds.height <= 0) return;
-            const measuredHeight = Math.round(bounds.height * width / bounds.width * 100) / 100;
-            setContentHeight(measuredHeight);
-            onContentHeight?.(measuredHeight);
-          }),
-          frame({ width, height, alignment: 'topLeading' }), disabledModifier(disabled),
-          environment('locale', 'ko_KR'), tint(colors.chilled),
-        ]} />
-    </Host>
+    <View style={{ width, height: size.height > 0 ? contentHeight : undefined }}>
+      <DateTimePicker value={value} mode="date" display="inline" locale="ko_KR"
+        themeVariant="light" accentColor={colors.chilled} disabled={disabled}
+        style={{ width, transform: [{ scale }], transformOrigin: 'top left' }}
+        onLayout={({ nativeEvent: { layout } }) => {
+          if (layoutFrozen || selected.current || layout.width <= 0 || layout.height <= 0) return;
+          setSize(current => current.width === layout.width && current.height === layout.height
+            ? current : { width: layout.width, height: layout.height });
+        }}
+        onValueChange={(_, date) => {
+          if (disabled || layoutFrozen || selected.current) return;
+          selected.current = true;
+          onChange(date);
+        }} />
+    </View>
   );
 }

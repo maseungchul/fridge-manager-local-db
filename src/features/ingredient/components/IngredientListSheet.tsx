@@ -155,8 +155,8 @@ export function IngredientListSheet({ position, onClose }: IngredientListSheetPr
 
   function selectExpirationDate(date: string) {
     if (saving.current || transition.current.active) return;
+    // 입력은 즉시 반영하고 팝업 제거는 달력의 페이드 완료 콜백에서 처리한다.
     setDraft(current => ({ ...current, expirationDate: date }));
-    dismissDatePicker();
   }
 
   async function saveIngredient() {
