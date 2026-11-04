@@ -10,6 +10,8 @@ const { test } = require('node:test');
 const ts = require('typescript');
 const model = require('../src/features/fridge/model/fridgeLayout.ts');
 const tokens = require('../src/theme/tokens.ts');
+const { alertTitles } = require('../src/constants/alertTitles.ts');
+const { fridgeMessages } = require('../src/features/fridge/constants/messages.ts');
 const database = {};
 const alerts = [];
 const backHandlers = new Set();
@@ -130,6 +132,8 @@ function loadComponent(path, overrides = {}) {
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
     '@/components/QuantityStepper': quantityStepperModule,
+    '@/constants/alertTitles': { alertTitles },
+    '@/features/fridge/constants/messages': { fridgeMessages },
     '@expo/ui/swift-ui': { Button: 'SwiftUIButton', Host: 'SwiftUIHost', Label: 'SwiftUILabel', RNHostView: 'RNHostView' },
     '@expo/ui/swift-ui/modifiers': swiftUIModifiers,
     '@/features/fridge/components/FridgeHomeButton': { FridgeHomeButton(props) {
@@ -616,7 +620,7 @@ test('홈 버튼은 안전 영역·실제 툴바·하위 메뉴 위로 이동하
   assert.equal(removed, 0);
 });
 
-test('등록 체크는 한 번만 저장하고 입력·뒤로가기를 막으며 완료 후 홈으로 돌아간다', async t => {
+test('등록 체크는 한 번만 저장하고 성공 알림을 확인할 때까지 입력·뒤로가기를 막는다', async t => {
   const previous = repository.registerRefrigerator;
   t.after(() => { repository.registerRefrigerator = previous; });
   const pending = deferred();
@@ -642,6 +646,7 @@ test('등록 체크는 한 번만 저장하고 입력·뒤로가기를 막으며
   const draft = structuredClone(find(screen.tree, named('FridgeInteriorMap')).props.draft);
   const previousButton = find(screen.tree, node => node.props.accessibilityLabel === '기본 정보로 돌아가기');
   const register = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
+  const alertCount = alerts.length;
   const saving = register.props.onPress();
   await register.props.onPress();
   assert.equal(calls.length, 1);
@@ -668,11 +673,27 @@ test('등록 체크는 한 번만 저장하고 입력·뒤로가기를 막으며
   assert.equal(removed, 0);
   assert.equal(animations.length, animationCount);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, draft);
+  assert.equal(alerts.length, alertCount);
   pending.resolve('saved-fridge');
   await saving;
-  assert.equal(removed, 1);
+  assert.equal(removed, 0);
+  assert.equal(alerts.length, alertCount + 1);
+  const success = alerts.at(-1);
+  assert.deepEqual(success.slice(0, 2), ['알림', '냉장고를 등록했습니다.']);
+  assert.equal(success[2].length, 1);
+  assert.equal(success[2][0].text, '확인');
+  assert.equal(success[3].cancelable, false);
+  screen.render();
+  assert.equal(find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록').props.disabled, true);
   await register.props.onPress();
+  previousButton.props.onPress();
+  home.props.onPress();
+  screen.preventRemove.onRemove({ data: { action } });
   assert.equal(calls.length, 1);
+  assert.equal(alerts.length, alertCount + 1);
+  assert.equal(removed, 0);
+  success[2][0].onPress();
+  assert.equal(removed, 1);
 });
 
 test('등록 실패 시 오류를 알리고 초안을 유지해 다시 저장할 수 있다', async t => {
@@ -692,7 +713,7 @@ test('등록 실패 시 오류를 알리고 초안을 유지해 다시 저장할
   pending.reject(new Error('냉장·냉동을 선택해 주세요.'));
   await saving;
   screen.render();
-  assert.deepEqual(alerts.at(-1), ['냉장고 등록 실패', '냉장·냉동을 선택해 주세요.']);
+  assert.deepEqual(alerts.at(-1), ['오류', '냉장·냉동을 선택해 주세요.']);
   assert.equal(removed, 0);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
   const retry = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
@@ -700,6 +721,9 @@ test('등록 실패 시 오류를 알리고 초안을 유지해 다시 저장할
   assert.equal(retry.props.accessibilityState.busy, false);
   assert.equal(find(screen.tree, node => node.props.accessibilityLabel === '기본 정보로 돌아가기').props.disabled, false);
   await retry.props.onPress();
+  assert.equal(removed, 0);
+  assert.deepEqual(alerts.at(-1).slice(0, 2), ['알림', '냉장고를 등록했습니다.']);
+  alerts.at(-1)[2][0].onPress();
   assert.equal(removed, 1);
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[1], before);
@@ -789,6 +813,16 @@ test('홈의 편집 아이콘으로 저장된 구성을 열고 수정 저장 후
   saved = { id: saved.id, name: updates[0].draft.name, rows: updates[0].draft.rows };
   pending.resolve(saved.id);
   await saving;
+  assert.equal(removed, 0);
+  const success = alerts.at(-1);
+  assert.deepEqual(success.slice(0, 2), ['알림', '냉장고를 수정했습니다.']);
+  editor.render();
+  assert.equal(find(editor.tree, node => node.props.accessibilityLabel === '냉장고 수정 저장').props.disabled, true);
+  await save.props.onPress();
+  editor.preventRemove.onRemove({ data: { action: { type: 'GO_BACK' } } });
+  assert.equal(updates.length, 1);
+  assert.equal(removed, 0);
+  success[2][0].onPress();
   await new Promise(setImmediate);
   home.render();
   assert.equal(removed, 1);
@@ -848,7 +882,7 @@ test('이름 변경은 편집에서만 표시하고 구조 초안을 유지하�
   assert.equal(button().props.disabled, true);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft.rows, rows);
   assert.equal(removed, 0);
-  assert.deepEqual(alerts.at(-1), ['냉장고 이름 변경', '냉장고 이름을 변경했습니다.']);
+  assert.deepEqual(alerts.at(-1), ['알림', '냉장고 이름을 변경했습니다.']);
   find(screen.tree, node => node.props.accessibilityLabel === '냉장고 편집 취소').props.onPress();
   assert.equal(removed, 1);
   assert.equal(calls.length, 1);
@@ -879,7 +913,7 @@ test('이름 변경 실패 시 이름과 구조 초안을 유지해 다시 저�
   const before = structuredClone(find(screen.tree, named('FridgeInteriorMap')).props.draft);
   await button().props.onPress();
   screen.render();
-  assert.deepEqual(alerts.at(-1), ['냉장고 이름 변경 실패', '검증용 이름 변경 실패']);
+  assert.deepEqual(alerts.at(-1), ['오류', '검증용 이름 변경 실패']);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
   assert.equal(button().props.disabled, false);
   assert.equal(button().props.loading, false);
@@ -943,12 +977,15 @@ test('수정 저장에 실패하면 편집 초안을 유지해 신규 등록 없
   pending.reject(new Error('검증용 수정 실패'));
   await saving;
   screen.render();
-  assert.deepEqual(alerts.at(-1), ['냉장고 수정 실패', '검증용 수정 실패']);
+  assert.deepEqual(alerts.at(-1), ['오류', '검증용 수정 실패']);
   assert.equal(removed, 0);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
   const retry = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 수정 저장');
   assert.equal(retry.props.disabled, false);
   await retry.props.onPress();
+  assert.equal(removed, 0);
+  assert.deepEqual(alerts.at(-1).slice(0, 2), ['알림', '냉장고를 수정했습니다.']);
+  alerts.at(-1)[2][0].onPress();
   assert.equal(removed, 1);
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[0], calls[1]);

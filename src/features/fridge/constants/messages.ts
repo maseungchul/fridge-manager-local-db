@@ -6,5 +6,7 @@
 export const fridgeMessages = {
   nameChangeSuccess: '냉장고 이름을 변경했습니다.',
   nameChangeFailure: '냉장고 이름을 저장하지 못했습니다. 다시 시도해 주세요.',
+  registrationSuccess: '냉장고를 등록했습니다.',
+  updateSuccess: '냉장고를 수정했습니다.',
   saveFailure: '냉장고를 저장하지 못했습니다. 다시 시도해 주세요.',
 } as const;

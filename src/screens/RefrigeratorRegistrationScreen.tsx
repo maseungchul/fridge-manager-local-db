@@ -4,7 +4,7 @@
  * 단별 문 개수로 배치를 만들고 문 수납·본체 연결·내부 칸 설정을 제공한다.
  * 여는 방식·보관 모드·칸·본체 연결을 하단 카테고리에서 편집하고 초안에 즉시 반영한다.
  * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
- * 편집은 저장된 구성을 불러오며, 전체 저장 실패 시 입력을 유지하고 성공 시 홈으로 돌아간다.
+ * 편집은 저장된 구성을 불러오며, 전체 저장 실패 시 입력을 유지하고 성공 알림 확인 후 홈으로 돌아간다.
  * 편집 화면의 이름 변경은 구조 초안을 유지한 채 별도로 저장한다.
  * 내부 설정의 홈 버튼은 툴바·하위 설정 위에 띄우고 저장하지 않은 초안을 종료한다.
  */
@@ -206,8 +206,12 @@ export function RefrigeratorRegistrationScreen({
         error instanceof Error ? error.message : fridgeMessages.saveFailure);
       return;
     }
-    leaveRequested.current = true;
-    navigation.goBack();
+    // 성공 알림을 확인할 때까지 저장 잠금을 유지해 중복 저장과 화면 이동을 막는다.
+    Alert.alert(alertTitles.info, isEditing ? fridgeMessages.updateSuccess : fridgeMessages.registrationSuccess,
+      [{ text: '확인', onPress: () => {
+        leaveRequested.current = true;
+        navigation.goBack();
+      } }], { cancelable: false });
   }
 
   // 두 단계의 초안을 공유하며, 들어올 단계의 스크롤만 초기화하고 본문을 좌우로 이동한다.
