@@ -20,6 +20,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantityStepper';
+import { alertTitles } from '@/constants/alertTitles';
 import { getRefrigerator, registerRefrigerator, updateRefrigerator, updateRefrigeratorName } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeHomeButton } from '@/features/fridge/components/FridgeHomeButton';
@@ -27,6 +28,7 @@ import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/f
 import type { FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
 import { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } from '@/features/fridge/components/FridgeAreaMenu';
 import type { FridgeMenuCategory } from '@/features/fridge/components/FridgeAreaMenu';
+import { fridgeMessages } from '@/features/fridge/constants/messages';
 import {
   addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft,
   getAdjacentCompartment, getDraftAreaLocation, getSlotName, MAX_DOOR_SLOTS, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
@@ -177,10 +179,10 @@ export function RefrigeratorRegistrationScreen({
       const name = await updateRefrigeratorName(db, refrigeratorId, draft.name);
       setDraft(current => ({ ...current, name }));
       setSavedName(name);
-      Alert.alert('냉장고 이름 변경', '냉장고 이름을 변경했습니다.');
+      Alert.alert(alertTitles.info, fridgeMessages.nameChangeSuccess);
     } catch (error) {
-      Alert.alert('냉장고 이름 변경 실패',
-        error instanceof Error ? error.message : '냉장고 이름을 저장하지 못했습니다. 다시 시도해 주세요.');
+      Alert.alert(alertTitles.error,
+        error instanceof Error ? error.message : fridgeMessages.nameChangeFailure);
     } finally {
       saving.current = false;
       setIsSaving(false);
@@ -200,8 +202,8 @@ export function RefrigeratorRegistrationScreen({
     } catch (error) {
       saving.current = false;
       setIsSaving(false);
-      Alert.alert(isEditing ? '냉장고 수정 실패' : '냉장고 등록 실패',
-        error instanceof Error ? error.message : '냉장고를 저장하지 못했습니다. 다시 시도해 주세요.');
+      Alert.alert(alertTitles.error,
+        error instanceof Error ? error.message : fridgeMessages.saveFailure);
       return;
     }
     leaveRequested.current = true;
