@@ -35,7 +35,7 @@ const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRef
 });
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 const ingredientRegistration = require('../src/db/ingredientRegistration.ts');
-const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient } = loadModule('src/db/ingredientRepository.ts', {
+const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient, deleteIngredient } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
 });
 
@@ -278,6 +278,63 @@ test('재료 수정 SQL 실패는 기존 정보를 유지하고 같은 ID로 재
   db.exec('DROP TRIGGER fail_ingredient_update');
   assert.deepEqual(await updateIngredient(adapter, input), input);
   assert.equal((await getIngredients(adapter)).length, 1);
+});
+
+test('재료 삭제는 선택한 ID·좌우 위치만 제거하고 다른 재료와 구조를 파일 DB에 보존한다', async t => {
+  const { db, adapter, databasePath } = await createRepositoryDatabase(t);
+  const draft = createTwoDoorDraft();
+  draft.rows[0].compartments[0].slots[0].drawerCount = 2;
+  await registerRefrigerator(adapter, draft);
+  const refrigerator = await getRefrigerator(adapter);
+  const slotId = refrigerator.rows[0].compartments[0].slots[0].id;
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '2개', memo: null,
+    expirationDate: null, slotId, drawerNumber: 1 });
+  const samePosition = await registerIngredient(adapter, original);
+  const right = await registerIngredient(adapter, { ...original, drawerNumber: 2 });
+  const pocket = await registerIngredient(adapter, { ...original, slotId: refrigerator.rows[0].doors[0].slots[0].id, drawerNumber: 0 });
+  const structure = readStoredData(db);
+  await deleteIngredient(adapter, original);
+  const expected = [samePosition.id, right.id, pocket.id].sort();
+  assert.deepEqual((await getIngredients(adapter)).map(item => item.id).sort(), expected);
+  assert.deepEqual((await getIngredientsByPosition(adapter, original)).map(item => item.id), [samePosition.id]);
+  assert.deepEqual(readStoredData(db), structure);
+  const reopened = new DatabaseSync(databasePath);
+  try {
+    assert.deepEqual((await getIngredients(createConnectionAdapter(reopened))).map(item => item.id).sort(), expected);
+  } finally { reopened.close(); }
+});
+
+test('재료 삭제의 없는 ID·달라진 위치는 모든 재료를 보존한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+  const refrigerator = await getRefrigerator(adapter);
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '2개', memo: null,
+    expirationDate: null, slotId: refrigerator.rows[0].compartments[0].slots[0].id, drawerNumber: 0 });
+  const before = db.prepare('SELECT * FROM ingredients').all();
+  for (const input of [
+    { ...original, id: 'missing' }, { ...original, id: "' OR 1 = 1 --" },
+    { ...original, slotId: 'missing' }, { ...original, drawerNumber: 1 },
+  ]) {
+    await assert.rejects(deleteIngredient(adapter, input), /삭제할 재료/);
+    assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), before);
+  }
+});
+
+test('재료 삭제 SQL 실패는 기존 재료를 보존하고 재시도 후 빈 목록을 반환한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+  const refrigerator = await getRefrigerator(adapter);
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '2개', memo: null,
+    expirationDate: null, slotId: refrigerator.rows[0].compartments[0].slots[0].id, drawerNumber: 0 });
+  const before = db.prepare('SELECT * FROM ingredients').all();
+  db.exec(`CREATE TRIGGER fail_ingredient_delete BEFORE DELETE ON ingredients
+    BEGIN SELECT RAISE(ABORT, '검증용 재료 삭제 실패'); END;`);
+  await assert.rejects(deleteIngredient(adapter, original), /검증용 재료 삭제 실패/);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), before);
+  db.exec('DROP TRIGGER fail_ingredient_delete');
+  await deleteIngredient(adapter, original);
+  assert.deepEqual(await getIngredientsByPosition(adapter, original), []);
+  assert.deepEqual(await getIngredients(adapter), []);
 });
 
 test('이름 공백을 제거하고 임시 ID를 UUID로 바꾸며 입력 초안을 유지한다', () => {

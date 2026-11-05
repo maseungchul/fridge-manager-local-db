@@ -1,10 +1,10 @@
 /**
  * @file
  * 선택한 위치의 재료 목록과 등록·편집 폼을 스와이프로 닫는 네이티브 시트에 표시한다.
- * 조회·저장은 여기서 처리하고, 저장 결과 전달 후 도면 갱신과 시트 종료는 호출자가 관리한다.
+ * 조회·저장·삭제는 여기서 처리하고, 변경 결과 전달 후 도면 갱신과 시트 종료는 호출자가 관리한다.
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
 import type { LayoutRectangle } from 'react-native';
 import { IngredientSheet as BottomSheet } from '@/features/ingredient/components/IngredientSheet';
 import type { IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
@@ -14,27 +14,30 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { alertTitles } from '@/constants/alertTitles';
-import { getIngredientsByPosition, registerIngredient, updateIngredient } from '@/db/ingredientRepository';
+import { deleteIngredient, getIngredientsByPosition, registerIngredient, updateIngredient } from '@/db/ingredientRepository';
 import type { SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
 import { IngredientDateFieldAnchor } from '@/features/ingredient/components/IngredientDateFieldAnchor';
 import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
+import { IngredientSwipeRow } from '@/features/ingredient/components/IngredientSwipeRow';
 import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
 
 interface IngredientListSheetProps {
   position: SlotPosition;
   onClose: () => void;
   onSaved?: (ingredient: Ingredient) => void;
+  onDeleted?: (ingredientId: string) => void;
 }
 
-export function IngredientListSheet({ position, onClose, onSaved }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: IngredientListSheetProps) {
   const db = useSQLiteContext();
   const sheetRef = useRef<IngredientSheetRef>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const memoInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const datePicker = useRef<{ request: number; keyboardSubscription?: ReturnType<typeof Keyboard.addListener> }>({ request: 0 });
   const saving = useRef(false);
+  const deleting = useRef(false);
   const transition = useRef<{ active: boolean; animation?: Animated.CompositeAnimation }>({ active: false });
   const panelProgress = useAnimatedValue(0);
   const { width: windowWidth } = useWindowDimensions();
@@ -44,6 +47,9 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const isEditing = editingIngredient !== null;
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [swipedIngredientId, setSwipedIngredientId] = useState<string | null>(null);
+  const isBusy = isSaving || isDeleting;
   const [saveError, setSaveError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Pick<Ingredient, 'name' | 'quantity' | 'memo' | 'expirationDate'>>({
     name: '', quantity: '', memo: '', expirationDate: null,
@@ -81,6 +87,12 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
   }, [db, slotId, drawerNumber, requestKey]);
 
   useEffect(() => {
+    // Android의 홈 뒤로가기보다 먼저 삭제 확인·처리 중 시트 종료를 막는다.
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => deleting.current);
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     const currentTransition = transition.current;
     const currentDatePicker = datePicker.current;
     return () => {
@@ -111,13 +123,15 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
   }
 
   function startAdding() {
-    if (saving.current || transition.current.active || isLoading || error !== null) return;
+    if (saving.current || deleting.current || transition.current.active || isLoading || error !== null) return;
+    setSwipedIngredientId(null);
     setSaveError(null);
     changePanel(true);
   }
 
   function startEditing(ingredient: Ingredient) {
-    if (saving.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    if (saving.current || deleting.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    setSwipedIngredientId(null);
     addDraft.current = draft;
     setEditingIngredient(ingredient);
     setDraft({ name: ingredient.name, quantity: ingredient.quantity, memo: ingredient.memo, expirationDate: ingredient.expirationDate });
@@ -126,7 +140,7 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
   }
 
   function closeSheet() {
-    if (saving.current || transition.current.active) return;
+    if (saving.current || deleting.current || transition.current.active) return;
     dismissDatePicker();
     Keyboard.dismiss();
     sheetRef.current?.close();
@@ -210,9 +224,43 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
     } }], { cancelable: false });
   }
 
+  function requestDelete(ingredient: Ingredient) {
+    if (saving.current || deleting.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    deleting.current = true;
+    setIsDeleting(true);
+    let handled = false;
+    function unlock() {
+      deleting.current = false;
+      setIsDeleting(false);
+    }
+    Alert.alert(alertTitles.warning, `“${ingredient.name}” 재료를 삭제할까요?\n삭제한 재료는 복구할 수 없습니다.`, [
+      { text: '취소', style: 'cancel', onPress: () => {
+        if (handled) return;
+        handled = true;
+        unlock();
+      } },
+      { text: '삭제', style: 'destructive', onPress: async () => {
+        if (handled) return;
+        handled = true;
+        try {
+          await deleteIngredient(db, ingredient);
+        } catch {
+          unlock();
+          Alert.alert(alertTitles.error, '재료를 삭제하지 못했습니다. 목록을 다시 확인하고 재시도해 주세요.');
+          return;
+        }
+        setResult(current => current?.requestKey === requestKey
+          ? { ...current, ingredients: current.ingredients.filter(item => item.id !== ingredient.id) } : current);
+        setSwipedIngredientId(null);
+        onDeleted?.(ingredient.id);
+        unlock();
+      } },
+    ], { cancelable: false });
+  }
+
   return (
-    <BottomSheet ref={sheetRef} disabled={isSaving || isChanging} expanded={isFormOpen} transitioning={isChanging}
-      onClose={() => { if (!saving.current && !transition.current.active) onClose(); }}>
+    <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} expanded={isFormOpen} transitioning={isChanging}
+      onClose={() => { if (!saving.current && !deleting.current && !transition.current.active) onClose(); }}>
         <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}>
           {/* 시스템 표시기의 가변 색상 대신 고정색으로 표시하고, 드래그는 네이티브 시트에 맡긴다. */}
           <View style={styles.dragIndicator} pointerEvents="none" accessible={false} />
@@ -224,7 +272,7 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
             }] }]}>
               {([false, true] as const).map(formPage => (
                 <View key={formPage ? 'add' : 'list'} style={[styles.page, { width: pageWidth }]}
-                  pointerEvents={formPage === isFormOpen && !isChanging && !isSaving ? 'auto' : 'none'}
+                  pointerEvents={formPage === isFormOpen && !isChanging && !isBusy ? 'auto' : 'none'}
                   accessibilityElementsHidden={formPage !== isFormOpen || isChanging}
                   importantForAccessibility={formPage === isFormOpen && !isChanging ? 'auto' : 'no-hide-descendants'}>
                   {formPage === isFormOpen || isChanging ? (
@@ -250,7 +298,7 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
                           </FeedbackPressable>
                         ) : (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 추가"
-                            accessibilityState={{ disabled: isLoading || error !== null || isChanging }} disabled={isLoading || error !== null}
+                            accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
                             interactionBlocked={isChanging} onPress={startAdding} style={styles.headerIconButton}>
                             <MaterialDesignIcons name="plus" size={32} color={colors.text} accessible={false} />
                           </FeedbackPressable>
@@ -315,6 +363,7 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
                           </View>
                         ) : (
                           <FlatList data={ingredients} keyExtractor={item => item.id}
+                            extraData={swipedIngredientId} onScrollBeginDrag={() => setSwipedIngredientId(null)}
                             style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.emptyList : undefined}
                             ListEmptyComponent={
                               <View style={styles.emptyState}>
@@ -326,20 +375,26 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
                             renderItem={({ item }) => {
                               const expiration = getIngredientExpirationStatus(item.expirationDate);
                               return (
-                                <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${item.name} 편집`}
-                                  accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
-                                  accessibilityHint="재료명·수량·메모·유통기한을 수정합니다."
-                                  accessibilityState={{ disabled: isSaving || isChanging }} disabled={isSaving} interactionBlocked={isChanging}
-                                  onPress={() => startEditing(item)} style={styles.item}>
-                                  <View style={styles.itemHeader}>
-                                    <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
-                                    <Text style={[styles.expirationDate, item.expirationDate !== null && {
-                                      color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'normal'],
-                                      fontWeight: '700',
-                                    }]}>{expiration.label}</Text>
-                                  </View>
-                                  {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
-                                </FeedbackPressable>
+                                <IngredientSwipeRow name={item.name} width={pageWidth} isOpen={swipedIngredientId === item.id} disabled={isBusy || isChanging}
+                                  onOpen={() => setSwipedIngredientId(item.id)} onClose={() => setSwipedIngredientId(null)}
+                                  onDelete={() => requestDelete(item)}>
+                                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${item.name} 편집`}
+                                    accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
+                                    accessibilityHint="눌러서 편집하거나 왼쪽으로 밀어 삭제 버튼을 표시합니다."
+                                    accessibilityActions={[{ name: 'delete', label: '재료 삭제' }]}
+                                    onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'delete') requestDelete(item); }}
+                                    accessibilityState={{ disabled: isBusy || isChanging }} disabled={isBusy} interactionBlocked={isChanging}
+                                    onPress={() => { if (swipedIngredientId !== null) setSwipedIngredientId(null); else startEditing(item); }} style={styles.item}>
+                                    <View style={styles.itemHeader}>
+                                      <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
+                                      <Text style={[styles.expirationDate, item.expirationDate !== null && {
+                                        color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'normal'],
+                                        fontWeight: '700',
+                                      }]}>{expiration.label}</Text>
+                                    </View>
+                                    {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
+                                  </FeedbackPressable>
+                                </IngredientSwipeRow>
                               );
                             }} />
                         )}

@@ -1,6 +1,6 @@
 /**
  * @file
- * 홈 도면과 선택한 칸·좌우 위치의 재료를 SQLite에서 조회하고 등록·수정한다.
+ * 홈 도면과 선택한 칸·좌우 위치의 재료를 SQLite에서 조회하고 등록·수정·삭제한다.
  * 저장 결과는 재료 모델로 반환하며, 화면의 선택·로딩·오류 상태는 호출자가 관리한다.
  */
 import { uuid } from 'expo';
@@ -49,4 +49,12 @@ export async function updateIngredient(db: SQLiteDatabase, input: Ingredient): P
   ingredient.id, ingredient.slotId, ingredient.drawerNumber);
   if (result.changes !== 1) throw new Error('수정할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
   return ingredient;
+}
+
+/** ID와 보관 위치가 일치하는 재료 한 건만 삭제하고, 달라진 대상은 목록에서 다시 확인한다. */
+export async function deleteIngredient(db: SQLiteDatabase, ingredient: Pick<Ingredient, 'id' | 'slotId' | 'drawerNumber'>): Promise<void> {
+  const result = await db.runAsync(`
+    DELETE FROM ingredients WHERE id = ? AND slot_id = ? AND drawer_number = ?;
+  `, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
+  if (result.changes !== 1) throw new Error('삭제할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
 }

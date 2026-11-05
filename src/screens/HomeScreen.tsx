@@ -206,6 +206,7 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
         <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
           onSaved={ingredient => setIngredients(current => current.some(item => item.id === ingredient.id)
             ? current.map(item => item.id === ingredient.id ? ingredient : item) : [...current, ingredient])}
+          onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
           onClose={closeIngredientList} />
       ) : null}
     </View>
