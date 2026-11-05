@@ -32,6 +32,7 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
   const db = useSQLiteContext();
   const sheetRef = useRef<IngredientSheetRef>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
+  const memoInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const datePicker = useRef<{ request: number; keyboardSubscription?: ReturnType<typeof Keyboard.addListener> }>({ request: 0 });
   const saving = useRef(false);
   const transition = useRef<{ active: boolean; animation?: Animated.CompositeAnimation }>({ active: false });
@@ -42,8 +43,8 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Pick<Ingredient, 'name' | 'quantity' | 'expirationDate'>>({
-    name: '', quantity: '', expirationDate: null,
+  const [draft, setDraft] = useState<Pick<Ingredient, 'name' | 'quantity' | 'memo' | 'expirationDate'>>({
+    name: '', quantity: '', memo: '', expirationDate: null,
   });
   const [datePickerAnchor, setDatePickerAnchor] = useState<LayoutRectangle | null>(null);
   const [datePickerMeasurement, setDatePickerMeasurement] = useState<number | null>(null);
@@ -179,7 +180,7 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
     Alert.alert(alertTitles.info, '재료를 등록했습니다.', [{ text: '확인', onPress: () => {
       if (!saving.current || transition.current.active) return;
       changePanel(false, () => {
-        setDraft({ name: '', quantity: '', expirationDate: null });
+        setDraft({ name: '', quantity: '', memo: '', expirationDate: null });
         saving.current = false;
         setIsSaving(false);
       });
@@ -243,8 +244,12 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
                               onSubmitEditing={() => quantityInput.current?.focus()}
                               onChangeText={name => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, name })); }} />
                             <FormTextInput ref={quantityInput} label="수량" accessibilityLabel="재료 수량" placeholder="예: 2개, 반 통, 500g"
-                              value={draft.quantity} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="done"
+                              value={draft.quantity} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="next"
+                              onSubmitEditing={() => memoInput.current?.focus()}
                               onChangeText={quantity => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, quantity })); }} />
+                            <FormTextInput ref={memoInput} label="메모 (선택)" accessibilityLabel="재료 메모" placeholder="예: 개봉 후 밀폐 보관"
+                              value={draft.memo ?? ''} editable={!isSaving && !isChanging} returnKeyType="done"
+                              onChangeText={memo => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, memo })); }} />
                             <Text style={styles.fieldLabel}>유통기한 (선택)</Text>
                             <View style={styles.dateRow}>
                               {datePickerMeasurement !== null ? (
@@ -301,14 +306,14 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
                               const expiration = getIngredientExpirationStatus(item.expirationDate);
                               return (
                                 <View style={styles.item}>
-                                  <View style={styles.itemInfo}>
-                                    <Text style={styles.itemName}>{item.name}</Text>
-                                    <Text style={styles.quantity}>{item.quantity}</Text>
+                                  <View style={styles.itemHeader}>
+                                    <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
+                                    <Text style={[styles.expirationDate, item.expirationDate !== null && {
+                                      color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'total'],
+                                      fontWeight: '700',
+                                    }]}>{expiration.label}</Text>
                                   </View>
-                                  <Text style={[styles.expirationDate, item.expirationDate !== null && {
-                                    color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'total'],
-                                    fontWeight: '700',
-                                  }]}>{expiration.label}</Text>
+                                  {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
                                 </View>
                               );
                             }} />
@@ -364,11 +369,12 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   emptyDescription: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },
-  item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.md,
+  item: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  itemName: { color: colors.text, fontSize: 17, fontWeight: '600' },
-  quantity: { color: colors.text, fontSize: 15 },
-  itemInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
+  itemHeader: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
+  itemName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600' },
+  quantity: { fontSize: 17, fontWeight: '400' },
+  memo: { color: colors.textMuted, fontSize: 15 },
   expirationDate: { color: colors.textMuted, fontSize: 14, textAlign: 'right', fontVariant: ['tabular-nums'] },
   form: { padding: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },

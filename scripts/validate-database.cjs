@@ -64,9 +64,9 @@ function createLegacyDatabase(db, version = 1) {
   `);
 }
 
-// 버전 2·3 스키마를 고정해 신규 생성 SQL과 별개로 데이터 보존을 검증한다.
+// 버전 2~4 스키마를 고정해 신규 생성 SQL과 별개로 데이터 보존을 검증한다.
 function createPreviousDatabase(db, version = 2) {
-  const onDelete = version === 3 ? 'ON DELETE CASCADE' : '';
+  const onDelete = version >= 3 ? 'ON DELETE CASCADE' : '';
   db.exec(`
     CREATE TABLE IF NOT EXISTS refrigerators (
       id TEXT PRIMARY KEY NOT NULL,
@@ -120,6 +120,29 @@ function createPreviousDatabase(db, version = 2) {
 
     PRAGMA user_version = ${version};
   `);
+  if (version === 4) db.exec(`
+    CREATE TABLE ingredients (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50 AND length(trim(name)) > 0),
+      quantity TEXT NOT NULL CHECK (length(quantity) BETWEEN 1 AND 50 AND length(trim(quantity)) > 0),
+      expiration_date TEXT CHECK (
+        expiration_date IS NULL OR (
+          expiration_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+          AND date(expiration_date, '+0 days') IS expiration_date
+        )
+      ),
+      slot_id TEXT NOT NULL REFERENCES refrigerator_slots (id) ON DELETE RESTRICT,
+      drawer_number INTEGER NOT NULL DEFAULT 0 CHECK (drawer_number IN (0, 1, 2))
+    );
+    CREATE INDEX idx_ingredients_position ON ingredients (slot_id, drawer_number);
+    CREATE TRIGGER protect_ingredient_slot_split
+    BEFORE UPDATE OF drawer_count ON refrigerator_slots
+    WHEN (OLD.drawer_count = 2) != (NEW.drawer_count = 2)
+      AND EXISTS (SELECT 1 FROM ingredients WHERE slot_id = OLD.id)
+    BEGIN
+      SELECT RAISE(ABORT, '재료를 먼저 이동하거나 삭제한 후 칸의 분할을 변경해 주세요.');
+    END;
+  `);
 }
 
 function getSchema(db) {
@@ -170,14 +193,14 @@ test('새 DB에 냉장고·재료 테이블을 생성하고 버전·외래 키�
     refrigerator_compartments: ['id', 'row_id', 'storage_mode', 'kind', 'side'],
     refrigerator_doors: ['id', 'row_id', 'compartment_id', 'sort_order', 'storage_enabled'],
     refrigerator_slots: ['id', 'compartment_id', 'door_id', 'sort_order', 'drawer_count'],
-    ingredients: ['id', 'name', 'quantity', 'expiration_date', 'slot_id', 'drawer_number'],
+    ingredients: ['id', 'name', 'quantity', 'expiration_date', 'slot_id', 'drawer_number', 'memo'],
   };
   assert.deepEqual(
     db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map(row => row.name),
     Object.keys(columns).sort(),
   );
   for (const [table, expected] of Object.entries(columns)) assert.deepEqual(getColumns(db, table), expected);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
   assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
 });
@@ -227,11 +250,11 @@ test('잘못된 연결·분할·중복 순서·허용값을 DB 제약으로 차�
 });
 
 for (const version of [0, 1]) {
-  test(`기존 빈 DB를 버전 ${version}에서 4로 전환한다`, async t => {
+  test(`기존 빈 DB를 버전 ${version}에서 5로 전환한다`, async t => {
     const { db, adapter } = createDatabase(t);
     createLegacyDatabase(db, version);
     await initializeDatabase(adapter);
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'refrigerator_areas'").get(), undefined);
     seedDatabase(db);
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
@@ -246,7 +269,7 @@ for (const version of [0, 1]) {
       assert.equal(db.prepare(`SELECT count(*) AS count FROM ${table}`).get().count, 0);
     }
     assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'refrigerator_areas'").get(), undefined);
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
     seedDatabase(db);
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
   });
@@ -258,7 +281,7 @@ test('부모가 없는 기존 칸도 제거하고 새 구조로 초기화한다'
   db.exec("INSERT INTO refrigerator_slots VALUES ('orphan', 'missing-area', '기존 칸', 0, 0)");
   await initializeDatabase(adapter);
   assert.equal(db.prepare('SELECT count(*) AS count FROM refrigerator_slots').get().count, 0);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
 });
 
@@ -271,7 +294,7 @@ test('버전 기록 후 실패해도 이전 테이블·버전으로 롤백하고
   const execAsync = adapter.execAsync;
   adapter.execAsync = async sql => {
     await execAsync(sql);
-    if (/PRAGMA user_version = 4/.test(sql)) throw new Error('검증용 저장 실패');
+    if (/PRAGMA user_version = 5/.test(sql)) throw new Error('검증용 저장 실패');
   };
   await assert.rejects(initializeDatabase(adapter), /검증용 저장 실패/);
   assert.deepEqual(getSchema(db), schema);
@@ -280,16 +303,16 @@ test('버전 기록 후 실패해도 이전 테이블·버전으로 롤백하고
   adapter.execAsync = execAsync;
   await initializeDatabase(adapter);
   seedDatabase(db);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
 });
 
 test('지원 버전보다 높은 DB는 변경하지 않는다', async t => {
   const { db, adapter } = createDatabase(t);
-  db.exec('PRAGMA user_version = 5');
+  db.exec('PRAGMA user_version = 6');
   const schema = getSchema(db);
   await assert.rejects(initializeDatabase(adapter), /지원하지 않는 DB 버전/);
   assert.deepEqual(getSchema(db), schema);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 6);
 });
 
 const structureTables = ['refrigerators', 'refrigerator_rows', 'refrigerator_compartments', 'refrigerator_doors', 'refrigerator_slots'];
@@ -319,7 +342,7 @@ test('버전 2의 이름·ID·순서·문 수납·좌우 분할을 유지하고 
   const before = readStoredData(db);
   await initializeDatabase(adapter);
   assert.deepEqual(readStoredData(db), before);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
   assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
   assert.deepEqual(db.prepare("SELECT name FROM sqlite_temp_master WHERE type = 'table'").all(), []);
   await initializeDatabase(adapter);
@@ -356,7 +379,7 @@ test('버전 2 전환 실패 시 구조·데이터·버전을 롤백하고 외�
   const execAsync = adapter.execAsync;
   adapter.execAsync = async sql => {
     await execAsync(sql);
-    if (/PRAGMA user_version = 4/.test(sql)) throw new Error('검증용 전환 실패');
+    if (/PRAGMA user_version = 5/.test(sql)) throw new Error('검증용 전환 실패');
   };
   await assert.rejects(initializeDatabase(adapter), /검증용 전환 실패/);
   assert.deepEqual(getSchema(db), schema);
@@ -367,7 +390,7 @@ test('버전 2 전환 실패 시 구조·데이터·버전을 롤백하고 외�
   adapter.execAsync = execAsync;
   await initializeDatabase(adapter);
   assert.deepEqual(readStoredData(db), before);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
 });
 
 test('부모가 없는 버전 2 데이터는 삭제하거나 버전을 올리지 않고 전환을 거부한다', async t => {
@@ -394,7 +417,7 @@ test('버전 3의 구조·데이터를 유지하고 재료 저장 구조만 추�
   assert.deepEqual(readStoredData(db), before);
   assert.deepEqual(getSchema(db).filter(item => schema.some(previous => previous.name === item.name)), schema);
   assert.equal(db.prepare('SELECT count(*) AS count FROM ingredients').get().count, 0);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
 });
 
@@ -407,7 +430,7 @@ test('버전 3 전환 실패 시 추가한 테이블·트리거·버전을 롤�
   const execAsync = adapter.execAsync;
   adapter.execAsync = async sql => {
     await execAsync(sql);
-    if (/PRAGMA user_version = 4/.test(sql)) throw new Error('검증용 재료 구조 추가 실패');
+    if (/PRAGMA user_version = 5/.test(sql)) throw new Error('검증용 재료 구조 추가 실패');
   };
   await assert.rejects(initializeDatabase(adapter), /검증용 재료 구조 추가 실패/);
   assert.deepEqual(getSchema(db), schema);
@@ -417,14 +440,59 @@ test('버전 3 전환 실패 시 추가한 테이블·트리거·버전을 롤�
   adapter.execAsync = execAsync;
   await initializeDatabase(adapter);
   assert.deepEqual(readStoredData(db), before);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
+});
+
+test('버전 4의 재료·위치·제약을 보존하고 메모를 추가해 재초기화해도 유지한다', async t => {
+  const { db, adapter } = createDatabase(t);
+  createPreviousDatabase(db, 4);
+  seedDatabase(db);
+  db.exec("INSERT INTO ingredients VALUES ('item', '계란', '2개', '2026-11-30', 'body-split', 1)");
+  const structure = readStoredData(db);
+  const ingredients = db.prepare('SELECT * FROM ingredients').all();
+  const schema = getSchema(db).filter(item => item.name !== 'ingredients');
+  await initializeDatabase(adapter);
+  assert.deepEqual(readStoredData(db), structure);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all().map(item => ({ ...item })), ingredients.map(item => ({ ...item, memo: null })));
+  assert.deepEqual(getSchema(db).filter(item => item.name !== 'ingredients'), schema);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
+  assert.throws(() => db.exec("DELETE FROM refrigerator_slots WHERE id = 'body-split'"), /FOREIGN KEY constraint/);
+  assert.throws(() => db.exec("UPDATE refrigerator_slots SET drawer_count = 0 WHERE id = 'body-split'"), /재료를 먼저 이동하거나 삭제/);
+  assert.throws(() => db.exec("UPDATE ingredients SET expiration_date = '2026-02-29'"), /CHECK constraint/);
+  db.prepare("UPDATE ingredients SET memo = ? WHERE id = 'item'").run('개봉 후 밀폐 보관');
+  await initializeDatabase(adapter);
+  assert.equal(db.prepare("SELECT memo FROM ingredients WHERE id = 'item'").get().memo, '개봉 후 밀폐 보관');
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+});
+
+test('버전 4 전환 실패 시 메모 컬럼·버전을 롤백하고 기존 재료를 보존해 재시도한다', async t => {
+  const { db, adapter } = createDatabase(t);
+  createPreviousDatabase(db, 4);
+  seedDatabase(db);
+  db.exec("INSERT INTO ingredients VALUES ('item', '계란', '2개', NULL, 'body-split', 1)");
+  const schema = getSchema(db);
+  const ingredients = db.prepare('SELECT * FROM ingredients').all();
+  const execAsync = adapter.execAsync;
+  adapter.execAsync = async sql => {
+    await execAsync(sql);
+    if (/PRAGMA user_version = 5/.test(sql)) throw new Error('검증용 메모 컬럼 추가 실패');
+  };
+  await assert.rejects(initializeDatabase(adapter), /검증용 메모 컬럼 추가 실패/);
+  assert.deepEqual(getSchema(db), schema);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), ingredients);
   assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
+  adapter.execAsync = execAsync;
+  await initializeDatabase(adapter);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all().map(item => ({ ...item })), ingredients.map(item => ({ ...item, memo: null })));
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
 });
 
 test('분할 없음·좌우·포켓·서랍에 같은 이름의 재료를 저장하고 재초기화해도 보존한다', async t => {
   const { db, adapter } = createDatabase(t);
   await initializeDatabase(adapter);
   seedDatabase(db);
-  const insert = db.prepare('INSERT INTO ingredients VALUES (?, ?, ?, ?, ?, ?)');
+  const insert = db.prepare('INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number) VALUES (?, ?, ?, ?, ?, ?)');
   for (const [id, slotId, drawerNumber, quantity, expirationDate] of [
     ['whole', 'body-legacy', 0, '2개', null],
     ['left', 'body-split', 1, '반 통', '2028-02-29'],
@@ -443,7 +511,7 @@ test('빈 이름·수량과 잘못된 날짜·좌우 번호·숨긴 포켓을 �
   const { db, adapter } = createDatabase(t);
   await initializeDatabase(adapter);
   seedDatabase(db);
-  const insert = db.prepare('INSERT INTO ingredients VALUES (?, ?, ?, ?, ?, ?)');
+  const insert = db.prepare('INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number) VALUES (?, ?, ?, ?, ?, ?)');
   for (const name of ['', '   ', '가'.repeat(51)]) {
     assert.throws(() => insert.run('invalid', name, '1개', null, 'body-legacy', 0), /CHECK constraint/);
   }
@@ -474,7 +542,7 @@ test('재료가 있는 칸과 상위 구조의 삭제는 재료와 구조를 모
   const { db, adapter } = createDatabase(t);
   await initializeDatabase(adapter);
   seedDatabase(db);
-  db.exec("INSERT INTO ingredients VALUES ('item', '재료', '1개', NULL, 'body-split', 1)");
+  db.exec("INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number) VALUES ('item', '재료', '1개', NULL, 'body-split', 1)");
   const before = readStoredData(db);
   const item = db.prepare('SELECT * FROM ingredients').get();
   for (const [table, id] of [
@@ -494,7 +562,7 @@ test('재료를 먼저 이동·삭제해야 분할 변경·문 수납 끄기·�
   await initializeDatabase(adapter);
   seedDatabase(db);
   db.exec(`
-    INSERT INTO ingredients VALUES
+    INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number) VALUES
       ('split', '왼쪽 재료', '1개', NULL, 'body-split', 1),
       ('whole', '분할 없는 재료', '1개', NULL, 'body-legacy', 0),
       ('pocket', '포켓 재료', '1병', NULL, 'left-pocket', 0);

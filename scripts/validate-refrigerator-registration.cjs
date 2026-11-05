@@ -107,7 +107,7 @@ test('재료 목록은 칸·좌우·포켓을 구분하고 유통기한·이름 
   const bodySlotId = refrigerator.rows[0].compartments[0].slots[0].id;
   const pocketSlotId = refrigerator.rows[0].doors[0].slots[0].id;
   const otherSlotId = refrigerator.rows[1].compartments[0].slots[0].id;
-  const insert = db.prepare('INSERT INTO ingredients VALUES (?, ?, ?, ?, ?, ?)');
+  const insert = db.prepare('INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number) VALUES (?, ?, ?, ?, ?, ?)');
   for (const item of [
     ['no-date', '감자', '반 통', null, bodySlotId, 1],
     ['later', '감자', '2개', '2026-12-01', bodySlotId, 1],
@@ -121,7 +121,7 @@ test('재료 목록은 칸·좌우·포켓을 구분하고 유통기한·이름 
   const before = db.prepare('SELECT * FROM ingredients ORDER BY id').all();
   const left = await getIngredientsByPosition(adapter, { slotId: bodySlotId, drawerNumber: 1 });
   assert.deepEqual(left.map(item => item.id), ['same-name-a', 'same-name-b', 'same-date', 'later', 'no-date']);
-  assert.deepEqual({ ...left[0] }, { id: 'same-name-a', name: '감자', quantity: '1봉', expirationDate: '2026-11-30', slotId: bodySlotId, drawerNumber: 1 });
+  assert.deepEqual({ ...left[0] }, { id: 'same-name-a', name: '감자', quantity: '1봉', memo: null, expirationDate: '2026-11-30', slotId: bodySlotId, drawerNumber: 1 });
   assert.equal(left.at(-1).expirationDate, null);
   for (const [slotId, drawerNumber, expected] of [
     [bodySlotId, 2, 'right'], [pocketSlotId, 0, 'pocket'], [otherSlotId, 0, 'other'],
@@ -140,13 +140,14 @@ test('재료 목록은 칸·좌우·포켓을 구분하고 유통기한·이름 
 });
 
 test('재료 등록 입력은 공백을 정리하고 잘못된 이름·수량·날짜·위치를 저장 전에 거부한다', () => {
-  const input = { name: '  계란  ', quantity: '  2개  ', expirationDate: ' 2028-02-29 ', slotId: 'slot', drawerNumber: 1 };
+  const input = { name: '  계란  ', quantity: '  2개  ', memo: '  개봉 후 밀폐 보관  ', expirationDate: ' 2028-02-29 ', slotId: 'slot', drawerNumber: 1 };
   const before = structuredClone(input);
   let issuedIds = 0;
   const prepare = value => ingredientRegistration.prepareIngredientRegistration(value, () => `id-${++issuedIds}`);
-  assert.deepEqual(prepare(input), { id: 'id-1', name: '계란', quantity: '2개', expirationDate: '2028-02-29', slotId: 'slot', drawerNumber: 1 });
+  assert.deepEqual(prepare(input), { id: 'id-1', name: '계란', quantity: '2개', memo: '개봉 후 밀폐 보관', expirationDate: '2028-02-29', slotId: 'slot', drawerNumber: 1 });
   assert.deepEqual(input, before);
   assert.equal(prepare({ ...input, expirationDate: '   ' }).expirationDate, null);
+  for (const memo of [null, '', ' \n\t ']) assert.equal(prepare({ ...input, memo }).memo, null);
   const invalid = [
     ...['', ' \n\t ', '가'.repeat(51)].map(name => ({ ...input, name })),
     ...['', ' \n\t ', '가'.repeat(51)].map(quantity => ({ ...input, quantity })),
@@ -155,7 +156,7 @@ test('재료 등록 입력은 공백을 정리하고 잘못된 이름·수량·�
     { ...input, slotId: ' ' }, { ...input, drawerNumber: 3 }, { ...input, drawerNumber: 1.5 },
   ];
   for (const value of invalid) assert.throws(() => prepare(value), /재료명|수량|유통기한|위치/);
-  assert.equal(issuedIds, 2);
+  assert.equal(issuedIds, 5);
 });
 
 test('수동 등록 재료는 선택한 좌우·포켓에 저장되고 파일 DB를 다시 열어도 유지한다', async t => {
@@ -167,11 +168,14 @@ test('수동 등록 재료는 선택한 좌우·포켓에 저장되고 파일 DB
   const slotId = refrigerator.rows[0].compartments[0].slots[0].id;
   const pocketId = refrigerator.rows[0].doors[0].slots[0].id;
   const stored = [];
-  for (const [target, drawerNumber, expirationDate] of [[slotId, 1, '2028-02-29'], [slotId, 2, null], [pocketId, 0, null]]) {
-    const ingredient = await registerIngredient(adapter, { name: '  같은 재료  ', quantity: '  반 통  ', expirationDate, slotId: target, drawerNumber });
+  for (const [target, drawerNumber, expirationDate, memo] of [
+    [slotId, 1, '2028-02-29', '  개봉 후 밀폐 보관  '], [slotId, 2, null, '   '], [pocketId, 0, null, null],
+  ]) {
+    const ingredient = await registerIngredient(adapter, { name: '  같은 재료  ', quantity: '  반 통  ', memo, expirationDate, slotId: target, drawerNumber });
     assert.match(ingredient.id, /^[0-9a-f-]{36}$/);
     assert.equal(ingredient.name, '같은 재료');
     assert.equal(ingredient.quantity, '반 통');
+    assert.equal(ingredient.memo, memo?.trim() || null);
     assert.equal(ingredient.expirationDate, expirationDate);
     assert.deepEqual({ ...(await getIngredientsByPosition(adapter, { slotId: target, drawerNumber }))[0] }, ingredient);
     stored.push(ingredient.id);
@@ -491,7 +495,7 @@ for (const table of ['refrigerator_rows', 'refrigerator_compartments', 'refriger
     `);
     await assert.rejects(registerRefrigerator(adapter, model.createRefrigeratorDraft()), /검증용 저장 실패/);
     assert.deepEqual(readStoredData(db), before);
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
     db.exec('DROP TRIGGER fail_registration');
     const id = await registerRefrigerator(adapter, model.createRefrigeratorDraft());
     assert.equal(db.prepare('SELECT id FROM refrigerators').get().id, id);
@@ -742,7 +746,7 @@ test('재료가 있는 위치를 없애거나 숨기는 편집은 전체를 롤�
     const id = await registerRefrigerator(adapter, createTwoDoorDraft());
     const loaded = await getRefrigerator(adapter);
     const row = loaded.rows[0];
-    const insert = db.prepare('INSERT INTO ingredients VALUES (?, ?, ?, ?, ?, ?)');
+    const insert = db.prepare('INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number) VALUES (?, ?, ?, ?, ?, ?)');
     insert.run('body-item', '계란', '2개', null, row.compartments[0].slots[0].id, 0);
     insert.run('pocket-item', '우유', '반 통', '2026-11-30', row.doors[0].slots[0].id, 0);
     const before = readStoredData(db);

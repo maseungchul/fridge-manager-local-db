@@ -5,10 +5,11 @@
  */
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 
-/** 이름·수량의 공백을 제거하고 유통기한은 시간대 변환 없이 날짜로 검증한다. */
+/** 이름·수량·메모의 공백을 정리하고 유통기한은 시간대 변환 없이 날짜로 검증한다. */
 export function prepareIngredientRegistration(input: Omit<Ingredient, 'id'>, createId: () => string): Ingredient {
   const name = input.name.trim();
   const quantity = input.quantity.trim();
+  const memo = input.memo?.trim() || null;
   const expirationDate = input.expirationDate?.trim() || null;
   if (!name || name.length > 50) throw new Error('재료명은 1~50자로 입력해 주세요.');
   if (!quantity || quantity.length > 50) throw new Error('수량은 1~50자로 입력해 주세요.');
@@ -22,5 +23,5 @@ export function prepareIngredientRegistration(input: Omit<Ingredient, 'id'>, cre
       throw new Error('유통기한은 실제 날짜를 YYYY-MM-DD 형식으로 입력해 주세요.');
     }
   }
-  return { ...input, id: createId(), name, quantity, expirationDate };
+  return { ...input, id: createId(), name, quantity, memo, expirationDate };
 }

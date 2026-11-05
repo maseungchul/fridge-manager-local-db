@@ -5,7 +5,7 @@
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 /** 연결마다 외래 키 검사를 켜고 현재 버전에 필요한 초기화를 실행한다. */
 export async function initializeDatabase(db: SQLiteDatabase) {
@@ -31,7 +31,9 @@ export async function initializeDatabase(db: SQLiteDatabase) {
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'refrigerator_areas';"
       ) : null;
       if (version === 1 || legacyTable) await migrateVersion1(db);
-      if (version === 2) await migrateVersion2(db);
+      // 기존 재료와 위치를 유지하고, 미입력 메모는 NULL로 남긴다.
+      if (version === 4) await db.execAsync('ALTER TABLE ingredients ADD COLUMN memo TEXT;');
+      else if (version === 2) await migrateVersion2(db);
       else await createTables(db);
       const violation = await db.getFirstAsync('PRAGMA foreign_key_check;');
       if (violation) throw new Error('기존 냉장고 데이터의 연결 정보를 확인해 주세요.');
@@ -145,7 +147,8 @@ async function createTables(db: SQLiteDatabase) {
         )
       ),
       slot_id TEXT NOT NULL REFERENCES refrigerator_slots (id) ON DELETE RESTRICT,
-      drawer_number INTEGER NOT NULL DEFAULT 0 CHECK (drawer_number IN (0, 1, 2))
+      drawer_number INTEGER NOT NULL DEFAULT 0 CHECK (drawer_number IN (0, 1, 2)),
+      memo TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_ingredients_position ON ingredients (slot_id, drawer_number);

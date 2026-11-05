@@ -11,7 +11,7 @@ import type { Ingredient } from '@/features/ingredient/model/ingredient';
 /** 냉장고 한 대의 전체 재료를 조회해 홈 도면의 위치별 등록 건수를 복원한다. */
 export function getIngredients(db: SQLiteDatabase) {
   return db.getAllAsync<Ingredient>(`
-    SELECT id, name, quantity, expiration_date AS expirationDate,
+    SELECT id, name, quantity, memo, expiration_date AS expirationDate,
       slot_id AS slotId, drawer_number AS drawerNumber
     FROM ingredients;
   `);
@@ -20,7 +20,7 @@ export function getIngredients(db: SQLiteDatabase) {
 /** 유통기한이 빠른 재료부터 표시하고, 날짜가 없는 재료는 뒤에 둔다. */
 export function getIngredientsByPosition(db: SQLiteDatabase, position: Pick<Ingredient, 'slotId' | 'drawerNumber'>) {
   return db.getAllAsync<Ingredient>(`
-    SELECT id, name, quantity, expiration_date AS expirationDate,
+    SELECT id, name, quantity, memo, expiration_date AS expirationDate,
       slot_id AS slotId, drawer_number AS drawerNumber
     FROM ingredients
     WHERE slot_id = ? AND drawer_number = ?
@@ -32,9 +32,9 @@ export function getIngredientsByPosition(db: SQLiteDatabase, position: Pick<Ingr
 export async function registerIngredient(db: SQLiteDatabase, input: Omit<Ingredient, 'id'>): Promise<Ingredient> {
   const ingredient = prepareIngredientRegistration(input, uuid.v4);
   await db.runAsync(`
-    INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number)
-    VALUES (?, ?, ?, ?, ?, ?);
-  `, ingredient.id, ingredient.name, ingredient.quantity, ingredient.expirationDate,
+    INSERT INTO ingredients (id, name, quantity, memo, expiration_date, slot_id, drawer_number)
+    VALUES (?, ?, ?, ?, ?, ?, ?);
+  `, ingredient.id, ingredient.name, ingredient.quantity, ingredient.memo, ingredient.expirationDate,
   ingredient.slotId, ingredient.drawerNumber);
   return ingredient;
 }

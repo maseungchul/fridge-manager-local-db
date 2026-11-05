@@ -52,6 +52,7 @@ erDiagram
         TEXT expiration_date "YYYY-MM-DD, NULL 허용"
         TEXT slot_id FK
         INTEGER drawer_number "분할 없음 0 / 왼쪽 1 / 오른쪽 2"
+        TEXT memo "선택 입력, NULL 허용"
     }
 ```
 

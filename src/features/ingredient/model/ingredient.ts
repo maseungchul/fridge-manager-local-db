@@ -7,6 +7,7 @@ export interface Ingredient {
   id: string;
   name: string;
   quantity: string;
+  memo: string | null;
   // 날짜는 시간대 변환 없이 YYYY-MM-DD로 저장하고, 미입력은 null로 구분한다.
   expirationDate: string | null;
   slotId: string;

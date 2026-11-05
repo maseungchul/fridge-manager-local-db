@@ -1786,8 +1786,8 @@ test('재료 목록 D-day는 배지와 같은 신선·유통기한 주의·경�
   const previous = ingredientRepository.getIngredientsByPosition;
   t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
   const ingredients = [
-    { id: 'milk', name: '우유', quantity: '반 통', expirationDate: '2026-11-30', slotId: 'pocket', drawerNumber: 0 },
-    { id: 'eggs', name: '계란', quantity: '2개', expirationDate: null, slotId: 'pocket', drawerNumber: 0 },
+    { id: 'milk', name: '우유', quantity: '반 통', memo: '개봉 후 밀폐 보관', expirationDate: '2026-11-30', slotId: 'pocket', drawerNumber: 0 },
+    { id: 'eggs', name: '계란', quantity: '2개', memo: null, expirationDate: null, slotId: 'pocket', drawerNumber: 0 },
     { id: 'apple', name: '사과', quantity: '1개', expirationDate: '2026-11-06', slotId: 'pocket', drawerNumber: 0 },
     { id: 'carrot', name: '당근', quantity: '1개', expirationDate: '2026-11-04', slotId: 'pocket', drawerNumber: 0 },
     { id: 'tofu', name: '두부', quantity: '1모', expirationDate: '2026-11-03', slotId: 'pocket', drawerNumber: 0 },
@@ -1815,14 +1815,16 @@ test('재료 목록 D-day는 배지와 같은 신선·유통기한 주의·경�
   for (const item of ingredients) {
     assert.equal(list.props.keyExtractor(item), item.id);
     const rendered = list.props.renderItem({ item });
-    const texts = findAll(rendered, node => node.type === 'Text').map(node => node.props.children);
     const expiration = ingredientModel.getIngredientExpirationStatus(item.expirationDate, now);
-    assert.deepEqual(texts, [item.name, item.quantity, expiration.label]);
+    const heading = children(rendered)[0];
+    assert.equal(children(heading)[0].props.children[0], item.name);
+    assert(find(rendered, node => node.type === 'Text' && Array.isArray(node.props.children) && node.props.children.includes(item.quantity)));
+    assert.equal(find(rendered, node => node.type === 'Text' && node.props.children === item.memo)?.props.children, item.memo ?? undefined);
     const label = find(rendered, node => node.type === 'Text' && node.props.children === expiration.label);
     assert.equal(flattenStyle(label.props.style).textAlign, 'right');
     assert.equal(flattenStyle(label.props.style).color, expectedColors[item.id]);
-    assert.equal(flattenStyle(rendered.props.style).flexDirection, 'row');
-    assert.equal(flattenStyle(children(rendered)[0].props.style).flex, 1);
+    assert.equal(flattenStyle(heading.props.style).flexDirection, 'row');
+    assert.equal(flattenStyle(children(heading)[0].props.style).flex, 1);
   }
 });
 
@@ -1985,6 +1987,9 @@ test('추가도 같은 시트를 사용하고 날짜 선택·해제와 목록 �
   input('재료 수량').props.onChangeText('2개');
   sheet.render();
   assert.equal(save().props.disabled, false);
+  assert.equal(input('재료 메모').props.value, '');
+  input('재료 메모').props.onChangeText('개봉 후 밀폐 보관');
+  sheet.render();
   openCalendar();
   assert.equal(save().props.disabled, true);
   const picker = find(sheet.tree, node => node.type === 'IngredientExpirationCalendar');
@@ -2018,6 +2023,7 @@ test('추가도 같은 시트를 사용하고 날짜 선택·해제와 목록 �
   sheet.render();
   assert.equal(input('재료명').props.value, '계란');
   assert.equal(input('재료 수량').props.value, '2개');
+  assert.equal(input('재료 메모').props.value, '개봉 후 밀폐 보관');
 });
 
 test('날짜 팝업은 키보드가 닫힌 뒤 네이티브 화면 좌표를 받고 이전 요청의 측정 결과를 무시한다', async t => {
@@ -2325,6 +2331,7 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   sheet.tree.props.ref.current = { close() { nativeClose.push(true); } };
   input('재료명').props.onChangeText(' 계란 ');
   input('재료 수량').props.onChangeText(' 2개 ');
+  input('재료 메모').props.onChangeText(' 밀폐 보관 ');
   sheet.render();
   const alertCount = alerts.length;
   const animationCount = animations.length;
@@ -2332,25 +2339,28 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   const duplicateSave = save().props.onPress();
   sheet.render();
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0], { name: ' 계란 ', quantity: ' 2개 ', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
+  assert.deepEqual(calls[0], { name: ' 계란 ', quantity: ' 2개 ', memo: ' 밀폐 보관 ', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
   assert.equal(save().props.accessibilityState.busy, true);
   assert(find(save(), node => node.props.accessibilityLabel === '재료 등록 중'));
   assert.equal(sheet.tree.props.disabled, true);
   assert.equal(input('재료명').props.editable, false);
   assert.equal(input('재료 수량').props.editable, false);
+  assert.equal(input('재료 메모').props.editable, false);
   assert.equal(input('재료 시트 닫기'), undefined);
   assert.equal(input('재료 목록으로 돌아가기').props.disabled, true);
   input('재료명').props.onChangeText('저장 중 변경 금지');
+  input('재료 메모').props.onChangeText('저장 중 변경 금지');
   input('재료 목록으로 돌아가기').props.onPress();
   children(sheet.tree)[0].props.onAccessibilityEscape();
   sheet.tree.props.onClose();
   sheet.render();
   assert.equal(input('재료명').props.value, ' 계란 ');
+  assert.equal(input('재료 메모').props.value, ' 밀폐 보관 ');
   assert.equal(closed, 0);
   assert.equal(nativeClose.length, 0);
   assert.equal(alerts.length, alertCount);
   assert.deepEqual(registered, []);
-  persisted.push({ id: 'saved-item', name: '계란', quantity: '2개', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
+  persisted.push({ id: 'saved-item', name: '계란', quantity: '2개', memo: '밀폐 보관', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
   pending.resolve(persisted[0]);
   await Promise.all([firstSave, duplicateSave]);
   sheet.render();
@@ -2366,6 +2376,7 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   assert.equal(input('재료명').props.value, ' 계란 ');
   await save().props.onPress();
   input('재료명').props.onChangeText('확인 전 변경 금지');
+  input('재료 메모').props.onChangeText('확인 전 변경 금지');
   input('재료 목록으로 돌아가기').props.onPress();
   children(sheet.tree)[0].props.onAccessibilityEscape();
   sheet.tree.props.onClose();
@@ -2396,6 +2407,7 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   sheet.render();
   assert.equal(input('재료명').props.value, '');
   assert.equal(input('재료 수량').props.value, '');
+  assert.equal(input('재료 메모').props.value, '');
   assert.equal(save().props.disabled, true);
 });
 
