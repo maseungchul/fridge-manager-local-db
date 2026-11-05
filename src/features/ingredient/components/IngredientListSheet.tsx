@@ -307,6 +307,7 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
                                   </View>
                                   <Text style={[styles.expirationDate, item.expirationDate !== null && {
                                     color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'total'],
+                                    fontWeight: '700',
                                   }]}>{expiration.label}</Text>
                                 </View>
                               );

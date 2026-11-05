@@ -9,12 +9,12 @@ import type { ComponentRef, ReactNode } from 'react';
 import { Animated, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LayoutChangeEvent, LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
-import { DoorHandle, DoorModeArt, FridgeMap, getFridgeAreaEditSize } from '@/features/fridge/components/FridgeMap';
+import { DOOR_MODE_ART_INSET, DoorHandle, DoorModeArt, FridgeMap, getFridgeAreaEditSize } from '@/features/fridge/components/FridgeMap';
 import { areaNames, FRIDGE_ASPECT_RATIO, getDraftAreaLocation, getDraftLayout, getDraftRowGeometry, getStorageModeName } from '@/features/fridge/model/fridgeLayout';
 import type { DraftDoor, FridgeLayout, RefrigeratorDraft, StorageArea, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { IngredientCountBadges, getIngredientCountLabel } from '@/features/ingredient/components/IngredientCountBadges';
 import { getIngredientCounts } from '@/features/ingredient/model/ingredient';
-import type { Ingredient } from '@/features/ingredient/model/ingredient';
+import type { Ingredient, IngredientCounts } from '@/features/ingredient/model/ingredient';
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle } from '@/theme/tokens';
 import { getFridgeDiagramSizes } from '@/features/fridge/components/fridgeDiagramLayout';
 import type { FridgeDiagramSize } from '@/features/fridge/components/fridgeDiagramLayout';
@@ -228,12 +228,13 @@ function InteriorArea({ area, layout, now, compact, selected, storageMode, corne
 }
 
 /** 문 앞·뒷면을 같은 경첩으로 회전하고, 포켓 내부는 전환 중에도 유지하되 조작은 열림 완료 후 허용한다. */
-function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, sourceSize, gridEdges, children }: {
+function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, sourceSize, gridEdges, ingredientCounts, children }: {
   door: DraftDoor; label: string; phase: FridgeFocusPhase; progress: Animated.Value; selected: boolean; storageMode: StorageMode | null;
   style: AreaFrame; onSelect: () => void; unfoldOffset?: number; children?: ReactNode;
   bodyWidth?: number;
   sourceSize?: { width: number; height: number };
   gridEdges?: GridEdges;
+  ingredientCounts?: IngredientCounts;
 }) {
   const drawer = door.kind === 'DRAWER';
   const closed = phase === 'closed';
@@ -243,6 +244,7 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   const faceHeight = style.height - verticalPadding * 2;
   // 중앙 보기로 옮길 때도 앞면 인쇄는 닫힌 문의 크기를 기준으로 유지한다.
   const artSize = Math.max(12, Math.min(22, (sourceSize?.width ?? leafWidth) * 0.16, (sourceSize?.height ?? faceHeight) * 0.18));
+  const handleOnLeft = !drawer && !leftHinge;
   const modeStyle = getFridgeSurfaceStyle(storageMode, 'exterior');
   const contactColor = '#c0c9cf';
   const gridCorners = gridEdges ? getGridCorners(gridEdges) : undefined;
@@ -269,8 +271,15 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
         <Pressable accessibilityRole="button" accessibilityLabel={`${label}, ${storageMode ? getStorageModeName(storageMode) : '보관 모드 미설정'} 열기`}
           accessibilityState={{ expanded: !closed, selected }} disabled={!closed} onPress={onSelect}
           style={[styles.exteriorFace, modeStyle, gridStyle]}>
-          <DoorModeArt storageMode={storageMode} size={artSize} handleOnLeft={!drawer && !leftHinge}
+          <DoorModeArt storageMode={storageMode} size={artSize} handleOnLeft={handleOnLeft}
             style={gridCorners} />
+          {ingredientCounts && ingredientCounts.total > 0 ? (
+            <IngredientCountBadges counts={ingredientCounts} placement={handleOnLeft ? 'top-right' : 'top-left'}
+              style={{ top: DOOR_MODE_ART_INSET + artSize + 6, bottom: 4,
+                // 세로 손잡이 쪽은 여백을 남기고, 서랍형은 가로 손잡이 아래 폭을 사용한다.
+                left: handleOnLeft ? 30 : DOOR_MODE_ART_INSET,
+                right: !drawer && !handleOnLeft ? 30 : DOOR_MODE_ART_INSET }} />
+          ) : null}
           <DoorHandle horizontal={drawer} storageMode={storageMode} style={drawer ? styles.drawerHandle
             : [styles.doorHandle, door.side === 'LEFT_DOOR' ? styles.handleRight : styles.handleLeft]} />
         </Pressable>
@@ -326,13 +335,13 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, select
       {group.doors.map(({ door, left, width: doorWidth }) => (
         <FridgeDoor key={door.id} door={door} phase="closed" progress={progress} selected={selectedBody || selectedDoor}
           storageMode={body.storageMode}
+          ingredientCounts={door.id === group.doors[0].door.id ? counts : undefined}
           gridEdges={getGridEdges(row, rowIndex, rowCount, [door.id])}
           label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${door.kind === 'DRAWER' ? '서랍' : areaNames[door.side]}${countLabel}`}
           onSelect={() => { onSelectArea(door.kind === 'DRAWER' ? body.id : door.id); showArea(door); }}
           style={{ left: (left - group.left) * width, width: doorWidth * width, height,
             paddingLeft: 0, paddingRight: 0 }} />
       ))}
-      {counts && counts.total > 0 ? <IngredientCountBadges counts={counts} /> : null}
     </View>
   );
 }
@@ -621,6 +630,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
               sourceSize={{ width: body.fromWidth * frame.width / body.width, height: body.fromHeight }}
               selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
               storageMode={group.body.storageMode}
+              ingredientCounts={door.id === doors[0].door.id ? counts : undefined}
               unfoldOffset={unfoldOffset} onSelect={() => onSelectArea?.(area.id)}
               style={{ left: frame.left, width: frame.width, height: body.height,
                 paddingLeft: frame.paddingLeft, paddingRight: frame.paddingRight, paddingVertical: 0 }}>
@@ -633,14 +643,6 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           );
         })}
       </Animated.View>
-      {counts && counts.total > 0 && !open ? (
-        <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-          style={[styles.compartment, panelStyle(body), {
-            opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0], extrapolate: 'clamp' }),
-          }]}>
-          <IngredientCountBadges counts={counts} />
-        </Animated.View>
-      ) : null}
     </Animated.View>
   );
   // 각 수납 칸의 편집 크기를 유지하고, 넘치는 방향에만 도면 내부 스크롤을 허용한다.

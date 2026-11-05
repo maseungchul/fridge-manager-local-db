@@ -25,6 +25,7 @@ const POSITION_SEPARATOR_WIDTH = 1;
 const MIN_EDIT_CELL_SIZE = 72;
 const POCKET_BORDER_WIDTH = 3;
 const POCKET_BOTTOM_RADIUS = 12;
+export const DOOR_MODE_ART_INSET = 8;
 
 /** 프레임·이름·구분선과 여백을 더해 실제 수납 칸마다 최소 편집 크기를 확보한다. */
 export function getFridgeAreaEditSize(slots: readonly SlotConfiguration[], isBody: boolean) {
@@ -199,7 +200,9 @@ export function FridgeMap({
                           // 좌우 분할은 위치별로 집계하고, 수량 문자열과 관계없이 등록 한 건을 하나로 센다.
                           const counts = getIngredientCounts(showIngredientCounts ? ingredients.filter(ingredient => ingredient.positionId === position.id) : [], now);
                           const countLabel = showIngredientCounts ? `, ${getIngredientCountLabel(counts)}` : '';
-                          const badges = counts.total > 0 ? <IngredientCountBadges counts={counts} compact={!area.isBody} /> : null;
+                          const badges = counts.total > 0 ? (
+                            <IngredientCountBadges counts={counts} placement="top-left" style={styles.ingredientBadges} />
+                          ) : null;
                           return (
                             <Position key={position.id} accessible={rowInteraction || positionInteraction ? undefined : false}
                               accessibilityRole={rowInteraction || positionInteraction ? 'button' : undefined} accessibilityLabel={`${getPositionPath(area, position)}${countLabel}`}
@@ -245,15 +248,16 @@ export function FridgeMap({
 }
 
 const styles = StyleSheet.create({
+  ingredientBadges: { top: 4, left: 4, right: 4, bottom: 4 },
   modeArt: {
     position: 'absolute',
-    top: 8,
+    top: DOOR_MODE_ART_INSET,
   },
   modeArtLeft: {
-    left: 8,
+    left: DOOR_MODE_ART_INSET,
   },
   modeArtRight: {
-    right: 8,
+    right: DOOR_MODE_ART_INSET,
   },
   // 실 전환과 관계없이 부모의 전체 너비를 사용한다.
   map: {

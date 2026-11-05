@@ -5007,7 +5007,7 @@ test('재료 집계는 기한 미입력을 전체에만 포함하고 D-2·당일
   assert.deepEqual(ingredientModel.getIngredientCounts([], new Date(2026, 10, 4)), { total: 0, warning: 0, expired: 0 });
 });
 
-test('중앙 원형 배지는 냉장·냉동 모두 전체·기한주의·경과를 함께 표시하고 실제 건수를 안내한다', () => {
+test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 같은 간격·글자 크기를 사용한다', () => {
   const draft = savedRefrigerator('기한 배지');
   draft.rows[0].compartments[0].slots[0].drawerCount = 2;
   const layout = model.getDraftLayout(draft);
@@ -5026,31 +5026,51 @@ test('중앙 원형 배지는 냉장·냉동 모두 전체·기한주의·경과
     assert.deepEqual(findAll(leftPosition, node => node.type === 'Text').map(node => node.props.children), [6, 3, 1]);
     assert.deepEqual(findAll(rightPosition, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+']);
     const badges = findAll(leftPosition, named('IngredientCountBadge'));
-    assert.deepEqual(badges.map(badge => flattenStyle(badge.type(badge.props).props.style).backgroundColor),
+    const overview = fixture(draft);
+    const door = doors(overview.compartment)[0];
+    const home = door.type({ ...door.props, ingredientCounts: { total: 6, warning: 3, expired: 1 } });
+    const homeBadges = find(home, named('IngredientCountBadges'));
+    const homeItems = findAll(homeBadges, named('IngredientCountBadge'));
+    assert.deepEqual(badges.map(badge => flattenStyle(children(badge.type(badge.props))[0].props.style).backgroundColor),
       [tokens.ingredientBadgeColors.total, tokens.ingredientBadgeColors.warning, tokens.ingredientBadgeColors.expired]);
     for (const position of [leftPosition, rightPosition, find(map, node => node.key === pocket.id)]) {
       const badge = find(position, named('IngredientCountBadges'));
       const center = badge.type(badge.props);
-      assert.equal(flattenStyle(center.props.style).alignItems, 'center');
-      assert.equal(flattenStyle(center.props.style).justifyContent, 'center');
+      assert.equal(badge.props.placement, 'top-left');
+      assert.equal(flattenStyle(center.props.style).alignItems, 'flex-start');
+      assert.equal(flattenStyle(center.props.style).justifyContent, 'flex-start');
+      assert.equal(flattenStyle(center.props.style).top, 4);
+      assert.equal(flattenStyle(center.props.style).left, 4);
       assert.equal(center.props.pointerEvents, 'none');
-      assert.equal(flattenStyle(children(center)[0].props.style).flexWrap, position.key === pocket.id ? 'nowrap' : 'wrap');
+      const paper = flattenStyle(children(center)[0].props.style);
+      assert.equal(paper.flexWrap, 'wrap');
+      assert.equal(paper.backgroundColor, tokens.ingredientLabelColors.background);
+      for (const item of findAll(badge, named('IngredientCountBadge'))) {
+        const rendered = item.type(item.props);
+        const matchingHomeItem = homeItems.find(homeItem => homeItem.props.kind === item.props.kind);
+        const homeItem = matchingHomeItem.type(matchingHomeItem.props);
+        assert.deepEqual(rendered.props.style, homeItem.props.style);
+        const label = find(rendered, node => node.type === 'Text');
+        const homeLabel = find(homeItem, node => node.type === 'Text');
+        assert.deepEqual(label.props.style, homeLabel.props.style);
+      }
     }
     for (const badge of badges) {
-      const circle = flattenStyle(badge.type(badge.props).props.style);
-      assert.equal(circle.width, circle.height);
-      assert.equal(circle.borderRadius, circle.width / 2);
+      const label = badge.type(badge.props);
+      const mark = children(label)[0];
+      const count = find(label, node => node.type === 'Text');
+      assert.equal(flattenStyle(count.props.style).color, flattenStyle(mark.props.style).backgroundColor);
+      assert.equal(flattenStyle(label.props.style).backgroundColor, undefined);
     }
     const pocketPosition = find(map, node => node.key === pocket.id);
     const bin = find(pocketPosition, named('DoorPocketBin'));
     const front = children(bin.type(bin.props))[0];
     const pocketBadge = find(front, named('IngredientCountBadges'));
-    assert(pocketBadge, '포켓 배지는 칸 전체가 아니라 수납함 전면을 기준으로 중앙 정렬해야 한다');
+    assert(pocketBadge, '포켓 배지는 수납함 전면을 기준으로 배치해야 한다');
     assert.equal(children(pocketPosition).filter(named('IngredientCountBadges')).length, 0);
-    assert.equal(pocketBadge.props.compact, true);
-    const circle = find(pocketBadge, named('IngredientCountBadge'));
-    assert.equal(flattenStyle(circle.type(circle.props).props.style).aspectRatio, 1);
-    assert.equal(flattenStyle(circle.type(circle.props).props.style).flexShrink, 1);
+    assert.equal(pocketBadge.props.placement, 'top-left');
+    overview.compartment.unmount();
+    overview.map.unmount();
   }
 });
 
@@ -5069,17 +5089,71 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
   const map = mount(FridgeInteriorMap, { draft, ingredients, now: new Date(2026, 10, 4), layoutSize: { width: 300, height: 540 }, onSelectArea() {}, onFocus() {} });
   const groups = findAll(map.tree, named('FridgeCompartment'));
   const group = mount(groups[0].type, groups[0].props);
-  const badge = find(group.tree, named('IngredientCountBadges'));
+  const renderedBadges = () => doors(group).flatMap(door => findAll(door.type(door.props), named('IngredientCountBadges')));
+  const badge = renderedBadges()[0];
   assert.deepEqual(badge.props.counts, { total: 3, warning: 1, expired: 1 });
-  assert.equal(findAll(group.tree, named('IngredientCountBadges')).length, 1);
+  assert.equal(renderedBadges().length, 1);
   assert.equal(doors(group).length, 2);
   assert(doors(group).every(door => door.props.label.includes('재료 3건, 기한주의 1건, 경과 1건')));
+  const target = { areaId: row.compartments[0].id, returnAreaId: row.doors[0].id,
+    canvas: { x: 20, y: 100, width: 270, height: 540 } };
+  const focus = mount(FridgeFocusView, { draft, ingredients, now: new Date(2026, 10, 4), target,
+    viewport: { x: 0, y: 0, width: 375, height: 844 }, phase: 'opening', onPhaseChange() {}, onClose() {} });
+  for (const phase of ['opening', 'closing']) {
+    focus.props = { ...focus.props, phase };
+    focus.render();
+    const badges = movingDoors(focus).flatMap(door => findAll(door.type(door.props), named('IngredientCountBadges')));
+    assert.equal(badges.length, 1, '문을 여닫는 동안에도 합친 본체의 배지를 중복 표시하지 않는다');
+    assert.deepEqual(badges[0].props.counts, { total: 3, warning: 1, expired: 1 });
+  }
+  focus.unmount();
   for (const layout of [model.getDraftLayout(draft), undefined]) {
     group.props = { ...group.props, layout };
     group.render();
-    assert.equal(find(group.tree, named('IngredientCountBadges')), undefined);
+    assert.equal(renderedBadges().length, 0);
   }
   group.unmount();
+  map.unmount();
+});
+
+test('홈 문 앞면 배지는 모드 아이콘 아래에서 세로·서랍 손잡이를 피하고 문과 함께 이동한다', () => {
+  const { compartment, map } = fixture();
+  const template = doors(compartment)[0];
+  const counts = { total: 240, warning: 120, expired: 100 };
+  for (const [width, height] of [[82, 82], [135, 135], [135, 270]]) {
+    for (const opening of ['LEFT_DOOR', 'RIGHT_DOOR', 'DRAWER']) {
+      for (const phase of ['closed', 'opening', 'open', 'closing']) {
+        const tree = template.type({ ...template.props, ingredientCounts: counts, phase,
+          door: { ...template.props.door, kind: opening === 'DRAWER' ? 'DRAWER' : 'HINGED', side: opening === 'RIGHT_DOOR' ? 'RIGHT_DOOR' : 'LEFT_DOOR' },
+          style: { left: 0, width, height, paddingLeft: 0, paddingRight: 0 },
+        });
+        const front = children(tree)[0];
+        const badge = find(front, named('IngredientCountBadges'));
+        const art = find(front, named('DoorModeArt'));
+        assert(badge && art, '모드 아이콘과 배지는 같은 문 앞면에서 움직여야 한다');
+        assert.deepEqual(badge.props.counts, counts);
+        const position = flattenStyle(badge.props.style);
+        const artPosition = flattenStyle(mapModule.DoorModeArt(art.props).props.style);
+        near(position.top - artPosition.top - art.props.size, 6);
+        assert.equal(badge.props.placement, opening === 'RIGHT_DOOR' ? 'top-right' : 'top-left');
+        const rendered = badge.type(badge.props);
+        assert.equal(flattenStyle(rendered.props.style).justifyContent, 'flex-start');
+        assert.equal(flattenStyle(children(rendered)[0].props.style).flexWrap, 'wrap');
+        assert.equal(rendered.props.pointerEvents, 'none');
+        assert.deepEqual(findAll(rendered, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+', '99+']);
+        const handle = find(front, named('DoorHandle'));
+        const handlePosition = flattenStyle(handle.type(handle.props).props.style);
+        if (opening === 'DRAWER') {
+          assert(position.top > handlePosition.top + handlePosition.height);
+        } else {
+          const handleLeft = handlePosition.left ?? width - handlePosition.right - handlePosition.width;
+          assert(position.left >= handleLeft + handlePosition.width || width - position.right <= handleLeft,
+            '좁은 문에서도 배지가 세로 손잡이 영역에 들어가지 않아야 한다');
+        }
+      }
+    }
+  }
+  compartment.unmount();
   map.unmount();
 });
 
@@ -5098,6 +5172,9 @@ test('범례는 중앙 모달의 세 가지 배지를 설명하고 바깥 터치
   assert.equal(card.props.onStartShouldSetResponder(), true);
   assert.equal(closes, 0);
   assert.deepEqual(findAll(card, named('IngredientCountBadge')).map(badge => badge.props.kind), ['total', 'warning', 'expired']);
+  for (const badge of findAll(card, named('IngredientCountBadge'))) {
+    assert.equal(find(badge.type(badge.props), node => node.type === 'Text'), undefined, '범례 라벨에는 숫자를 표시하지 않는다');
+  }
   const outside = find(popup, node => node.props.accessibilityLabel === '재료 배지 범례 닫기');
   outside.props.onPress();
   popup.props.onRequestClose();

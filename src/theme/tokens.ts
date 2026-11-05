@@ -36,11 +36,16 @@ export const colors = {
   error: '#A6413B',
 } as const;
 
-// 냉장·냉동 모두 같은 색으로 재료 전체·기한주의·경과 건수를 구분한다.
+// 냉장·냉동의 배지와 D-day에서 같은 색으로 재료 전체·기한주의·경과를 구분한다.
 export const ingredientBadgeColors = {
   total: '#416B57',
   warning: '#AF5A10',
-  expired: colors.error,
+  expired: '#C62828',
+} as const;
+
+// 재료 라벨은 도면 바탕이 비치도록 배경과 테두리 없이 표시한다.
+export const ingredientLabelColors = {
+  background: 'transparent',
 } as const;
 
 // 냉장고 도면은 흰 프레임 안에 모드별 배경과 밝은 수납함을 배치한다.
