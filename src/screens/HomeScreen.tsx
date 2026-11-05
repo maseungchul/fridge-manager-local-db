@@ -23,7 +23,7 @@ import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStruc
 import { FridgeIngredientLegend } from '@/features/fridge/components/FridgeIngredientLegend';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase } from '@/features/fridge/components/FridgeInteriorMap';
-import { getDraftLayout, getPositionPath } from '@/features/fridge/model/fridgeLayout';
+import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Refrigerator, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import { IngredientListSheet } from '@/features/ingredient/components/IngredientListSheet';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
@@ -38,10 +38,11 @@ type HomeScreenProps = CompositeScreenProps<
 
 interface IngredientMove {
   ingredient: Ingredient;
-  phase: 'selecting' | 'confirming' | 'saving';
+  phase: 'selecting' | 'saving';
 }
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
+const MOVE_NOTICE_DURATION = 2000;
 
 export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeScreenProps) {
   const db = useSQLiteContext();
@@ -54,8 +55,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [badgeDate, setBadgeDate] = useState(() => new Date());
   const [ingredientMove, setIngredientMove] = useState<IngredientMove | null>(null);
+  const [moveNotice, setMoveNotice] = useState<{ message: string } | null>(null);
   const moveRequest = useRef<IngredientMove | null>(null);
-  const isMoveLocked = ingredientMove !== null && ingredientMove.phase !== 'selecting';
+  const isMoveLocked = ingredientMove?.phase === 'saving';
   const isTabInteractionBlocked = isIngredientListOpen || ingredientMove !== null;
   const loadRequest = useRef(0);
   // 같은 이벤트 묶음의 중복 선택·확인도 막을 수 있게 화면 상태와 요청 참조를 함께 바꾼다.
@@ -63,7 +65,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
     moveRequest.current = move;
     setIngredientMove(move);
   }, []);
-  const isMoveBlocked = useCallback(() => moveRequest.current !== null && moveRequest.current.phase !== 'selecting', []);
+  const isMoveBlocked = useCallback(() => moveRequest.current?.phase === 'saving', []);
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
     hasSeenScrollHint, markScrollHintSeen, finishFocusTransition, resetFocus,
@@ -90,6 +92,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const loadRefrigerator = useCallback(async () => {
     const request = ++loadRequest.current;
     changeIngredientMove(null);
+    setMoveNotice(null);
     resetFocus();
     setSelectedSlot(null);
     setIsIngredientListOpen(false);
@@ -114,9 +117,17 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
     void loadRefrigerator();
     return () => {
       loadRequest.current++; changeIngredientMove(null); resetFocus();
+      setMoveNotice(null);
       setSelectedSlot(null); setIsIngredientListOpen(false); setIsLegendOpen(false);
     };
   }, [loadRefrigerator, resetFocus, changeIngredientMove]));
+
+  // 연속 이동도 마지막 성공 시점부터 표시 시간을 다시 계산하고, 화면 종료 시 타이머를 정리한다.
+  useEffect(() => {
+    if (!moveNotice) return;
+    const timer = setTimeout(() => setMoveNotice(current => current === moveNotice ? null : current), MOVE_NOTICE_DURATION);
+    return () => clearTimeout(timer);
+  }, [moveNotice]);
 
   // 자정과 앱 복귀 때 날짜를 갱신해 도면을 다시 열지 않아도 배지의 기한 분류를 맞춘다.
   useEffect(() => {
@@ -160,44 +171,29 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
       onPress={() => setIsLegendOpen(true)} />
   ) : null;
 
-  function selectMoveDestination(destination: SlotPosition, index: number) {
+  async function selectMoveDestination(destination: SlotPosition, index: number) {
     const move = moveRequest.current;
-    const area = layout?.areas.find(candidate => candidate.id === destination.areaId);
-    if (!move || move.phase !== 'selecting' || !area) return;
-    if (move.ingredient.slotId === destination.slotId && move.ingredient.drawerNumber === (destination.drawerNumber ?? 0)) {
-      Alert.alert(alertTitles.info, '현재 보관 중인 위치입니다. 다른 칸을 선택해 주세요.');
-      return;
-    }
+    if (!move || move.phase !== 'selecting') return;
+    if (move.ingredient.slotId === destination.slotId && move.ingredient.drawerNumber === (destination.drawerNumber ?? 0)) return;
+    const saving: IngredientMove = { ...move, phase: 'saving' };
+    changeIngredientMove(saving);
     setSelectedAreaId(destination.areaId);
     setSelectedSlot({ index, positionId: destination.id });
-    const confirmation: IngredientMove = { ...move, phase: 'confirming' };
-    changeIngredientMove(confirmation);
-    Alert.alert(alertTitles.info, `“${move.ingredient.name}” 재료를 다음 위치로 이동할까요?\n\n${getPositionPath(area, destination)}`, [
-      { text: '다시 선택', style: 'cancel', onPress: () => {
-        if (moveRequest.current !== confirmation) return;
-        changeIngredientMove({ ...move, phase: 'selecting' });
-        closeIngredientList();
-      } },
-      { text: '이동', onPress: async () => {
-        if (moveRequest.current !== confirmation) return;
-        const saving: IngredientMove = { ...move, phase: 'saving' };
-        changeIngredientMove(saving);
-        let ingredient: Ingredient;
-        try {
-          ingredient = await moveIngredient(db, move.ingredient, { slotId: destination.slotId, drawerNumber: destination.drawerNumber ?? 0 });
-        } catch {
-          if (moveRequest.current !== saving) return;
-          changeIngredientMove({ ...move, phase: 'selecting' });
-          closeIngredientList();
-          Alert.alert(alertTitles.error, '재료를 이동하지 못했습니다. 보관 위치를 다시 확인하고 재시도해 주세요.');
-          return;
-        }
-        if (moveRequest.current !== saving) return;
-        setIngredients(current => current.map(item => item.id === ingredient.id ? ingredient : item));
-        changeIngredientMove(null);
-        closeIngredientList();
-      } },
-    ], { cancelable: false });
+    let ingredient: Ingredient;
+    try {
+      ingredient = await moveIngredient(db, move.ingredient, { slotId: destination.slotId, drawerNumber: destination.drawerNumber ?? 0 });
+    } catch {
+      if (moveRequest.current !== saving) return;
+      changeIngredientMove({ ...move, phase: 'selecting' });
+      closeIngredientList();
+      Alert.alert(alertTitles.error, '재료를 이동하지 못했습니다. 보관 위치를 다시 확인하고 재시도해 주세요.');
+      return;
+    }
+    if (moveRequest.current !== saving) return;
+    setIngredients(current => current.map(item => item.id === ingredient.id ? ingredient : item));
+    changeIngredientMove(null);
+    closeIngredientList();
+    setMoveNotice({ message: '재료를 이동했습니다.' });
   }
 
   return (
@@ -257,7 +253,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
               const destination = layout?.positions.find(position => position.id === positionId && position.areaId === areaId);
               if (moveRequest.current) {
                 if (!destination || isIngredientListOpen) return;
-                selectMoveDestination(destination, index);
+                void selectMoveDestination(destination, index);
                 return;
               }
               setSelectedAreaId(areaId);
@@ -291,6 +287,16 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
           </View>
         </SafeAreaView>
       ) : null}
+      {moveNotice ? (
+        <SafeAreaView pointerEvents="none" edges={{ top: false, bottom: true, left: true, right: true }} style={styles.legendOverlay}>
+          <View style={styles.noticeAnchor}>
+            <View style={styles.moveNotice}>
+              <MaterialDesignIcons name="check-circle-outline" size={20} color={colors.buttonText} accessible={false} />
+              <Text style={styles.noticeLabel} accessibilityRole="alert" accessibilityLiveRegion="polite">{moveNotice.message}</Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      ) : null}
       {isLegendOpen ? <FridgeIngredientLegend onClose={() => setIsLegendOpen(false)} /> : null}
       {isIngredientListOpen && focusPhase === 'open' && selectedPosition ? (
         <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
@@ -299,6 +305,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
           onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
           onMove={ingredient => {
             if (moveRequest.current) return;
+            setMoveNotice(null);
             closeIngredientList();
             changeIngredientMove({ ingredient, phase: 'selecting' });
           }}
@@ -394,6 +401,10 @@ const styles = StyleSheet.create({
   moveBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md,
     borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   moveLabel: { flex: 1, color: colors.text, fontSize: 15, lineHeight: 22 },
+  noticeAnchor: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg * 3 },
+  moveNotice: { maxWidth: '100%', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 24, backgroundColor: colors.button },
+  noticeLabel: { flexShrink: 1, color: colors.buttonText, fontSize: 15, lineHeight: 22 },
   diagram: {
     flex: 1,
   },

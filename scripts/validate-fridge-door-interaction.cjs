@@ -2916,40 +2916,30 @@ test('홈의 재료 이동은 현재 문을 유지하고 버튼·뒤로가기로
   });
 });
 
-test('홈의 재료 이동은 현재 위치·없는 칸을 제외하고 다른 문에서 확인·재선택·중복 방지를 적용한다', async t => {
+test('홈의 재료 이동은 현재 위치·없는 칸을 제외하고 다른 문에서 알림 없이 즉시 한 번만 저장한다', async t => {
   const { home, original, persisted, sourceRow, refrigerator, slotId, blocked, focus, openRow, cancel } = await ingredientMoveFixture(t);
   const pending = deferred();
   const writes = [];
   ingredientRepository.moveIngredient = (db, ingredient, destination) => {
     assert.strictEqual(db, database); writes.push({ ingredient, destination }); return pending.promise;
   };
-  focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-left`);
-  assert.match(alerts.at(-1)[1], /현재 보관 중인 위치/);
   const alertCount = alerts.length;
+  focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-left`);
   focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, 'missing');
   assert.equal(alerts.length, alertCount);
-  focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`); home.render();
-  const firstConfirmation = alerts.at(-1);
-  assert.match(firstConfirmation[1], /계란.*이동/);
-  assert.match(firstConfirmation[1], /오른쪽/);
-  focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`);
-  assert.strictEqual(alerts.at(-1), firstConfirmation);
-  firstConfirmation[2].find(button => button.text === '다시 선택').onPress(); home.render();
   assert.equal(cancel().props.disabled, false);
   assert.equal(focus().props.selectedPositionId, undefined);
   assert.deepEqual(writes, []);
   const targetRow = openRow(1);
   const targetSlot = targetRow.compartments[0].slots[0].id;
-  focus().props.onSelectSlot(targetRow.compartments[0].id, 0, targetSlot); home.render();
-  const confirmation = alerts.at(-1);
-  assert.match(confirmation[1], /2단/);
-  const confirm = confirmation[2].find(button => button.text === '이동');
-  const first = confirm.onPress();
-  await confirm.onPress();
-  firstConfirmation[2].find(button => button.text === '이동').onPress();
+  const select = focus().props.onSelectSlot;
+  select(targetRow.compartments[0].id, 0, targetSlot);
+  select(targetRow.compartments[0].id, 0, targetSlot);
   home.render();
+  assert.equal(alerts.length, alertCount, '위치 경로·확인 Alert 없이 저장한다');
   assert.deepEqual(writes, [{ ingredient: original, destination: { slotId: targetSlot, drawerNumber: 0 } }]);
-  assert.equal(persisted[0].slotId, original.slotId, '확인 전과 저장 중에는 원본이 출발 칸에 남는다');
+  assert.equal(persisted[0].slotId, original.slotId, '저장 중에는 원본이 출발 칸에 남는다');
+  assert.equal(find(home.tree, node => node.props.children === '재료를 이동했습니다.'), undefined);
   assert.equal(cancel().props.disabled, true);
   assert(find(home.tree, node => node.props.accessibilityLabel === '재료 이동 중'));
   cancel().props.onPress();
@@ -2959,7 +2949,9 @@ test('홈의 재료 이동은 현재 위치·없는 칸을 제외하고 다른 �
   assert.equal(find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout).props.pointerEvents, 'none');
   const other = persisted[1];
   persisted[0] = { ...original, slotId: targetSlot, drawerNumber: 0 };
-  pending.resolve(persisted[0]); await first; home.render();
+  pending.resolve(persisted[0]); await new Promise(setImmediate); home.render();
+  assert.equal(alerts.length, alertCount);
+  assert(find(home.tree, node => node.props.children === '재료를 이동했습니다.'));
   assert.equal(cancel(), undefined);
   assert.equal(blocked.at(-1), false);
   assert.equal(focus().props.phase, 'open');
@@ -2982,21 +2974,24 @@ test('홈의 재료 이동 실패는 원본·이동 상태를 유지해 재시�
     persisted[0] = { ...ingredient, ...destination };
     return persisted[0];
   };
-  const select = () => { focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`); home.render(); };
-  select();
-  await alerts.at(-1)[2].find(button => button.text === '이동').onPress(); home.render();
+  const select = async () => {
+    focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`);
+    await new Promise(setImmediate); home.render();
+  };
+  await select();
   assert.deepEqual(alerts.at(-1).slice(0, 2), ['오류', '재료를 이동하지 못했습니다. 보관 위치를 다시 확인하고 재시도해 주세요.']);
   assert.deepEqual(persisted[0], original);
   assert.deepEqual(focus().props.ingredients[0], original);
   assert.equal(cancel().props.disabled, false);
-  select();
-  await alerts.at(-1)[2].find(button => button.text === '이동').onPress(); home.render();
+  assert.equal(find(home.tree, node => node.props.children === '재료를 이동했습니다.'), undefined);
+  await select();
   assert.equal(writes, 2);
   assert.equal(cancel(), undefined);
   assert.equal(focus().props.ingredients[0].drawerNumber, 2);
   focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`); home.render();
   const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
   sheet.props.onClose(); sheet.props.onMove(persisted[0]); home.render();
+  assert.equal(find(home.tree, node => node.props.children === '재료를 이동했습니다.'), undefined);
   focus().props.onClose(); home.render();
   focus().props.onPhaseChange('closed'); home.render();
   assert.equal(focus(), undefined);
@@ -3006,13 +3001,50 @@ test('홈의 재료 이동 실패는 원본·이동 상태를 유지해 재시�
   assert.equal(blocked.at(-1), false);
 });
 
-test('이동 확인 중 홈을 종료하면 늦게 누른 확인으로 재료를 변경하지 않는다', async t => {
+test('이동 저장 중 홈을 다시 열면 늦은 완료로 이전 이동의 안내·상태를 덮어쓰지 않는다', async t => {
   const { home, sourceRow, slotId, focus } = await ingredientMoveFixture(t);
-  ingredientRepository.moveIngredient = async () => assert.fail('종료한 이동 요청을 저장하지 않는다');
+  const pending = deferred();
+  ingredientRepository.moveIngredient = () => pending.promise;
+  const original = focus().props.ingredients[0];
   focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`); home.render();
-  const confirmation = alerts.at(-1);
-  home.unmount();
-  await confirmation[2].find(button => button.text === '이동').onPress();
+  home.focus(); await new Promise(setImmediate); home.render();
+  pending.resolve({ ...original, drawerNumber: 2 }); await new Promise(setImmediate); home.render();
+  assert.equal(find(home.tree, node => node.props.children === '재료를 이동했습니다.'), undefined);
+  assert.equal(find(home.tree, node => node.props.accessibilityLabel === '재료 이동 취소'), undefined);
+  assert.deepEqual(find(home.tree, named('FridgeInteriorMap')).props.ingredients[0], original);
+});
+
+test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막 성공 시점부터 2초 후 사라진다', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { home, persisted, sourceRow, slotId, focus } = await ingredientMoveFixture(t);
+  ingredientRepository.moveIngredient = async (db, ingredient, destination) => {
+    persisted[0] = { ...ingredient, ...destination };
+    return persisted[0];
+  };
+  const notice = () => find(home.tree, node => node.props.children === '재료를 이동했습니다.');
+  const select = async positionId => {
+    focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, positionId);
+    await new Promise(setImmediate); home.render();
+  };
+  await select(`${slotId}-right`);
+  assert(notice());
+  const message = notice();
+  const noticeOverlay = find(home.tree, node => node.type === 'SafeAreaView' && find(node, child => child === message));
+  assert.equal(noticeOverlay.props.pointerEvents, 'none');
+  t.mock.timers.tick(1000); home.render();
+  await select(`${slotId}-right`);
+  const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
+  assert(sheet, '안내 중에도 일반 칸 선택으로 재료 목록을 열 수 있다');
+  sheet.props.onClose(); sheet.props.onMove(persisted[0]); home.render();
+  assert.equal(notice(), undefined);
+  await select(`${slotId}-left`);
+  assert(notice());
+  t.mock.timers.tick(1000); home.render();
+  assert(notice(), '이전 안내의 만료 시점에 새 안내를 숨기지 않는다');
+  t.mock.timers.tick(999); home.render();
+  assert(notice());
+  t.mock.timers.tick(1); home.render();
+  assert.equal(notice(), undefined);
 });
 
 test('홈·등록·편집은 원래 도면 배치와 닫힘·열림 크기를 공유한다', async t => {
