@@ -136,7 +136,7 @@ let diagramLayoutModule;
 let iosHomeButtonModule;
 let defaultHomeButtonModule;
 const swiftUIModifiers = Object.fromEntries([
-  'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'buttonBorderShape', 'buttonStyle', 'controlSize', 'datePickerStyle',
+  'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'accessibilityValue', 'buttonBorderShape', 'buttonStyle', 'controlSize', 'datePickerStyle',
   'disabled', 'environment', 'frame', 'onGeometryChange', 'tint', 'interactiveDismissDisabled',
   'presentationBackground', 'presentationBackgroundInteraction', 'presentationDetents', 'presentationDragIndicator',
 ].map(name => [name, (value, options) => ({ type: name, value, ...(options ? { options } : {}) })]));
@@ -175,8 +175,8 @@ function loadComponent(path, overrides = {}) {
     '@/features/ingredient/components/IngredientExpirationCalendar': { IngredientExpirationCalendar: 'IngredientExpirationCalendar' },
     '@/features/ingredient/components/IngredientDateFieldAnchor': { IngredientDateFieldAnchor: 'IngredientDateFieldAnchor' },
     '@/features/ingredient/components/IngredientExpirationDatePicker': { IngredientExpirationDatePicker: 'IngredientExpirationDatePicker' },
-    '@/features/fridge/components/FridgeHomeButton': { FridgeHomeButton(props) {
-      return (native.Platform.OS === 'ios' ? iosHomeButtonModule : defaultHomeButtonModule).FridgeHomeButton(props);
+    '@/components/FloatingIconButton': { FloatingIconButton(props) {
+      return (native.Platform.OS === 'ios' ? iosHomeButtonModule : defaultHomeButtonModule).FloatingIconButton(props);
     } },
     'expo-sqlite': { useSQLiteContext: () => database },
     '@/db/refrigeratorRepository': repository,
@@ -215,8 +215,8 @@ function loadComponent(path, overrides = {}) {
   return module.exports;
 }
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
-iosHomeButtonModule = loadComponent('src/features/fridge/components/FridgeHomeButton.ios.tsx');
-defaultHomeButtonModule = loadComponent('src/features/fridge/components/FridgeHomeButton.tsx');
+iosHomeButtonModule = loadComponent('src/components/FloatingIconButton.ios.tsx');
+defaultHomeButtonModule = loadComponent('src/components/FloatingIconButton.tsx');
 badgeModule = loadComponent('src/features/ingredient/components/IngredientCountBadges.tsx');
 legendModule = loadComponent('src/features/fridge/components/FridgeIngredientLegend.tsx');
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
@@ -230,7 +230,7 @@ const { RefrigeratorRegistrationScreen } = loadComponent('src/screens/Refrigerat
 const { HomeScreen } = loadComponent('src/screens/HomeScreen.tsx');
 const { IngredientListSheet } = loadComponent('src/features/ingredient/components/IngredientListSheet.tsx');
 const { IngredientExpirationCalendar } = loadComponent('src/features/ingredient/components/IngredientExpirationCalendar.tsx');
-const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FridgeHomeButton'
+const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FloatingIconButton'
   || node?.type === badgeModule.IngredientCountBadges || node?.type === badgeModule.IngredientCountBadge
   ? [node.type(node.props)].filter(Boolean) : [node?.props?.children].flat(Infinity).filter(child => child?.type);
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
@@ -242,7 +242,7 @@ function find(node, predicate) {
   }
 }
 const named = name => node => node?.type?.name === name;
-const homeButton = screen => find(screen.tree, node => node.props.accessibilityLabel === '홈으로 이동'
+const homeButton = screen => find(screen.tree, node => node.type === 'FeedbackPressable' && node.props.accessibilityLabel === '홈으로 이동'
   || node.type === 'SwiftUIButton' && node.props.modifiers.some(modifier => modifier.type === 'accessibilityLabel' && modifier.value === '홈으로 이동'));
 const homeButtonDisabled = button => button.props.disabled
   ?? button.props.modifiers.find(modifier => modifier.type === 'disabled').value;
@@ -559,19 +559,22 @@ test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이�
   }
 });
 
-test('홈 버튼은 Material 홈 아이콘과 iOS 버전별 네이티브 스타일을 사용하고 Android 버튼을 유지한다', t => {
+test('홈·범례 버튼은 같은 iOS 네이티브 스타일과 Android 공통 버튼을 사용한다', t => {
   const previous = { ...native.Platform };
   t.after(() => Object.assign(native.Platform, previous));
-  for (const [platform, version, expectedStyle] of [
+  for (const [text, icon, accessibilityLabel, expanded] of [
+    ['홈', 'home', '홈으로 이동', undefined], ['범례', 'information-outline', '재료 배지 범례', false],
+  ]) for (const [platform, version, expectedStyle] of [
     ['ios', '26.1.1', 'glass'], ['ios', '18.7', 'bordered'], ['android', 35, null],
   ]) {
     native.Platform.OS = platform;
     native.Platform.Version = version;
     let pressed = 0;
     const module = platform === 'ios' ? iosHomeButtonModule : defaultHomeButtonModule;
-    const control = mount(module.FridgeHomeButton, { disabled: false, onPress() { pressed++; } });
+    const control = mount(module.FloatingIconButton, { label: text, icon, accessibilityLabel, expanded,
+      ...(text === '범례' ? { size: 'small' } : {}), disabled: false, onPress() { pressed++; } });
     t.after(() => control.unmount());
-    const button = () => homeButton(control);
+    const button = () => find(control.tree, node => node.type === 'SwiftUIButton' || node.type === 'FeedbackPressable');
     if (platform === 'ios') {
       assert.equal(control.tree.type, 'SwiftUIHost');
       assert.equal(control.tree.props.matchContents, true);
@@ -580,18 +583,22 @@ test('홈 버튼은 Material 홈 아이콘과 iOS 버전별 네이티브 스타�
       assert.equal(button().props.systemImage, undefined);
       const label = button().props.children;
       assert.equal(label.type, 'SwiftUILabel');
-      assert.equal(label.props.title, '홈');
+      assert.equal(label.props.title, text);
       assert.equal(label.props.icon.type, 'RNHostView');
       assert.equal(label.props.icon.props.matchContents, true);
       assert.equal(label.props.icon.props.children.type, 'Icon');
-      assert.equal(label.props.icon.props.children.props.name, 'home');
+      assert.equal(label.props.icon.props.children.props.name, icon);
       assert.equal(label.props.icon.props.children.props.pointerEvents, 'none');
       assert.equal(button().props.modifiers.find(modifier => modifier.type === 'buttonStyle').value, expectedStyle);
-      assert.equal(button().props.modifiers.find(modifier => modifier.type === 'accessibilityLabel').value, '홈으로 이동');
+      assert.equal(button().props.modifiers.find(modifier => modifier.type === 'controlSize').value, text === '범례' ? 'small' : 'large');
+      assert.equal(button().props.modifiers.find(modifier => modifier.type === 'accessibilityLabel').value, accessibilityLabel);
+      if (expanded !== undefined) {
+        assert.equal(button().props.modifiers.find(modifier => modifier.type === 'accessibilityValue').value, '접힘');
+      }
     } else {
       assert.equal(button().type, 'FeedbackPressable');
       assert.equal(find(control.tree, node => node.type === 'SwiftUIHost'), undefined);
-      assert.equal(find(control.tree, node => node.type === 'Icon').props.name, 'home');
+      assert.equal(find(control.tree, node => node.type === 'Icon').props.name, icon);
     }
     button().props.onPress();
     assert.equal(pressed, 1);
@@ -656,7 +663,7 @@ test('홈 버튼은 안전 영역·실제 툴바·하위 메뉴 위로 이동하
   });
   t.after(() => screen.unmount());
   const home = () => homeButton(screen);
-  const control = () => find(screen.tree, named('FridgeHomeButton'));
+  const control = () => find(screen.tree, named('FloatingIconButton'));
   const position = () => flattenStyle(control().props.style);
   assert.equal(position().position, 'absolute');
   assert.equal(position().left, tokens.spacing.lg);
@@ -1243,7 +1250,7 @@ test('홈은 최상단 냉장고 이름과 등록 화면의 전체 도면을 표
   assert.equal(find(home.tree, named('FridgeFocusView')), undefined);
   assert.equal(find(home.tree, node => node.type === 'FridgeAreaMenu'), undefined);
   const texts = findAll(home.tree, node => node.type === 'Text');
-  assert.equal(texts.length, 2);
+  assert.equal(texts.length, native.Platform.OS === 'ios' ? 1 : 2);
   assert.equal(texts[0].props.accessibilityRole, 'header');
   assert.equal(texts[0].props.children, snapshot.name);
   assert.equal(find(home.tree, node => node.type === 'ScrollView'), undefined);
@@ -1338,7 +1345,7 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       assert.equal(find(home.tree, node => node.type === 'SafeAreaView').props.accessibilityElementsHidden, false);
       assert.equal(reads, 1);
       assert.deepEqual(map().props.draft, before);
-      assert.deepEqual(findAll(home.tree, node => node.type === 'Text').map(node => node.props.children), [snapshot.name, '범례']);
+      assert.deepEqual(findAll(home.tree, node => node.type === 'Text').map(node => node.props.children), native.Platform.OS === 'ios' ? [snapshot.name] : [snapshot.name, '범례']);
     });
   }
 });
@@ -2833,7 +2840,11 @@ test('문을 열고 닫는 동안 앞면 인쇄 크기를 유지하고 내부 �
             near(dimensionAt(doorStyle.height, progress, height), height);
             const closedDoor = doors(compartment).find(candidate => candidate.props.door.id === door.props.door.id);
             const closedArt = find(closedDoor.type(closedDoor.props), named('DoorModeArt'));
-            near(find(doorTree, named('DoorModeArt')).props.size, closedArt.props.size);
+            const movingArt = find(doorTree, named('DoorModeArt'));
+            if (door.props.modeArt === 'hidden') {
+              assert.equal(movingArt, undefined);
+              assert.equal(closedArt, undefined);
+            } else near(movingArt.props.size, closedArt.props.size);
           }
         }
         for (const area of interiorAreas(focus)) {
@@ -4875,15 +4886,18 @@ test('닫힌 문의 모드 색과 인쇄는 선택·수납 여부와 관계없�
           const tree = door.type(door.props);
           const face = find(tree, node => node.type === 'Pressable');
           const art = find(children(tree)[0], named('DoorModeArt'));
-          const printed = mapModule.DoorModeArt(art.props);
           assert.equal(flattenStyle(face.props.style).backgroundColor, tokens.fridgeDoorColors[mode].background);
           assert(face.props.accessibilityLabel.includes(mode === 'CHILLED' ? '냉장실' : '냉동실'));
-          assert.equal(printed.props.pointerEvents, 'none');
-          assert.equal(printed.props.importantForAccessibility, 'no-hide-descendants');
-          assert(find(printed, node => node.type === 'Icon' && node.props.name === (mode === 'CHILLED' ? 'weather-windy' : 'snowflake')));
-          assert.equal(find(printed, node => node.type === 'Text'), undefined);
-          assert(art.props.size <= 22);
-          assert.equal(art.props.handleOnLeft, door.props.door.kind !== 'DRAWER' && door.props.door.side === 'RIGHT_DOOR');
+          if (door.props.modeArt === 'hidden') assert.equal(art, undefined);
+          else {
+            const printed = mapModule.DoorModeArt(art.props);
+            assert.equal(printed.props.pointerEvents, 'none');
+            assert.equal(printed.props.importantForAccessibility, 'no-hide-descendants');
+            assert(find(printed, node => node.type === 'Icon' && node.props.name === (mode === 'CHILLED' ? 'weather-windy' : 'snowflake')));
+            assert.equal(find(printed, node => node.type === 'Text'), undefined);
+            assert(art.props.size <= 22);
+            assert.equal(art.props.handleOnLeft, door.props.door.kind !== 'DRAWER' && door.props.door.side === 'RIGHT_DOOR');
+          }
           const selected = door.type({ ...door.props, selected: true });
           assert.equal(flattenStyle(find(selected, node => node.type === 'Pressable').props.style).backgroundColor,
             flattenStyle(face.props.style).backgroundColor);
@@ -4892,7 +4906,9 @@ test('닫힌 문의 모드 색과 인쇄는 선택·수납 여부와 관계없�
         const { focus } = focusedFixture(draft, requests[0]);
         assertFocusAccess(focus, 'opening');
         for (const door of movingDoors(focus)) {
-          assert.equal(find(children(door.type(door.props))[0], named('DoorModeArt')).props.storageMode, mode);
+          const art = find(children(door.type(door.props))[0], named('DoorModeArt'));
+          if (door.props.modeArt === 'hidden') assert.equal(art, undefined);
+          else assert.equal(art.props.storageMode, mode);
         }
         for (const area of interiorAreas(focus)) {
           const tree = area.type(area.props);
@@ -4909,7 +4925,9 @@ test('닫힌 문의 모드 색과 인쇄는 선택·수납 여부와 관계없�
         focus.render();
         assertFocusAccess(focus, 'closing');
         for (const door of movingDoors(focus)) {
-          assert.equal(find(children(door.type(door.props))[0], named('DoorModeArt')).props.storageMode, mode);
+          const art = find(children(door.type(door.props))[0], named('DoorModeArt'));
+          if (door.props.modeArt === 'hidden') assert.equal(art, undefined);
+          else assert.equal(art.props.storageMode, mode);
         }
         focus.unmount();
       }
@@ -5124,13 +5142,21 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
     assert.equal(modes.length, 1, '합친 홈 본체의 모드 아이콘도 문 전환 중 중복 표시하지 않는다');
     assert.equal(modes[0].props.handleOnLeft, false);
   }
-  focus.unmount();
   for (const layout of [model.getDraftLayout(draft), undefined]) {
     group.props = { ...group.props, layout };
     group.render();
     assert.equal(renderedBadges().length, 0);
-    assert.equal(renderedModes().length, layout === undefined ? 2 : 1, '빈 홈은 아이콘 한 개, 편집 도면은 문별 아이콘을 유지한다');
+    assert.equal(renderedModes().length, 1, '빈 홈과 편집 도면에서도 합친 본체의 아이콘은 한 개만 표시한다');
   }
+  // 편집에는 재료 목록을 전달하지 않으며, 이때도 여닫는 양쪽 문에 아이콘을 중복 표시하지 않는다.
+  for (const phase of ['opening', 'open', 'closing']) {
+    focus.props = { ...focus.props, ingredients: undefined, phase };
+    focus.render();
+    const modes = movingDoors(focus).flatMap(door => findAll(door.type(door.props), named('DoorModeArt')));
+    assert.equal(modes.length, 1);
+    assert.equal(modes[0].props.handleOnLeft, false);
+  }
+  focus.unmount();
   group.unmount();
   map.unmount();
 });
@@ -5347,7 +5373,8 @@ test('서로 다른 모드의 본체를 합쳐 미설정이 되면 모든 문에
   for (const door of doors(compartment)) {
     const tree = door.type(door.props);
     const art = find(tree, named('DoorModeArt'));
-    assert.equal(mapModule.DoorModeArt(art.props), null);
+    if (door.props.modeArt === 'hidden') assert.equal(art, undefined);
+    else assert.equal(mapModule.DoorModeArt(art.props), null);
     const face = find(tree, node => node.type === 'Pressable');
     assert.equal(flattenStyle(face.props.style).backgroundColor, tokens.fridgeSurfaces.exterior);
     assert(face.props.accessibilityLabel.includes('보관 모드 미설정'));

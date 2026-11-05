@@ -23,7 +23,7 @@ import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantitySt
 import { alertTitles } from '@/constants/alertTitles';
 import { getRefrigerator, registerRefrigerator, updateRefrigerator, updateRefrigeratorName } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
-import { FridgeHomeButton } from '@/features/fridge/components/FridgeHomeButton';
+import { FloatingIconButton } from '@/components/FloatingIconButton';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
 import { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } from '@/features/fridge/components/FridgeAreaMenu';
@@ -533,7 +533,8 @@ export function RefrigeratorRegistrationScreen({
       </View>
       </>}
       {step === 'configuration' ? (
-        <FridgeHomeButton
+        <FloatingIconButton label="홈" icon="home" accessibilityLabel="홈으로 이동"
+          accessibilityHint="저장하지 않은 편집을 종료하고 홈으로 이동합니다."
           disabled={isSaving || isStepChanging || isFocusMoving} onPress={cancelRegistration}
           style={[styles.homeButtonPosition, { bottom: homeButtonBottom }]} />
       ) : null}

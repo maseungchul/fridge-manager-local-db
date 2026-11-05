@@ -15,6 +15,7 @@ import { colors, fridgeDoorColors, spacing } from '@/theme/tokens';
 import { SafeAreaView } from 'react-native-screens/experimental';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { FloatingIconButton } from '@/components/FloatingIconButton';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
 import { getIngredients } from '@/db/ingredientRepository';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
@@ -35,7 +36,6 @@ type HomeScreenProps = CompositeScreenProps<
 > & { onIngredientListVisibilityChange?: (visible: boolean) => void };
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
-const LEGEND_BUTTON_WIDTH = 72;
 
 export function HomeScreen({ navigation, onIngredientListVisibilityChange }: HomeScreenProps) {
   const db = useSQLiteContext();
@@ -127,13 +127,10 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
   const legendButton = refrigerator && !isLoading && !error && !isIngredientListOpen ? (
-    <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 배지 범례"
-      accessibilityState={{ disabled: focusPhase === 'opening' || focusPhase === 'closing', expanded: isLegendOpen }}
+    <FloatingIconButton label="범례" icon="information-outline" accessibilityLabel="재료 배지 범례" size="small"
+      accessibilityHint="재료 배지의 색상과 의미를 확인합니다." expanded={isLegendOpen}
       disabled={focusPhase === 'opening' || focusPhase === 'closing'}
-      onPress={() => setIsLegendOpen(true)} style={styles.legendButton}>
-      <MaterialDesignIcons name="information-outline" size={20} color={colors.text} accessible={false} />
-      <Text style={styles.legendLabel}>범례</Text>
-    </FeedbackPressable>
+      onPress={() => setIsLegendOpen(true)} />
   ) : null;
 
   return (
@@ -294,12 +291,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 24,
   },
-  legendButton: {
-    width: LEGEND_BUTTON_WIDTH, height: FRIDGE_HEADER_BUTTON_SIZE,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-    borderRadius: 24, backgroundColor: colors.surface,
-  },
-  legendLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
   legendOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
   legendAnchor: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: spacing.lg, paddingBottom: spacing.sm },
   diagram: {

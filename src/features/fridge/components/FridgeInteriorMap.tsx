@@ -235,7 +235,7 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   sourceSize?: { width: number; height: number };
   gridEdges?: GridEdges;
   ingredientCounts?: IngredientCounts;
-  // 합친 홈 본체는 첫 문에만 왼쪽 아이콘을 두고, 지정하지 않으면 손잡이 위치를 따른다.
+  // 합친 본체는 첫 문에만 왼쪽 아이콘을 두고, 지정하지 않으면 손잡이 위치를 따른다.
   modeArt?: 'left' | 'hidden';
 }) {
   const drawer = door.kind === 'DRAWER';
@@ -339,7 +339,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, select
       {group.doors.map(({ door, left, width: doorWidth }) => (
         <FridgeDoor key={door.id} door={door} phase="closed" progress={progress} selected={selectedBody || selectedDoor}
           storageMode={body.storageMode}
-          modeArt={layout !== undefined && body.doorIds.length > 1 ? door.id === group.doors[0].door.id ? 'left' : 'hidden' : undefined}
+          modeArt={body.doorIds.length > 1 ? door.id === group.doors[0].door.id ? 'left' : 'hidden' : undefined}
           ingredientCounts={door.id === group.doors[0].door.id ? counts : undefined}
           gridEdges={getGridEdges(row, rowIndex, rowCount, [door.id])}
           label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${door.kind === 'DRAWER' ? '서랍' : areaNames[door.side]}${countLabel}`}
@@ -635,7 +635,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
               sourceSize={{ width: body.fromWidth * frame.width / body.width, height: body.fromHeight }}
               selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
               storageMode={group.body.storageMode}
-              modeArt={ingredients !== undefined && group.body.doorIds.length > 1 ? door.id === doors[0].door.id ? 'left' : 'hidden' : undefined}
+              modeArt={group.body.doorIds.length > 1 ? door.id === doors[0].door.id ? 'left' : 'hidden' : undefined}
               ingredientCounts={door.id === doors[0].door.id ? counts : undefined}
               unfoldOffset={unfoldOffset} onSelect={() => onSelectArea?.(area.id)}
               style={{ left: frame.left, width: frame.width, height: body.height,
