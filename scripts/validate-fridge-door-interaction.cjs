@@ -5094,6 +5094,9 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
   assert.deepEqual(badge.props.counts, { total: 3, warning: 1, expired: 1 });
   assert.equal(renderedBadges().length, 1);
   assert.equal(doors(group).length, 2);
+  const renderedModes = () => doors(group).flatMap(door => findAll(door.type(door.props), named('DoorModeArt')));
+  assert.equal(renderedModes().length, 1);
+  assert.equal(renderedModes()[0].props.handleOnLeft, false);
   assert(doors(group).every(door => door.props.label.includes('재료 3건, 기한주의 1건, 경과 1건')));
   const target = { areaId: row.compartments[0].id, returnAreaId: row.doors[0].id,
     canvas: { x: 20, y: 100, width: 270, height: 540 } };
@@ -5105,12 +5108,16 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
     const badges = movingDoors(focus).flatMap(door => findAll(door.type(door.props), named('IngredientCountBadges')));
     assert.equal(badges.length, 1, '문을 여닫는 동안에도 합친 본체의 배지를 중복 표시하지 않는다');
     assert.deepEqual(badges[0].props.counts, { total: 3, warning: 1, expired: 1 });
+    const modes = movingDoors(focus).flatMap(door => findAll(door.type(door.props), named('DoorModeArt')));
+    assert.equal(modes.length, 1, '합친 홈 본체의 모드 아이콘도 문 전환 중 중복 표시하지 않는다');
+    assert.equal(modes[0].props.handleOnLeft, false);
   }
   focus.unmount();
   for (const layout of [model.getDraftLayout(draft), undefined]) {
     group.props = { ...group.props, layout };
     group.render();
     assert.equal(renderedBadges().length, 0);
+    assert.equal(renderedModes().length, layout === undefined ? 2 : 1, '빈 홈은 아이콘 한 개, 편집 도면은 문별 아이콘을 유지한다');
   }
   group.unmount();
   map.unmount();

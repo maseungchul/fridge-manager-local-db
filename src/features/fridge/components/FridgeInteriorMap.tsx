@@ -228,13 +228,15 @@ function InteriorArea({ area, layout, now, compact, selected, storageMode, corne
 }
 
 /** 문 앞·뒷면을 같은 경첩으로 회전하고, 포켓 내부는 전환 중에도 유지하되 조작은 열림 완료 후 허용한다. */
-function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, sourceSize, gridEdges, ingredientCounts, children }: {
+function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, sourceSize, gridEdges, ingredientCounts, modeArt, children }: {
   door: DraftDoor; label: string; phase: FridgeFocusPhase; progress: Animated.Value; selected: boolean; storageMode: StorageMode | null;
   style: AreaFrame; onSelect: () => void; unfoldOffset?: number; children?: ReactNode;
   bodyWidth?: number;
   sourceSize?: { width: number; height: number };
   gridEdges?: GridEdges;
   ingredientCounts?: IngredientCounts;
+  // 합친 홈 본체는 첫 문에만 왼쪽 아이콘을 두고, 지정하지 않으면 손잡이 위치를 따른다.
+  modeArt?: 'left' | 'hidden';
 }) {
   const drawer = door.kind === 'DRAWER';
   const closed = phase === 'closed';
@@ -271,8 +273,10 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
         <Pressable accessibilityRole="button" accessibilityLabel={`${label}, ${storageMode ? getStorageModeName(storageMode) : '보관 모드 미설정'} 열기`}
           accessibilityState={{ expanded: !closed, selected }} disabled={!closed} onPress={onSelect}
           style={[styles.exteriorFace, modeStyle, gridStyle]}>
-          <DoorModeArt storageMode={storageMode} size={artSize} handleOnLeft={handleOnLeft}
-            style={gridCorners} />
+          {modeArt !== 'hidden' ? (
+            <DoorModeArt storageMode={storageMode} size={artSize} handleOnLeft={modeArt === 'left' ? false : handleOnLeft}
+              style={gridCorners} />
+          ) : null}
           {ingredientCounts && ingredientCounts.total > 0 ? (
             <IngredientCountBadges counts={ingredientCounts} placement={handleOnLeft ? 'top-right' : 'top-left'}
               style={{ top: DOOR_MODE_ART_INSET + artSize + 6, bottom: 4,
@@ -335,6 +339,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, select
       {group.doors.map(({ door, left, width: doorWidth }) => (
         <FridgeDoor key={door.id} door={door} phase="closed" progress={progress} selected={selectedBody || selectedDoor}
           storageMode={body.storageMode}
+          modeArt={layout !== undefined && body.doorIds.length > 1 ? door.id === group.doors[0].door.id ? 'left' : 'hidden' : undefined}
           ingredientCounts={door.id === group.doors[0].door.id ? counts : undefined}
           gridEdges={getGridEdges(row, rowIndex, rowCount, [door.id])}
           label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${door.kind === 'DRAWER' ? '서랍' : areaNames[door.side]}${countLabel}`}
@@ -630,6 +635,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
               sourceSize={{ width: body.fromWidth * frame.width / body.width, height: body.fromHeight }}
               selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
               storageMode={group.body.storageMode}
+              modeArt={ingredients !== undefined && group.body.doorIds.length > 1 ? door.id === doors[0].door.id ? 'left' : 'hidden' : undefined}
               ingredientCounts={door.id === doors[0].door.id ? counts : undefined}
               unfoldOffset={unfoldOffset} onSelect={() => onSelectArea?.(area.id)}
               style={{ left: frame.left, width: frame.width, height: body.height,

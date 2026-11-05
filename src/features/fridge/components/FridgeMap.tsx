@@ -87,7 +87,7 @@ export function DoorHandle({ horizontal = false, storageMode, style }: {
   horizontal?: boolean; storageMode?: StorageMode | null; style?: StyleProp<ViewStyle>;
 }) {
   const palette = storageMode ? fridgeDoorColors[storageMode] : null;
-  const depth = 12;
+  const depth = 6;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.doorHandle, horizontal && [styles.horizontalHandle, { height: depth }], style]}>
