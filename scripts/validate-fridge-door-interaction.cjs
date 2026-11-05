@@ -27,6 +27,7 @@ const ingredientRepository = {
   async getIngredients() { return []; },
   async getIngredientsByPosition() { return []; },
   async registerIngredient() { throw new Error('재료 등록 동작을 지정하지 않았습니다.'); },
+  async updateIngredient() { throw new Error('재료 수정 동작을 지정하지 않았습니다.'); },
 };
 
 let current;
@@ -329,8 +330,8 @@ function savedRefrigerator(name) {
   return { id: 'saved', name, rows: draft.rows };
 }
 
-/** 목록의 추가 버튼을 눌러 등록 폼을 열고, 실제 필드·저장 이벤트로 검사한다. */
-async function ingredientFormFixture(t, onClose = () => {}) {
+/** 목록의 추가 버튼이나 재료 항목을 눌러 공통 폼을 열고, 실제 필드·저장 이벤트로 검사한다. */
+async function ingredientFormFixture(t, onClose = () => {}, editingIngredient) {
   const sheet = mount(IngredientListSheet, {
     position: { id: 'slot-left', slotId: 'slot', drawerNumber: 1 },
     onClose,
@@ -338,14 +339,22 @@ async function ingredientFormFixture(t, onClose = () => {}) {
   t.after(() => sheet.unmount());
   await new Promise(setImmediate);
   sheet.render();
-  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
+  if (editingIngredient) {
+    find(sheet.tree, node => node.type === 'FlatList').props.renderItem({ item: editingIngredient }).props.onPress();
+  } else find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
   animations.at(-1).finish();
   sheet.render();
   const input = label => find(sheet.tree, node => node.props.accessibilityLabel === label);
   return {
     sheet,
     input,
-    save: () => find(sheet.tree, node => node.props.accessibilityLabel === '재료 등록'),
+    save: () => find(sheet.tree, node => ['재료 등록', '재료 수정 저장'].includes(node.props.accessibilityLabel)),
+    edit(ingredient) {
+      find(sheet.tree, node => node.type === 'FlatList').props.renderItem({ item: ingredient }).props.onPress();
+      sheet.render();
+      animations.at(-1).finish();
+      sheet.render();
+    },
     openCalendar() {
       input('유통기한 날짜 선택').props.onPress();
       sheet.render();
@@ -1582,7 +1591,7 @@ test('홈의 재료 배지는 저장 직후 선택·열림을 유지하며 갱�
   const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
   const ingredient = { ...persisted[0], id: 'second' };
   persisted.push(ingredient);
-  sheet.props.onRegistered(ingredient);
+  sheet.props.onSaved(ingredient);
   home.render();
   assert.deepEqual(badgeCounts(), [2]);
   assert.equal(reads, 1);
@@ -1590,15 +1599,21 @@ test('홈의 재료 배지는 저장 직후 선택·열림을 유지하며 갱�
   assert.equal(focus().props.phase, 'open');
   assert.equal(focus().props.selectedPositionId, `${slotId}-left`);
   assert(find(home.tree, node => node.type === 'IngredientListSheet'));
+  persisted[0] = { ...persisted[0], name: '수정한 우유', expirationDate: '2000-01-01' };
+  sheet.props.onSaved(persisted[0]);
+  home.render();
+  assert.equal(focus().props.ingredients.length, 2, '편집한 재료를 추가하지 않고 같은 ID의 항목을 갱신한다');
+  assert.equal(focus().props.selectedPositionId, `${slotId}-left`);
+  assert.deepEqual(badgeCounts(), [2, 1]);
   sheet.props.onClose();
   home.render();
-  assert.deepEqual(badgeCounts(), [2]);
+  assert.deepEqual(badgeCounts(), [2, 1]);
   home.focus();
   await new Promise(setImmediate);
   home.render();
   assert.equal(focus(), undefined);
   open();
-  assert.deepEqual(badgeCounts(), [2]);
+  assert.deepEqual(badgeCounts(), [2, 1]);
   assert.equal(reads, 2);
 });
 
@@ -2332,7 +2347,7 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   let closed = 0;
   const { sheet, input, save } = await ingredientFormFixture(t, () => { closed++; });
   const registered = [];
-  sheet.props = { ...sheet.props, onRegistered: ingredient => registered.push(ingredient) };
+  sheet.props = { ...sheet.props, onSaved: ingredient => registered.push(ingredient) };
   sheet.render();
   const nativeClose = [];
   sheet.tree.props.ref.current = { close() { nativeClose.push(true); } };
@@ -2435,7 +2450,7 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
   };
   const { sheet, input, save, openCalendar } = await ingredientFormFixture(t);
   const registered = [];
-  sheet.props = { ...sheet.props, onRegistered: ingredient => registered.push(ingredient) };
+  sheet.props = { ...sheet.props, onSaved: ingredient => registered.push(ingredient) };
   sheet.render();
   input('재료명').props.onChangeText('우유');
   input('재료 수량').props.onChangeText('반 통');
@@ -2475,6 +2490,127 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
   sheet.render();
   assert.deepEqual(find(sheet.tree, node => node.type === 'FlatList').props.data, [persisted]);
   assert.equal(writes, 2);
+});
+
+test('재료 편집은 공통 폼에 기존 값을 표시하고 취소하면 추가 초안과 다른 재료를 보존한다', async t => {
+  const previous = { ...ingredientRepository };
+  t.after(() => Object.assign(ingredientRepository, previous));
+  const original = { id: 'milk', name: '우유', quantity: '1병', memo: '개봉함', expirationDate: '2026-11-30', slotId: 'slot', drawerNumber: 1 };
+  const other = { ...original, id: 'eggs', name: '계란', memo: null, expirationDate: null };
+  ingredientRepository.getIngredientsByPosition = async () => [original, other];
+  ingredientRepository.registerIngredient = ingredientRepository.updateIngredient = async () => assert.fail('취소하면 저장하지 않는다');
+  const { sheet, input, save, edit } = await ingredientFormFixture(t);
+  input('재료명').props.onChangeText('추가 초안');
+  input('재료 수량').props.onChangeText('500g');
+  input('재료 메모').props.onChangeText('임시 메모');
+  sheet.render();
+  const back = () => {
+    input('재료 목록으로 돌아가기').props.onPress();
+    sheet.render(); animations.at(-1).finish(); sheet.render();
+  };
+  back(); edit(original);
+  assert.equal(input('재료명').props.value, original.name);
+  assert.equal(input('재료 수량').props.value, original.quantity);
+  assert.equal(input('재료 메모').props.value, original.memo);
+  assert(find(input('유통기한 날짜 선택'), node => node.props.children === original.expirationDate));
+  assert(find(sheet.tree, node => node.props.accessibilityRole === 'header' && node.props.children === '재료 편집'));
+  assert.equal(save().props.accessibilityLabel, '재료 수정 저장');
+  assert.equal(find(save(), node => node.type === 'Icon').props.name, 'checkbox-marked-circle-outline');
+  input('재료명').props.onChangeText('저장하지 않은 이름');
+  sheet.render(); back(); edit(other);
+  assert.equal(input('재료명').props.value, other.name);
+  assert.equal(input('재료 메모').props.value, '');
+  assert(find(input('유통기한 날짜 선택'), node => node.props.children === '날짜 선택'));
+  back();
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
+  animations.at(-1).finish(); sheet.render();
+  assert.equal(input('재료명').props.value, '추가 초안');
+  assert.equal(input('재료 수량').props.value, '500g');
+  assert.equal(input('재료 메모').props.value, '임시 메모');
+  assert.equal(find(save(), node => node.type === 'Icon').props.name, 'checkbox-marked-circle-plus-outline');
+});
+
+test('재료 편집 저장은 한 번만 수정하고 성공 확인 후 목록을 갱신하며 날짜·메모를 해제한다', async t => {
+  const previous = { ...ingredientRepository };
+  t.after(() => Object.assign(ingredientRepository, previous));
+  let persisted = { id: 'milk', name: '우유', quantity: '1병', memo: '개봉함', expirationDate: '2026-11-30', slotId: 'slot', drawerNumber: 1 };
+  const pending = deferred();
+  const calls = [];
+  ingredientRepository.getIngredientsByPosition = async () => [persisted];
+  ingredientRepository.registerIngredient = async () => assert.fail('편집에서는 INSERT하지 않는다');
+  ingredientRepository.updateIngredient = (db, value) => { assert.strictEqual(db, database); calls.push(value); return pending.promise; };
+  const { sheet, input, save } = await ingredientFormFixture(t, () => assert.fail('저장·확인 중에는 닫지 않는다'), persisted);
+  const saved = [];
+  sheet.props.onSaved = ingredient => saved.push(ingredient);
+  sheet.render();
+  input('재료명').props.onChangeText('두유');
+  input('재료 수량').props.onChangeText('반 병');
+  input('재료 메모').props.onChangeText('');
+  input('유통기한 선택 해제').props.onPress();
+  sheet.render();
+  const first = save().props.onPress();
+  const duplicate = save().props.onPress();
+  sheet.render();
+  assert.deepEqual(calls, [{ ...persisted, name: '두유', quantity: '반 병', memo: '', expirationDate: null }]);
+  assert.equal(sheet.tree.props.disabled, true);
+  assert.equal(input('재료 메모').props.editable, false);
+  input('재료명').props.onChangeText('저장 중 변경 금지');
+  input('재료 목록으로 돌아가기').props.onPress();
+  sheet.tree.props.onClose();
+  sheet.render();
+  assert.equal(input('재료명').props.value, '두유');
+  persisted = { ...calls[0], memo: null };
+  pending.resolve(persisted);
+  await Promise.all([first, duplicate]);
+  sheet.render();
+  const success = alerts.at(-1);
+  assert.deepEqual(success.slice(0, 2), ['알림', '재료를 수정했습니다.']);
+  assert.deepEqual(saved, [persisted]);
+  assert.equal(save().props.disabled, true);
+  success[2][0].onPress();
+  sheet.render(); animations.at(-1).finish();
+  await new Promise(setImmediate); sheet.render();
+  assert.deepEqual(find(sheet.tree, node => node.type === 'FlatList').props.data, [persisted]);
+  assert.equal(sheet.tree.props.disabled, false);
+  assert.equal(calls.length, 1);
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
+  animations.at(-1).finish(); sheet.render();
+  assert.equal(input('재료명').props.value, '');
+  assert.equal(input('재료 메모').props.value, '');
+});
+
+test('재료 편집 실패는 편집 모드·입력을 유지하고 같은 재료로 수정 재시도한다', async t => {
+  const previous = { ...ingredientRepository };
+  t.after(() => Object.assign(ingredientRepository, previous));
+  let persisted = { id: 'eggs', name: '계란', quantity: '2개', memo: null, expirationDate: null, slotId: 'slot', drawerNumber: 1 };
+  let attempts = 0;
+  ingredientRepository.getIngredientsByPosition = async () => [persisted];
+  ingredientRepository.updateIngredient = async (db, value) => {
+    if (++attempts === 1) throw new Error('검증용 수정 실패');
+    persisted = value;
+    return persisted;
+  };
+  const { sheet, input, save, openCalendar } = await ingredientFormFixture(t, () => {}, persisted);
+  input('재료 수량').props.onChangeText('1개');
+  input('재료 메모').props.onChangeText('남은 재료');
+  openCalendar();
+  find(sheet.tree, node => node.type === 'IngredientExpirationCalendar').props.onSelect('2028-02-29');
+  sheet.render();
+  find(sheet.tree, node => node.type === 'IngredientExpirationCalendar').props.onDismiss();
+  sheet.render();
+  await save().props.onPress(); sheet.render();
+  assert.equal(input('재료 수량').props.value, '1개');
+  assert.equal(input('재료 메모').props.value, '남은 재료');
+  assert.equal(save().props.accessibilityLabel, '재료 수정 저장');
+  assert.equal(save().props.disabled, false);
+  assert.match(find(sheet.tree, node => node.props.accessibilityRole === 'alert').props.children, /재료를 저장하지 못했습니다/);
+  assert.equal(persisted.quantity, '2개');
+  await save().props.onPress(); sheet.render();
+  assert.equal(attempts, 2);
+  assert.equal(persisted.id, 'eggs');
+  assert.equal(persisted.quantity, '1개');
+  assert.equal(persisted.expirationDate, '2028-02-29');
+  assert.equal(alerts.at(-1)[1], '재료를 수정했습니다.');
 });
 
 test('홈·등록·편집은 원래 도면 배치와 닫힘·열림 크기를 공유한다', async t => {

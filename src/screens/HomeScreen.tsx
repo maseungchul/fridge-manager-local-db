@@ -204,7 +204,8 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
       {isLegendOpen ? <FridgeIngredientLegend onClose={() => setIsLegendOpen(false)} /> : null}
       {isIngredientListOpen && focusPhase === 'open' && selectedPosition ? (
         <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
-          onRegistered={ingredient => setIngredients(current => [...current, ingredient])}
+          onSaved={ingredient => setIngredients(current => current.some(item => item.id === ingredient.id)
+            ? current.map(item => item.id === ingredient.id ? ingredient : item) : [...current, ingredient])}
           onClose={closeIngredientList} />
       ) : null}
     </View>

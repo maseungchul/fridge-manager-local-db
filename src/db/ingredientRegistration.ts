@@ -1,6 +1,6 @@
 /**
  * @file
- * 재료 등록 입력을 검증하고 SQLite에 저장할 재료 모델로 정규화한다.
+ * 재료 등록·수정 입력을 검증하고 SQLite에 저장할 재료 모델로 정규화한다.
  * UUID 발급은 호출자가 제공하며, 실제 위치의 사용 가능 여부는 DB 제약으로 검사한다.
  */
 import type { Ingredient } from '@/features/ingredient/model/ingredient';

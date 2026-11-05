@@ -35,7 +35,7 @@ const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRef
 });
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 const ingredientRegistration = require('../src/db/ingredientRegistration.ts');
-const { getIngredients, getIngredientsByPosition, registerIngredient } = loadModule('src/db/ingredientRepository.ts', {
+const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
 });
 
@@ -218,6 +218,66 @@ test('재료 등록 실패 시 일부 기록을 남기지 않고 같은 입력�
   db.exec('DROP TRIGGER fail_ingredient_registration;');
   await registerIngredient(adapter, input);
   assert.equal((await getIngredientsByPosition(adapter, input)).length, 1);
+});
+
+test('재료 수정은 기존 ID·보관 위치·건수를 유지하고 변경한 정보와 날짜 해제를 저장한다', async t => {
+  const { db, adapter, databasePath } = await createRepositoryDatabase(t);
+  await registerRefrigerator(adapter, createTwoDoorDraft());
+  const refrigerator = await getRefrigerator(adapter);
+  const slotId = refrigerator.rows[0].compartments[0].slots[0].id;
+  const original = await registerIngredient(adapter, { name: '우유', quantity: '1병', memo: null,
+    expirationDate: '2026-11-30', slotId, drawerNumber: 0 });
+  const other = await registerIngredient(adapter, { ...original, name: '계란' });
+  const input = { ...original, name: '  두유  ', quantity: '  반 병  ', memo: '  개봉함  ', expirationDate: null };
+  const before = structuredClone(input);
+  const updated = await updateIngredient(adapter, input);
+  assert.deepEqual(input, before);
+  assert.deepEqual(updated, { ...original, name: '두유', quantity: '반 병', memo: '개봉함', expirationDate: null });
+  assert.deepEqual({ ...(await getIngredients(adapter)).find(item => item.id === other.id) }, other);
+  assert.equal((await getIngredients(adapter)).length, 2);
+  assert.deepEqual((await getIngredientsByPosition(adapter, original)).map(item => item.id), [other.id, original.id]);
+  const reopened = new DatabaseSync(databasePath);
+  try {
+    assert.deepEqual({ ...(await getIngredients(createConnectionAdapter(reopened))).find(item => item.id === original.id) }, updated);
+  } finally { reopened.close(); }
+  const cleared = await updateIngredient(adapter, { ...updated, memo: '   ', expirationDate: '2028-02-29' });
+  assert.equal(cleared.memo, null);
+  assert.equal(cleared.expirationDate, '2028-02-29');
+});
+
+test('재료 수정의 잘못된 입력·없는 ID·달라진 위치는 기존 재료를 보존한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  await registerRefrigerator(adapter, createTwoDoorDraft());
+  const refrigerator = await getRefrigerator(adapter);
+  const slotId = refrigerator.rows[0].compartments[0].slots[0].id;
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '2개', memo: null,
+    expirationDate: null, slotId, drawerNumber: 0 });
+  const before = db.prepare('SELECT * FROM ingredients').all();
+  for (const input of [
+    { ...original, name: '' }, { ...original, quantity: ' ' }, { ...original, expirationDate: '2026-02-29' },
+    { ...original, id: 'missing' }, { ...original, drawerNumber: 1 },
+    { ...original, slotId: refrigerator.rows[1].compartments[0].slots[0].id },
+  ]) {
+    await assert.rejects(updateIngredient(adapter, input), /재료명|수량|유통기한|수정할 재료/);
+    assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), before);
+  }
+});
+
+test('재료 수정 SQL 실패는 기존 정보를 유지하고 같은 ID로 재시도한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+  const refrigerator = await getRefrigerator(adapter);
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '2개', memo: null,
+    expirationDate: null, slotId: refrigerator.rows[0].compartments[0].slots[0].id, drawerNumber: 0 });
+  const before = db.prepare('SELECT * FROM ingredients').all();
+  const input = { ...original, quantity: '1개', memo: '남은 재료' };
+  db.exec(`CREATE TRIGGER fail_ingredient_update BEFORE UPDATE ON ingredients
+    BEGIN SELECT RAISE(ABORT, '검증용 재료 수정 실패'); END;`);
+  await assert.rejects(updateIngredient(adapter, input), /검증용 재료 수정 실패/);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), before);
+  db.exec('DROP TRIGGER fail_ingredient_update');
+  assert.deepEqual(await updateIngredient(adapter, input), input);
+  assert.equal((await getIngredients(adapter)).length, 1);
 });
 
 test('이름 공백을 제거하고 임시 ID를 UUID로 바꾸며 입력 초안을 유지한다', () => {

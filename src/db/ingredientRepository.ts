@@ -1,6 +1,6 @@
 /**
  * @file
- * 홈 도면과 선택한 칸·좌우 위치의 재료를 SQLite에서 조회하고 수동 등록한다.
+ * 홈 도면과 선택한 칸·좌우 위치의 재료를 SQLite에서 조회하고 등록·수정한다.
  * 저장 결과는 재료 모델로 반환하며, 화면의 선택·로딩·오류 상태는 호출자가 관리한다.
  */
 import { uuid } from 'expo';
@@ -36,5 +36,17 @@ export async function registerIngredient(db: SQLiteDatabase, input: Omit<Ingredi
     VALUES (?, ?, ?, ?, ?, ?, ?);
   `, ingredient.id, ingredient.name, ingredient.quantity, ingredient.memo, ingredient.expirationDate,
   ingredient.slotId, ingredient.drawerNumber);
+  return ingredient;
+}
+
+/** 등록과 같은 검증을 적용하고, 기존 ID·보관 위치가 일치하는 재료의 기본 정보만 수정한다. */
+export async function updateIngredient(db: SQLiteDatabase, input: Ingredient): Promise<Ingredient> {
+  const ingredient = prepareIngredientRegistration(input, () => input.id);
+  const result = await db.runAsync(`
+    UPDATE ingredients SET name = ?, quantity = ?, memo = ?, expiration_date = ?
+    WHERE id = ? AND slot_id = ? AND drawer_number = ?;
+  `, ingredient.name, ingredient.quantity, ingredient.memo, ingredient.expirationDate,
+  ingredient.id, ingredient.slotId, ingredient.drawerNumber);
+  if (result.changes !== 1) throw new Error('수정할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
   return ingredient;
 }

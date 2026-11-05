@@ -1,7 +1,7 @@
 /**
  * @file
- * 선택한 위치의 재료 목록과 등록 폼을 스와이프로 닫는 네이티브 시트에 표시한다.
- * 조회·등록은 여기서 처리하고, 저장 결과 전달 후 도면 갱신과 시트 종료는 호출자가 관리한다.
+ * 선택한 위치의 재료 목록과 등록·편집 폼을 스와이프로 닫는 네이티브 시트에 표시한다.
+ * 조회·저장은 여기서 처리하고, 저장 결과 전달 후 도면 갱신과 시트 종료는 호출자가 관리한다.
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
@@ -14,7 +14,7 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { alertTitles } from '@/constants/alertTitles';
-import { getIngredientsByPosition, registerIngredient } from '@/db/ingredientRepository';
+import { getIngredientsByPosition, registerIngredient, updateIngredient } from '@/db/ingredientRepository';
 import type { SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
@@ -25,10 +25,10 @@ import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
 interface IngredientListSheetProps {
   position: SlotPosition;
   onClose: () => void;
-  onRegistered?: (ingredient: Ingredient) => void;
+  onSaved?: (ingredient: Ingredient) => void;
 }
 
-export function IngredientListSheet({ position, onClose, onRegistered }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, onClose, onSaved }: IngredientListSheetProps) {
   const db = useSQLiteContext();
   const sheetRef = useRef<IngredientSheetRef>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
@@ -40,12 +40,16 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
   const { width: windowWidth } = useWindowDimensions();
   const [pageWidth, setPageWidth] = useState(windowWidth);
   const [isChanging, setIsChanging] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
+  const isEditing = editingIngredient !== null;
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Pick<Ingredient, 'name' | 'quantity' | 'memo' | 'expirationDate'>>({
     name: '', quantity: '', memo: '', expirationDate: null,
   });
+  // 편집을 마치거나 취소해도 목록으로 돌아오기 전 작성한 추가 초안을 복원한다.
+  const addDraft = useRef(draft);
   const [datePickerAnchor, setDatePickerAnchor] = useState<LayoutRectangle | null>(null);
   const [datePickerMeasurement, setDatePickerMeasurement] = useState<number | null>(null);
   const isDatePickerOpen = datePickerAnchor !== null;
@@ -88,13 +92,13 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
   }, []);
 
   // 제목·버튼·본문을 함께 전환하고 완료 전까지 연속 조작을 막는다.
-  function changePanel(adding: boolean, onComplete?: () => void) {
-    if (transition.current.active || adding === isAdding) return;
+  function changePanel(showForm: boolean, onComplete?: () => void) {
+    if (transition.current.active || showForm === isFormOpen) return;
     Keyboard.dismiss();
     transition.current.active = true;
     setIsChanging(true);
-    setIsAdding(adding);
-    const target = adding ? 1 : 0;
+    setIsFormOpen(showForm);
+    const target = showForm ? 1 : 0;
     const animation = Animated.timing(panelProgress, { toValue: target, duration: 240, useNativeDriver: true });
     transition.current.animation = animation;
     animation.start(({ finished }) => {
@@ -112,6 +116,15 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
     changePanel(true);
   }
 
+  function startEditing(ingredient: Ingredient) {
+    if (saving.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    addDraft.current = draft;
+    setEditingIngredient(ingredient);
+    setDraft({ name: ingredient.name, quantity: ingredient.quantity, memo: ingredient.memo, expirationDate: ingredient.expirationDate });
+    setSaveError(null);
+    changePanel(true);
+  }
+
   function closeSheet() {
     if (saving.current || transition.current.active) return;
     dismissDatePicker();
@@ -124,7 +137,12 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
     Keyboard.dismiss();
     dismissDatePicker();
     setSaveError(null);
-    changePanel(false);
+    changePanel(false, () => {
+      if (isEditing) {
+        setEditingIngredient(null);
+        setDraft(addDraft.current);
+      }
+    });
   }
 
   function dismissDatePicker() {
@@ -168,29 +186,32 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
     Keyboard.dismiss();
     let ingredient: Ingredient;
     try {
-      ingredient = await registerIngredient(db, { ...draft, slotId, drawerNumber });
+      ingredient = editingIngredient
+        ? await updateIngredient(db, { ...editingIngredient, ...draft })
+        : await registerIngredient(db, { ...draft, slotId, drawerNumber });
     } catch {
       setSaveError('재료를 저장하지 못했습니다. 보관 위치와 입력 내용을 확인하고 다시 시도해 주세요.');
       saving.current = false;
       setIsSaving(false);
       return;
     }
-    onRegistered?.(ingredient);
-    // 성공 알림을 확인하고 목록 전환이 끝날 때까지 잠금을 유지해 중복 등록을 막는다.
-    Alert.alert(alertTitles.info, '재료를 등록했습니다.', [{ text: '확인', onPress: () => {
+    onSaved?.(ingredient);
+    // 성공 알림을 확인하고 목록 전환이 끝날 때까지 잠금을 유지해 중복 저장을 막는다.
+    Alert.alert(alertTitles.info, isEditing ? '재료를 수정했습니다.' : '재료를 등록했습니다.', [{ text: '확인', onPress: () => {
       if (!saving.current || transition.current.active) return;
       changePanel(false, () => {
-        setDraft({ name: '', quantity: '', memo: '', expirationDate: null });
+        setDraft(isEditing ? addDraft.current : { name: '', quantity: '', memo: '', expirationDate: null });
+        setEditingIngredient(null);
         saving.current = false;
         setIsSaving(false);
       });
-      // 저장 후 재조회가 실패해도 등록 폼으로 돌아가지 않아 중복 등록을 막는다.
+      // 저장 후 재조회가 실패해도 폼으로 돌아가지 않아 중복 저장을 막는다.
       setReloadCount(count => count + 1);
     } }], { cancelable: false });
   }
 
   return (
-    <BottomSheet ref={sheetRef} disabled={isSaving || isChanging} expanded={isAdding} transitioning={isChanging}
+    <BottomSheet ref={sheetRef} disabled={isSaving || isChanging} expanded={isFormOpen} transitioning={isChanging}
       onClose={() => { if (!saving.current && !transition.current.active) onClose(); }}>
         <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}>
           {/* 시스템 표시기의 가변 색상 대신 고정색으로 표시하고, 드래그는 네이티브 시트에 맡긴다. */}
@@ -201,15 +222,15 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
             <Animated.View style={[styles.pageTrack, { width: pageWidth * 2, transform: [{
               translateX: panelProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -pageWidth] }),
             }] }]}>
-              {([false, true] as const).map(addingPage => (
-                <View key={addingPage ? 'add' : 'list'} style={[styles.page, { width: pageWidth }]}
-                  pointerEvents={addingPage === isAdding && !isChanging && !isSaving ? 'auto' : 'none'}
-                  accessibilityElementsHidden={addingPage !== isAdding || isChanging}
-                  importantForAccessibility={addingPage === isAdding && !isChanging ? 'auto' : 'no-hide-descendants'}>
-                  {addingPage === isAdding || isChanging ? (
+              {([false, true] as const).map(formPage => (
+                <View key={formPage ? 'add' : 'list'} style={[styles.page, { width: pageWidth }]}
+                  pointerEvents={formPage === isFormOpen && !isChanging && !isSaving ? 'auto' : 'none'}
+                  accessibilityElementsHidden={formPage !== isFormOpen || isChanging}
+                  importantForAccessibility={formPage === isFormOpen && !isChanging ? 'auto' : 'no-hide-descendants'}>
+                  {formPage === isFormOpen || isChanging ? (
                     <>
                       <View style={styles.header}>
-                        {addingPage ? (
+                        {formPage ? (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 목록으로 돌아가기"
                             disabled={isSaving} interactionBlocked={isChanging} accessibilityState={{ disabled: isSaving || isChanging }}
                             onPress={returnToList} style={styles.headerIconButton}>
@@ -217,15 +238,15 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
                           </FeedbackPressable>
                         ) : null}
                         <View style={styles.heading}>
-                          <Text accessibilityRole="header" style={[styles.title, addingPage && styles.centeredTitle]}>{addingPage ? '재료 추가' : '재료 목록'}</Text>
+                          <Text accessibilityRole="header" style={[styles.title, formPage && styles.centeredTitle]}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : '재료 목록'}</Text>
                         </View>
-                        {addingPage ? (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 등록"
+                        {formPage ? (
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '재료 수정 저장' : '재료 등록'}
                             accessibilityState={{ disabled: !canSave || isSaving || isChanging, busy: isSaving }}
                             disabled={!canSave || isSaving} interactionBlocked={isChanging}
                             onPress={saveIngredient} style={styles.headerIconButton}>
-                            {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel="재료 등록 중" />
-                              : <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={32} color={colors.text} accessible={false} />}
+                            {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? '재료 수정 중' : '재료 등록 중'} />
+                              : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={32} color={colors.text} accessible={false} />}
                           </FeedbackPressable>
                         ) : (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 추가"
@@ -236,7 +257,7 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
                         )}
                       </View>
                       <View style={styles.pageContent}>
-                        {addingPage ? (
+                        {formPage ? (
                           <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="always"
                             keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false} scrollsChildToFocus={false}>
                             <FormTextInput label="재료명" accessibilityLabel="재료명" placeholder="예: 계란"
@@ -305,7 +326,11 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
                             renderItem={({ item }) => {
                               const expiration = getIngredientExpirationStatus(item.expirationDate);
                               return (
-                                <View style={styles.item}>
+                                <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${item.name} 편집`}
+                                  accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
+                                  accessibilityHint="재료명·수량·메모·유통기한을 수정합니다."
+                                  accessibilityState={{ disabled: isSaving || isChanging }} disabled={isSaving} interactionBlocked={isChanging}
+                                  onPress={() => startEditing(item)} style={styles.item}>
                                   <View style={styles.itemHeader}>
                                     <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
                                     <Text style={[styles.expirationDate, item.expirationDate !== null && {
@@ -314,7 +339,7 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
                                     }]}>{expiration.label}</Text>
                                   </View>
                                   {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
-                                </View>
+                                </FeedbackPressable>
                               );
                             }} />
                         )}
