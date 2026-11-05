@@ -2698,7 +2698,7 @@ test('재료 행은 Android의 관성 이동 완료를 기다리고 다른 항�
   assert.equal(row.props.isOpen, false, '다른 행을 열어 닫힌 항목은 늦은 완료 신호로 다시 열지 않는다');
 });
 
-test('재료 목록은 한 행만 열고 스크롤·항목 터치로 닫으며 접근성 삭제도 취소할 수 있다', async t => {
+test('재료 목록은 한 행만 열고 스크롤·항목·패널 빈 영역 터치로 닫으며 접근성 삭제도 취소할 수 있다', async t => {
   const previous = { ...ingredientRepository };
   t.after(() => Object.assign(ingredientRepository, previous));
   const original = { id: 'eggs', name: '계란', quantity: '2개', memo: null, expirationDate: null, slotId: 'slot', drawerNumber: 1 };
@@ -2721,6 +2721,13 @@ test('재료 목록은 한 행만 열고 스크롤·항목 터치로 닫으며 �
   row(original).props.onOpen(); sheet.render();
   list().props.onScrollBeginDrag(); sheet.render();
   assert.equal(row(original).props.isOpen, false);
+  row(original).props.onOpen(); sheet.render();
+  const panel = find(sheet.tree, node => node.props.accessibilityViewIsModal);
+  assert.equal(panel.props.onStartShouldSetResponder(), false, '빈 영역을 눌러도 터치를 가로채지 않는다');
+  sheet.render();
+  assert.equal(row(original).props.isOpen, false);
+  assert.equal(sheet.tree.props.expanded, false, '삭제 버튼만 숨기고 패널 높이는 유지한다');
+  assert.deepEqual(list().props.data, [original, other]);
   row(original).props.children.props.onAccessibilityAction({ nativeEvent: { actionName: 'delete' } });
   sheet.render();
   const confirmation = alerts.at(-1);
@@ -2760,6 +2767,9 @@ test('재료 삭제 확인·처리는 중복 요청과 시트 종료를 막고 �
   sheet.tree.props.onClose();
   sheet.render();
   assert.equal(sheet.tree.props.disabled, true);
+  find(sheet.tree, node => node.props.accessibilityViewIsModal).props.onStartShouldSetResponder();
+  sheet.render();
+  assert.equal(row(original).props.isOpen, true, '삭제 확인 중에는 공통 숨김으로 삭제 버튼을 변경하지 않는다');
   const add = find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가');
   assert.equal(add.props.disabled, true);
   add.props.onPress(); row(other).props.children.props.onPress(); sheet.render();

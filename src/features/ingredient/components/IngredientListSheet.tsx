@@ -261,7 +261,12 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: I
   return (
     <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} expanded={isFormOpen} transitioning={isChanging}
       onClose={() => { if (!saving.current && !deleting.current && !transition.current.active) onClose(); }}>
-        <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}>
+        <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}
+          onStartShouldSetResponder={() => {
+            if (!saving.current && !deleting.current && !transition.current.active) setSwipedIngredientId(null);
+            // 항목·삭제 버튼이 먼저 처리하는 버블 단계만 확인하고, 터치는 가로채지 않는다.
+            return false;
+          }}>
           {/* 시스템 표시기의 가변 색상 대신 고정색으로 표시하고, 드래그는 네이티브 시트에 맡긴다. */}
           <View style={styles.dragIndicator} pointerEvents="none" accessible={false} />
           <View style={styles.content} onLayout={({ nativeEvent }) => {
