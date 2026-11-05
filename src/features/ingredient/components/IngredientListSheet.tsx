@@ -240,7 +240,7 @@ export function IngredientListSheet({ position, onClose, onCloseStart, onCloseCa
                       </View>
                       <View style={styles.pageContent}>
                         {addingPage ? (
-                          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled"
+                          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="always"
                             keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false} scrollsChildToFocus={false}>
                             <FormTextInput label="재료명" accessibilityLabel="재료명" placeholder="예: 계란"
                               value={draft.name} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="next"
