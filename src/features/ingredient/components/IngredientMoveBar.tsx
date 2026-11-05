@@ -3,7 +3,8 @@
  * 네이티브 탭의 배치를 유지한 채 같은 하단 영역에 재료 이동 안내를 표시한다.
  * 도면의 크기·표시 영역과 분리해 하단 안내의 표시와 입력만 전환한다.
  */
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, Platform, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FullWindowOverlay } from 'react-native-screens';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -19,11 +20,27 @@ export interface IngredientMoveBarState {
 
 export function IngredientMoveBar({ move }: { move: IngredientMoveBarState | null }) {
   const insets = useSafeAreaInsets();
+  const visible = move !== null;
+  const progress = useAnimatedValue(0);
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    if (!visible) { progress.setValue(0); return; }
+    if (height <= 0) return;
+    const animation = Animated.timing(progress, {
+      toValue: 1, duration: 280,
+      easing: Easing.inOut(Easing.cubic), useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [visible, height, progress]);
+
   const content = (
-    <View pointerEvents={move ? 'auto' : 'none'}
+    <Animated.View pointerEvents={move ? 'auto' : 'none'}
       accessibilityElementsHidden={!move} importantForAccessibility={move ? 'auto' : 'no-hide-descendants'}
+      onLayout={({ nativeEvent }) => setHeight(nativeEvent.layout.height)}
       style={[styles.bar, { paddingBottom: insets.bottom + spacing.sm,
-        paddingLeft: insets.left + spacing.md, paddingRight: insets.right + spacing.md }, !move && styles.hidden]}>
+        paddingLeft: insets.left + spacing.md, paddingRight: insets.right + spacing.md,
+        opacity: visible ? progress : 0, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }] }]}>
       <View style={styles.content}>
         <View style={styles.labels} accessibilityLiveRegion={move ? 'polite' : 'none'}>
           <Text style={styles.name} numberOfLines={1}>{move ? `${move.name} ${move.quantity}` : ' '}</Text>
@@ -41,7 +58,7 @@ export function IngredientMoveBar({ move }: { move: IngredientMoveBarState | nul
           <Text style={styles.cancelLabel}>이동 취소</Text>
         </FeedbackPressable>
       </View>
-    </View>
+    </Animated.View>
   );
   // iOS 탭은 화면 콘텐츠보다 위에 그려지므로 창 레이어에서 덮고, 도면 쪽 터치는 통과시킨다.
   return Platform.OS === 'ios'

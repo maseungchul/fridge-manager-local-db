@@ -173,11 +173,13 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
   const isLegendHidden = isIngredientListOpen || isIngredientMoveActive || isLegendOpen;
+  // 도면 전환 중에는 시스템 비활성화 색상 대신 입력만 차단한다.
+  const isLegendBlocked = focusPhase === 'opening' || focusPhase === 'closing';
   const legendButton = refrigerator && !isLoading && !error ? (
     <FloatingIconButton label="범례" icon="information-outline" accessibilityLabel="재료 배지 범례" size="small"
       accessibilityHint="재료 배지의 색상과 의미를 확인합니다." expanded={isLegendOpen}
-      disabled={focusPhase === 'opening' || focusPhase === 'closing'}
-      onPress={() => setIsLegendOpen(true)} />
+      disabled={false}
+      onPress={() => { if (!isLegendBlocked) setIsLegendOpen(true); }} />
   ) : null;
 
   async function selectMoveDestination(destination: SlotPosition, index: number) {
@@ -275,8 +277,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
       </View>
       {/* 열린 도면의 배경 위에서도 같은 하단 위치를 유지하고, 버튼 밖은 도면으로 터치를 전달한다. */}
       {legendButton ? (
-        <SafeAreaView pointerEvents={isLegendHidden ? 'none' : 'box-none'} accessibilityElementsHidden={isLegendHidden}
-          importantForAccessibility={isLegendHidden ? 'no-hide-descendants' : 'auto'}
+        <SafeAreaView pointerEvents={isLegendHidden || isLegendBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isLegendHidden || isLegendBlocked}
+          importantForAccessibility={isLegendHidden || isLegendBlocked ? 'no-hide-descendants' : 'auto'}
           edges={{ top: false, bottom: true, left: true, right: true }} style={[styles.legendOverlay, isLegendHidden && styles.hidden]}>
           <View pointerEvents="box-none" style={styles.legendAnchor}>{legendButton}</View>
         </SafeAreaView>

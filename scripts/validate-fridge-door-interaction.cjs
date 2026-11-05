@@ -117,7 +117,7 @@ const native = {
       const animation = {
         value, config,
         start(callback) { this.callback = callback; },
-        stop() { this.callback?.({ finished: false }); },
+        stop() { this.stopped = true; this.callback?.({ finished: false }); },
         finish(finished = true) {
           if (finished) value.value = config.toValue;
           this.callback?.({ finished });
@@ -3194,8 +3194,9 @@ test('하단 이동 안내는 항상 같은 크기로 남고 네이티브 탭 �
       assert.equal(bar.tree.props.unstable_accessibilityContainerViewIsModal, false, '도면 접근성과 터치를 유지한다');
     }
     const root = () => platform === 'ios' ? children(bar.tree)[0] : bar.tree;
+    root().props.onLayout({ nativeEvent: { layout: { height: 128 } } }); bar.render();
     const dimensions = () => {
-      const { opacity, ...style } = flattenStyle(root().props.style);
+      const { opacity, transform, ...style } = flattenStyle(root().props.style);
       return style;
     };
     const before = dimensions();
@@ -3203,10 +3204,12 @@ test('하단 이동 안내는 항상 같은 크기로 남고 네이티브 탭 �
       { name: '계란', quantity: '2개', isSaving: false, onCancel() { cancelled++; } },
       { name: '아주 긴 재료 이름'.repeat(10), quantity: '한 봉지', isSaving: true, onCancel() { cancelled++; } }, null]) {
       bar.props.move = move; bar.render();
+      if (move) animations.at(-1).finish();
       assert.deepEqual(dimensions(), before);
       assert.equal(root().props.pointerEvents, move ? 'auto' : 'none');
       assert.equal(root().props.accessibilityElementsHidden, !move);
-      assert.equal(flattenStyle(root().props.style).opacity, move ? undefined : 0);
+      const opacity = flattenStyle(root().props.style).opacity;
+      assert.equal(move ? opacity.value : opacity, move ? 1 : 0);
       assert.equal(find(bar.tree, node => node.type === 'Text' && node.props.numberOfLines === 1).props.numberOfLines, 1);
       assert.equal(find(bar.tree, node => node.props.accessibilityLabel === '재료 이동 중').props.animating, !!move?.isSaving);
       find(bar.tree, node => node.props.accessibilityLabel === '재료 이동 취소').props.onPress();
@@ -3214,6 +3217,35 @@ test('하단 이동 안내는 항상 같은 크기로 남고 네이티브 탭 �
     assert.equal(cancelled, 1);
     assert.equal(find(bar.tree, named('FloatingIconButton')), undefined, '취소 버튼은 지연 측정하는 SwiftUI Host를 사용하지 않는다');
   });
+});
+
+test('이동 안내는 올라오는 애니메이션만 사용하고 취소하면 즉시 숨긴 뒤 재진입한다', t => {
+  const bar = mount(IngredientMoveBar, { move: null });
+  t.after(() => bar.unmount());
+  const root = () => native.Platform.OS === 'ios' ? children(bar.tree)[0] : bar.tree;
+  root().props.onLayout({ nativeEvent: { layout: { height: 140 } } }); bar.render();
+  const move = { name: '계란', quantity: '2개', isSaving: false, onCancel() {} };
+  bar.props.move = move; bar.render();
+  const enter = animations.at(-1);
+  assert.equal(enter.config.toValue, 1);
+  assert.equal(enter.config.duration, 280);
+  assert.equal(enter.config.useNativeDriver, true);
+  assert.deepEqual(flattenStyle(root().props.style).transform[0].translateY.outputRange, [140, 0]);
+  bar.props.move = { ...move, isSaving: true }; bar.render();
+  assert.strictEqual(animations.at(-1), enter, '저장 상태 변경으로 진입 애니메이션을 다시 시작하지 않는다');
+  const count = animations.length;
+  bar.props.move = null; bar.render();
+  assert.equal(enter.stopped, true);
+  assert.equal(animations.length, count, '닫기 애니메이션을 생성하지 않는다');
+  assert.equal(enter.value.value, 0);
+  assert.equal(flattenStyle(root().props.style).opacity, 0);
+  assert.equal(root().props.pointerEvents, 'none');
+  bar.props.move = move; bar.render();
+  const reopened = animations.at(-1);
+  reopened.finish();
+  assert.equal(flattenStyle(root().props.style).opacity.value, 1);
+  bar.unmount();
+  assert.equal(reopened.stopped, true);
 });
 
 test('홈은 이동 안내의 예약 공간 없이 기존 안전 영역과 전체 높이를 사용한다', async t => {
@@ -6102,7 +6134,13 @@ test('홈·내부 도면의 하단 범례는 탭바 위 같은 위치를 유지�
   find(home.tree, named('FridgeInteriorMap')).props.onFocus({ areaId: saved.rows[0].compartments[0].id,
     returnAreaId: saved.rows[0].doors[0].id, canvas: { x: 20, y: 100, width: 270, height: 540 } });
   home.render();
-  assert.equal(button().props.disabled, true);
+  assert.equal(button().props.disabled, false, '도면 전환 중에도 범례의 시스템 비활성화 색상을 적용하지 않는다');
+  const openingLegend = find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
+  assert.equal(openingLegend.props.pointerEvents, 'none');
+  assert.equal(openingLegend.props.accessibilityElementsHidden, true);
+  button().props.onPress();
+  home.render();
+  assert.equal(find(home.tree, named('FridgeIngredientLegend')), undefined);
   let focus = find(home.tree, named('FridgeFocusView'));
   focus.props.onPhaseChange('open');
   home.render();
@@ -6112,6 +6150,7 @@ test('홈·내부 도면의 하단 범례는 탭바 위 같은 위치를 유지�
   t.after(() => overlay.unmount());
   assert.equal(focus.props.legendButton, undefined);
   assert.equal(button().props.disabled, false);
+  assert.equal(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false).props.pointerEvents, 'box-none');
   assert.equal(find(overlay.tree, node => node.props.accessibilityLabel === '재료 배지 범례'), undefined);
   const scrolls = findAll(overlay.tree, node => node.type === 'ScrollView');
   assert(scrolls.length > 0);
@@ -6138,7 +6177,11 @@ test('홈·내부 도면의 하단 범례는 탭바 위 같은 위치를 유지�
   assert(button());
   config().props.onClose();
   home.render();
-  assert.equal(button().props.disabled, true);
+  assert.equal(button().props.disabled, false);
+  assert.equal(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false).props.pointerEvents, 'none');
+  button().props.onPress();
+  home.render();
+  assert.equal(find(home.tree, named('FridgeIngredientLegend')), undefined);
   config().props.onPhaseChange('closed');
   home.render();
   assert(button());
