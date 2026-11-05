@@ -191,7 +191,7 @@ export function IngredientListSheet({ position, onClose, onCloseStart, onCloseCa
   }
 
   return (
-    <BottomSheet ref={sheetRef} disabled={isSaving || isChanging}
+    <BottomSheet ref={sheetRef} disabled={isSaving || isChanging} expanded={isAdding} transitioning={isChanging}
       onCloseStart={() => { if (!saving.current && !transition.current.active) onCloseStart?.(); }}
       onCloseCancel={onCloseCancel}
       onClose={() => { if (!saving.current && !transition.current.active) onClose(); }}>

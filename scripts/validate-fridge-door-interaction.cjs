@@ -131,7 +131,9 @@ const swiftUIModifiers = Object.fromEntries([
   'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'buttonBorderShape', 'buttonStyle', 'controlSize', 'datePickerStyle',
   'disabled', 'environment', 'frame', 'onGeometryChange', 'tint', 'interactiveDismissDisabled',
   'presentationBackground', 'presentationDetents', 'presentationDragIndicator',
-].map(name => [name, value => ({ type: name, value })]));
+].map(name => [name, (value, options) => ({ type: name, value, ...(options ? { options } : {}) })]));
+swiftUIModifiers.Animation = { easeInOut: options => ({ type: 'easeInOut', ...options }) };
+swiftUIModifiers.animation = (value, animatedValue) => ({ type: 'animation', value, animatedValue });
 function loadComponent(path, overrides = {}) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: {
@@ -1586,6 +1588,7 @@ test('iOS 재료 시트는 UIKit 전환 시작과 종료 완료를 구분하고 
     const nativeContent = () => find(sheet.tree, node => node.type === 'ScreenStackItem');
     const modifiers = find(sheet.tree, node => node.type === 'SwiftUIGroup').props.modifiers;
     assert.deepEqual(modifiers.find(modifier => modifier.type === 'presentationDetents').value, ['medium', 'large']);
+    assert.equal(modifiers.find(modifier => modifier.type === 'presentationDetents').options.selection, 'medium');
     assert.equal(modifiers.find(modifier => modifier.type === 'presentationDragIndicator').value, 'hidden');
     assert.equal(nativeContent().props.stackPresentation, undefined, '내부 화면에서 커스텀 formSheet를 다시 표시하면 안 된다');
     assert.equal(nativeContent().props.sheetAllowedDetents, undefined);
@@ -1635,6 +1638,39 @@ test('iOS 재료 시트는 UIKit 전환 시작과 종료 완료를 구분하고 
   assert.equal(find(locked.tree, node => node.type === 'SwiftUIBottomSheet').props.isPresented, true);
 });
 
+test('iOS 추가 전환은 기존 높이에서 애니메이션하고 목록 복귀 시 사용자가 선택했던 높이를 복원한다', t => {
+  const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.ios.tsx');
+  for (const previousDetent of ['medium', 'large']) {
+    const sheet = mount(IngredientSheet, { children: null, disabled: false, onClose() {} });
+    t.after(() => sheet.unmount());
+    const modifier = type => find(sheet.tree, node => node.type === 'SwiftUIGroup').props.modifiers
+      .find(modifier => modifier.type === type);
+    modifier('presentationDetents').options.onSelectionChange(previousDetent);
+    sheet.render();
+    assert.equal(modifier('presentationDetents').options.selection, previousDetent);
+    sheet.props = { ...sheet.props, expanded: true, transitioning: true };
+    sheet.render();
+    assert.deepEqual(modifier('presentationDetents').value, ['medium', 'large']);
+    assert.equal(modifier('presentationDetents').options.selection, 'large');
+    assert.deepEqual(modifier('animation').value, { type: 'easeInOut', duration: 0.24 });
+    assert.equal(modifier('animation').animatedValue, true);
+    modifier('presentationDetents').options.onSelectionChange('large');
+    sheet.props = { ...sheet.props, transitioning: false };
+    sheet.render();
+    assert.deepEqual(modifier('presentationDetents').value, ['large']);
+    sheet.props = { ...sheet.props, expanded: false, transitioning: true };
+    sheet.render();
+    assert.deepEqual(modifier('presentationDetents').value, ['medium', 'large']);
+    assert.equal(modifier('presentationDetents').options.selection, previousDetent);
+    assert.equal(modifier('animation').animatedValue, false);
+    // 복귀 중 늦게 도착한 최대화 신호가 이전 목록 높이를 덮어쓰면 안 된다.
+    modifier('presentationDetents').options.onSelectionChange('large');
+    sheet.props = { ...sheet.props, transitioning: false };
+    sheet.render();
+    assert.equal(modifier('presentationDetents').options.selection, previousDetent);
+  }
+});
+
 test('Android·웹 재료 시트는 닫기 요청에서 먼저 알리고 네이티브 종료 후 패널을 제거한다', t => {
   const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.tsx');
   const events = [];
@@ -1649,6 +1685,34 @@ test('Android·웹 재료 시트는 닫기 요청에서 먼저 알리고 네이�
   assert.deepEqual(events, ['start', 'native']);
   sheet.tree.props.onClose();
   assert.deepEqual(events, ['start', 'native', 'end']);
+});
+
+test('Android·웹 추가 전환은 기존 단계에서 확대하고 목록의 드래그 높이로 복귀한다', t => {
+  const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.tsx');
+  for (const previousIndex of [0, 1]) {
+    const sheet = mount(IngredientSheet, { children: null, disabled: false, onClose() {} });
+    t.after(() => sheet.unmount());
+    const resized = [];
+    sheet.tree.props.ref.current = { snapToIndex(index) { resized.push(index); } };
+    const layout = height => children(sheet.tree)[0].props.onLayout({ nativeEvent: { layout: { height } } });
+    // Android에서 사용자 드래그의 onChange가 없어도 실제 높이로 복원한다.
+    layout(previousIndex === 0 ? 400 : 800);
+    sheet.props = { ...sheet.props, expanded: true, transitioning: true };
+    sheet.render();
+    assert.deepEqual(sheet.tree.props.snapPoints, ['50%', '100%']);
+    assert.deepEqual(resized, [1]);
+    layout(800);
+    sheet.props = { ...sheet.props, transitioning: false };
+    sheet.render();
+    assert.deepEqual(sheet.tree.props.snapPoints, ['100%']);
+    sheet.props = { ...sheet.props, expanded: false, transitioning: true };
+    sheet.render();
+    assert.deepEqual(sheet.tree.props.snapPoints, ['50%', '100%']);
+    assert.deepEqual(resized, [1, previousIndex]);
+    sheet.props = { ...sheet.props, transitioning: false };
+    sheet.render();
+    assert.deepEqual(resized, [1, previousIndex]);
+  }
 });
 
 test('재료 시트는 스와이프 닫기와 빈 목록·조회 중을 구분한다', async t => {
@@ -1824,6 +1888,8 @@ test('재료 패널은 실제 너비로 양방향 전환하고 전환 중 연속
   assert.equal(children(track())[0].props.pointerEvents, 'auto');
   assert.equal(input('재료명'), undefined);
 
+  assert.equal(sheet.tree.props.expanded, false);
+  assert.equal(sheet.tree.props.transitioning, false);
   const add = input('재료 추가');
   const animationCount = animations.length;
   add.props.onPress();
@@ -1839,6 +1905,8 @@ test('재료 패널은 실제 너비로 양방향 전환하고 전환 중 연속
     assert.equal(page.props.importantForAccessibility, 'no-hide-descendants');
   }
   assert.equal(sheet.tree.props.disabled, true);
+  assert.equal(sheet.tree.props.expanded, true);
+  assert.equal(sheet.tree.props.transitioning, true);
   input('재료명').props.onChangeText('전환 중 변경 금지');
   input('유통기한 날짜 선택').props.onPress();
   input('재료 목록으로 돌아가기').props.onPress();
@@ -1858,11 +1926,14 @@ test('재료 패널은 실제 너비로 양방향 전환하고 전환 중 연속
   assert.equal(children(track())[1].props.accessibilityElementsHidden, false);
   assert.equal(find(sheet.tree, node => node.type === 'FlatList'), undefined);
   assert.equal(sheet.tree.props.disabled, false);
+  assert.equal(sheet.tree.props.transitioning, false);
   input('재료명').props.onChangeText('계란');
   sheet.render();
   input('재료 목록으로 돌아가기').props.onPress();
   sheet.render();
   assert.equal(animations.at(-1).config.toValue, 0);
+  assert.equal(sheet.tree.props.expanded, false);
+  assert.equal(sheet.tree.props.transitioning, true);
   assert.equal(input('재료명').props.value, '계란');
   assert(find(sheet.tree, node => node.type === 'FlatList'));
   animations.at(-1).finish();
@@ -1877,7 +1948,7 @@ test('재료 패널은 실제 너비로 양방향 전환하고 전환 중 연속
   assert.equal(input('재료명').props.editable, true);
 });
 
-test('추가도 같은 시트의 축소 높이를 기본으로 사용하고 날짜 선택·해제와 목록 복귀 후 입력 유지를 지원한다', async t => {
+test('추가도 같은 시트를 사용하고 날짜 선택·해제와 목록 복귀 후 입력 유지를 지원한다', async t => {
   const previous = { ...ingredientRepository };
   t.after(() => Object.assign(ingredientRepository, previous));
   ingredientRepository.getIngredientsByPosition = async () => [];
