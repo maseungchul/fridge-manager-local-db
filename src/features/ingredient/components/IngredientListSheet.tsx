@@ -25,12 +25,10 @@ import { colors, spacing } from '@/theme/tokens';
 interface IngredientListSheetProps {
   position: SlotPosition;
   onClose: () => void;
-  onCloseStart?: () => void;
-  onCloseCancel?: () => void;
   onRegistered?: (ingredient: Ingredient) => void;
 }
 
-export function IngredientListSheet({ position, onClose, onCloseStart, onCloseCancel, onRegistered }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, onClose, onRegistered }: IngredientListSheetProps) {
   const db = useSQLiteContext();
   const sheetRef = useRef<IngredientSheetRef>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
@@ -192,8 +190,6 @@ export function IngredientListSheet({ position, onClose, onCloseStart, onCloseCa
 
   return (
     <BottomSheet ref={sheetRef} disabled={isSaving || isChanging} expanded={isAdding} transitioning={isChanging}
-      onCloseStart={() => { if (!saving.current && !transition.current.active) onCloseStart?.(); }}
-      onCloseCancel={onCloseCancel}
       onClose={() => { if (!saving.current && !transition.current.active) onClose(); }}>
         <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}>
           {/* 시스템 표시기의 가변 색상 대신 고정색으로 표시하고, 드래그는 네이티브 시트에 맡긴다. */}

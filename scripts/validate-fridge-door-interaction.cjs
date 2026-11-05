@@ -130,7 +130,7 @@ let defaultHomeButtonModule;
 const swiftUIModifiers = Object.fromEntries([
   'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'buttonBorderShape', 'buttonStyle', 'controlSize', 'datePickerStyle',
   'disabled', 'environment', 'frame', 'onGeometryChange', 'tint', 'interactiveDismissDisabled',
-  'presentationBackground', 'presentationDetents', 'presentationDragIndicator',
+  'presentationBackground', 'presentationBackgroundInteraction', 'presentationDetents', 'presentationDragIndicator',
 ].map(name => [name, (value, options) => ({ type: name, value, ...(options ? { options } : {}) })]));
 swiftUIModifiers.Animation = { easeInOut: options => ({ type: 'easeInOut', ...options }) };
 swiftUIModifiers.animation = (value, animatedValue) => ({ type: 'animation', value, animatedValue });
@@ -198,7 +198,6 @@ function loadComponent(path, overrides = {}) {
     },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }) },
     'react-native-screens/experimental': { SafeAreaView: 'SafeAreaView' },
-    'react-native-screens': { ScreenStack: 'ScreenStack', ScreenStackItem: 'ScreenStackItem' },
     ...overrides,
   };
   new Function('require', 'module', 'exports', output)(name => name in dependencies ? dependencies[name] : require(name), module, module.exports);
@@ -1115,7 +1114,16 @@ test('하단 메뉴는 OS 기본 탭 3개로 연결하고 등록은 탭 밖에�
       const routes = children(tabs.tree);
       assert.deepEqual(routes.map(route => route.props.name), ['Home', 'Shopping', 'Settings']);
       assert.deepEqual(routes.map(route => route.props.options.title), ['냉장고', '장보기', '설정']);
-      assert.deepEqual(routes.map(route => route.props.component), [HomeScreen, ShoppingScreen, SettingsScreen]);
+      const homeRoute = routes[0].props.children({ navigation: {}, route: { key: 'Home', name: 'Home' } });
+      assert.strictEqual(homeRoute.type, HomeScreen);
+      assert.deepEqual(routes.slice(1).map(route => route.props.component), [ShoppingScreen, SettingsScreen]);
+      assert.equal(tabs.tree.props.screenOptions.tabBarSelectionEnabled, true);
+      homeRoute.props.onIngredientListVisibilityChange(true);
+      tabs.render();
+      assert.equal(tabs.tree.props.screenOptions.tabBarSelectionEnabled, false, '패널이 열리면 모든 하단 탭 선택을 막는다');
+      homeRoute.props.onIngredientListVisibilityChange(false);
+      tabs.render();
+      assert.equal(tabs.tree.props.screenOptions.tabBarSelectionEnabled, true);
       assert.deepEqual(requests.map(request => request.name), ['fridge-outline', 'cart-outline', 'cog-outline']);
       for (const [index, route] of routes.entries()) {
         assert.equal(route.props.options.tabBarIcon.type, 'image');
@@ -1321,7 +1329,7 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
   }
 });
 
-test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫기·재조회 시 선택을 초기화한다', async t => {
+test('홈은 패널 종료까지 선택·배경 입력 차단을 유지하고 표시 여부를 하단 탭에 전달한다', async t => {
   const previous = repository.getRefrigerator;
   t.after(() => { repository.getRefrigerator = previous; });
   const saved = savedRefrigerator('칸 선택용 냉장고');
@@ -1329,9 +1337,10 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
   row.compartments[0].slots[0].drawerCount = 2;
   row.compartments[0].slots.push({ id: 'ordinary-slot', name: model.getSlotName(1), drawerCount: 0 });
   const snapshot = structuredClone(saved);
+  const panelVisibility = [];
   let reads = 0;
   repository.getRefrigerator = async () => { reads++; return structuredClone(saved); };
-  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  const home = mount(HomeScreen, { navigation: { navigate() {} }, onIngredientListVisibilityChange: visible => panelVisibility.push(visible) });
   t.after(() => home.unmount());
   await new Promise(setImmediate);
   home.render();
@@ -1447,24 +1456,19 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
     const coveredViewport = find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
     assert.equal(coveredViewport.props.pointerEvents, 'none');
     assert.equal(coveredViewport.props.accessibilityElementsHidden, true);
-    // 패널 종료 경로와 관계없이 칸 선택을 해제하고 도면의 열림·크기는 유지한다.
-    sheet.props.onCloseStart();
+    // 닫기 완료 전에는 선택과 패널을 유지하고 뒤 화면 입력을 막는다.
+    assert.equal(panelVisibility.at(-1), true);
     refresh();
     const closingSheet = find(home.tree, node => node.type === 'IngredientListSheet');
     assert.equal(closingSheet.key, sheet.key, '닫기 완료 전까지 같은 패널을 유지한다');
     assert.deepEqual(closingSheet.props.position, position);
-    assert.equal(focus().props.selectedPositionId, undefined);
-    assert.equal(focus().props.selectedSlotIndex, undefined);
-    assert.equal(focus().props.selectedAreaId, undefined);
-    assert(slots().every(slot => !slot.button.props.accessibilityState.selected));
+    assert.equal(focus().props.selectedPositionId, id);
+    assert.equal(focus().props.selectedSlotIndex, slotIndex);
+    assert.equal(focus().props.selectedAreaId, areaId);
+    assert.equal(slots().filter(slot => slot.button.props.accessibilityState.selected).length, 1);
     assert.equal(focus().props.phase, 'open');
     assert.equal(focus().props.scrollHintBlocked, true);
-    sheet.props.onCloseCancel();
-    refresh();
-    assert.equal(focus().props.selectedPositionId, id);
-    assert.equal(slots().filter(slot => slot.button.props.accessibilityState.selected).length, 1);
-    sheet.props.onCloseStart();
-    refresh();
+    assert.equal(find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout).props.pointerEvents, 'none');
     if (index === expected.length - 1) assert.equal([...backHandlers].at(-1)(), true);
     else sheet.props.onClose();
     refresh();
@@ -1475,6 +1479,8 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
     assert.equal(focus().props.selectedAreaId, undefined);
     assert(slots().every(slot => !slot.button.props.accessibilityState.selected));
     assert.equal(focus().props.scrollHintBlocked, false);
+    assert.equal(panelVisibility.at(-1), false);
+    assert.equal(find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout).props.pointerEvents, 'box-none');
     const after = getFridgeFocusGeometry(saved, target, focus().props.viewport, focus().props.sizeViewport);
     near(after.height, before.height);
     near(after.body.width, before.body.width);
@@ -1575,62 +1581,47 @@ test('홈의 재료 배지는 저장 직후 선택·열림을 유지하며 갱�
   assert.equal(reads, 2);
 });
 
-test('iOS 재료 시트는 UIKit 전환 시작과 종료 완료를 구분하고 스와이프 취소 시 선택을 복원한다', t => {
+test('iOS 재료 시트는 배경 닫기를 없애고 스와이프 종료에서 한 번만 정리한다', t => {
   const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.ios.tsx');
   for (const trigger of ['native', 'ref']) {
     const events = [];
     const ref = { current: null };
     const content = { type: 'Text', props: { children: '패널 내용' } };
-    const sheet = mount(IngredientSheet, { ref, children: content, disabled: false,
-      onCloseStart() { events.push('start'); }, onCloseCancel() { events.push('cancel'); }, onClose() { events.push('end'); } });
+    const sheet = mount(IngredientSheet, { ref, children: content, disabled: false, onClose() { events.push('end'); } });
     t.after(() => sheet.unmount());
     const nativeSheet = () => find(sheet.tree, node => node.type === 'SwiftUIBottomSheet');
-    const nativeContent = () => find(sheet.tree, node => node.type === 'ScreenStackItem');
     const modifiers = find(sheet.tree, node => node.type === 'SwiftUIGroup').props.modifiers;
     assert.deepEqual(modifiers.find(modifier => modifier.type === 'presentationDetents').value, ['medium', 'large']);
     assert.equal(modifiers.find(modifier => modifier.type === 'presentationDetents').options.selection, 'medium');
     assert.equal(modifiers.find(modifier => modifier.type === 'presentationDragIndicator').value, 'hidden');
-    assert.equal(nativeContent().props.stackPresentation, undefined, '내부 화면에서 커스텀 formSheet를 다시 표시하면 안 된다');
-    assert.equal(nativeContent().props.sheetAllowedDetents, undefined);
+    assert.deepEqual(modifiers.find(modifier => modifier.type === 'presentationBackgroundInteraction').value,
+      { type: 'enabledUpThrough', detent: 'large' }, '최대화까지 배경의 닫기 동작을 사용하지 않는다');
+    assert.equal(modifiers.find(modifier => modifier.type === 'interactiveDismissDisabled').value, false, '스와이프는 허용한다');
+    assert.equal(find(sheet.tree, node => ['Modal', 'ScreenStack', 'ScreenStackItem', 'Pressable'].includes(node.type)), undefined,
+      '별도 배경·모달·전환 감지용 화면을 추가하지 않는다');
     assert.deepEqual(events, []);
-    if (trigger === 'native') {
-      const panel = nativeContent();
-      panel.props.onWillDisappear();
-      sheet.render();
-      assert.deepEqual(events, ['start']);
-      assert(find(sheet.tree, node => node === content), '배경 터치로 닫는 중에도 패널 내용을 유지한다');
-      nativeContent().props.onAppear();
-      assert.deepEqual(events, ['start', 'cancel']);
-      panel.props.onWillDisappear();
-      panel.props.onWillDisappear();
-      assert.deepEqual(events, ['start', 'cancel', 'start']);
-      nativeSheet().props.onIsPresentedChange(false);
-      sheet.render();
-      assert.deepEqual(events, ['start', 'cancel', 'start']);
-      nativeSheet().props.onDismiss();
-      nativeSheet().props.onDismiss();
-      assert.deepEqual(events, ['start', 'cancel', 'start', 'end']);
-    } else {
-      ref.current.close();
-      sheet.render();
-      assert.deepEqual(events, ['start']);
-      assert.equal(nativeSheet().props.isPresented, false);
-      assert(find(sheet.tree, node => node === content), '종료 애니메이션이 끝나기 전까지 내용을 유지한다');
-      nativeContent().props.onAppear();
-      assert.deepEqual(events, ['start'], '명시적 닫기를 스와이프 취소로 되돌리면 안 된다');
-      nativeSheet().props.onDismiss();
-      nativeSheet().props.onDismiss();
-      assert.deepEqual(events, ['start', 'end']);
-    }
+    nativeSheet().props.onIsPresentedChange(false);
+    sheet.render();
+    assert.deepEqual(events, [], '표시 상태 변경만으로 선택을 해제하지 않는다');
+    nativeSheet().props.onIsPresentedChange(true);
+    sheet.render();
+    assert.deepEqual(events, [], '취소된 스와이프에는 선택을 유지한다');
+    if (trigger === 'ref') ref.current.close();
+    else nativeSheet().props.onIsPresentedChange(false);
+    sheet.render();
+    assert.deepEqual(events, []);
+    assert.equal(nativeSheet().props.isPresented, false);
+    assert(find(sheet.tree, node => node === content), '시스템 종료 전까지 패널 내용을 유지한다');
+    nativeSheet().props.onDismiss();
+    assert.deepEqual(events, ['end']);
+    nativeSheet().props.onDismiss();
+    assert.equal(events.filter(event => event === 'end').length, 1, '늦거나 중복된 종료 신호는 다시 처리하지 않는다');
   }
   const ref = { current: null };
   const locked = mount(IngredientSheet, { ref, children: null, disabled: true,
-    onCloseStart() { assert.fail('저장·전환 중에는 닫기 시작을 전달하면 안 된다'); },
     onClose() { assert.fail('저장·전환 중에는 종료하면 안 된다'); } });
   t.after(() => locked.unmount());
   ref.current.close();
-  const panel = find(locked.tree, node => node.type === 'ScreenStackItem');
-  panel.props.onWillDisappear();
   find(locked.tree, node => node.type === 'SwiftUIBottomSheet').props.onDismiss();
   locked.render();
   const modifiers = find(locked.tree, node => node.type === 'SwiftUIGroup').props.modifiers;
@@ -1671,20 +1662,20 @@ test('iOS 추가 전환은 기존 높이에서 애니메이션하고 목록 복�
   }
 });
 
-test('Android·웹 재료 시트는 닫기 요청에서 먼저 알리고 네이티브 종료 후 패널을 제거한다', t => {
+test('Android·웹 재료 시트는 네이티브 종료 후 패널을 제거한다', t => {
   const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.tsx');
   const events = [];
   const ref = { current: null };
   const sheet = mount(IngredientSheet, { ref, children: null, disabled: false,
-    onCloseStart() { events.push('start'); }, onClose() { events.push('end'); } });
+    onClose() { events.push('end'); } });
   t.after(() => sheet.unmount());
   assert.deepEqual(sheet.tree.props.snapPoints, ['50%', '100%']);
   assert.equal(sheet.tree.props.enableDynamicSizing, false);
   sheet.tree.props.ref.current = { close() { events.push('native'); } };
   ref.current.close();
-  assert.deepEqual(events, ['start', 'native']);
+  assert.deepEqual(events, ['native']);
   sheet.tree.props.onClose();
-  assert.deepEqual(events, ['start', 'native', 'end']);
+  assert.deepEqual(events, ['native', 'end']);
 });
 
 test('Android·웹 추가 전환은 기존 단계에서 확대하고 목록의 드래그 높이로 복귀한다', t => {

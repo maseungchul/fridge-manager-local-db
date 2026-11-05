@@ -31,11 +31,11 @@ import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDi
 type HomeScreenProps = CompositeScreenProps<
   NativeBottomTabScreenProps<MainTabParamList, 'Home'>,
   NativeStackScreenProps<RootStackParamList>
->;
+> & { onIngredientListVisibilityChange?: (visible: boolean) => void };
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
 
-export function HomeScreen({ navigation }: HomeScreenProps) {
+export function HomeScreen({ navigation, onIngredientListVisibilityChange }: HomeScreenProps) {
   const db = useSQLiteContext();
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -43,7 +43,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
-  const [isIngredientListClosing, setIsIngredientListClosing] = useState(false);
   const loadRequest = useRef(0);
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
@@ -54,10 +53,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     finishFocusTransition(phase);
     if (phase === 'closed') { setSelectedSlot(null); setIsIngredientListOpen(false); }
   }, [finishFocusTransition]);
-  // 닫기 시작에는 선택 표시만 숨기고, 완료 후 패널 데이터와 선택 상태를 함께 비운다.
+  // 시트 종료 후 패널과 선택 상태를 함께 비운다.
   const closeIngredientList = useCallback(() => {
     setIsIngredientListOpen(false);
-    setIsIngredientListClosing(false);
     setSelectedSlot(null);
     setSelectedAreaId(null);
   }, [setSelectedAreaId]);
@@ -69,7 +67,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     setSelectedSlot(null);
     setIsIngredientListOpen(false);
     setIsLoading(true);
-    setIsIngredientListClosing(false);
     setError(null);
     try {
       const result = await getRefrigerator(db);
@@ -89,6 +86,12 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     void loadRefrigerator();
     return () => { loadRequest.current++; resetFocus(); setSelectedSlot(null); setIsIngredientListOpen(false); };
   }, [loadRefrigerator, resetFocus]));
+
+  // 시스템 시트의 배경이 닫기를 처리하지 않으므로 하단 탭 선택도 함께 막는다.
+  useEffect(() => {
+    onIngredientListVisibilityChange?.(isIngredientListOpen);
+    return () => onIngredientListVisibilityChange?.(false);
+  }, [isIngredientListOpen, onIngredientListVisibilityChange]);
 
   useEffect(() => {
     if (!activeFocus) return;
@@ -150,14 +153,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         {refrigerator && activeFocus && focusBounds ? (
           <FridgeFocusView draft={refrigerator} ingredients={ingredients} target={activeFocus} viewport={focusBounds} phase={focusPhase}
             sizeViewport={diagramSizes.opened}
-            selectedAreaId={isIngredientListClosing ? undefined : selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
-            selectedSlotIndex={isIngredientListClosing ? undefined : selectedSlot?.index}
-            selectedPositionId={isIngredientListClosing ? undefined : selectedSlot?.positionId}
+            selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
+            selectedSlotIndex={selectedSlot?.index}
+            selectedPositionId={selectedSlot?.positionId}
             scrollHintBlocked={isIngredientListOpen}
             onSelectSlot={(areaId, index, positionId) => {
               if (focusPhase !== 'open') return;
               setSelectedAreaId(areaId);
-              setIsIngredientListClosing(false);
               setSelectedSlot({ index, positionId });
               setIsIngredientListOpen(!!layout?.positions.some(position => position.id === positionId && position.areaId === areaId));
             }}
@@ -167,8 +169,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       </View>
       {isIngredientListOpen && focusPhase === 'open' && selectedPosition ? (
         <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
-          onCloseStart={() => setIsIngredientListClosing(true)}
-          onCloseCancel={() => setIsIngredientListClosing(false)}
           onRegistered={ingredient => setIngredients(current => [...current, ingredient])}
           onClose={closeIngredientList} />
       ) : null}

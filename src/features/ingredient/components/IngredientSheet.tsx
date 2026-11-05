@@ -19,15 +19,13 @@ export interface IngredientSheetProps {
   disabled: boolean;
   expanded?: boolean;
   transitioning?: boolean;
-  onCloseStart?: () => void;
-  onCloseCancel?: () => void;
   onClose: () => void;
 }
 
 const SNAP_POINTS = ['50%', '100%'];
 const EXPANDED_SNAP_POINTS = ['100%'];
 
-export function IngredientSheet({ ref, children, disabled, expanded = false, transitioning = false, onCloseStart, onClose }: IngredientSheetProps) {
+export function IngredientSheet({ ref, children, disabled, expanded = false, transitioning = false, onClose }: IngredientSheetProps) {
   const sheetRef = useRef<BottomSheet>(null);
   const closing = useRef(false);
   const previousExpanded = useRef(expanded);
@@ -42,21 +40,16 @@ export function IngredientSheet({ ref, children, disabled, expanded = false, tra
     }
     sheetRef.current?.snapToIndex(expanded ? 1 : listIndex.current);
   }, [expanded]);
-  function notifyCloseStart() {
-    if (disabled || closing.current) return;
-    closing.current = true;
-    onCloseStart?.();
-  }
   useImperativeHandle(ref, () => ({ close() {
     if (disabled || closing.current) return;
-    notifyCloseStart();
+    closing.current = true;
     sheetRef.current?.close();
   } }));
   return (
     <BottomSheet ref={sheetRef} index={0} snapPoints={expanded && !transitioning ? EXPANDED_SNAP_POINTS : SNAP_POINTS} handleComponent={null}
       enableDynamicSizing={false} enablePanDownToClose={!disabled} backgroundStyle={{ backgroundColor: colors.surface }}
       onChange={index => { if (!expanded && !transitioning && index >= 0) listIndex.current = index; }}
-      onClose={() => { if (!disabled) { notifyCloseStart(); onClose(); } }}>
+      onClose={() => { if (!disabled) onClose(); }}>
       <View style={{ flex: 1 }} onLayout={({ nativeEvent: { layout } }) => {
         if (expanded) heights.current.expanded = Math.max(heights.current.expanded, layout.height);
         else if (!transitioning) heights.current.list = layout.height;
