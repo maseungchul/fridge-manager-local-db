@@ -5,7 +5,8 @@
  */
 import { useEffect, useRef } from 'react';
 import type { ComponentRef, ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors } from '@/theme/tokens';
 
@@ -62,7 +63,7 @@ export function IngredientSwipeRow({ children, name, width, isOpen, disabled, on
         accessibilityElementsHidden={!isOpen} importantForAccessibility={isOpen ? 'auto' : 'no-hide-descendants'}>
         <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${name} 삭제`}
           accessibilityState={{ disabled }} disabled={disabled} feedback="danger" onPress={onDelete} style={styles.deleteButton}>
-          <Text style={styles.deleteLabel}>삭제</Text>
+          <MaterialDesignIcons name="trash-can-outline" size={24} color={colors.error} accessible={false} />
         </FeedbackPressable>
       </View>
     </ScrollView>
@@ -72,7 +73,7 @@ export function IngredientSwipeRow({ children, name, width, isOpen, disabled, on
 const styles = StyleSheet.create({
   row: { flexGrow: 0 },
   content: { backgroundColor: colors.surface },
-  action: { width: DELETE_WIDTH },
-  deleteButton: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.error },
-  deleteLabel: { color: colors.buttonText, fontSize: 17, fontWeight: '600' },
+  action: { width: DELETE_WIDTH, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  deleteButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: `${colors.rose}33` },
 });
