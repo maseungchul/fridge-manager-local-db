@@ -16,6 +16,7 @@ const { fridgeMessages } = require('../src/features/fridge/constants/messages.ts
 const database = {};
 const alerts = [];
 const backHandlers = new Set();
+const appStateHandlers = new Set();
 const repository = {
   async registerRefrigerator() { throw new Error('저장 동작을 지정하지 않았습니다.'); },
   async updateRefrigerator() { throw new Error('수정 동작을 지정하지 않았습니다.'); },
@@ -92,6 +93,11 @@ const native = {
   View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', FlatList: 'FlatList', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
   Keyboard: { dismiss() {}, isVisible() { return false; }, addListener() { return { remove() {} }; } }, Platform: { OS: 'ios', Version: '26.1' },
   ActivityIndicator: 'ActivityIndicator', Alert: { alert(...args) { alerts.push(args); } },
+  AppState: { addEventListener(event, handler) {
+    assert.equal(event, 'change');
+    appStateHandlers.add(handler);
+    return { remove() { appStateHandlers.delete(handler); } };
+  } },
   BackHandler: { addEventListener(event, handler) {
     assert.equal(event, 'hardwareBackPress');
     backHandlers.add(handler);
@@ -120,6 +126,8 @@ const native = {
   },
 };
 let mapModule;
+let badgeModule;
+let legendModule;
 let interiorModule;
 let structureModule;
 let menuModule;
@@ -160,6 +168,8 @@ function loadComponent(path, overrides = {}) {
     '@expo/ui/community/bottom-sheet': { BottomSheet: 'BottomSheet' },
     '@/features/ingredient/components/IngredientSheet': { IngredientSheet: 'BottomSheet' },
     '@/features/ingredient/model/ingredient': ingredientModel,
+    '@/features/ingredient/components/IngredientCountBadges': badgeModule,
+    '@/features/fridge/components/FridgeIngredientLegend': legendModule,
     '@expo/ui/community/datetime-picker': { DateTimePicker: 'DateTimePicker' },
     '@react-native-community/datetimepicker': { __esModule: true, default: 'UIKitDateTimePicker' },
     '@/features/ingredient/components/IngredientExpirationCalendar': { IngredientExpirationCalendar: 'IngredientExpirationCalendar' },
@@ -200,12 +210,15 @@ function loadComponent(path, overrides = {}) {
     'react-native-screens/experimental': { SafeAreaView: 'SafeAreaView' },
     ...overrides,
   };
-  new Function('require', 'module', 'exports', output)(name => name in dependencies ? dependencies[name] : require(name), module, module.exports);
+  new Function('require', 'module', 'exports', 'setTimeout', output)(name => name in dependencies ? dependencies[name] : require(name), module, module.exports,
+    (...args) => { const timer = setTimeout(...args); timer.unref?.(); return timer; });
   return module.exports;
 }
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 iosHomeButtonModule = loadComponent('src/features/fridge/components/FridgeHomeButton.ios.tsx');
 defaultHomeButtonModule = loadComponent('src/features/fridge/components/FridgeHomeButton.tsx');
+badgeModule = loadComponent('src/features/ingredient/components/IngredientCountBadges.tsx');
+legendModule = loadComponent('src/features/fridge/components/FridgeIngredientLegend.tsx');
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
 diagramLayoutModule = loadComponent('src/features/fridge/components/fridgeDiagramLayout.ts');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
@@ -218,7 +231,8 @@ const { HomeScreen } = loadComponent('src/screens/HomeScreen.tsx');
 const { IngredientListSheet } = loadComponent('src/features/ingredient/components/IngredientListSheet.tsx');
 const { IngredientExpirationCalendar } = loadComponent('src/features/ingredient/components/IngredientExpirationCalendar.tsx');
 const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FridgeHomeButton'
-  ? [node.type(node.props)] : [node?.props?.children].flat(Infinity).filter(child => child?.type);
+  || node?.type === badgeModule.IngredientCountBadges || node?.type === badgeModule.IngredientCountBadge
+  ? [node.type(node.props)].filter(Boolean) : [node?.props?.children].flat(Infinity).filter(child => child?.type);
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 function find(node, predicate) {
   if (predicate(node)) return node;
@@ -1229,7 +1243,7 @@ test('홈은 최상단 냉장고 이름과 등록 화면의 전체 도면을 표
   assert.equal(find(home.tree, named('FridgeFocusView')), undefined);
   assert.equal(find(home.tree, node => node.type === 'FridgeAreaMenu'), undefined);
   const texts = findAll(home.tree, node => node.type === 'Text');
-  assert.equal(texts.length, 1);
+  assert.equal(texts.length, 2);
   assert.equal(texts[0].props.accessibilityRole, 'header');
   assert.equal(texts[0].props.children, snapshot.name);
   assert.equal(find(home.tree, node => node.type === 'ScrollView'), undefined);
@@ -1324,7 +1338,7 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       assert.equal(find(home.tree, node => node.type === 'SafeAreaView').props.accessibilityElementsHidden, false);
       assert.equal(reads, 1);
       assert.deepEqual(map().props.draft, before);
-      assert.deepEqual(findAll(home.tree, node => node.type === 'Text').map(node => node.props.children), [snapshot.name]);
+      assert.deepEqual(findAll(home.tree, node => node.type === 'Text').map(node => node.props.children), [snapshot.name, '범례']);
     });
   }
 });
@@ -1755,20 +1769,20 @@ test('D-day는 현지 날짜로 계산하고 D-2부터 당일·기한 경과까�
     ['2026-11-07', 'D-3', false], ['2026-11-06', 'D-2', true],
     ['2026-11-05', 'D-1', true], ['2026-11-04', 'D-DAY', true],
     ['2026-11-03', 'D+1', true], [null, '유통기한 미입력', false],
-  ]) assert.deepEqual(ingredientModel.getIngredientExpirationStatus(date, now), { label, isUrgent });
+  ]) assert.deepEqual(ingredientModel.getIngredientExpirationStatus(date, now), { label, isUrgent, isExpired: date !== null && date < '2026-11-04' });
   for (const hour of [0, 23]) {
     assert.deepEqual(ingredientModel.getIngredientExpirationStatus('2026-11-06', new Date(2026, 10, 4, hour, 1)),
-      { label: 'D-2', isUrgent: true });
+      { label: 'D-2', isUrgent: true, isExpired: false });
   }
   assert.deepEqual(ingredientModel.getIngredientExpirationStatus('2027-01-01', new Date(2026, 11, 31, 23, 59)),
-    { label: 'D-1', isUrgent: true });
+    { label: 'D-1', isUrgent: true, isExpired: false });
   assert.deepEqual(ingredientModel.getIngredientExpirationStatus('2028-03-01', new Date(2028, 1, 28, 12)),
-    { label: 'D-2', isUrgent: true });
+    { label: 'D-2', isUrgent: true, isExpired: false });
   assert.deepEqual(ingredientModel.getIngredientExpirationStatus('2027-03-01', new Date(2027, 1, 28, 12)),
-    { label: 'D-1', isUrgent: true });
+    { label: 'D-1', isUrgent: true, isExpired: false });
 });
 
-test('재료 목록은 D-day를 오른쪽 끝에 표시하고 D-2부터 빨간색으로 구분한다', async t => {
+test('재료 목록 D-day는 배지와 같은 신선·기한주의·경과 색상을 사용하고 날짜 미입력은 중립색으로 표시한다', async t => {
   const previous = ingredientRepository.getIngredientsByPosition;
   t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
   const ingredients = [
@@ -1796,6 +1810,8 @@ test('재료 목록은 D-day를 오른쪽 끝에 표시하고 D-2부터 빨간�
   sheet.render();
   const list = find(sheet.tree, node => node.type === 'FlatList');
   assert.deepEqual(list.props.data, ingredients);
+  const expectedColors = { milk: tokens.ingredientBadgeColors.total, eggs: tokens.colors.textMuted,
+    apple: tokens.ingredientBadgeColors.warning, carrot: tokens.ingredientBadgeColors.warning, tofu: tokens.ingredientBadgeColors.expired };
   for (const item of ingredients) {
     assert.equal(list.props.keyExtractor(item), item.id);
     const rendered = list.props.renderItem({ item });
@@ -1804,7 +1820,7 @@ test('재료 목록은 D-day를 오른쪽 끝에 표시하고 D-2부터 빨간�
     assert.deepEqual(texts, [item.name, item.quantity, expiration.label]);
     const label = find(rendered, node => node.type === 'Text' && node.props.children === expiration.label);
     assert.equal(flattenStyle(label.props.style).textAlign, 'right');
-    assert.equal(flattenStyle(label.props.style).color, expiration.isUrgent ? tokens.colors.error : tokens.colors.textMuted);
+    assert.equal(flattenStyle(label.props.style).color, expectedColors[item.id]);
     assert.equal(flattenStyle(rendered.props.style).flexDirection, 'row');
     assert.equal(flattenStyle(children(rendered)[0].props.style).flex, 1);
   }
@@ -2442,7 +2458,7 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
   assert.equal(writes, 2);
 });
 
-test('홈·등록·편집은 닫힘·열림 크기를 공유하고 홈의 중앙 위치만 화면 전체를 기준으로 삼는다', async t => {
+test('홈·등록·편집은 원래 도면 배치와 닫힘·열림 크기를 공유한다', async t => {
   const previousGet = repository.getRefrigerator;
   const previousWindow = native.useWindowDimensions;
   t.after(() => { repository.getRefrigerator = previousGet; native.useWindowDimensions = previousWindow; });
@@ -2491,9 +2507,10 @@ test('홈·등록·편집은 닫힘·열림 크기를 공유하고 홈의 중앙
         } } });
         map.render();
       });
-      const canvases = maps.map(map => flattenStyle(children(map.tree)[0].props.style));
+      const canvases = maps.map(map => flattenStyle(children(map.tree).at(-1).props.style));
       assert.deepEqual(canvases[0], canvases[1]);
-      assert.deepEqual(canvases[0], canvases[2]);
+      assert.deepEqual(canvases[1], canvases[2]);
+      assert.equal(children(maps[0].tree).length, 1, '홈 도면 위에는 범례 공간을 남기지 않아야 한다');
       const reference = diagramLayoutModule.getFridgeDiagramSizes({ width, height }, { top: 44, bottom: 34, left: 0, right: 0 });
       const focuses = screens.map((screen, index) => {
         const viewport = find(screen.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
@@ -4221,9 +4238,11 @@ test('재료 배지는 좌우·포켓을 구분하고 빈 칸·편집에서는 �
     const front = children(renderedBin)[0];
     assert.equal(renderedBin.props.pointerEvents, 'box-none');
     assert.equal(front.type, 'Pressable');
-    const badge = children(front)[0];
-    assert.equal(badge.props.pointerEvents, 'none');
-    assert.equal(badge.props.accessibilityElementsHidden, true);
+    const pocketPosition = find(tree, node => children(node).includes(bin));
+    const badge = find(pocketPosition, named('IngredientCountBadges'));
+    const badgeTree = badge.type(badge.props);
+    assert.equal(badgeTree.props.pointerEvents, 'none');
+    assert.equal(badgeTree.props.accessibilityElementsHidden, true);
     assert.match(front.props.accessibilityLabel, /재료 1건$/);
     for (const hidden of [{ ...props, showIngredientCounts: false }, { ...props, ingredients: [] }]) {
       const hiddenTree = mapModule.FridgeMap(hidden);
@@ -4745,14 +4764,18 @@ test('열린 도면은 흰 프레임·모드별 내부 배경·밝은 포켓을 
   }
 });
 
-test('문의 크기와 관계없이 중앙 모드 그림과 공간 이름을 표시한다', () => {
+test('문 손잡이 반대편 상단에는 모드 이름 없이 작은 냉장·냉동 아이콘만 표시한다', () => {
   for (const mode of ['CHILLED', 'FROZEN']) {
-    for (const size of [16, 56]) {
-      const tree = mapModule.DoorModeArt({ storageMode: mode, size });
+    for (const handleOnLeft of [false, true]) {
+      const tree = mapModule.DoorModeArt({ storageMode: mode, size: 18, handleOnLeft });
       const icons = findAll(tree, node => node.type === 'Icon');
       assert.equal(icons.length, 1);
       assert.equal(icons[0].props.name, mode === 'CHILLED' ? 'weather-windy' : 'snowflake');
-      assert.equal(findAll(tree, node => node.type === 'Text').length, 1);
+      assert.equal(findAll(tree, node => node.type === 'Text').length, 0);
+      const style = flattenStyle(tree.props.style);
+      assert.equal(style.top, 8);
+      assert.equal(style[handleOnLeft ? 'right' : 'left'], 8);
+      assert.equal(style[handleOnLeft ? 'left' : 'right'], undefined);
     }
   }
 });
@@ -4846,7 +4869,9 @@ test('닫힌 문의 모드 색과 인쇄는 선택·수납 여부와 관계없�
           assert.equal(printed.props.pointerEvents, 'none');
           assert.equal(printed.props.importantForAccessibility, 'no-hide-descendants');
           assert(find(printed, node => node.type === 'Icon' && node.props.name === (mode === 'CHILLED' ? 'weather-windy' : 'snowflake')));
-          assert.equal(find(printed, node => node.type === 'Text').props.children, mode === 'CHILLED' ? '냉장실' : '냉동실');
+          assert.equal(find(printed, node => node.type === 'Text'), undefined);
+          assert(art.props.size <= 22);
+          assert.equal(art.props.handleOnLeft, door.props.door.kind !== 'DRAWER' && door.props.door.side === 'RIGHT_DOOR');
           const selected = door.type({ ...door.props, selected: true });
           assert.equal(flattenStyle(find(selected, node => node.type === 'Pressable').props.style).backgroundColor,
             flattenStyle(face.props.style).backgroundColor);
@@ -4972,6 +4997,247 @@ test('기본정보 도면 UI는 내부 설정의 색상·손잡이·모서리 �
   } finally {
     Object.assign(tokens.fridgeSurfaces, original);
   }
+});
+
+test('재료 집계는 기한 미입력을 전체에만 포함하고 D-2·당일·경과를 구분한다', () => {
+  const ingredients = ['2026-11-07', '2026-11-06', '2026-11-05', '2026-11-04', '2026-11-03', '2026-10-30', null]
+    .map(expirationDate => ({ expirationDate }));
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, new Date(2026, 10, 4, 23, 59)), { total: 7, warning: 3, expired: 2 });
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, new Date(2026, 10, 5)), { total: 7, warning: 3, expired: 3 });
+  assert.deepEqual(ingredientModel.getIngredientCounts([], new Date(2026, 10, 4)), { total: 0, warning: 0, expired: 0 });
+});
+
+test('중앙 원형 배지는 냉장·냉동 모두 전체·기한주의·경과를 함께 표시하고 실제 건수를 안내한다', () => {
+  const draft = savedRefrigerator('기한 배지');
+  draft.rows[0].compartments[0].slots[0].drawerCount = 2;
+  const layout = model.getDraftLayout(draft);
+  const [left, right, pocket] = layout.positions;
+  const ingredients = [
+    ...['2026-11-07', '2026-11-06', '2026-11-05', '2026-11-04', '2026-11-03', null].map(expirationDate => ({ positionId: left.id, expirationDate })),
+    ...Array.from({ length: 100 }, () => ({ positionId: right.id, expirationDate: '2026-11-03' })),
+    { positionId: pocket.id, expirationDate: '2026-11-05' },
+  ];
+  for (const storageMode of ['CHILLED', 'FROZEN']) {
+    const map = mapModule.FridgeMap({ ...layout, ingredients, now: new Date(2026, 10, 4), storageMode, showAreaLabels: false });
+    const leftPosition = find(map, node => node.key === left.id);
+    const rightPosition = find(map, node => node.key === right.id);
+    assert.match(leftPosition.props.accessibilityLabel, /재료 6건, 기한주의 3건, 경과 1건$/);
+    assert.match(rightPosition.props.accessibilityLabel, /재료 100건, 경과 100건$/);
+    assert.deepEqual(findAll(leftPosition, node => node.type === 'Text').map(node => node.props.children), [6, 3, 1]);
+    assert.deepEqual(findAll(rightPosition, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+']);
+    const badges = findAll(leftPosition, named('IngredientCountBadge'));
+    assert.deepEqual(badges.map(badge => flattenStyle(badge.type(badge.props).props.style).backgroundColor),
+      [tokens.ingredientBadgeColors.total, tokens.ingredientBadgeColors.warning, tokens.ingredientBadgeColors.expired]);
+    for (const position of [leftPosition, rightPosition, find(map, node => node.key === pocket.id)]) {
+      const badge = find(position, named('IngredientCountBadges'));
+      const center = badge.type(badge.props);
+      assert.equal(flattenStyle(center.props.style).alignItems, 'center');
+      assert.equal(flattenStyle(center.props.style).justifyContent, 'center');
+      assert.equal(center.props.pointerEvents, 'none');
+      assert.equal(flattenStyle(children(center)[0].props.style).flexWrap, position.key === pocket.id ? 'nowrap' : 'wrap');
+    }
+    for (const badge of badges) {
+      const circle = flattenStyle(badge.type(badge.props).props.style);
+      assert.equal(circle.width, circle.height);
+      assert.equal(circle.borderRadius, circle.width / 2);
+    }
+    const pocketPosition = find(map, node => node.key === pocket.id);
+    const bin = find(pocketPosition, named('DoorPocketBin'));
+    const front = children(bin.type(bin.props))[0];
+    const pocketBadge = find(front, named('IngredientCountBadges'));
+    assert(pocketBadge, '포켓 배지는 칸 전체가 아니라 수납함 전면을 기준으로 중앙 정렬해야 한다');
+    assert.equal(children(pocketPosition).filter(named('IngredientCountBadges')).length, 0);
+    assert.equal(pocketBadge.props.compact, true);
+    const circle = find(pocketBadge, named('IngredientCountBadge'));
+    assert.equal(flattenStyle(circle.type(circle.props).props.style).aspectRatio, 1);
+    assert.equal(flattenStyle(circle.type(circle.props).props.style).flexShrink, 1);
+  }
+});
+
+test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집계하고 빈 영역·등록에서는 숨긴다', () => {
+  let draft = model.createRefrigeratorDraft();
+  const rowId = draft.rows[0].id;
+  draft = model.changeDraftDoorCount(draft, rowId, 1);
+  draft = model.mergeDraftCompartments(draft, rowId, draft.rows[0].compartments[0].id);
+  for (const row of draft.rows) for (const area of [...row.compartments, ...row.doors]) {
+    area.slots = area.slots.map((slot, index) => ({ ...slot, id: `${area.id}-slot-${index}` }));
+  }
+  const row = draft.rows[0];
+  const ingredients = [row.compartments[0], ...row.doors, draft.rows[1].compartments[0]]
+    .map((area, index) => ({ id: `ingredient-${index}`, name: '재료', quantity: '2개', slotId: area.slots[0].id, drawerNumber: 0,
+      expirationDate: index === 0 ? null : index === 1 ? '2026-11-05' : '2026-11-03' }));
+  const map = mount(FridgeInteriorMap, { draft, ingredients, now: new Date(2026, 10, 4), layoutSize: { width: 300, height: 540 }, onSelectArea() {}, onFocus() {} });
+  const groups = findAll(map.tree, named('FridgeCompartment'));
+  const group = mount(groups[0].type, groups[0].props);
+  const badge = find(group.tree, named('IngredientCountBadges'));
+  assert.deepEqual(badge.props.counts, { total: 3, warning: 1, expired: 1 });
+  assert.equal(findAll(group.tree, named('IngredientCountBadges')).length, 1);
+  assert.equal(doors(group).length, 2);
+  assert(doors(group).every(door => door.props.label.includes('재료 3건, 기한주의 1건, 경과 1건')));
+  for (const layout of [model.getDraftLayout(draft), undefined]) {
+    group.props = { ...group.props, layout };
+    group.render();
+    assert.equal(find(group.tree, named('IngredientCountBadges')), undefined);
+  }
+  group.unmount();
+  map.unmount();
+});
+
+test('범례는 중앙 모달의 세 가지 배지를 설명하고 바깥 터치·뒤로가기·접근성 닫기를 처리한다', () => {
+  let closes = 0;
+  const popup = legendModule.FridgeIngredientLegend({ onClose: () => closes++ });
+  assert.equal(popup.type, 'Modal');
+  assert.equal(popup.props.transparent, true);
+  assert.equal(popup.props.presentationStyle, 'overFullScreen');
+  const overlay = children(popup)[0];
+  const overlayStyle = flattenStyle(overlay.props.style);
+  assert.equal(overlayStyle.alignItems, 'center');
+  assert.equal(overlayStyle.justifyContent, 'center');
+  assert.equal(overlayStyle.backgroundColor, 'rgba(0, 0, 0, 0.5)');
+  const card = find(popup, node => !!node.props.onStartShouldSetResponder);
+  assert.equal(card.props.onStartShouldSetResponder(), true);
+  assert.equal(closes, 0);
+  assert.deepEqual(findAll(card, named('IngredientCountBadge')).map(badge => badge.props.kind), ['total', 'warning', 'expired']);
+  const outside = find(popup, node => node.props.accessibilityLabel === '재료 배지 범례 닫기');
+  outside.props.onPress();
+  popup.props.onRequestClose();
+  overlay.props.onAccessibilityEscape();
+  assert.equal(closes, 3);
+});
+
+test('홈·내부 도면의 하단 범례는 탭바 위 같은 위치를 유지하고 스크롤·도면 닫기를 가로채지 않는다', async t => {
+  const previous = repository.getRefrigerator;
+  const saved = savedRefrigerator('범례 테스트');
+  saved.rows[0].compartments[0].slots = Array.from({ length: 4 }, (_, index) => ({ id: `slot-${index}`, name: model.getSlotName(index), drawerCount: 2 }));
+  repository.getRefrigerator = async () => saved;
+  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  t.after(() => { home.unmount(); repository.getRefrigerator = previous; });
+  await new Promise(setImmediate);
+  home.render();
+  const config = () => find(home.tree, named('FridgeFocusView')) ?? find(home.tree, named('FridgeInteriorMap'));
+  const button = () => find(home.tree, node => node.props.accessibilityLabel === '재료 배지 범례');
+  const anchor = find(home.tree, node => children(node).includes(button()));
+  const anchorStyle = flattenStyle(anchor.props.style);
+  assert.equal(anchorStyle.paddingBottom, tokens.spacing.sm);
+  assert.equal(anchorStyle.paddingRight, tokens.spacing.lg);
+  assert.equal(anchorStyle.alignItems, 'flex-end');
+  assert.equal(anchorStyle.justifyContent, 'flex-end');
+  assert.equal(anchorStyle.top, undefined);
+  const safeArea = find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
+  assert.equal(safeArea.props.edges.bottom, true);
+  assert.equal(safeArea.props.pointerEvents, 'box-none');
+  assert.equal(anchor.props.pointerEvents, 'box-none');
+  assert.equal(flattenStyle(safeArea.props.style).position, 'absolute');
+  assert.equal(flattenStyle(safeArea.props.style).zIndex, 30);
+  assert(children(home.tree).includes(safeArea));
+  assert(find(safeArea, node => node === anchor));
+  const closed = mount(FridgeInteriorMap, config().props);
+  t.after(() => closed.unmount());
+  assert.equal(children(closed.tree).length, 1);
+  const canvasStyle = flattenStyle(children(closed.tree)[0].props.style);
+  const closePopup = () => {
+    const legend = find(home.tree, named('FridgeIngredientLegend'));
+    const popup = legendModule.FridgeIngredientLegend(legend.props);
+    find(popup, node => node.props.accessibilityLabel === '재료 배지 범례 닫기').props.onPress();
+    home.render();
+  };
+  button().props.onPress();
+  home.render();
+  assert.equal(find(home.tree, node => node.type === 'SafeAreaView').props.pointerEvents, 'none');
+  closePopup();
+  assert.equal(find(home.tree, named('FridgeFocusView')), undefined);
+  const viewport = find(home.tree, node => node.props.ref && node.props.onLayout);
+  viewport.props.onLayout({ nativeEvent: { layout: { width: 320, height: 240 } } });
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 0, 320, 240) };
+  find(home.tree, named('FridgeInteriorMap')).props.onFocus({ areaId: saved.rows[0].compartments[0].id,
+    returnAreaId: saved.rows[0].doors[0].id, canvas: { x: 20, y: 100, width: 270, height: 540 } });
+  home.render();
+  assert.equal(button().props.disabled, true);
+  let focus = find(home.tree, named('FridgeFocusView'));
+  focus.props.onPhaseChange('open');
+  home.render();
+  focus = find(home.tree, named('FridgeFocusView'));
+  const target = focus.props.target;
+  const overlay = mount(focus.type, focus.props);
+  t.after(() => overlay.unmount());
+  assert.equal(focus.props.legendButton, undefined);
+  assert.equal(button().props.disabled, false);
+  assert.equal(find(overlay.tree, node => node.props.accessibilityLabel === '재료 배지 범례'), undefined);
+  const scrolls = findAll(overlay.tree, node => node.type === 'ScrollView');
+  assert(scrolls.length > 0);
+  for (const scroll of scrolls) scroll.props.onScroll({ nativeEvent: { contentOffset: { x: 30, y: 20 } } });
+  overlay.render();
+  home.render();
+  assert.deepEqual(flattenStyle(find(home.tree, node => children(node).includes(button())).props.style), anchorStyle);
+  button().props.onPress();
+  home.render();
+  assert.equal(config().props.scrollHintBlocked, true);
+  const disabledLayer = find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
+  assert.equal(disabledLayer.props.pointerEvents, 'none');
+  closePopup();
+  assert.equal(find(home.tree, named('FridgeFocusView')).props.phase, 'open');
+  assert.strictEqual(find(home.tree, named('FridgeFocusView')).props.target, target);
+  const selected = model.getDraftLayout(saved).positions[0];
+  config().props.onSelectSlot(selected.areaId, 0, selected.id);
+  home.render();
+  assert.equal(button(), undefined);
+  find(home.tree, node => node.type === 'IngredientListSheet').props.onClose();
+  home.render();
+  assert(button());
+  config().props.onClose();
+  home.render();
+  assert.equal(button().props.disabled, true);
+  config().props.onPhaseChange('closed');
+  home.render();
+  assert(button());
+  closed.props = config().props;
+  closed.render();
+  assert.deepEqual(flattenStyle(children(closed.tree)[0].props.style), canvasStyle);
+  const restoredAnchor = find(home.tree, node => children(node).includes(button()));
+  assert.deepEqual(flattenStyle(restoredAnchor.props.style), anchorStyle);
+});
+
+test('홈은 자정·앱 복귀 때 배지 날짜를 갱신하고 타이머와 구독을 정리한다', async t => {
+  const originalDate = global.Date;
+  const originalSetTimeout = global.setTimeout;
+  const originalClearTimeout = global.clearTimeout;
+  const previous = repository.getRefrigerator;
+  const handlersBefore = appStateHandlers.size;
+  const timers = new Map();
+  let now = new originalDate(2026, 10, 4, 23, 59);
+  let timerId = 0;
+  let home;
+  global.Date = class extends originalDate { constructor(...args) { super(...(args.length ? args : [now.getTime()])); } };
+  global.setTimeout = (callback, delay) => { const id = ++timerId; timers.set(id, { callback, delay }); return id; };
+  global.clearTimeout = id => timers.delete(id);
+  repository.getRefrigerator = async () => savedRefrigerator('날짜 갱신');
+  t.after(() => {
+    home?.unmount();
+    global.Date = originalDate;
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+    repository.getRefrigerator = previous;
+  });
+  home = mount(HomeScreen, { navigation: { navigate() {} } });
+  await new Promise(setImmediate);
+  home.render();
+  const badgeDate = () => find(home.tree, named('FridgeInteriorMap')).props.now;
+  const ingredients = [{ expirationDate: '2026-11-04' }, { expirationDate: '2026-11-07' }];
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, warning: 1, expired: 0 });
+  assert.equal(timers.size, 1);
+  assert.equal([...timers.values()][0].delay, 60_000);
+  now = new originalDate(2026, 10, 5);
+  [...timers.values()][0].callback();
+  home.render();
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, warning: 1, expired: 1 });
+  now = new originalDate(2026, 10, 8, 12);
+  [...appStateHandlers].at(-1)('active');
+  home.render();
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, warning: 0, expired: 2 });
+  home.unmount();
+  home = null;
+  assert.equal(timers.size, 0);
+  assert.equal(appStateHandlers.size, handlersBefore);
 });
 
 test('서로 다른 모드의 본체를 합쳐 미설정이 되면 모든 문에서 이전 색과 인쇄를 제거한다', () => {

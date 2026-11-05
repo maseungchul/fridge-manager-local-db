@@ -9,7 +9,7 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { ActivityIndicator, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { colors, fridgeDoorColors, spacing } from '@/theme/tokens';
 import { SafeAreaView } from 'react-native-screens/experimental';
@@ -18,6 +18,7 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
 import { getIngredients } from '@/db/ingredientRepository';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
+import { FridgeIngredientLegend } from '@/features/fridge/components/FridgeIngredientLegend';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase } from '@/features/fridge/components/FridgeInteriorMap';
 import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
@@ -34,6 +35,7 @@ type HomeScreenProps = CompositeScreenProps<
 > & { onIngredientListVisibilityChange?: (visible: boolean) => void };
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
+const LEGEND_BUTTON_WIDTH = 72;
 
 export function HomeScreen({ navigation, onIngredientListVisibilityChange }: HomeScreenProps) {
   const db = useSQLiteContext();
@@ -43,6 +45,8 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
+  const [isLegendOpen, setIsLegendOpen] = useState(false);
+  const [badgeDate, setBadgeDate] = useState(() => new Date());
   const loadRequest = useRef(0);
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
@@ -66,6 +70,7 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
     resetFocus();
     setSelectedSlot(null);
     setIsIngredientListOpen(false);
+    setIsLegendOpen(false);
     setIsLoading(true);
     setError(null);
     try {
@@ -84,8 +89,22 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
 
   useFocusEffect(useCallback(() => {
     void loadRefrigerator();
-    return () => { loadRequest.current++; resetFocus(); setSelectedSlot(null); setIsIngredientListOpen(false); };
+    return () => { loadRequest.current++; resetFocus(); setSelectedSlot(null); setIsIngredientListOpen(false); setIsLegendOpen(false); };
   }, [loadRefrigerator, resetFocus]));
+
+  // 자정과 앱 복귀 때 날짜를 갱신해 도면을 다시 열지 않아도 배지의 기한 분류를 맞춘다.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    function refreshBadgeDate() {
+      const now = new Date();
+      setBadgeDate(now);
+      clearTimeout(timer);
+      timer = setTimeout(refreshBadgeDate, new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime());
+    }
+    refreshBadgeDate();
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') refreshBadgeDate(); });
+    return () => { clearTimeout(timer); subscription.remove(); };
+  }, []);
 
   // 시스템 시트의 배경이 닫기를 처리하지 않으므로 하단 탭 선택도 함께 막는다.
   useEffect(() => {
@@ -96,23 +115,33 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
   useEffect(() => {
     if (!activeFocus) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isIngredientListOpen) closeIngredientList();
+      if (isLegendOpen) setIsLegendOpen(false);
+      else if (isIngredientListOpen) closeIngredientList();
       else closeFocusedArea();
       return true;
     });
     return () => subscription.remove();
-  }, [activeFocus, closeFocusedArea, closeIngredientList, isIngredientListOpen]);
+  }, [activeFocus, closeFocusedArea, closeIngredientList, isIngredientListOpen, isLegendOpen]);
 
   const layout = refrigerator ? getDraftLayout(refrigerator) : null;
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
+  const legendButton = refrigerator && !isLoading && !error && !isIngredientListOpen ? (
+    <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 배지 범례"
+      accessibilityState={{ disabled: focusPhase === 'opening' || focusPhase === 'closing', expanded: isLegendOpen }}
+      disabled={focusPhase === 'opening' || focusPhase === 'closing'}
+      onPress={() => setIsLegendOpen(true)} style={styles.legendButton}>
+      <MaterialDesignIcons name="information-outline" size={20} color={colors.text} accessible={false} />
+      <Text style={styles.legendLabel}>범례</Text>
+    </FeedbackPressable>
+  ) : null;
 
   return (
     <View style={styles.container}>
       <SafeAreaView style={[styles.container, (isLoading || error !== null) && styles.feedback]}
         edges={{ top: true, bottom: true, left: true, right: true }}
-        pointerEvents={activeFocus ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus}
-        importantForAccessibility={activeFocus ? 'no-hide-descendants' : 'auto'}>
+        pointerEvents={activeFocus || isLegendOpen ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isLegendOpen}
+        importantForAccessibility={activeFocus || isLegendOpen ? 'no-hide-descendants' : 'auto'}>
         {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" />
           : error ? <>
             <Text accessibilityRole="alert">{error}</Text>
@@ -127,7 +156,7 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
             </View>
             <View style={styles.diagram}>
               <View style={[StyleSheet.absoluteFill, styles.content]}>
-                <FridgeInteriorMap draft={refrigerator} selectedAreaId={selectedAreaId ?? undefined}
+                <FridgeInteriorMap draft={refrigerator} ingredients={ingredients} now={badgeDate} selectedAreaId={selectedAreaId ?? undefined}
                   onSelectArea={setSelectedAreaId} focus={activeFocus} onFocus={openFocusedArea} fitHeight layoutSize={diagramSizes.closed} />
               </View>
             </View>
@@ -147,16 +176,16 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
           )}
       </SafeAreaView>
       {/* 이름과 안전 영역의 여백을 제외하지 않은 화면 전체를 중앙 보기의 기준으로 사용한다. */}
-      <View ref={focusViewport} collapsable={false} pointerEvents={isIngredientListOpen ? 'none' : 'box-none'}
-        accessibilityElementsHidden={isIngredientListOpen} importantForAccessibility={isIngredientListOpen ? 'no-hide-descendants' : 'auto'}
+      <View ref={focusViewport} collapsable={false} pointerEvents={isIngredientListOpen || isLegendOpen ? 'none' : 'box-none'}
+        accessibilityElementsHidden={isIngredientListOpen || isLegendOpen} importantForAccessibility={isIngredientListOpen || isLegendOpen ? 'no-hide-descendants' : 'auto'}
         style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
         {refrigerator && activeFocus && focusBounds ? (
-          <FridgeFocusView draft={refrigerator} ingredients={ingredients} target={activeFocus} viewport={focusBounds} phase={focusPhase}
+          <FridgeFocusView draft={refrigerator} ingredients={ingredients} now={badgeDate} target={activeFocus} viewport={focusBounds} phase={focusPhase}
             sizeViewport={diagramSizes.opened}
             selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
             selectedSlotIndex={selectedSlot?.index}
             selectedPositionId={selectedSlot?.positionId}
-            scrollHintBlocked={isIngredientListOpen}
+            scrollHintBlocked={isIngredientListOpen || isLegendOpen}
             onSelectSlot={(areaId, index, positionId) => {
               if (focusPhase !== 'open') return;
               setSelectedAreaId(areaId);
@@ -167,6 +196,15 @@ export function HomeScreen({ navigation, onIngredientListVisibilityChange }: Hom
             onClose={closeFocusedArea} />
         ) : null}
       </View>
+      {/* 열린 도면의 배경 위에서도 같은 하단 위치를 유지하고, 버튼 밖은 도면으로 터치를 전달한다. */}
+      {legendButton ? (
+        <SafeAreaView pointerEvents={isLegendOpen ? 'none' : 'box-none'} accessibilityElementsHidden={isLegendOpen}
+          importantForAccessibility={isLegendOpen ? 'no-hide-descendants' : 'auto'}
+          edges={{ top: false, bottom: true, left: true, right: true }} style={styles.legendOverlay}>
+          <View pointerEvents="box-none" style={styles.legendAnchor}>{legendButton}</View>
+        </SafeAreaView>
+      ) : null}
+      {isLegendOpen ? <FridgeIngredientLegend onClose={() => setIsLegendOpen(false)} /> : null}
       {isIngredientListOpen && focusPhase === 'open' && selectedPosition ? (
         <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
           onRegistered={ingredient => setIngredients(current => [...current, ingredient])}
@@ -256,6 +294,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 24,
   },
+  legendButton: {
+    width: LEGEND_BUTTON_WIDTH, height: FRIDGE_HEADER_BUTTON_SIZE,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    borderRadius: 24, backgroundColor: colors.surface,
+  },
+  legendLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  legendOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
+  legendAnchor: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: spacing.lg, paddingBottom: spacing.sm },
   diagram: {
     flex: 1,
   },

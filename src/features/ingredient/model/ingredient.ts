@@ -14,13 +14,31 @@ export interface Ingredient {
   drawerNumber: 0 | 1 | 2;
 }
 
+export interface IngredientCounts {
+  total: number;
+  warning: number;
+  expired: number;
+}
+
 /** 시각·일광 절약 시간과 무관하게 현지 달력 날짜로 남은 일수를 계산한다. */
 export function getIngredientExpirationStatus(expirationDate: string | null, now = new Date()) {
-  if (expirationDate === null) return { label: '유통기한 미입력', isUrgent: false };
+  if (expirationDate == null) return { label: '유통기한 미입력', isUrgent: false, isExpired: false };
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   const days = Math.round((Date.parse(`${expirationDate}T00:00:00Z`) - today) / 86_400_000);
   return {
     label: days > 0 ? `D-${days}` : days === 0 ? 'D-DAY' : `D+${-days}`,
     isUrgent: days <= 2,
+    isExpired: days < 0,
   };
+}
+
+/** 전체 등록 건수에 날짜 미입력을 포함하고, 기한주의와 경과는 겹치지 않게 집계한다. */
+export function getIngredientCounts(ingredients: readonly Pick<Ingredient, 'expirationDate'>[], now = new Date()): IngredientCounts {
+  const counts = { total: ingredients.length, warning: 0, expired: 0 };
+  for (const ingredient of ingredients) {
+    const status = getIngredientExpirationStatus(ingredient.expirationDate, now);
+    if (status.isExpired) counts.expired++;
+    else if (status.isUrgent) counts.warning++;
+  }
+  return counts;
 }

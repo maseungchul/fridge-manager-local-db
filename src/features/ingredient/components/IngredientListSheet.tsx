@@ -20,7 +20,7 @@ import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
 import { IngredientDateFieldAnchor } from '@/features/ingredient/components/IngredientDateFieldAnchor';
 import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
-import { colors, spacing } from '@/theme/tokens';
+import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
 
 interface IngredientListSheetProps {
   position: SlotPosition;
@@ -305,7 +305,9 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
                                     <Text style={styles.itemName}>{item.name}</Text>
                                     <Text style={styles.quantity}>{item.quantity}</Text>
                                   </View>
-                                  <Text style={[styles.expirationDate, expiration.isUrgent && styles.urgentExpiration]}>{expiration.label}</Text>
+                                  <Text style={[styles.expirationDate, item.expirationDate !== null && {
+                                    color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'total'],
+                                  }]}>{expiration.label}</Text>
                                 </View>
                               );
                             }} />
@@ -367,7 +369,6 @@ const styles = StyleSheet.create({
   quantity: { color: colors.text, fontSize: 15 },
   itemInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
   expirationDate: { color: colors.textMuted, fontSize: 14, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  urgentExpiration: { color: colors.error },
   form: { padding: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
   positionName: { color: colors.text, fontSize: 16, flexShrink: 1 },
