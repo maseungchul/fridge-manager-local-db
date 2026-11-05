@@ -9,10 +9,19 @@ import type { IngredientCounts } from '@/features/ingredient/model/ingredient';
 import { ingredientBadgeColors, ingredientLabelColors } from '@/theme/tokens';
 
 export const INGREDIENT_BADGE_SIZE = 28;
+const BADGE_ROW_HEIGHT = 16;
+const BADGE_PADDING = 2;
+const badgeKinds = ['total', 'warning', 'expired'] as const;
+
+/** 세로 배지가 포켓 전면 안에서 잘리지 않도록 표시할 행의 높이를 공유한다. */
+export function getIngredientBadgeHeight(counts: IngredientCounts) {
+  const rows = badgeKinds.filter(kind => counts[kind] > 0).length;
+  return rows > 0 ? rows * BADGE_ROW_HEIGHT + BADGE_PADDING * 2 : 0;
+}
 
 /** 색을 구별하지 못하는 경우에도 실제 건수와 기한 상태를 함께 안내한다. */
 export function getIngredientCountLabel(counts: IngredientCounts) {
-  return `재료 ${counts.total}건${counts.warning > 0 ? `, 기한주의 ${counts.warning}건` : ''}${counts.expired > 0 ? `, 경과 ${counts.expired}건` : ''}`;
+  return `재료 ${counts.total}건${counts.warning > 0 ? `, 유통기한 주의 ${counts.warning}건` : ''}${counts.expired > 0 ? `, 경과 ${counts.expired}건` : ''}`;
 }
 
 export function IngredientCountBadge({ count, kind }: { count?: number; kind: keyof IngredientCounts }) {
@@ -38,8 +47,8 @@ export function IngredientCountBadges({ counts, placement = 'center', style }: {
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.center, upper && { alignItems: alignment, justifyContent: 'flex-start' }, style]}>
-      <View style={[styles.badges, upper && { justifyContent: alignment }]}>
-        {(['total', 'warning', 'expired'] as const).filter(kind => counts[kind] > 0).map(kind => (
+      <View style={styles.badges}>
+        {badgeKinds.filter(kind => counts[kind] > 0).map(kind => (
           <IngredientCountBadge key={kind} count={counts[kind]} kind={kind} />
         ))}
       </View>
@@ -50,14 +59,14 @@ export function IngredientCountBadges({ counts, placement = 'center', style }: {
 const styles = StyleSheet.create({
   center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   badges: {
-    maxWidth: '100%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 2, paddingVertical: 2, borderRadius: 4,
+    maxWidth: '100%', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start',
+    paddingHorizontal: BADGE_PADDING, paddingVertical: BADGE_PADDING, borderRadius: 4,
     backgroundColor: ingredientLabelColors.background,
   },
-  // 홈·내부 칸은 간격과 글자 크기를 공유하고, 폭이 부족하면 묶음을 줄바꿈한다.
-  badge: { minWidth: 0, minHeight: 16, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
+  // 홈·내부 칸 모두 같은 간격으로 막대와 숫자의 왼쪽을 맞춘다.
+  badge: { minWidth: 0, minHeight: BADGE_ROW_HEIGHT, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 3 },
   legendBadge: {
-    width: INGREDIENT_BADGE_SIZE, height: 26, borderRadius: 4,
+    width: INGREDIENT_BADGE_SIZE, height: 26, borderRadius: 4, justifyContent: 'center',
     backgroundColor: ingredientLabelColors.background,
   },
   colorMark: { width: 3, height: 12, borderRadius: 1.5, flexShrink: 0 },

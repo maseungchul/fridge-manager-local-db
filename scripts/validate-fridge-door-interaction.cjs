@@ -1782,7 +1782,7 @@ test('D-day는 현지 날짜로 계산하고 D-2부터 당일·기한 경과까�
     { label: 'D-1', isUrgent: true, isExpired: false });
 });
 
-test('재료 목록 D-day는 배지와 같은 신선·기한주의·경과 색상을 사용하고 날짜 미입력은 중립색으로 표시한다', async t => {
+test('재료 목록 D-day는 배지와 같은 신선·유통기한 주의·경과 색상을 사용하고 날짜 미입력은 중립색으로 표시한다', async t => {
   const previous = ingredientRepository.getIngredientsByPosition;
   t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
   const ingredients = [
@@ -5021,7 +5021,7 @@ test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 �
     const map = mapModule.FridgeMap({ ...layout, ingredients, now: new Date(2026, 10, 4), storageMode, showAreaLabels: false });
     const leftPosition = find(map, node => node.key === left.id);
     const rightPosition = find(map, node => node.key === right.id);
-    assert.match(leftPosition.props.accessibilityLabel, /재료 6건, 기한주의 3건, 경과 1건$/);
+    assert.match(leftPosition.props.accessibilityLabel, /재료 6건, 유통기한 주의 3건, 경과 1건$/);
     assert.match(rightPosition.props.accessibilityLabel, /재료 100건, 경과 100건$/);
     assert.deepEqual(findAll(leftPosition, node => node.type === 'Text').map(node => node.props.children), [6, 3, 1]);
     assert.deepEqual(findAll(rightPosition, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+']);
@@ -5043,7 +5043,7 @@ test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 �
       assert.equal(flattenStyle(center.props.style).left, 4);
       assert.equal(center.props.pointerEvents, 'none');
       const paper = flattenStyle(children(center)[0].props.style);
-      assert.equal(paper.flexWrap, 'wrap');
+      assert.equal(paper.flexDirection, 'column');
       assert.equal(paper.backgroundColor, tokens.ingredientLabelColors.background);
       for (const item of findAll(badge, named('IngredientCountBadge'))) {
         const rendered = item.type(item.props);
@@ -5097,7 +5097,7 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
   const renderedModes = () => doors(group).flatMap(door => findAll(door.type(door.props), named('DoorModeArt')));
   assert.equal(renderedModes().length, 1);
   assert.equal(renderedModes()[0].props.handleOnLeft, false);
-  assert(doors(group).every(door => door.props.label.includes('재료 3건, 기한주의 1건, 경과 1건')));
+  assert(doors(group).every(door => door.props.label.includes('재료 3건, 유통기한 주의 1건, 경과 1건')));
   const target = { areaId: row.compartments[0].id, returnAreaId: row.doors[0].id,
     canvas: { x: 20, y: 100, width: 270, height: 540 } };
   const focus = mount(FridgeFocusView, { draft, ingredients, now: new Date(2026, 10, 4), target,
@@ -5145,7 +5145,7 @@ test('홈 문 앞면 배지는 모드 아이콘 아래에서 세로·서랍 손�
         assert.equal(badge.props.placement, opening === 'RIGHT_DOOR' ? 'top-right' : 'top-left');
         const rendered = badge.type(badge.props);
         assert.equal(flattenStyle(rendered.props.style).justifyContent, 'flex-start');
-        assert.equal(flattenStyle(children(rendered)[0].props.style).flexWrap, 'wrap');
+        assert.equal(flattenStyle(children(rendered)[0].props.style).flexDirection, 'column');
         assert.equal(rendered.props.pointerEvents, 'none');
         assert.deepEqual(findAll(rendered, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+', '99+']);
         const handle = find(front, named('DoorHandle'));

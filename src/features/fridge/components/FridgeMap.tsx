@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { IngredientCountBadges, getIngredientCountLabel } from '@/features/ingredient/components/IngredientCountBadges';
+import { IngredientCountBadges, getIngredientBadgeHeight, getIngredientCountLabel } from '@/features/ingredient/components/IngredientCountBadges';
 import { getIngredientCounts } from '@/features/ingredient/model/ingredient';
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle, spacing } from '@/theme/tokens';
 import { getPositionPath, getSlotName } from '../model/fridgeLayout';
@@ -25,6 +25,7 @@ const POSITION_SEPARATOR_WIDTH = 1;
 const MIN_EDIT_CELL_SIZE = 72;
 const POCKET_BORDER_WIDTH = 3;
 const POCKET_BOTTOM_RADIUS = 12;
+const INGREDIENT_BADGE_INSET = 4;
 export const DOOR_MODE_ART_INSET = 8;
 
 /** 프레임·이름·구분선과 여백을 더해 실제 수납 칸마다 최소 편집 크기를 확보한다. */
@@ -120,9 +121,9 @@ export function DoorModeArt({ storageMode, size, handleOnLeft = false, style }: 
 }
 
 /** U자형 포켓의 전면 안에서만 선택을 처리해 위쪽 빈 공간은 터치 대상에서 제외한다. */
-function DoorPocketBin({ style, selectionStyle, selected = false, disabled = false, label, onSelect, children }: {
+function DoorPocketBin({ style, selectionStyle, selected = false, disabled = false, label, onSelect, children, minimumHeight }: {
   style?: StyleProp<ViewStyle>; selectionStyle?: StyleProp<ViewStyle>; selected?: boolean;
-  disabled?: boolean; label?: string; onSelect?: () => void; children?: ReactNode;
+  disabled?: boolean; label?: string; onSelect?: () => void; children?: ReactNode; minimumHeight?: number;
 }) {
   const Bin = onSelect ? Pressable : View;
   return (
@@ -131,7 +132,7 @@ function DoorPocketBin({ style, selectionStyle, selected = false, disabled = fal
       <Bin accessibilityRole={onSelect ? 'button' : undefined} accessibilityLabel={label}
         accessibilityState={onSelect ? { selected, disabled } : undefined} disabled={disabled}
         onPress={onSelect ? event => { event.stopPropagation(); onSelect(); } : undefined}
-        style={[styles.pocketBinFront, style, selected && selectionStyle]}>{children}</Bin>
+        style={[styles.pocketBinFront, style, selected && selectionStyle, minimumHeight !== undefined && { minHeight: minimumHeight }]}>{children}</Bin>
     </View>
   );
 }
@@ -221,6 +222,7 @@ export function FridgeMap({
                                   style={[styles.positionDivider, area.isBody && styles.bodyPositionDivider, shelfTheme]} />
                               ) : null}
                               {area.isBody ? badges : <DoorPocketBin style={pocketTheme} selectionStyle={slotSelection}
+                                minimumHeight={counts.total > 0 ? getIngredientBadgeHeight(counts) + INGREDIENT_BADGE_INSET * 2 + POCKET_BORDER_WIDTH : undefined}
                                 selected={slotInteraction && selectedSlotIndex === slotIndex} disabled={disabled}
                                 label={slotInteraction ? `${slotLabel}${countLabel}` : undefined}
                                 onSelect={slotInteraction ? () => onSelectSlot?.(slotIndex, firstPosition.id) : undefined}>{badges}</DoorPocketBin>}
@@ -248,7 +250,7 @@ export function FridgeMap({
 }
 
 const styles = StyleSheet.create({
-  ingredientBadges: { top: 4, left: 4, right: 4, bottom: 4 },
+  ingredientBadges: { top: INGREDIENT_BADGE_INSET, left: INGREDIENT_BADGE_INSET, right: INGREDIENT_BADGE_INSET, bottom: INGREDIENT_BADGE_INSET },
   modeArt: {
     position: 'absolute',
     top: DOOR_MODE_ART_INSET,

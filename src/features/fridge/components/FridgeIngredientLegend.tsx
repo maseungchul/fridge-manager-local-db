@@ -10,7 +10,7 @@ import { colors, spacing } from '@/theme/tokens';
 
 const legendItems = [
   { kind: 'total', title: '재료 있음', description: '등록된 전체 재료 수' },
-  { kind: 'warning', title: '기한주의', description: '기한이 2일 이내로 남은 재료 수 (당일 포함)' },
+  { kind: 'warning', title: '유통기한 주의', description: '기한이 2일 이내로 남은 재료 수 (당일 포함)' },
   { kind: 'expired', title: '경과', description: '기한이 지난 재료 수' },
 ] as const;
 
