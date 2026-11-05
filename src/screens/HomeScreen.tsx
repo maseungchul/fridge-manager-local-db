@@ -28,6 +28,7 @@ import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Refrigerator, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import { IngredientListSheet } from '@/features/ingredient/components/IngredientListSheet';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
+import type { IngredientMoveBarState } from '@/features/ingredient/components/IngredientMoveBar';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
@@ -35,7 +36,10 @@ import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDi
 type HomeScreenProps = CompositeScreenProps<
   NativeBottomTabScreenProps<MainTabParamList, 'Home'>,
   NativeStackScreenProps<RootStackParamList>
-> & { onTabInteractionBlockedChange?: (blocked: boolean) => void };
+> & {
+  onTabInteractionBlockedChange?: (blocked: boolean) => void;
+  onIngredientMoveChange?: (move: IngredientMoveBarState | null) => void;
+};
 
 interface IngredientMove {
   ingredient: Ingredient;
@@ -44,7 +48,7 @@ interface IngredientMove {
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
 
-export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeScreenProps) {
+export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngredientMoveChange }: HomeScreenProps) {
   const db = useSQLiteContext();
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -58,7 +62,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const [moveNotice, setMoveNotice] = useState<{ message: string } | null>(null);
   const moveRequest = useRef<IngredientMove | null>(null);
   const isMoveLocked = ingredientMove?.phase === 'saving';
-  const isTabInteractionBlocked = isIngredientListOpen || ingredientMove !== null;
+  const isIngredientMoveActive = ingredientMove !== null;
+  const isTabInteractionBlocked = isIngredientListOpen || isIngredientMoveActive;
   const loadRequest = useRef(0);
   // 같은 이벤트 묶음의 중복 선택·확인도 막을 수 있게 화면 상태와 요청 참조를 함께 바꾼다.
   const changeIngredientMove = useCallback((move: IngredientMove | null) => {
@@ -119,8 +124,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
       loadRequest.current++; changeIngredientMove(null); resetFocus();
       setMoveNotice(null);
       setSelectedSlot(null); setIsIngredientListOpen(false); setIsLegendOpen(false);
+      onIngredientMoveChange?.(null);
     };
-  }, [loadRefrigerator, resetFocus, changeIngredientMove]));
+  }, [loadRefrigerator, resetFocus, changeIngredientMove, onIngredientMoveChange]));
 
   // 자정과 앱 복귀 때 날짜를 갱신해 도면을 다시 열지 않아도 배지의 기한 분류를 맞춘다.
   useEffect(() => {
@@ -143,6 +149,15 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   }, [isTabInteractionBlocked, onTabInteractionBlockedChange]);
 
   useEffect(() => {
+    onIngredientMoveChange?.(ingredientMove ? {
+      name: ingredientMove.ingredient.name, quantity: ingredientMove.ingredient.quantity,
+      isSaving: ingredientMove.phase === 'saving', onCancel: cancelIngredientMove,
+    } : null);
+  }, [ingredientMove, cancelIngredientMove, onIngredientMoveChange]);
+
+  useEffect(() => () => onIngredientMoveChange?.(null), [onIngredientMoveChange]);
+
+  useEffect(() => {
     if (!activeFocus && !ingredientMove) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (moveRequest.current) cancelIngredientMove();
@@ -157,7 +172,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const layout = refrigerator ? getDraftLayout(refrigerator) : null;
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
-  const legendButton = refrigerator && !isLoading && !error && !isIngredientListOpen && !ingredientMove ? (
+  const isLegendHidden = isIngredientListOpen || isIngredientMoveActive || isLegendOpen;
+  const legendButton = refrigerator && !isLoading && !error ? (
     <FloatingIconButton label="범례" icon="information-outline" accessibilityLabel="재료 배지 범례" size="small"
       accessibilityHint="재료 배지의 색상과 의미를 확인합니다." expanded={isLegendOpen}
       disabled={focusPhase === 'opening' || focusPhase === 'closing'}
@@ -259,25 +275,10 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
       </View>
       {/* 열린 도면의 배경 위에서도 같은 하단 위치를 유지하고, 버튼 밖은 도면으로 터치를 전달한다. */}
       {legendButton ? (
-        <SafeAreaView pointerEvents={isLegendOpen ? 'none' : 'box-none'} accessibilityElementsHidden={isLegendOpen}
-          importantForAccessibility={isLegendOpen ? 'no-hide-descendants' : 'auto'}
-          edges={{ top: false, bottom: true, left: true, right: true }} style={styles.legendOverlay}>
+        <SafeAreaView pointerEvents={isLegendHidden ? 'none' : 'box-none'} accessibilityElementsHidden={isLegendHidden}
+          importantForAccessibility={isLegendHidden ? 'no-hide-descendants' : 'auto'}
+          edges={{ top: false, bottom: true, left: true, right: true }} style={[styles.legendOverlay, isLegendHidden && styles.hidden]}>
           <View pointerEvents="box-none" style={styles.legendAnchor}>{legendButton}</View>
-        </SafeAreaView>
-      ) : null}
-      {ingredientMove ? (
-        <SafeAreaView pointerEvents="box-none" edges={{ top: false, bottom: true, left: true, right: true }} style={styles.legendOverlay}>
-          <View pointerEvents="box-none" style={styles.moveAnchor}>
-            <View style={styles.moveBanner}>
-              {ingredientMove.phase === 'saving' ? <ActivityIndicator color={colors.chilled} accessibilityLabel="재료 이동 중" /> : null}
-              <Text style={styles.moveLabel} accessibilityLiveRegion="polite">
-                {ingredientMove.phase === 'saving' ? `${ingredientMove.ingredient.name} 이동 중…`
-                  : `${ingredientMove.ingredient.name} ${ingredientMove.ingredient.quantity}\n이동할 칸을 선택하세요.`}
-              </Text>
-              <FloatingIconButton label="이동 취소" icon="close" accessibilityLabel="재료 이동 취소" size="small"
-                disabled={isMoveLocked} onPress={cancelIngredientMove} />
-            </View>
-          </View>
         </SafeAreaView>
       ) : null}
       {moveNotice ? (
@@ -388,10 +389,7 @@ const styles = StyleSheet.create({
   },
   legendOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
   legendAnchor: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: spacing.lg, paddingBottom: spacing.sm },
-  moveAnchor: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
-  moveBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md,
-    borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  moveLabel: { flex: 1, color: colors.text, fontSize: 15, lineHeight: 22 },
+  hidden: { opacity: 0 },
   noticeAnchor: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg * 3 },
   diagram: {
     flex: 1,

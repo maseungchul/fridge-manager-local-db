@@ -2,14 +2,18 @@
  * @file
  * 냉장고·장보기·설정을 iOS·Android의 기본 하단 탭으로 전환한다.
  * 냉장고 등록은 상위 Stack에서 열어 등록 중에는 탭을 표시하지 않는다.
+ * 재료 이동 중에는 탭을 재배치하지 않고 같은 자리를 이동 안내로 덮는다.
  */
 import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import type { ImageSourcePropType } from 'react-native';
 import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ShoppingScreen } from '@/screens/ShoppingScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
+import { IngredientMoveBar } from '@/features/ingredient/components/IngredientMoveBar';
+import type { IngredientMoveBarState } from '@/features/ingredient/components/IngredientMoveBar';
 import { colors } from '@/theme/tokens';
 
 export type MainTabParamList = {
@@ -23,6 +27,7 @@ const Tab = createNativeBottomTabNavigator<MainTabParamList>();
 export function MainTabNavigator() {
   const [icons, setIcons] = useState<ImageSourcePropType[]>([]);
   const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
+  const [ingredientMove, setIngredientMove] = useState<IngredientMoveBarState | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -38,29 +43,37 @@ export function MainTabNavigator() {
   }, []);
 
   return (
-    <Tab.Navigator initialRouteName="Home" screenOptions={{
-      headerShown: false,
-      tabBarControllerMode: 'tabBar',
-      tabBarLabelVisibilityMode: 'labeled',
-      tabBarActiveTintColor: colors.chilled,
-      tabBarInactiveTintColor: colors.textMuted,
-      tabBarSelectionEnabled: !isTabInteractionBlocked,
-      tabBarStyle: { backgroundColor: colors.toolbar },
-    }}>
-      <Tab.Screen name="Home" options={{
-        title: '냉장고',
-        tabBarIcon: icons[0] ? { type: 'image', source: icons[0] } : undefined,
+    <View style={styles.container}>
+      <Tab.Navigator initialRouteName="Home" screenOptions={{
+        headerShown: false,
+        tabBarControllerMode: 'tabBar',
+        tabBarLabelVisibilityMode: 'labeled',
+        tabBarActiveTintColor: colors.chilled,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarSelectionEnabled: !isTabInteractionBlocked && !ingredientMove,
+        tabBarStyle: { backgroundColor: colors.toolbar },
       }}>
-        {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked} />}
-      </Tab.Screen>
-      <Tab.Screen name="Shopping" component={ShoppingScreen} options={{
-        title: '장보기',
-        tabBarIcon: icons[1] ? { type: 'image', source: icons[1] } : undefined,
-      }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{
-        title: '설정',
-        tabBarIcon: icons[2] ? { type: 'image', source: icons[2] } : undefined,
-      }} />
-    </Tab.Navigator>
+        <Tab.Screen name="Home" options={{
+          title: '냉장고',
+          tabBarIcon: icons[0] ? { type: 'image', source: icons[0] } : undefined,
+        }}>
+          {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked}
+            onIngredientMoveChange={setIngredientMove} />}
+        </Tab.Screen>
+        <Tab.Screen name="Shopping" component={ShoppingScreen} options={{
+          title: '장보기',
+          tabBarIcon: icons[1] ? { type: 'image', source: icons[1] } : undefined,
+        }} />
+        <Tab.Screen name="Settings" component={SettingsScreen} options={{
+          title: '설정',
+          tabBarIcon: icons[2] ? { type: 'image', source: icons[2] } : undefined,
+        }} />
+      </Tab.Navigator>
+      <IngredientMoveBar move={ingredientMove} />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+});
