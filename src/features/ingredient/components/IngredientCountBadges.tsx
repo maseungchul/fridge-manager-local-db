@@ -1,6 +1,6 @@
 /**
  * @file
- * 도면·칸의 재료 전체·기한주의·경과 건수를 호출자가 정한 위치에 묶어 표시한다.
+ * 도면·칸의 일반·기한주의·경과 재료 건수를 호출자가 정한 위치에 묶어 표시한다.
  * 집계는 호출자가 전달하며, 범례는 숫자 없이 같은 색상 막대만 사용한다.
  */
 import { StyleSheet, Text, View } from 'react-native';
@@ -11,7 +11,7 @@ import { ingredientBadgeColors, ingredientLabelColors } from '@/theme/tokens';
 export const INGREDIENT_BADGE_SIZE = 28;
 const BADGE_ROW_HEIGHT = 16;
 const BADGE_PADDING = 2;
-const badgeKinds = ['total', 'warning', 'expired'] as const;
+const badgeKinds = ['normal', 'warning', 'expired'] as const;
 
 /** 세로 배지가 포켓 전면 안에서 잘리지 않도록 표시할 행의 높이를 공유한다. */
 export function getIngredientBadgeHeight(counts: IngredientCounts) {
@@ -21,10 +21,10 @@ export function getIngredientBadgeHeight(counts: IngredientCounts) {
 
 /** 색을 구별하지 못하는 경우에도 실제 건수와 기한 상태를 함께 안내한다. */
 export function getIngredientCountLabel(counts: IngredientCounts) {
-  return `재료 ${counts.total}건${counts.warning > 0 ? `, 유통기한 주의 ${counts.warning}건` : ''}${counts.expired > 0 ? `, 경과 ${counts.expired}건` : ''}`;
+  return `재료 ${counts.total}건${counts.normal > 0 ? `, 일반 ${counts.normal}건` : ''}${counts.warning > 0 ? `, 유통기한 주의 ${counts.warning}건` : ''}${counts.expired > 0 ? `, 경과 ${counts.expired}건` : ''}`;
 }
 
-export function IngredientCountBadge({ count, kind }: { count?: number; kind: keyof IngredientCounts }) {
+export function IngredientCountBadge({ count, kind }: { count?: number; kind: typeof badgeKinds[number] }) {
   const color = ingredientBadgeColors[kind];
   return (
     <View style={[styles.badge, count === undefined && styles.legendBadge]}>

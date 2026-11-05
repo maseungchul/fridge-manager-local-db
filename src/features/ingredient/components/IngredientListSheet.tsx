@@ -334,7 +334,7 @@ export function IngredientListSheet({ position, onClose, onSaved }: IngredientLi
                                   <View style={styles.itemHeader}>
                                     <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
                                     <Text style={[styles.expirationDate, item.expirationDate !== null && {
-                                      color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'total'],
+                                      color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'normal'],
                                       fontWeight: '700',
                                     }]}>{expiration.label}</Text>
                                   </View>

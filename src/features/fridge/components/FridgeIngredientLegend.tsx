@@ -9,9 +9,9 @@ import { INGREDIENT_BADGE_SIZE, IngredientCountBadge } from '@/features/ingredie
 import { colors, spacing } from '@/theme/tokens';
 
 const legendItems = [
-  { kind: 'total', title: '재료 있음', description: '등록된 전체 재료 수' },
-  { kind: 'warning', title: '유통기한 주의', description: '기한이 2일 이내로 남은 재료 수 (당일 포함)' },
-  { kind: 'expired', title: '경과', description: '기한이 지난 재료 수' },
+  { kind: 'normal', title: '일반', description: '주의·경과를 제외한 재료 수 (유통기한 미입력 포함)' },
+  { kind: 'warning', title: '주의', description: '유통기한이 2일 이내로 남은 재료 수 (당일 포함)' },
+  { kind: 'expired', title: '경과', description: '유통기한이 지난 재료 수' },
 ] as const;
 
 export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {

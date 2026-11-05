@@ -36,9 +36,9 @@ export const colors = {
   error: '#A6413B',
 } as const;
 
-// 냉장·냉동의 배지와 D-day에서 같은 색으로 재료 전체·기한주의·경과를 구분한다.
+// 냉장·냉동의 배지와 D-day에서 같은 색으로 일반·기한주의·경과 재료를 구분한다.
 export const ingredientBadgeColors = {
-  total: '#416B57',
+  normal: '#416B57',
   warning: '#AF5A10',
   expired: '#C62828',
 } as const;

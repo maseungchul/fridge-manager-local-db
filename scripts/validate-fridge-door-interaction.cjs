@@ -1604,16 +1604,16 @@ test('홈의 재료 배지는 저장 직후 선택·열림을 유지하며 갱�
   home.render();
   assert.equal(focus().props.ingredients.length, 2, '편집한 재료를 추가하지 않고 같은 ID의 항목을 갱신한다');
   assert.equal(focus().props.selectedPositionId, `${slotId}-left`);
-  assert.deepEqual(badgeCounts(), [2, 1]);
+  assert.deepEqual(badgeCounts(), [1, 1]);
   sheet.props.onClose();
   home.render();
-  assert.deepEqual(badgeCounts(), [2, 1]);
+  assert.deepEqual(badgeCounts(), [1, 1]);
   home.focus();
   await new Promise(setImmediate);
   home.render();
   assert.equal(focus(), undefined);
   open();
-  assert.deepEqual(badgeCounts(), [2, 1]);
+  assert.deepEqual(badgeCounts(), [1, 1]);
   assert.equal(reads, 2);
 });
 
@@ -1832,7 +1832,7 @@ test('재료 목록 D-day는 배지와 같은 신선·유통기한 주의·경�
   sheet.render();
   const list = find(sheet.tree, node => node.type === 'FlatList');
   assert.deepEqual(list.props.data, ingredients);
-  const expectedColors = { milk: tokens.ingredientBadgeColors.total, eggs: tokens.colors.textMuted,
+  const expectedColors = { milk: tokens.ingredientBadgeColors.normal, eggs: tokens.colors.textMuted,
     apple: tokens.ingredientBadgeColors.warning, carrot: tokens.ingredientBadgeColors.warning, tofu: tokens.ingredientBadgeColors.expired };
   for (const item of ingredients) {
     assert.equal(list.props.keyExtractor(item), item.id);
@@ -4374,7 +4374,7 @@ test('도면의 칸명은 숨기고 자동 위치 안내·선택·재료 집계�
   assert.equal(counts.length, 1);
   assert.equal(counts[0].props.children, 1);
   const position = find(withIngredients, node => node.type === 'FeedbackPressable' && node.key === layout.positions[1].id);
-  assert.match(position.props.accessibilityLabel, /재료 1건$/);
+  assert.match(position.props.accessibilityLabel, /재료 1건, 일반 1건$/);
 });
 
 test('재료 배지는 좌우·포켓을 구분하고 빈 칸·편집에서는 숨기며 100건부터 99+로 표시한다', () => {
@@ -4390,8 +4390,8 @@ test('재료 배지는 좌우·포켓을 구분하고 빈 칸·편집에서는 �
     assert.deepEqual(findAll(tree, node => node.type === 'Text').map(node => node.props.children), [1, '99+', 1]);
     const leftButton = find(tree, node => node.type === 'Pressable' && node.key === left.id);
     const rightButton = find(tree, node => node.type === 'Pressable' && node.key === right.id);
-    assert.match(leftButton.props.accessibilityLabel, /재료 1건$/);
-    assert.match(rightButton.props.accessibilityLabel, /재료 100건$/);
+    assert.match(leftButton.props.accessibilityLabel, /재료 1건, 일반 1건$/);
+    assert.match(rightButton.props.accessibilityLabel, /재료 100건, 일반 100건$/);
     const bin = find(tree, named('DoorPocketBin'));
     const renderedBin = bin.type(bin.props);
     const front = children(renderedBin)[0];
@@ -4402,7 +4402,7 @@ test('재료 배지는 좌우·포켓을 구분하고 빈 칸·편집에서는 �
     const badgeTree = badge.type(badge.props);
     assert.equal(badgeTree.props.pointerEvents, 'none');
     assert.equal(badgeTree.props.accessibilityElementsHidden, true);
-    assert.match(front.props.accessibilityLabel, /재료 1건$/);
+    assert.match(front.props.accessibilityLabel, /재료 1건, 일반 1건$/);
     for (const hidden of [{ ...props, showIngredientCounts: false }, { ...props, ingredients: [] }]) {
       const hiddenTree = mapModule.FridgeMap(hidden);
       assert.equal(findAll(hiddenTree, node => node.type === 'Text').length, 0);
@@ -5165,12 +5165,29 @@ test('기본정보 도면 UI는 내부 설정의 색상·손잡이·모서리 �
   }
 });
 
-test('재료 집계는 기한 미입력을 전체에만 포함하고 D-2·당일·경과를 구분한다', () => {
+test('재료 집계는 기한 미입력을 일반에 포함하고 일반·D-2·당일·경과를 중복 없이 구분한다', () => {
   const ingredients = ['2026-11-07', '2026-11-06', '2026-11-05', '2026-11-04', '2026-11-03', '2026-10-30', null]
     .map(expirationDate => ({ expirationDate }));
-  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, new Date(2026, 10, 4, 23, 59)), { total: 7, warning: 3, expired: 2 });
-  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, new Date(2026, 10, 5)), { total: 7, warning: 3, expired: 3 });
-  assert.deepEqual(ingredientModel.getIngredientCounts([], new Date(2026, 10, 4)), { total: 0, warning: 0, expired: 0 });
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, new Date(2026, 10, 4, 23, 59)), { total: 7, normal: 2, warning: 3, expired: 2 });
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, new Date(2026, 10, 5)), { total: 7, normal: 1, warning: 3, expired: 3 });
+  assert.deepEqual(ingredientModel.getIngredientCounts([], new Date(2026, 10, 4)), { total: 0, normal: 0, warning: 0, expired: 0 });
+});
+
+test('일반 재료가 없어도 주의·경과 배지는 유지하고 0건인 배지만 숨긴다', () => {
+  for (const [dates, expected] of [
+    [['2026-11-07', null], [['normal', 2]]],
+    [['2026-11-06'], [['warning', 1]]],
+    [['2026-11-03'], [['expired', 1]]],
+    [['2026-11-06', '2026-11-03'], [['warning', 1], ['expired', 1]]],
+    [[], []],
+  ]) {
+    const counts = ingredientModel.getIngredientCounts(dates.map(expirationDate => ({ expirationDate })), new Date(2026, 10, 4));
+    assert.equal(counts.normal, counts.total - counts.warning - counts.expired);
+    const tree = badgeModule.IngredientCountBadges({ counts });
+    assert.deepEqual(findAll(tree, named('IngredientCountBadge')).map(badge => [badge.props.kind, badge.props.count]), expected);
+    assert.equal(tree === null, dates.length === 0);
+    assert.equal(badgeModule.getIngredientBadgeHeight(counts), expected.length === 0 ? 0 : expected.length * 16 + 4);
+  }
 });
 
 test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 같은 간격·글자 크기를 사용한다', () => {
@@ -5187,18 +5204,19 @@ test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 �
     const map = mapModule.FridgeMap({ ...layout, ingredients, now: new Date(2026, 10, 4), storageMode, showAreaLabels: false });
     const leftPosition = find(map, node => node.key === left.id);
     const rightPosition = find(map, node => node.key === right.id);
-    assert.match(leftPosition.props.accessibilityLabel, /재료 6건, 유통기한 주의 3건, 경과 1건$/);
+    assert.match(leftPosition.props.accessibilityLabel, /재료 6건, 일반 2건, 유통기한 주의 3건, 경과 1건$/);
     assert.match(rightPosition.props.accessibilityLabel, /재료 100건, 경과 100건$/);
-    assert.deepEqual(findAll(leftPosition, node => node.type === 'Text').map(node => node.props.children), [6, 3, 1]);
-    assert.deepEqual(findAll(rightPosition, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+']);
+    assert.deepEqual(findAll(leftPosition, node => node.type === 'Text').map(node => node.props.children), [2, 3, 1]);
+    assert.deepEqual(findAll(rightPosition, node => node.type === 'Text').map(node => node.props.children), ['99+']);
     const badges = findAll(leftPosition, named('IngredientCountBadge'));
     const overview = fixture(draft);
     const door = doors(overview.compartment)[0];
-    const home = door.type({ ...door.props, ingredientCounts: { total: 6, warning: 3, expired: 1 } });
+    const home = door.type({ ...door.props, ingredientCounts: { total: 6, normal: 2, warning: 3, expired: 1 } });
     const homeBadges = find(home, named('IngredientCountBadges'));
     const homeItems = findAll(homeBadges, named('IngredientCountBadge'));
     assert.deepEqual(badges.map(badge => flattenStyle(children(badge.type(badge.props))[0].props.style).backgroundColor),
-      [tokens.ingredientBadgeColors.total, tokens.ingredientBadgeColors.warning, tokens.ingredientBadgeColors.expired]);
+      [tokens.ingredientBadgeColors.normal, tokens.ingredientBadgeColors.warning, tokens.ingredientBadgeColors.expired]);
+    assert.deepEqual(homeItems.map(badge => badge.props.count), [2, 3, 1]);
     for (const position of [leftPosition, rightPosition, find(map, node => node.key === pocket.id)]) {
       const badge = find(position, named('IngredientCountBadges'));
       const center = badge.type(badge.props);
@@ -5257,13 +5275,13 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
   const group = mount(groups[0].type, groups[0].props);
   const renderedBadges = () => doors(group).flatMap(door => findAll(door.type(door.props), named('IngredientCountBadges')));
   const badge = renderedBadges()[0];
-  assert.deepEqual(badge.props.counts, { total: 3, warning: 1, expired: 1 });
+  assert.deepEqual(badge.props.counts, { total: 3, normal: 1, warning: 1, expired: 1 });
   assert.equal(renderedBadges().length, 1);
   assert.equal(doors(group).length, 2);
   const renderedModes = () => doors(group).flatMap(door => findAll(door.type(door.props), named('DoorModeArt')));
   assert.equal(renderedModes().length, 1);
   assert.equal(renderedModes()[0].props.handleOnLeft, false);
-  assert(doors(group).every(door => door.props.label.includes('재료 3건, 유통기한 주의 1건, 경과 1건')));
+  assert(doors(group).every(door => door.props.label.includes('재료 3건, 일반 1건, 유통기한 주의 1건, 경과 1건')));
   const target = { areaId: row.compartments[0].id, returnAreaId: row.doors[0].id,
     canvas: { x: 20, y: 100, width: 270, height: 540 } };
   const focus = mount(FridgeFocusView, { draft, ingredients, now: new Date(2026, 10, 4), target,
@@ -5273,7 +5291,7 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
     focus.render();
     const badges = movingDoors(focus).flatMap(door => findAll(door.type(door.props), named('IngredientCountBadges')));
     assert.equal(badges.length, 1, '문을 여닫는 동안에도 합친 본체의 배지를 중복 표시하지 않는다');
-    assert.deepEqual(badges[0].props.counts, { total: 3, warning: 1, expired: 1 });
+    assert.deepEqual(badges[0].props.counts, { total: 3, normal: 1, warning: 1, expired: 1 });
     const modes = movingDoors(focus).flatMap(door => findAll(door.type(door.props), named('DoorModeArt')));
     assert.equal(modes.length, 1, '합친 홈 본체의 모드 아이콘도 문 전환 중 중복 표시하지 않는다');
     assert.equal(modes[0].props.handleOnLeft, false);
@@ -5300,7 +5318,7 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
 test('홈 문 앞면 배지는 모드 아이콘 아래에서 세로·서랍 손잡이를 피하고 문과 함께 이동한다', () => {
   const { compartment, map } = fixture();
   const template = doors(compartment)[0];
-  const counts = { total: 240, warning: 120, expired: 100 };
+  const counts = { total: 240, normal: 20, warning: 120, expired: 100 };
   for (const [width, height] of [[82, 82], [135, 135], [135, 270]]) {
     for (const opening of ['LEFT_DOOR', 'RIGHT_DOOR', 'DRAWER']) {
       for (const phase of ['closed', 'opening', 'open', 'closing']) {
@@ -5321,7 +5339,7 @@ test('홈 문 앞면 배지는 모드 아이콘 아래에서 세로·서랍 손�
         assert.equal(flattenStyle(rendered.props.style).justifyContent, 'flex-start');
         assert.equal(flattenStyle(children(rendered)[0].props.style).flexDirection, 'column');
         assert.equal(rendered.props.pointerEvents, 'none');
-        assert.deepEqual(findAll(rendered, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+', '99+']);
+        assert.deepEqual(findAll(rendered, node => node.type === 'Text').map(node => node.props.children), [20, '99+', '99+']);
         const handle = find(front, named('DoorHandle'));
         const handlePosition = flattenStyle(handle.type(handle.props).props.style);
         if (opening === 'DRAWER') {
@@ -5352,7 +5370,8 @@ test('범례는 중앙 모달의 세 가지 배지를 설명하고 바깥 터치
   const card = find(popup, node => !!node.props.onStartShouldSetResponder);
   assert.equal(card.props.onStartShouldSetResponder(), true);
   assert.equal(closes, 0);
-  assert.deepEqual(findAll(card, named('IngredientCountBadge')).map(badge => badge.props.kind), ['total', 'warning', 'expired']);
+  assert.deepEqual(findAll(card, named('IngredientCountBadge')).map(badge => badge.props.kind), ['normal', 'warning', 'expired']);
+  assert(find(card, node => node.props.accessibilityLabel === '일반, 주의·경과를 제외한 재료 수 (유통기한 미입력 포함)'));
   for (const badge of findAll(card, named('IngredientCountBadge'))) {
     assert.equal(find(badge.type(badge.props), node => node.type === 'Text'), undefined, '범례 라벨에는 숫자를 표시하지 않는다');
   }
@@ -5481,17 +5500,17 @@ test('홈은 자정·앱 복귀 때 배지 날짜를 갱신하고 타이머와 �
   home.render();
   const badgeDate = () => find(home.tree, named('FridgeInteriorMap')).props.now;
   const ingredients = [{ expirationDate: '2026-11-04' }, { expirationDate: '2026-11-07' }];
-  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, warning: 1, expired: 0 });
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, normal: 1, warning: 1, expired: 0 });
   assert.equal(timers.size, 1);
   assert.equal([...timers.values()][0].delay, 60_000);
   now = new originalDate(2026, 10, 5);
   [...timers.values()][0].callback();
   home.render();
-  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, warning: 1, expired: 1 });
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, normal: 0, warning: 1, expired: 1 });
   now = new originalDate(2026, 10, 8, 12);
   [...appStateHandlers].at(-1)('active');
   home.render();
-  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, warning: 0, expired: 2 });
+  assert.deepEqual(ingredientModel.getIngredientCounts(ingredients, badgeDate()), { total: 2, normal: 0, warning: 0, expired: 2 });
   home.unmount();
   home = null;
   assert.equal(timers.size, 0);

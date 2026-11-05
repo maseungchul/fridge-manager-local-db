@@ -48,7 +48,7 @@ interface FridgeMapProps {
   areas: StorageArea[];
   // 칸·개별 서랍의 선택 위치를 받고 영역과 원래 칸 ID로 묶어서 표시한다.
   positions: SlotPosition[];
-  // 칸별 재료 전체·기한주의·경과 배지에 사용한다. 등록 미리보기에서는 빈 목록이다.
+  // 칸별 일반·기한주의·경과 재료 배지에 사용한다. 등록 미리보기에서는 빈 목록이다.
   ingredients: FridgeIngredient[];
   now?: Date;
   // 부모가 관리하는 선택 상태다. 이 컴포넌트 내부에 별도 선택 상태를 만들지 않는다.
