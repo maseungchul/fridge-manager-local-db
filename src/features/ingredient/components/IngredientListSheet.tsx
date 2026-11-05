@@ -1,7 +1,7 @@
 /**
  * @file
  * 선택한 위치의 재료 목록과 등록·편집 폼을 스와이프로 닫는 네이티브 시트에 표시한다.
- * 조회·저장·삭제는 여기서 처리하고, 변경 결과 전달 후 도면 갱신과 시트 종료는 호출자가 관리한다.
+ * 조회·저장·삭제와 이동 요청은 여기서 처리하고, 변경 결과 반영과 목적지 선택은 호출자가 관리한다.
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
@@ -28,9 +28,10 @@ interface IngredientListSheetProps {
   onClose: () => void;
   onSaved?: (ingredient: Ingredient) => void;
   onDeleted?: (ingredientId: string) => void;
+  onMove?: (ingredient: Ingredient) => void;
 }
 
-export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onMove }: IngredientListSheetProps) {
   const db = useSQLiteContext();
   const sheetRef = useRef<IngredientSheetRef>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
@@ -38,6 +39,7 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: I
   const datePicker = useRef<{ request: number; keyboardSubscription?: ReturnType<typeof Keyboard.addListener> }>({ request: 0 });
   const saving = useRef(false);
   const deleting = useRef(false);
+  const pendingMove = useRef<Ingredient | null>(null);
   const transition = useRef<{ active: boolean; animation?: Animated.CompositeAnimation }>({ active: false });
   const panelProgress = useAnimatedValue(0);
   const { width: windowWidth } = useWindowDimensions();
@@ -48,8 +50,9 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: I
   const isEditing = editingIngredient !== null;
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLeavingForMove, setIsLeavingForMove] = useState(false);
   const [swipedIngredientId, setSwipedIngredientId] = useState<string | null>(null);
-  const isBusy = isSaving || isDeleting;
+  const isBusy = isSaving || isDeleting || isLeavingForMove;
   const [saveError, setSaveError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Pick<Ingredient, 'name' | 'quantity' | 'memo' | 'expirationDate'>>({
     name: '', quantity: '', memo: '', expirationDate: null,
@@ -123,14 +126,14 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: I
   }
 
   function startAdding() {
-    if (saving.current || deleting.current || transition.current.active || isLoading || error !== null) return;
+    if (saving.current || deleting.current || pendingMove.current || transition.current.active || isLoading || error !== null) return;
     setSwipedIngredientId(null);
     setSaveError(null);
     changePanel(true);
   }
 
   function startEditing(ingredient: Ingredient) {
-    if (saving.current || deleting.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    if (saving.current || deleting.current || pendingMove.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
     setSwipedIngredientId(null);
     addDraft.current = draft;
     setEditingIngredient(ingredient);
@@ -140,7 +143,7 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: I
   }
 
   function closeSheet() {
-    if (saving.current || deleting.current || transition.current.active) return;
+    if (saving.current || deleting.current || pendingMove.current || transition.current.active) return;
     dismissDatePicker();
     Keyboard.dismiss();
     sheetRef.current?.close();
@@ -225,7 +228,7 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: I
   }
 
   function requestDelete(ingredient: Ingredient) {
-    if (saving.current || deleting.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    if (saving.current || deleting.current || pendingMove.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
     deleting.current = true;
     setIsDeleting(true);
     let handled = false;
@@ -258,12 +261,27 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: I
     ], { cancelable: false });
   }
 
+  function startMoving(ingredient: Ingredient) {
+    if (!onMove || !sheetRef.current || saving.current || deleting.current || pendingMove.current
+      || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    // 시트가 종료된 뒤 홈에 전달해 패널과 목적지 선택의 입력이 겹치지 않게 한다.
+    pendingMove.current = ingredient;
+    setIsLeavingForMove(true);
+    sheetRef.current.close();
+  }
+
   return (
-    <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} expanded={isFormOpen} transitioning={isChanging}
-      onClose={() => { if (!saving.current && !deleting.current && !transition.current.active) onClose(); }}>
+    <BottomSheet ref={sheetRef} disabled={isSaving || isDeleting || isChanging} expanded={isFormOpen} transitioning={isChanging}
+      onClose={() => {
+        if (saving.current || deleting.current || transition.current.active) return;
+        const ingredient = pendingMove.current;
+        pendingMove.current = null;
+        onClose();
+        if (ingredient) onMove?.(ingredient);
+      }}>
         <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}
           onStartShouldSetResponder={() => {
-            if (!saving.current && !deleting.current && !transition.current.active) setSwipedIngredientId(null);
+            if (!saving.current && !deleting.current && !pendingMove.current && !transition.current.active) setSwipedIngredientId(null);
             // 항목·삭제 버튼이 먼저 처리하는 버블 단계만 확인하고, 터치는 가로채지 않는다.
             return false;
           }}>
@@ -382,12 +400,16 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted }: I
                               return (
                                 <IngredientSwipeRow name={item.name} width={pageWidth} isOpen={swipedIngredientId === item.id} disabled={isBusy || isChanging}
                                   onOpen={() => setSwipedIngredientId(item.id)} onClose={() => setSwipedIngredientId(null)}
+                                  onMove={() => startMoving(item)}
                                   onDelete={() => requestDelete(item)}>
                                   <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${item.name} 편집`}
                                     accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
-                                    accessibilityHint="눌러서 편집하거나 왼쪽으로 밀어 삭제 버튼을 표시합니다."
-                                    accessibilityActions={[{ name: 'delete', label: '재료 삭제' }]}
-                                    onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'delete') requestDelete(item); }}
+                                    accessibilityHint="눌러서 편집하거나 왼쪽으로 밀어 이동·삭제 버튼을 표시합니다."
+                                    accessibilityActions={[{ name: 'move', label: '재료 이동' }, { name: 'delete', label: '재료 삭제' }]}
+                                    onAccessibilityAction={({ nativeEvent }) => {
+                                      if (nativeEvent.actionName === 'move') startMoving(item);
+                                      else if (nativeEvent.actionName === 'delete') requestDelete(item);
+                                    }}
                                     accessibilityState={{ disabled: isBusy || isChanging }} disabled={isBusy} interactionBlocked={isChanging}
                                     onPress={() => { if (swipedIngredientId !== null) setSwipedIngredientId(null); else startEditing(item); }} style={styles.item}>
                                     <View style={styles.itemHeader}>

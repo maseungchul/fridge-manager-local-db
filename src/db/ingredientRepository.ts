@@ -1,6 +1,6 @@
 /**
  * @file
- * 홈 도면과 선택한 칸·좌우 위치의 재료를 SQLite에서 조회하고 등록·수정·삭제한다.
+ * 홈 도면과 선택한 칸·좌우 위치의 재료를 SQLite에서 조회하고 등록·수정·삭제·이동한다.
  * 저장 결과는 재료 모델로 반환하며, 화면의 선택·로딩·오류 상태는 호출자가 관리한다.
  */
 import { uuid } from 'expo';
@@ -57,4 +57,18 @@ export async function deleteIngredient(db: SQLiteDatabase, ingredient: Pick<Ingr
     DELETE FROM ingredients WHERE id = ? AND slot_id = ? AND drawer_number = ?;
   `, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
   if (result.changes !== 1) throw new Error('삭제할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
+}
+
+/** 출발 위치가 일치하는 재료의 위치만 한 번에 바꾸고, 목적지의 유효성은 DB 제약으로 검사한다. */
+export async function moveIngredient(db: SQLiteDatabase, ingredient: Ingredient,
+  destination: Pick<Ingredient, 'slotId' | 'drawerNumber'>): Promise<Ingredient> {
+  if (ingredient.slotId === destination.slotId && ingredient.drawerNumber === destination.drawerNumber) {
+    throw new Error('현재 보관 중인 위치입니다. 다른 칸을 선택해 주세요.');
+  }
+  const result = await db.runAsync(`
+    UPDATE ingredients SET slot_id = ?, drawer_number = ?
+    WHERE id = ? AND slot_id = ? AND drawer_number = ?;
+  `, destination.slotId, destination.drawerNumber, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
+  if (result.changes !== 1) throw new Error('이동할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
+  return { ...ingredient, slotId: destination.slotId, drawerNumber: destination.drawerNumber };
 }

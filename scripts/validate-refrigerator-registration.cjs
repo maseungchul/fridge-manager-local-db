@@ -35,7 +35,7 @@ const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRef
 });
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 const ingredientRegistration = require('../src/db/ingredientRegistration.ts');
-const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient, deleteIngredient } = loadModule('src/db/ingredientRepository.ts', {
+const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient, deleteIngredient, moveIngredient } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
 });
 
@@ -335,6 +335,88 @@ test('재료 삭제 SQL 실패는 기존 재료를 보존하고 재시도 후 �
   await deleteIngredient(adapter, original);
   assert.deepEqual(await getIngredientsByPosition(adapter, original), []);
   assert.deepEqual(await getIngredients(adapter), []);
+});
+
+test('재료 이동은 좌우·포켓·다른 본체 사이에서 ID·기본 정보·건수와 다른 재료를 보존한다', async t => {
+  const { db, adapter, databasePath } = await createRepositoryDatabase(t);
+  const draft = createTwoDoorDraft();
+  draft.rows[0].compartments[0].slots[0].drawerCount = 2;
+  draft.rows[1].compartments[0].storageMode = 'FROZEN';
+  await registerRefrigerator(adapter, draft);
+  const refrigerator = await getRefrigerator(adapter);
+  const slotId = refrigerator.rows[0].compartments[0].slots[0].id;
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '반 판', memo: '남은 재료',
+    expirationDate: '2026-11-30', slotId, drawerNumber: 1 });
+  const other = await registerIngredient(adapter, original);
+  const structure = readStoredData(db);
+  let moved = original;
+  for (const destination of [
+    { slotId, drawerNumber: 2 },
+    { slotId: refrigerator.rows[0].doors[0].slots[0].id, drawerNumber: 0 },
+    { slotId: refrigerator.rows[1].compartments[0].slots[0].id, drawerNumber: 0 },
+  ]) {
+    const source = moved;
+    moved = await moveIngredient(adapter, source, destination);
+    assert.deepEqual(moved, { ...original, ...destination });
+    assert.equal((await getIngredientsByPosition(adapter, source)).some(item => item.id === original.id), false);
+    assert.deepEqual({ ...(await getIngredientsByPosition(adapter, destination)).find(item => item.id === original.id) }, moved);
+    assert.deepEqual({ ...(await getIngredients(adapter)).find(item => item.id === other.id) }, other);
+    assert.equal((await getIngredients(adapter)).length, 2);
+    assert.deepEqual(readStoredData(db), structure);
+  }
+  const reopened = new DatabaseSync(databasePath);
+  try {
+    assert.deepEqual({ ...(await getIngredients(createConnectionAdapter(reopened))).find(item => item.id === original.id) }, moved);
+  } finally { reopened.close(); }
+});
+
+test('재료 이동은 같은 위치·잘못된 목적지·달라진 출발 위치를 거부하고 원본을 보존한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const draft = createTwoDoorDraft();
+  draft.rows[0].compartments[0].slots[0].drawerCount = 2;
+  draft.rows[0].doors[1].storageEnabled = false;
+  draft.rows[1].doors[0].kind = 'DRAWER';
+  await registerRefrigerator(adapter, draft);
+  const refrigerator = await getRefrigerator(adapter);
+  const row = refrigerator.rows[0];
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '2개', memo: null,
+    expirationDate: null, slotId: row.compartments[0].slots[0].id, drawerNumber: 1 });
+  const before = db.prepare('SELECT * FROM ingredients').all();
+  for (const destination of [
+    { slotId: original.slotId, drawerNumber: 1 }, { slotId: original.slotId, drawerNumber: 0 },
+    { slotId: 'missing', drawerNumber: 0 }, { slotId: row.doors[0].slots[0].id, drawerNumber: 1 },
+    { slotId: row.doors[1].slots[0].id, drawerNumber: 0 },
+    { slotId: refrigerator.rows[1].doors[0].slots[0].id, drawerNumber: 0 },
+  ]) {
+    await assert.rejects(moveIngredient(adapter, original, destination), /현재 보관|보관할 수 없는 위치/);
+    assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), before);
+  }
+  for (const source of [{ ...original, id: 'missing' }, { ...original, drawerNumber: 2 },
+    { ...original, slotId: row.doors[0].slots[0].id, drawerNumber: 0 }]) {
+    await assert.rejects(moveIngredient(adapter, source, { slotId: refrigerator.rows[1].compartments[0].slots[0].id, drawerNumber: 0 }), /이동할 재료/);
+    assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), before);
+  }
+});
+
+test('재료 이동 SQL 실패는 원본을 보존하고 재시도 후 출발 칸의 구조 변경을 허용한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  const draft = model.createRefrigeratorDraft();
+  draft.rows[0].compartments[0].slots[0].drawerCount = 2;
+  await registerRefrigerator(adapter, draft);
+  const refrigerator = await getRefrigerator(adapter);
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '2개', memo: null,
+    expirationDate: null, slotId: refrigerator.rows[0].compartments[0].slots[0].id, drawerNumber: 1 });
+  const destination = { slotId: refrigerator.rows[1].compartments[0].slots[0].id, drawerNumber: 0 };
+  const before = db.prepare('SELECT * FROM ingredients').all();
+  db.exec(`CREATE TRIGGER fail_ingredient_move BEFORE UPDATE OF slot_id, drawer_number ON ingredients
+    BEGIN SELECT RAISE(ABORT, '검증용 재료 이동 실패'); END;`);
+  await assert.rejects(moveIngredient(adapter, original, destination), /검증용 재료 이동 실패/);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), before);
+  db.exec('DROP TRIGGER fail_ingredient_move');
+  assert.deepEqual(await moveIngredient(adapter, original, destination), { ...original, ...destination });
+  db.prepare('UPDATE refrigerator_slots SET drawer_count = 0 WHERE id = ?').run(original.slotId);
+  assert.deepEqual(await getIngredientsByPosition(adapter, original), []);
+  assert.equal((await getIngredients(adapter)).length, 1);
 });
 
 test('이름 공백을 제거하고 임시 ID를 UUID로 바꾸며 입력 초안을 유지한다', () => {

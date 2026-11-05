@@ -1,14 +1,14 @@
 /**
  * @file
- * 네이티브 가로 스크롤로 삭제 버튼을 표시하고, 세로 이동은 목록·네이티브 시트에 맡긴다.
- * 열린 행과 삭제 요청은 호출자가 관리하며, 이 컴포넌트는 이동·버튼 표시만 처리한다.
+ * 네이티브 가로 스크롤로 이동·삭제 버튼을 표시하고, 세로 이동은 목록·네이티브 시트에 맡긴다.
+ * 열린 행과 재료 변경 요청은 호출자가 관리하며, 이 컴포넌트는 스크롤·버튼 표시만 처리한다.
  */
 import { useEffect, useRef } from 'react';
 import type { ComponentRef, ReactNode } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { colors } from '@/theme/tokens';
+import { colors, spacing } from '@/theme/tokens';
 
 interface IngredientSwipeRowProps {
   children: ReactNode;
@@ -18,26 +18,27 @@ interface IngredientSwipeRowProps {
   disabled: boolean;
   onOpen: () => void;
   onClose: () => void;
+  onMove: () => void;
   onDelete: () => void;
 }
 
-const DELETE_WIDTH = 80;
-const SNAP_OFFSETS = [0, DELETE_WIDTH];
+const ACTIONS_WIDTH = 144;
+const SNAP_OFFSETS = [0, ACTIONS_WIDTH];
 
-export function IngredientSwipeRow({ children, name, width, isOpen, disabled, onOpen, onClose, onDelete }: IngredientSwipeRowProps) {
+export function IngredientSwipeRow({ children, name, width, isOpen, disabled, onOpen, onClose, onMove, onDelete }: IngredientSwipeRowProps) {
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const swipe = useRef({ dragging: false, pending: false });
 
   useEffect(() => {
     if (swipe.current.dragging) return;
     swipe.current.pending = false;
-    scrollRef.current?.scrollTo({ x: isOpen ? DELETE_WIDTH : 0, animated: true });
+    scrollRef.current?.scrollTo({ x: isOpen ? ACTIONS_WIDTH : 0, animated: true });
   }, [isOpen, width]);
 
   function finishSwipe(offset: number) {
     if (!swipe.current.pending) return;
     swipe.current.pending = false;
-    if (offset >= DELETE_WIDTH / 2) onOpen();
+    if (offset >= ACTIONS_WIDTH / 2) onOpen();
     else onClose();
   }
 
@@ -61,8 +62,12 @@ export function IngredientSwipeRow({ children, name, width, isOpen, disabled, on
       <View style={[styles.content, { width }]}>{children}</View>
       <View style={styles.action} pointerEvents={isOpen && !disabled ? 'auto' : 'none'}
         accessibilityElementsHidden={!isOpen} importantForAccessibility={isOpen ? 'auto' : 'no-hide-descendants'}>
+        <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${name} 이동`}
+          accessibilityState={{ disabled }} disabled={disabled} onPress={onMove} style={[styles.actionButton, styles.moveButton]}>
+          <MaterialDesignIcons name="swap-horizontal" size={24} color={colors.chilled} accessible={false} />
+        </FeedbackPressable>
         <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${name} 삭제`}
-          accessibilityState={{ disabled }} disabled={disabled} feedback="danger" onPress={onDelete} style={styles.deleteButton}>
+          accessibilityState={{ disabled }} disabled={disabled} feedback="danger" onPress={onDelete} style={[styles.actionButton, styles.deleteButton]}>
           <MaterialDesignIcons name="trash-can-outline" size={24} color={colors.error} accessible={false} />
         </FeedbackPressable>
       </View>
@@ -73,7 +78,9 @@ export function IngredientSwipeRow({ children, name, width, isOpen, disabled, on
 const styles = StyleSheet.create({
   row: { flexGrow: 0 },
   content: { backgroundColor: colors.surface },
-  action: { width: DELETE_WIDTH, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  deleteButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: `${colors.rose}33` },
+  action: { width: ACTIONS_WIDTH, flexDirection: 'row', gap: spacing.md,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  actionButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  moveButton: { backgroundColor: `${colors.sageLight}80` },
+  deleteButton: { backgroundColor: `${colors.rose}33` },
 });

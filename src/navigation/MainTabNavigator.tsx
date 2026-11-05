@@ -22,7 +22,7 @@ const Tab = createNativeBottomTabNavigator<MainTabParamList>();
 
 export function MainTabNavigator() {
   const [icons, setIcons] = useState<ImageSourcePropType[]>([]);
-  const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
+  const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -44,14 +44,14 @@ export function MainTabNavigator() {
       tabBarLabelVisibilityMode: 'labeled',
       tabBarActiveTintColor: colors.chilled,
       tabBarInactiveTintColor: colors.textMuted,
-      tabBarSelectionEnabled: !isIngredientListOpen,
+      tabBarSelectionEnabled: !isTabInteractionBlocked,
       tabBarStyle: { backgroundColor: colors.toolbar },
     }}>
       <Tab.Screen name="Home" options={{
         title: '냉장고',
         tabBarIcon: icons[0] ? { type: 'image', source: icons[0] } : undefined,
       }}>
-        {props => <HomeScreen {...props} onIngredientListVisibilityChange={setIsIngredientListOpen} />}
+        {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked} />}
       </Tab.Screen>
       <Tab.Screen name="Shopping" component={ShoppingScreen} options={{
         title: '장보기',
