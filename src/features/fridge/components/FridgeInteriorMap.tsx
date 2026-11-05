@@ -3,12 +3,12 @@
  * 등록·홈 도면의 문을 누르면 본체와 연결된 도어 포켓을 함께 열어 화면 중앙에서 보여준다.
  * 문 수납·칸 편집은 호출자가 관리하며, 내부 표시와 선택 효과는 FridgeMap을 재사용한다.
  */
-import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentRef, ReactNode } from 'react';
 import { Animated, Easing, Keyboard, Pressable, ScrollView, StyleSheet, Text, View, useAnimatedValue, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LayoutChangeEvent, LayoutRectangle, StyleProp, ViewStyle } from 'react-native';
+import { Toast } from '@/components/Toast';
 import { DOOR_MODE_ART_INSET, DoorHandle, DoorModeArt, FridgeMap, getFridgeAreaEditSize } from '@/features/fridge/components/FridgeMap';
 import { areaNames, FRIDGE_ASPECT_RATIO, getDraftAreaLocation, getDraftLayout, getDraftRowGeometry, getStorageModeName } from '@/features/fridge/model/fridgeLayout';
 import type { DraftDoor, FridgeLayout, RefrigeratorDraft, StorageArea, StorageMode } from '@/features/fridge/model/fridgeLayout';
@@ -484,33 +484,17 @@ function FridgeScrollHint({ enabled, dismissed, viewport, onSeen }: {
   enabled: boolean; dismissed: boolean; viewport: LayoutRectangle; onSeen?: () => void;
 }) {
   const [visible, setVisible] = useState(enabled);
-  const opacity = useAnimatedValue(0);
 
   useEffect(() => {
     if (!visible || dismissed) return;
     onSeen?.();
-    const fadeIn = Animated.timing(opacity, { toValue: 1, duration: 150, useNativeDriver: true });
-    fadeIn.start();
-    const timer = setTimeout(() => {
-      Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) setVisible(false);
-      });
-    }, 1800);
-    return () => {
-      clearTimeout(timer);
-      fadeIn.stop();
-      opacity.stopAnimation();
-    };
-  }, [visible, dismissed, opacity, onSeen]);
+  }, [visible, dismissed, onSeen]);
 
   if (!visible || dismissed) return null;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.scrollHintOverlay, { width: viewport.width, height: viewport.height }]}>
-      <Animated.View style={[styles.scrollHint, { opacity }]}>
-        <MaterialDesignIcons name="arrow-left-right" size={20} color={colors.buttonText} accessible={false} />
-        <Text style={styles.scrollHintLabel}>좌우로 밀어 확인</Text>
-      </Animated.View>
+      <Toast message="좌우로 밀어 확인" icon="arrow-left-right" accessibilityHidden onDismiss={() => setVisible(false)} />
     </View>
   );
 }
@@ -761,22 +745,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 30,
-  },
-  scrollHint: {
-    maxWidth: '90%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(34, 35, 31, 0.86)',
-  },
-  scrollHintLabel: {
-    flexShrink: 1,
-    color: colors.buttonText,
-    fontSize: 13,
-    lineHeight: 18,
   },
   area: {
     ...StyleSheet.absoluteFill,

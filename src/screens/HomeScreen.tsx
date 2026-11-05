@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-screens/experimental';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FloatingIconButton } from '@/components/FloatingIconButton';
+import { Toast } from '@/components/Toast';
 import { alertTitles } from '@/constants/alertTitles';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
 import { getIngredients, moveIngredient } from '@/db/ingredientRepository';
@@ -42,7 +43,6 @@ interface IngredientMove {
 }
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
-const MOVE_NOTICE_DURATION = 2000;
 
 export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeScreenProps) {
   const db = useSQLiteContext();
@@ -121,13 +121,6 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
       setSelectedSlot(null); setIsIngredientListOpen(false); setIsLegendOpen(false);
     };
   }, [loadRefrigerator, resetFocus, changeIngredientMove]));
-
-  // 연속 이동도 마지막 성공 시점부터 표시 시간을 다시 계산하고, 화면 종료 시 타이머를 정리한다.
-  useEffect(() => {
-    if (!moveNotice) return;
-    const timer = setTimeout(() => setMoveNotice(current => current === moveNotice ? null : current), MOVE_NOTICE_DURATION);
-    return () => clearTimeout(timer);
-  }, [moveNotice]);
 
   // 자정과 앱 복귀 때 날짜를 갱신해 도면을 다시 열지 않아도 배지의 기한 분류를 맞춘다.
   useEffect(() => {
@@ -290,10 +283,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
       {moveNotice ? (
         <SafeAreaView pointerEvents="none" edges={{ top: false, bottom: true, left: true, right: true }} style={styles.legendOverlay}>
           <View style={styles.noticeAnchor}>
-            <View style={styles.moveNotice}>
-              <MaterialDesignIcons name="check-circle-outline" size={20} color={colors.buttonText} accessible={false} />
-              <Text style={styles.noticeLabel} accessibilityRole="alert" accessibilityLiveRegion="polite">{moveNotice.message}</Text>
-            </View>
+            <Toast message={moveNotice.message} icon="check-circle-outline"
+              onDismiss={() => setMoveNotice(current => current === moveNotice ? null : current)} />
           </View>
         </SafeAreaView>
       ) : null}
@@ -402,9 +393,6 @@ const styles = StyleSheet.create({
     borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   moveLabel: { flex: 1, color: colors.text, fontSize: 15, lineHeight: 22 },
   noticeAnchor: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg * 3 },
-  moveNotice: { maxWidth: '100%', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 24, backgroundColor: colors.button },
-  noticeLabel: { flexShrink: 1, color: colors.buttonText, fontSize: 15, lineHeight: 22 },
   diagram: {
     flex: 1,
   },

@@ -155,6 +155,7 @@ function loadComponent(path, overrides = {}) {
     react: hooks, 'react-native': native,
     '@react-native-vector-icons/material-design-icons': { MaterialDesignIcons: 'Icon' },
     '@/components/PrimaryButton': { PrimaryButton: 'PrimaryButton' },
+    '@/components/Toast': { Toast: 'Toast' },
     '@/components/SelectionCheck': { SelectionCheck: 'SelectionCheck' },
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
@@ -232,6 +233,7 @@ menuModule = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
 const { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } = menuModule;
 const { RefrigeratorRegistrationScreen } = loadComponent('src/screens/RefrigeratorRegistrationScreen.tsx');
 const { HomeScreen } = loadComponent('src/screens/HomeScreen.tsx');
+const { Toast } = loadComponent('src/components/Toast.tsx');
 const { IngredientListSheet } = loadComponent('src/features/ingredient/components/IngredientListSheet.tsx');
 const { IngredientSwipeRow } = loadComponent('src/features/ingredient/components/IngredientSwipeRow.tsx');
 const { IngredientExpirationCalendar } = loadComponent('src/features/ingredient/components/IngredientExpirationCalendar.tsx');
@@ -247,6 +249,7 @@ function find(node, predicate) {
   }
 }
 const named = name => node => node?.type?.name === name;
+const ingredientMoveNotice = home => find(home.tree, node => node.type === 'Toast' && node.props.message === '재료를 이동했습니다.');
 const homeButton = screen => find(screen.tree, node => node.type === 'FeedbackPressable' && node.props.accessibilityLabel === '홈으로 이동'
   || node.type === 'SwiftUIButton' && node.props.modifiers.some(modifier => modifier.type === 'accessibilityLabel' && modifier.value === '홈으로 이동'));
 const homeButtonDisabled = button => button.props.disabled
@@ -2939,7 +2942,7 @@ test('홈의 재료 이동은 현재 위치·없는 칸을 제외하고 다른 �
   assert.equal(alerts.length, alertCount, '위치 경로·확인 Alert 없이 저장한다');
   assert.deepEqual(writes, [{ ingredient: original, destination: { slotId: targetSlot, drawerNumber: 0 } }]);
   assert.equal(persisted[0].slotId, original.slotId, '저장 중에는 원본이 출발 칸에 남는다');
-  assert.equal(find(home.tree, node => node.props.children === '재료를 이동했습니다.'), undefined);
+  assert.equal(ingredientMoveNotice(home), undefined);
   assert.equal(cancel().props.disabled, true);
   assert(find(home.tree, node => node.props.accessibilityLabel === '재료 이동 중'));
   cancel().props.onPress();
@@ -2951,7 +2954,7 @@ test('홈의 재료 이동은 현재 위치·없는 칸을 제외하고 다른 �
   persisted[0] = { ...original, slotId: targetSlot, drawerNumber: 0 };
   pending.resolve(persisted[0]); await new Promise(setImmediate); home.render();
   assert.equal(alerts.length, alertCount);
-  assert(find(home.tree, node => node.props.children === '재료를 이동했습니다.'));
+  assert(ingredientMoveNotice(home));
   assert.equal(cancel(), undefined);
   assert.equal(blocked.at(-1), false);
   assert.equal(focus().props.phase, 'open');
@@ -2983,7 +2986,7 @@ test('홈의 재료 이동 실패는 원본·이동 상태를 유지해 재시�
   assert.deepEqual(persisted[0], original);
   assert.deepEqual(focus().props.ingredients[0], original);
   assert.equal(cancel().props.disabled, false);
-  assert.equal(find(home.tree, node => node.props.children === '재료를 이동했습니다.'), undefined);
+  assert.equal(ingredientMoveNotice(home), undefined);
   await select();
   assert.equal(writes, 2);
   assert.equal(cancel(), undefined);
@@ -2991,7 +2994,7 @@ test('홈의 재료 이동 실패는 원본·이동 상태를 유지해 재시�
   focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`); home.render();
   const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
   sheet.props.onClose(); sheet.props.onMove(persisted[0]); home.render();
-  assert.equal(find(home.tree, node => node.props.children === '재료를 이동했습니다.'), undefined);
+  assert.equal(ingredientMoveNotice(home), undefined);
   focus().props.onClose(); home.render();
   focus().props.onPhaseChange('closed'); home.render();
   assert.equal(focus(), undefined);
@@ -3009,7 +3012,7 @@ test('이동 저장 중 홈을 다시 열면 늦은 완료로 이전 이동의 �
   focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`); home.render();
   home.focus(); await new Promise(setImmediate); home.render();
   pending.resolve({ ...original, drawerNumber: 2 }); await new Promise(setImmediate); home.render();
-  assert.equal(find(home.tree, node => node.props.children === '재료를 이동했습니다.'), undefined);
+  assert.equal(ingredientMoveNotice(home), undefined);
   assert.equal(find(home.tree, node => node.props.accessibilityLabel === '재료 이동 취소'), undefined);
   assert.deepEqual(find(home.tree, named('FridgeInteriorMap')).props.ingredients[0], original);
 });
@@ -3021,7 +3024,7 @@ test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막
     persisted[0] = { ...ingredient, ...destination };
     return persisted[0];
   };
-  const notice = () => find(home.tree, node => node.props.children === '재료를 이동했습니다.');
+  const notice = () => ingredientMoveNotice(home);
   const select = async positionId => {
     focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, positionId);
     await new Promise(setImmediate); home.render();
@@ -3029,6 +3032,9 @@ test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막
   await select(`${slotId}-right`);
   assert(notice());
   const message = notice();
+  const firstToast = mount(Toast, message.props);
+  t.after(() => firstToast.unmount());
+  animations.at(-1).finish();
   const noticeOverlay = find(home.tree, node => node.type === 'SafeAreaView' && find(node, child => child === message));
   assert.equal(noticeOverlay.props.pointerEvents, 'none');
   t.mock.timers.tick(1000); home.render();
@@ -3037,14 +3043,72 @@ test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막
   assert(sheet, '안내 중에도 일반 칸 선택으로 재료 목록을 열 수 있다');
   sheet.props.onClose(); sheet.props.onMove(persisted[0]); home.render();
   assert.equal(notice(), undefined);
+  firstToast.unmount();
   await select(`${slotId}-left`);
   assert(notice());
+  const secondToast = mount(Toast, notice().props);
+  t.after(() => secondToast.unmount());
+  animations.at(-1).finish();
+  message.props.onDismiss(); home.render();
+  assert(notice(), '이전 안내의 늦은 숨김 신호가 새 안내를 지우지 않는다');
   t.mock.timers.tick(1000); home.render();
   assert(notice(), '이전 안내의 만료 시점에 새 안내를 숨기지 않는다');
   t.mock.timers.tick(999); home.render();
   assert(notice());
+  const fadeOut = animations.at(-1);
+  assert.equal(fadeOut.config.toValue, 0);
   t.mock.timers.tick(1); home.render();
+  fadeOut.finish(); home.render();
   assert.equal(notice(), undefined);
+});
+
+test('공통 Toast는 터치를 막지 않고 콜백·접근성 변경 후에도 처음 표시한 시점부터 2초 뒤 종료한다', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const dismissed = [];
+  const toast = mount(Toast, { message: '완료 안내', icon: 'check-circle-outline', onDismiss: () => dismissed.push('initial') });
+  t.after(() => toast.unmount());
+  assert.equal(toast.tree.props.pointerEvents, 'none');
+  assert.equal(find(toast.tree, node => node.type === 'Text').props.accessibilityRole, 'alert');
+  const fadeIn = animations.at(-1);
+  assert.equal(fadeIn.config.toValue, 1);
+  assert.equal(fadeIn.config.duration, 150);
+  assert.equal(fadeIn.config.useNativeDriver, true);
+  fadeIn.finish();
+  t.mock.timers.tick(1000);
+  toast.props = { ...toast.props, accessibilityHidden: true, onDismiss: () => dismissed.push('latest') };
+  toast.render();
+  assert.equal(toast.tree.props.accessibilityElementsHidden, true);
+  assert.equal(toast.tree.props.importantForAccessibility, 'no-hide-descendants');
+  assert.equal(find(toast.tree, node => node.type === 'Text').props.accessibilityRole, undefined);
+  t.mock.timers.tick(799);
+  assert.strictEqual(animations.at(-1), fadeIn);
+  t.mock.timers.tick(1);
+  const fadeOut = animations.at(-1);
+  assert.equal(fadeOut.config.toValue, 0);
+  assert.equal(fadeOut.config.duration, 200);
+  assert.deepEqual(dismissed, []);
+  t.mock.timers.tick(200); fadeOut.finish();
+  assert.deepEqual(dismissed, ['latest']);
+});
+
+test('공통 Toast는 안내 교체·제거 시 타이머와 애니메이션을 정리하고 늦은 숨김 콜백을 무시한다', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const dismissed = [];
+  const toast = mount(Toast, { message: '첫 안내', icon: 'arrow-left-right', onDismiss: () => dismissed.push('first') });
+  t.after(() => toast.unmount());
+  t.mock.timers.tick(1800);
+  const previousFade = animations.at(-1);
+  toast.props = { ...toast.props, message: '다음 안내', onDismiss: () => dismissed.push('next') }; toast.render();
+  assert.equal(animations.at(-1).config.toValue, 1);
+  previousFade.finish();
+  assert.deepEqual(dismissed, []);
+  t.mock.timers.tick(1800);
+  const currentFade = animations.at(-1);
+  toast.unmount();
+  const count = animations.length;
+  currentFade.finish(); t.mock.timers.tick(3000);
+  assert.deepEqual(dismissed, []);
+  assert.equal(animations.length, count);
 });
 
 test('홈·등록·편집은 원래 도면 배치와 닫힘·열림 크기를 공유한다', async t => {
@@ -4247,22 +4311,30 @@ test('안내는 열린 스크롤 도면의 표시 영역 중앙에 나타나고 
   assert.equal(frame.height, focus.props.viewport.height);
   assert.equal(frame.alignItems, 'center');
   assert.equal(frame.justifyContent, 'center');
+  const toastElement = find(hint.tree, node => node.type === 'Toast');
+  assert.equal(toastElement.props.message, '좌우로 밀어 확인');
+  assert.equal(toastElement.props.icon, 'arrow-left-right');
+  assert.equal(toastElement.props.accessibilityHidden, true);
+  const toast = mount(Toast, toastElement.props);
   const fadeIn = animations.at(-1);
   assert.equal(fadeIn.config.toValue, 1);
   fadeIn.finish();
   hint.props = { ...hint.props, enabled: false };
   hint.render();
   assert(hint.tree, '표시 이력을 기록해도 현재 안내는 즉시 사라지지 않아야 한다');
+  toast.props = find(hint.tree, node => node.type === 'Toast').props; toast.render();
   t.mock.timers.tick(1799);
   assert.equal(animations.at(-1), fadeIn);
   t.mock.timers.tick(1);
   const fadeOut = animations.at(-1);
   assert.equal(fadeOut.config.toValue, 0);
   assert.equal(fadeOut.config.duration, 200);
+  t.mock.timers.tick(200);
   fadeOut.finish();
   hint.render();
   assert.equal(hint.tree, null);
   assert.equal(seen, 1);
+  toast.unmount();
   hint.unmount();
   focus.unmount();
 });
@@ -4278,6 +4350,7 @@ test('안내는 자동 위치 정렬·영역 선택에는 유지되고 사용자
   const hintElement = () => find(focus.tree, named('FridgeScrollHint'));
   const scroller = () => find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
   const hint = mount(hintElement().type, hintElement().props);
+  const toast = mount(Toast, find(hint.tree, node => node.type === 'Toast').props);
   const animationCount = animations.length;
   scroller().props.onScroll({ nativeEvent: { contentOffset: scroller().props.contentOffset } });
   focus.props.onSelectArea(draft.rows[0].doors[0].id);
@@ -4290,6 +4363,7 @@ test('안내는 자동 위치 정렬·영역 선택에는 유지되고 사용자
   hint.props = hintElement().props;
   hint.render();
   assert.equal(hint.tree, null);
+  toast.unmount();
   assert.equal(focus.props.phase, 'open');
   t.mock.timers.tick(5000);
   assert.equal(animations.length, animationCount);
