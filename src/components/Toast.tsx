@@ -17,10 +17,11 @@ interface ToastProps {
   onDismiss: () => void;
 }
 
-const FADE_IN_DURATION = 150;
+const FADE_IN_DURATION = 200;
+const HOLD_DURATION = 2500;
 const FADE_OUT_DURATION = 200;
 
-export function Toast({ message, icon, duration = 2000, accessibilityHidden = false, onDismiss }: ToastProps) {
+export function Toast({ message, icon, duration = FADE_IN_DURATION + HOLD_DURATION + FADE_OUT_DURATION, accessibilityHidden = false, onDismiss }: ToastProps) {
   const opacity = useAnimatedValue(0);
   const dismiss = useRef(onDismiss);
   // 부모의 노출 이력·콜백 변경으로 표시 시간을 다시 시작하지 않는다.

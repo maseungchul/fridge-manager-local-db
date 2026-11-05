@@ -3017,7 +3017,7 @@ test('이동 저장 중 홈을 다시 열면 늦은 완료로 이전 이동의 �
   assert.deepEqual(find(home.tree, named('FridgeInteriorMap')).props.ingredients[0], original);
 });
 
-test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막 성공 시점부터 2초 후 사라진다', async t => {
+test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막 성공 시점부터 2.9초 후 사라진다', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { home, persisted, sourceRow, slotId, focus } = await ingredientMoveFixture(t);
   ingredientRepository.moveIngredient = async (db, ingredient, destination) => {
@@ -3053,7 +3053,7 @@ test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막
   assert(notice(), '이전 안내의 늦은 숨김 신호가 새 안내를 지우지 않는다');
   t.mock.timers.tick(1000); home.render();
   assert(notice(), '이전 안내의 만료 시점에 새 안내를 숨기지 않는다');
-  t.mock.timers.tick(999); home.render();
+  t.mock.timers.tick(1899); home.render();
   assert(notice());
   const fadeOut = animations.at(-1);
   assert.equal(fadeOut.config.toValue, 0);
@@ -3062,7 +3062,7 @@ test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막
   assert.equal(notice(), undefined);
 });
 
-test('공통 Toast는 터치를 막지 않고 콜백·접근성 변경 후에도 처음 표시한 시점부터 2초 뒤 종료한다', t => {
+test('공통 Toast는 페이드인 0.2초·유지 2.5초·페이드아웃 0.2초 후 콜백 변경과 관계없이 종료한다', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const dismissed = [];
   const toast = mount(Toast, { message: '완료 안내', icon: 'check-circle-outline', onDismiss: () => dismissed.push('initial') });
@@ -3071,7 +3071,7 @@ test('공통 Toast는 터치를 막지 않고 콜백·접근성 변경 후에도
   assert.equal(find(toast.tree, node => node.type === 'Text').props.accessibilityRole, 'alert');
   const fadeIn = animations.at(-1);
   assert.equal(fadeIn.config.toValue, 1);
-  assert.equal(fadeIn.config.duration, 150);
+  assert.equal(fadeIn.config.duration, 200);
   assert.equal(fadeIn.config.useNativeDriver, true);
   fadeIn.finish();
   t.mock.timers.tick(1000);
@@ -3080,7 +3080,7 @@ test('공통 Toast는 터치를 막지 않고 콜백·접근성 변경 후에도
   assert.equal(toast.tree.props.accessibilityElementsHidden, true);
   assert.equal(toast.tree.props.importantForAccessibility, 'no-hide-descendants');
   assert.equal(find(toast.tree, node => node.type === 'Text').props.accessibilityRole, undefined);
-  t.mock.timers.tick(799);
+  t.mock.timers.tick(1699);
   assert.strictEqual(animations.at(-1), fadeIn);
   t.mock.timers.tick(1);
   const fadeOut = animations.at(-1);
@@ -3096,13 +3096,13 @@ test('공통 Toast는 안내 교체·제거 시 타이머와 애니메이션을 
   const dismissed = [];
   const toast = mount(Toast, { message: '첫 안내', icon: 'arrow-left-right', onDismiss: () => dismissed.push('first') });
   t.after(() => toast.unmount());
-  t.mock.timers.tick(1800);
+  t.mock.timers.tick(2700);
   const previousFade = animations.at(-1);
   toast.props = { ...toast.props, message: '다음 안내', onDismiss: () => dismissed.push('next') }; toast.render();
   assert.equal(animations.at(-1).config.toValue, 1);
   previousFade.finish();
   assert.deepEqual(dismissed, []);
-  t.mock.timers.tick(1800);
+  t.mock.timers.tick(2700);
   const currentFade = animations.at(-1);
   toast.unmount();
   const count = animations.length;
@@ -4281,7 +4281,7 @@ test('좌우 이동 중 화면 너비나 연결 구조가 바뀌면 본체의 �
   focus.unmount();
 });
 
-test('안내는 열린 스크롤 도면의 표시 영역 중앙에 나타나고 노출 기록 후에도 약 2초를 유지한다', t => {
+test('안내는 열린 스크롤 도면의 표시 영역 중앙에 나타나고 노출 기록 후에도 약 2.9초를 유지한다', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let draft = model.createRefrigeratorDraft();
   const rowId = draft.rows[0].id;
@@ -4323,7 +4323,7 @@ test('안내는 열린 스크롤 도면의 표시 영역 중앙에 나타나고 
   hint.render();
   assert(hint.tree, '표시 이력을 기록해도 현재 안내는 즉시 사라지지 않아야 한다');
   toast.props = find(hint.tree, node => node.type === 'Toast').props; toast.render();
-  t.mock.timers.tick(1799);
+  t.mock.timers.tick(2699);
   assert.equal(animations.at(-1), fadeIn);
   t.mock.timers.tick(1);
   const fadeOut = animations.at(-1);
@@ -4339,7 +4339,7 @@ test('안내는 열린 스크롤 도면의 표시 영역 중앙에 나타나고 
   focus.unmount();
 });
 
-test('안내는 자동 위치 정렬·영역 선택에는 유지되고 사용자 드래그에는 즉시 사라진다', t => {
+test('안내는 자동 위치 정렬·영역 선택·직접 스크롤 후에도 공통 표시 시간을 유지한다', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { draft, compartment, requests } = fixture();
   selectDoor(compartment);
@@ -4358,15 +4358,21 @@ test('안내는 자동 위치 정렬·영역 선택에는 유지되고 사용자
   hint.props = hintElement().props;
   hint.render();
   assert(hint.tree);
-  scroller().props.onScrollBeginDrag();
+  assert.equal(scroller().props.onScrollBeginDrag, undefined);
+  scroller().props.onScroll({ nativeEvent: { contentOffset: { x: scroller().props.contentOffset.x + 40, y: 0 } } });
   focus.render();
   hint.props = hintElement().props;
   hint.render();
+  assert(hint.tree, '직접 스크롤해도 안내를 숨기지 않는다');
+  toast.props = find(hint.tree, node => node.type === 'Toast').props; toast.render();
+  assert.equal(focus.props.phase, 'open');
+  t.mock.timers.tick(2699);
+  assert.equal(animations.length, animationCount);
+  t.mock.timers.tick(1);
+  assert.equal(animations.at(-1).config.toValue, 0);
+  t.mock.timers.tick(200); animations.at(-1).finish(); hint.render();
   assert.equal(hint.tree, null);
   toast.unmount();
-  assert.equal(focus.props.phase, 'open');
-  t.mock.timers.tick(5000);
-  assert.equal(animations.length, animationCount);
   hint.unmount();
   focus.unmount();
 });

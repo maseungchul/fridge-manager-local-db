@@ -479,18 +479,18 @@ function DoorHinges({ fromX, toX, height, storageMode }: { fromX: number; toX: n
   );
 }
 
-/** 처음 표시한 안내는 노출 이력이 기록돼도 유지하고, 시간 경과·사용자 드래그로 종료한다. */
-function FridgeScrollHint({ enabled, dismissed, viewport, onSeen }: {
-  enabled: boolean; dismissed: boolean; viewport: LayoutRectangle; onSeen?: () => void;
+/** 처음 표시한 안내는 노출 이력·스크롤과 관계없이 유지하고, 공통 표시 시간이 끝나면 종료한다. */
+function FridgeScrollHint({ enabled, viewport, onSeen }: {
+  enabled: boolean; viewport: LayoutRectangle; onSeen?: () => void;
 }) {
   const [visible, setVisible] = useState(enabled);
 
   useEffect(() => {
-    if (!visible || dismissed) return;
+    if (!visible) return;
     onSeen?.();
-  }, [visible, dismissed, onSeen]);
+  }, [visible, onSeen]);
 
-  if (!visible || dismissed) return null;
+  if (!visible) return null;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.scrollHintOverlay, { width: viewport.width, height: viewport.height }]}>
@@ -519,7 +519,6 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const verticalScrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0, y: 0 });
-  const [hintDismissed, setHintDismissed] = useState(false);
   const geometry = getFridgeFocusGeometry(draft, target, viewport, sizeViewport);
   const layout = getDraftLayout(draft, ingredients);
   const open = phase === 'open';
@@ -642,7 +641,6 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
       contentOffset={{ x: initialScrollX, y: 0 }} scrollEventThrottle={16}
       onScroll={({ nativeEvent }) => setScrollPosition(current => ({ key: scrollKey, x: nativeEvent.contentOffset.x,
         y: current.key === scrollKey ? current.y : 0 }))}
-      onScrollBeginDrag={() => { setHintDismissed(true); onScrollHintSeen?.(); }}
       style={[styles.compartment, { left: 0, top: verticalScrolling ? 0 : geometry.focusedTop,
         width: viewport.width, height: geometry.contentHeight }]}>
       {/* 네이티브 스크롤 표시줄이 칸 위에 겹치지 않도록 도면 아래 공간을 남긴다. */}
@@ -677,7 +675,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           accessibilityState={{ disabled: !open }} disabled={!open} onPress={onClose} />
       </Animated.View>
       {scrollScene}
-      {horizontalScrolling && !scrollHintBlocked ? <FridgeScrollHint enabled={scrollHintEnabled} dismissed={hintDismissed}
+      {horizontalScrolling && !scrollHintBlocked ? <FridgeScrollHint enabled={scrollHintEnabled}
         viewport={viewport} onSeen={onScrollHintSeen} /> : null}
     </View>
   );
