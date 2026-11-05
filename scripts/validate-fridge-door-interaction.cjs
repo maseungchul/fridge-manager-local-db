@@ -37,6 +37,12 @@ const hooks = {
     return [slot.value, next => { slot.value = typeof next === 'function' ? next(slot.value) : next; }];
   },
   useRef(initial) { return hooks.useState(() => ({ current: initial }))[0]; },
+  useImperativeHandle(ref, create, dependencies) {
+    hooks.useEffect(() => {
+      if (ref) ref.current = create();
+      return () => { if (ref) ref.current = null; };
+    }, dependencies ?? [create]);
+  },
   useCallback(callback, dependencies) {
     const index = current.cursor++;
     const previous = current.slots[index];
@@ -123,7 +129,8 @@ let iosHomeButtonModule;
 let defaultHomeButtonModule;
 const swiftUIModifiers = Object.fromEntries([
   'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'buttonBorderShape', 'buttonStyle', 'controlSize', 'datePickerStyle',
-  'disabled', 'environment', 'frame', 'onGeometryChange', 'tint',
+  'disabled', 'environment', 'frame', 'onGeometryChange', 'tint', 'interactiveDismissDisabled',
+  'presentationBackground', 'presentationDetents', 'presentationDragIndicator',
 ].map(name => [name, value => ({ type: name, value })]));
 function loadComponent(path, overrides = {}) {
   const source = readFileSync(resolve(__dirname, '..', path), 'utf8');
@@ -141,7 +148,7 @@ function loadComponent(path, overrides = {}) {
     '@/components/QuantityStepper': quantityStepperModule,
     '@/constants/alertTitles': { alertTitles },
     '@/features/fridge/constants/messages': { fridgeMessages },
-    '@expo/ui/swift-ui': { Button: 'SwiftUIButton', DatePicker: 'SwiftUIDatePicker', Host: 'SwiftUIHost', Label: 'SwiftUILabel', RNHostView: 'RNHostView', Spacer: 'SwiftUISpacer' },
+    '@expo/ui/swift-ui': { Button: 'SwiftUIButton', DatePicker: 'SwiftUIDatePicker', Host: 'SwiftUIHost', Label: 'SwiftUILabel', RNHostView: 'RNHostView', Spacer: 'SwiftUISpacer', BottomSheet: 'SwiftUIBottomSheet', Group: 'SwiftUIGroup' },
     '@expo/ui/swift-ui/modifiers': swiftUIModifiers,
     '@expo/ui/jetpack-compose': { Box: 'ComposeBox', Host: 'ComposeHost' },
     '@expo/ui/jetpack-compose/modifiers': {
@@ -149,6 +156,7 @@ function loadComponent(path, overrides = {}) {
       onGloballyPositioned: callback => ({ type: 'onGloballyPositioned', value: callback }),
     },
     '@expo/ui/community/bottom-sheet': { BottomSheet: 'BottomSheet' },
+    '@/features/ingredient/components/IngredientSheet': { IngredientSheet: 'BottomSheet' },
     '@/features/ingredient/model/ingredient': ingredientModel,
     '@expo/ui/community/datetime-picker': { DateTimePicker: 'DateTimePicker' },
     '@react-native-community/datetimepicker': { __esModule: true, default: 'UIKitDateTimePicker' },
@@ -188,6 +196,7 @@ function loadComponent(path, overrides = {}) {
     },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }) },
     'react-native-screens/experimental': { SafeAreaView: 'SafeAreaView' },
+    'react-native-screens': { ScreenStack: 'ScreenStack', ScreenStackItem: 'ScreenStackItem' },
     ...overrides,
   };
   new Function('require', 'module', 'exports', output)(name => name in dependencies ? dependencies[name] : require(name), module, module.exports);
@@ -1436,13 +1445,34 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
     const coveredViewport = find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
     assert.equal(coveredViewport.props.pointerEvents, 'none');
     assert.equal(coveredViewport.props.accessibilityElementsHidden, true);
-    // 목록을 닫아도 열린 도면과 현재 칸의 선택은 유지한다.
+    // 패널 종료 경로와 관계없이 칸 선택을 해제하고 도면의 열림·크기는 유지한다.
+    sheet.props.onCloseStart();
+    refresh();
+    const closingSheet = find(home.tree, node => node.type === 'IngredientListSheet');
+    assert.equal(closingSheet.key, sheet.key, '닫기 완료 전까지 같은 패널을 유지한다');
+    assert.deepEqual(closingSheet.props.position, position);
+    assert.equal(focus().props.selectedPositionId, undefined);
+    assert.equal(focus().props.selectedSlotIndex, undefined);
+    assert.equal(focus().props.selectedAreaId, undefined);
+    assert(slots().every(slot => !slot.button.props.accessibilityState.selected));
+    assert.equal(focus().props.phase, 'open');
+    assert.equal(focus().props.scrollHintBlocked, true);
+    sheet.props.onCloseCancel();
+    refresh();
+    assert.equal(focus().props.selectedPositionId, id);
+    assert.equal(slots().filter(slot => slot.button.props.accessibilityState.selected).length, 1);
+    sheet.props.onCloseStart();
+    refresh();
     if (index === expected.length - 1) assert.equal([...backHandlers].at(-1)(), true);
     else sheet.props.onClose();
-    home.render();
+    refresh();
     assert.equal(find(home.tree, node => node.type === 'IngredientListSheet'), undefined);
     assert.equal(focus().props.phase, 'open');
-    assert.equal(focus().props.selectedPositionId, id);
+    assert.equal(focus().props.selectedPositionId, undefined);
+    assert.equal(focus().props.selectedSlotIndex, undefined);
+    assert.equal(focus().props.selectedAreaId, undefined);
+    assert(slots().every(slot => !slot.button.props.accessibilityState.selected));
+    assert.equal(focus().props.scrollHintBlocked, false);
     const after = getFridgeFocusGeometry(saved, target, focus().props.viewport, focus().props.sizeViewport);
     near(after.height, before.height);
     near(after.body.width, before.body.width);
@@ -1456,8 +1486,8 @@ test('홈은 본체의 좌우 위치·포켓 전면을 개별 선택하고 닫�
   assert(slots().every(slot => slot.button.props.disabled));
   for (const slot of slots()) press(slot);
   home.render();
-  assert.equal(focus().props.selectedAreaId, row.doors[0].id);
-  assert.equal(focus().props.selectedSlotIndex, 1);
+  assert.equal(focus().props.selectedAreaId, undefined);
+  assert.equal(focus().props.selectedSlotIndex, undefined);
   animations.at(-1).finish();
   home.render();
   assert.equal(focus(), undefined);
@@ -1543,7 +1573,85 @@ test('홈의 재료 배지는 저장 직후 선택·열림을 유지하며 갱�
   assert.equal(reads, 2);
 });
 
-test('재료 시트는 절반 높이에서 시작하고 스와이프 닫기와 빈 목록·조회 중을 구분한다', async t => {
+test('iOS 재료 시트는 UIKit 전환 시작과 종료 완료를 구분하고 스와이프 취소 시 선택을 복원한다', t => {
+  const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.ios.tsx');
+  for (const trigger of ['native', 'ref']) {
+    const events = [];
+    const ref = { current: null };
+    const content = { type: 'Text', props: { children: '패널 내용' } };
+    const sheet = mount(IngredientSheet, { ref, children: content, disabled: false,
+      onCloseStart() { events.push('start'); }, onCloseCancel() { events.push('cancel'); }, onClose() { events.push('end'); } });
+    t.after(() => sheet.unmount());
+    const nativeSheet = () => find(sheet.tree, node => node.type === 'SwiftUIBottomSheet');
+    const nativeContent = () => find(sheet.tree, node => node.type === 'ScreenStackItem');
+    const modifiers = find(sheet.tree, node => node.type === 'SwiftUIGroup').props.modifiers;
+    assert.deepEqual(modifiers.find(modifier => modifier.type === 'presentationDetents').value, ['medium', 'large']);
+    assert.equal(modifiers.find(modifier => modifier.type === 'presentationDragIndicator').value, 'hidden');
+    assert.equal(nativeContent().props.stackPresentation, undefined, '내부 화면에서 커스텀 formSheet를 다시 표시하면 안 된다');
+    assert.equal(nativeContent().props.sheetAllowedDetents, undefined);
+    assert.deepEqual(events, []);
+    if (trigger === 'native') {
+      const panel = nativeContent();
+      panel.props.onWillDisappear();
+      sheet.render();
+      assert.deepEqual(events, ['start']);
+      assert(find(sheet.tree, node => node === content), '배경 터치로 닫는 중에도 패널 내용을 유지한다');
+      nativeContent().props.onAppear();
+      assert.deepEqual(events, ['start', 'cancel']);
+      panel.props.onWillDisappear();
+      panel.props.onWillDisappear();
+      assert.deepEqual(events, ['start', 'cancel', 'start']);
+      nativeSheet().props.onIsPresentedChange(false);
+      sheet.render();
+      assert.deepEqual(events, ['start', 'cancel', 'start']);
+      nativeSheet().props.onDismiss();
+      nativeSheet().props.onDismiss();
+      assert.deepEqual(events, ['start', 'cancel', 'start', 'end']);
+    } else {
+      ref.current.close();
+      sheet.render();
+      assert.deepEqual(events, ['start']);
+      assert.equal(nativeSheet().props.isPresented, false);
+      assert(find(sheet.tree, node => node === content), '종료 애니메이션이 끝나기 전까지 내용을 유지한다');
+      nativeContent().props.onAppear();
+      assert.deepEqual(events, ['start'], '명시적 닫기를 스와이프 취소로 되돌리면 안 된다');
+      nativeSheet().props.onDismiss();
+      nativeSheet().props.onDismiss();
+      assert.deepEqual(events, ['start', 'end']);
+    }
+  }
+  const ref = { current: null };
+  const locked = mount(IngredientSheet, { ref, children: null, disabled: true,
+    onCloseStart() { assert.fail('저장·전환 중에는 닫기 시작을 전달하면 안 된다'); },
+    onClose() { assert.fail('저장·전환 중에는 종료하면 안 된다'); } });
+  t.after(() => locked.unmount());
+  ref.current.close();
+  const panel = find(locked.tree, node => node.type === 'ScreenStackItem');
+  panel.props.onWillDisappear();
+  find(locked.tree, node => node.type === 'SwiftUIBottomSheet').props.onDismiss();
+  locked.render();
+  const modifiers = find(locked.tree, node => node.type === 'SwiftUIGroup').props.modifiers;
+  assert.equal(modifiers.find(modifier => modifier.type === 'interactiveDismissDisabled').value, true);
+  assert.equal(find(locked.tree, node => node.type === 'SwiftUIBottomSheet').props.isPresented, true);
+});
+
+test('Android·웹 재료 시트는 닫기 요청에서 먼저 알리고 네이티브 종료 후 패널을 제거한다', t => {
+  const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.tsx');
+  const events = [];
+  const ref = { current: null };
+  const sheet = mount(IngredientSheet, { ref, children: null, disabled: false,
+    onCloseStart() { events.push('start'); }, onClose() { events.push('end'); } });
+  t.after(() => sheet.unmount());
+  assert.deepEqual(sheet.tree.props.snapPoints, ['50%', '100%']);
+  assert.equal(sheet.tree.props.enableDynamicSizing, false);
+  sheet.tree.props.ref.current = { close() { events.push('native'); } };
+  ref.current.close();
+  assert.deepEqual(events, ['start', 'native']);
+  sheet.tree.props.onClose();
+  assert.deepEqual(events, ['start', 'native', 'end']);
+});
+
+test('재료 시트는 스와이프 닫기와 빈 목록·조회 중을 구분한다', async t => {
   const previous = ingredientRepository.getIngredientsByPosition;
   t.after(() => { ingredientRepository.getIngredientsByPosition = previous; });
   const pending = deferred();
@@ -1562,10 +1670,7 @@ test('재료 시트는 절반 높이에서 시작하고 스와이프 닫기와 �
   const nativeClose = [];
   sheet.tree.props.ref.current = { close() { nativeClose.push(true); } };
   assert.equal(sheet.tree.type, 'BottomSheet');
-  assert.equal(sheet.tree.props.index, 0);
-  assert.equal(sheet.tree.props.snapPoints, undefined);
-  assert.equal(sheet.tree.props.enableDynamicSizing, false);
-  assert.equal(sheet.tree.props.enablePanDownToClose, true);
+  assert.equal(sheet.tree.props.disabled, false);
   assert(find(sheet.tree, node => node.props.accessibilityLabel === '재료 목록 불러오는 중'));
   assert.equal(find(sheet.tree, node => node.type === 'FlatList'), undefined);
   assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.disabled, true);
@@ -1733,7 +1838,7 @@ test('재료 패널은 실제 너비로 양방향 전환하고 전환 중 연속
     assert.equal(page.props.accessibilityElementsHidden, true);
     assert.equal(page.props.importantForAccessibility, 'no-hide-descendants');
   }
-  assert.equal(sheet.tree.props.enablePanDownToClose, false);
+  assert.equal(sheet.tree.props.disabled, true);
   input('재료명').props.onChangeText('전환 중 변경 금지');
   input('유통기한 날짜 선택').props.onPress();
   input('재료 목록으로 돌아가기').props.onPress();
@@ -1752,7 +1857,7 @@ test('재료 패널은 실제 너비로 양방향 전환하고 전환 중 연속
   assert.equal(children(track())[1].props.pointerEvents, 'auto');
   assert.equal(children(track())[1].props.accessibilityElementsHidden, false);
   assert.equal(find(sheet.tree, node => node.type === 'FlatList'), undefined);
-  assert.equal(sheet.tree.props.enablePanDownToClose, true);
+  assert.equal(sheet.tree.props.disabled, false);
   input('재료명').props.onChangeText('계란');
   sheet.render();
   input('재료 목록으로 돌아가기').props.onPress();
@@ -1778,7 +1883,6 @@ test('추가도 같은 시트의 축소 높이를 기본으로 사용하고 날�
   ingredientRepository.getIngredientsByPosition = async () => [];
   const { sheet, input, save, openCalendar } = await ingredientFormFixture(t);
   assert.equal(sheet.tree.type, 'BottomSheet');
-  assert.equal(sheet.tree.props.index, 0);
   assert.equal(input('재료 시트 닫기'), undefined);
   assert.equal(find(sheet.tree, node => node.type === 'Modal'), undefined);
   const header = find(sheet.tree, node => children(node).includes(save()));
@@ -1830,7 +1934,6 @@ test('추가도 같은 시트의 축소 높이를 기본으로 사용하고 날�
   sheet.render();
   animations.at(-1).finish();
   sheet.render();
-  assert.equal(sheet.tree.props.index, 0);
   assert(find(sheet.tree, node => node.type === 'FlatList'));
   find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
   animations.at(-1).finish();
@@ -2154,7 +2257,7 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   assert.deepEqual(calls[0], { name: ' 계란 ', quantity: ' 2개 ', expirationDate: null, slotId: 'slot', drawerNumber: 1 });
   assert.equal(save().props.accessibilityState.busy, true);
   assert(find(save(), node => node.props.accessibilityLabel === '재료 등록 중'));
-  assert.equal(sheet.tree.props.enablePanDownToClose, false);
+  assert.equal(sheet.tree.props.disabled, true);
   assert.equal(input('재료명').props.editable, false);
   assert.equal(input('재료 수량').props.editable, false);
   assert.equal(input('재료 시트 닫기'), undefined);
@@ -2202,13 +2305,12 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 요청·입력·
   assert.equal(animations.length, animationCount + 1);
   assert.equal(animations.at(-1).config.toValue, 0);
   assert.equal(input('재료명').props.value, ' 계란 ');
-  assert.equal(sheet.tree.props.enablePanDownToClose, false);
+  assert.equal(sheet.tree.props.disabled, true);
   animations.at(-1).finish();
   sheet.render();
   await new Promise(setImmediate);
   sheet.render();
-  assert.equal(sheet.tree.props.index, 0);
-  assert.equal(sheet.tree.props.enablePanDownToClose, true);
+  assert.equal(sheet.tree.props.disabled, false);
   assert.deepEqual(queries, [{ slotId: 'slot', drawerNumber: 1 }, { slotId: 'slot', drawerNumber: 1 }]);
   assert.deepEqual(find(sheet.tree, node => node.type === 'FlatList').props.data, persisted);
   find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
@@ -2255,7 +2357,7 @@ test('재료 저장 실패는 입력을 유지하고 성공 후 목록 재조회
   assert.equal(input('재료 수량').props.value, '반 통');
   assert.equal(save().props.accessibilityState.busy, false);
   assert.equal(save().props.disabled, false);
-  assert.equal(sheet.tree.props.enablePanDownToClose, true);
+  assert.equal(sheet.tree.props.disabled, false);
   await save().props.onPress();
   sheet.render();
   assert.equal(alerts.length, alertCount + 1);

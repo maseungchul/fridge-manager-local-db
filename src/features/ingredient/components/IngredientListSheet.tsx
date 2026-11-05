@@ -4,9 +4,10 @@
  * 조회·등록은 여기서 처리하고, 저장 결과 전달 후 도면 갱신과 시트 종료는 호출자가 관리한다.
  */
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, Platform, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
 import type { LayoutRectangle } from 'react-native';
-import { BottomSheet } from '@expo/ui/community/bottom-sheet';
+import { IngredientSheet as BottomSheet } from '@/features/ingredient/components/IngredientSheet';
+import type { IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
@@ -24,15 +25,14 @@ import { colors, spacing } from '@/theme/tokens';
 interface IngredientListSheetProps {
   position: SlotPosition;
   onClose: () => void;
+  onCloseStart?: () => void;
+  onCloseCancel?: () => void;
   onRegistered?: (ingredient: Ingredient) => void;
 }
 
-// iOS의 기본 medium·large 전환을 위해 비율 지정은 Android·웹에서만 사용한다.
-const SHEET_SNAP_POINTS = ['50%', '100%'];
-
-export function IngredientListSheet({ position, onClose, onRegistered }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, onClose, onCloseStart, onCloseCancel, onRegistered }: IngredientListSheetProps) {
   const db = useSQLiteContext();
-  const sheetRef = useRef<BottomSheet>(null);
+  const sheetRef = useRef<IngredientSheetRef>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const datePicker = useRef<{ request: number; keyboardSubscription?: ReturnType<typeof Keyboard.addListener> }>({ request: 0 });
   const saving = useRef(false);
@@ -191,8 +191,9 @@ export function IngredientListSheet({ position, onClose, onRegistered }: Ingredi
   }
 
   return (
-    <BottomSheet ref={sheetRef} index={0} snapPoints={Platform.OS === 'ios' ? undefined : SHEET_SNAP_POINTS} handleComponent={null}
-      enableDynamicSizing={false} enablePanDownToClose={!isSaving && !isChanging} backgroundStyle={styles.panel}
+    <BottomSheet ref={sheetRef} disabled={isSaving || isChanging}
+      onCloseStart={() => { if (!saving.current && !transition.current.active) onCloseStart?.(); }}
+      onCloseCancel={onCloseCancel}
       onClose={() => { if (!saving.current && !transition.current.active) onClose(); }}>
         <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}>
           {/* 시스템 표시기의 가변 색상 대신 고정색으로 표시하고, 드래그는 네이티브 시트에 맡긴다. */}

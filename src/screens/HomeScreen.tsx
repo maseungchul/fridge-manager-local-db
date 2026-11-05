@@ -43,6 +43,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
+  const [isIngredientListClosing, setIsIngredientListClosing] = useState(false);
   const loadRequest = useRef(0);
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
@@ -53,6 +54,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     finishFocusTransition(phase);
     if (phase === 'closed') { setSelectedSlot(null); setIsIngredientListOpen(false); }
   }, [finishFocusTransition]);
+  // 닫기 시작에는 선택 표시만 숨기고, 완료 후 패널 데이터와 선택 상태를 함께 비운다.
+  const closeIngredientList = useCallback(() => {
+    setIsIngredientListOpen(false);
+    setIsIngredientListClosing(false);
+    setSelectedSlot(null);
+    setSelectedAreaId(null);
+  }, [setSelectedAreaId]);
 
   // 홈 재진입·재시도 이전에 시작한 조회가 늦게 끝나도 최신 결과만 반영한다.
   const loadRefrigerator = useCallback(async () => {
@@ -61,6 +69,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     setSelectedSlot(null);
     setIsIngredientListOpen(false);
     setIsLoading(true);
+    setIsIngredientListClosing(false);
     setError(null);
     try {
       const result = await getRefrigerator(db);
@@ -84,12 +93,12 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   useEffect(() => {
     if (!activeFocus) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isIngredientListOpen) setIsIngredientListOpen(false);
+      if (isIngredientListOpen) closeIngredientList();
       else closeFocusedArea();
       return true;
     });
     return () => subscription.remove();
-  }, [activeFocus, closeFocusedArea, isIngredientListOpen]);
+  }, [activeFocus, closeFocusedArea, closeIngredientList, isIngredientListOpen]);
 
   const layout = refrigerator ? getDraftLayout(refrigerator) : null;
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
@@ -141,12 +150,14 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         {refrigerator && activeFocus && focusBounds ? (
           <FridgeFocusView draft={refrigerator} ingredients={ingredients} target={activeFocus} viewport={focusBounds} phase={focusPhase}
             sizeViewport={diagramSizes.opened}
-            selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
-            selectedSlotIndex={selectedSlot?.index} selectedPositionId={selectedSlot?.positionId}
+            selectedAreaId={isIngredientListClosing ? undefined : selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
+            selectedSlotIndex={isIngredientListClosing ? undefined : selectedSlot?.index}
+            selectedPositionId={isIngredientListClosing ? undefined : selectedSlot?.positionId}
             scrollHintBlocked={isIngredientListOpen}
             onSelectSlot={(areaId, index, positionId) => {
               if (focusPhase !== 'open') return;
               setSelectedAreaId(areaId);
+              setIsIngredientListClosing(false);
               setSelectedSlot({ index, positionId });
               setIsIngredientListOpen(!!layout?.positions.some(position => position.id === positionId && position.areaId === areaId));
             }}
@@ -156,8 +167,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       </View>
       {isIngredientListOpen && focusPhase === 'open' && selectedPosition ? (
         <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
+          onCloseStart={() => setIsIngredientListClosing(true)}
+          onCloseCancel={() => setIsIngredientListClosing(false)}
           onRegistered={ingredient => setIngredients(current => [...current, ingredient])}
-          onClose={() => setIsIngredientListOpen(false)} />
+          onClose={closeIngredientList} />
       ) : null}
     </View>
   );
