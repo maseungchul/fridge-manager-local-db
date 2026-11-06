@@ -3018,7 +3018,8 @@ test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입
   const actionStyle = flattenStyle(button().props.style);
   assert.equal(actionStyle.minHeight, 36);
   assert.equal(actionStyle.flexDirection, 'row');
-  assert.equal(actionStyle.backgroundColor, tokens.colors.chilledBackground);
+  assert.equal(actionStyle.backgroundColor, tokens.colors.surface);
+  assert.deepEqual(actionStyle, flattenStyle(find(home.tree, node => node.props.accessibilityLabel === '재료 배지 범례').props.style));
   assert.equal(actionStyle.borderRadius, 18);
   assert(actionStyle.boxShadow.length > 0);
   assert.equal(button().type, 'FeedbackPressable');
@@ -6245,9 +6246,9 @@ test('홈 툴바는 좌우로 전환하고 완전히 접혀도 오른쪽 메뉴�
   pending.finish();
 });
 
-test('홈 메뉴 아이콘은 중앙을 유지하고 왼쪽 위 원형 배지는 100건부터 99+로 표시한다', async t => {
+test('홈 메뉴는 대기 건수와 무관하게 배지 없이 중앙 아이콘만 표시한다', async t => {
   const { home, original, persisted } = await ingredientHomeFixture(t);
-  for (const count of [1, 9, 10, 99, 100, 101, 1000]) {
+  for (const count of [0, 1, 100]) {
     persisted.splice(0, persisted.length, ...Array.from({ length: count }, (_, index) => ({ ...original, id: `queued-${index}` })));
     home.focus(); await new Promise(setImmediate); home.render();
     const queue = refreshMoveQueue();
@@ -6262,34 +6263,17 @@ test('홈 메뉴 아이콘은 중앙을 유지하고 왼쪽 위 원형 배지는
     assert.equal(buttonStyle.alignItems, 'center');
     assert.equal(buttonStyle.justifyContent, 'center');
     const iconStyle = flattenStyle(find(menu, node => node.type === 'Icon').props.style);
-    assert.equal(iconStyle.transform, undefined, '배지 유무에 따라 아이콘을 이동하지 않는다');
-    assert.equal(buttonStyle.backgroundColor, tokens.colors.sageLight);
+    assert.equal(iconStyle.transform, undefined, '대기 건수에 따라 아이콘을 이동하지 않는다');
+    assert.equal(buttonStyle.backgroundColor, tokens.colors.chilled);
     assert.equal(buttonStyle.borderColor, tokens.colors.chilled);
     assert(buttonStyle.borderWidth > 0);
     assert(buttonStyle.boxShadow.length > 0);
     assert(buttonStyle.width + menu.props.hitSlop * 2 >= 44);
-    assert.match(menu.props.accessibilityHint, new RegExp(`${count}개`));
+    assert.equal(menu.props.accessibilityHint, undefined);
     const row = find(home.tree, node => children(node).includes(menu));
     const anchor = find(home.tree, node => children(node).includes(row));
     assert.equal(flattenStyle(anchor.props.style).paddingHorizontal, 8);
-    const badge = find(menu, node => node.type === 'View');
-    const style = flattenStyle(badge.props.style);
-    assert.equal(style.position, 'absolute');
-    assert(style.top < 0 && style.left < 0, '버튼의 왼쪽 위에 배지를 겹쳐 표시한다');
-    assert.equal(style.right, undefined);
-    assert.equal(style.width, style.height);
-    assert.equal(style.borderRadius, style.width / 2);
-    assert.equal(style.backgroundColor, tokens.colors.chilled);
-    assert.equal(badge.props.pointerEvents, 'none');
-    assert.equal(badge.props.accessibilityElementsHidden, true);
-    const label = find(badge, node => node.type === 'Text');
-    assert.equal(label.props.children, count > 99 ? '99+' : count);
-    const labelStyle = flattenStyle(label.props.style);
-    assert.equal(labelStyle.color, tokens.colors.buttonText);
-    assert(labelStyle.maxWidth <= style.width - style.borderWidth * 2);
-    assert.equal(label.props.numberOfLines, 1);
-    assert.equal(label.props.allowFontScaling, false, '장식 숫자는 배지 안에 맞추고 실제 건수는 접근성 힌트로 제공한다');
-    assert.equal(label.props.adjustsFontSizeToFit, true);
+    assert.deepEqual(children(menu).map(node => node.type), ['Icon']);
     assert.equal(flattenStyle(homeToolbarOverlay(home).props.style).position, 'absolute');
   }
 });

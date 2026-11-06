@@ -277,7 +277,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                         accessibilityHint={`이동 대기 중인 재료 ${queuedIngredients.length}개를 확인합니다.`}
                         accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                         onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
-                        style={[styles.action, styles.homeAction, styles.queueAction, styles.floatingButton]} hitSlop={4}>
+                        style={[styles.action, styles.homeAction]} hitSlop={4}>
                         <MaterialDesignIcons name="clipboard-text-outline" size={16} color={colors.chilled} accessible={false} />
                         <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>이동 대기 {queuedIngredients.length}개</Text>
                       </FeedbackPressable>
@@ -285,7 +285,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                     <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 배지 범례"
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
-                      style={[styles.action, styles.homeAction, styles.floatingButton]} hitSlop={4}>
+                      style={[styles.action, styles.homeAction]} hitSlop={4}>
                       <MaterialDesignIcons name="information-outline" size={16} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>범례</Text>
                     </FeedbackPressable>
@@ -293,17 +293,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                 </View>
                 <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? '도구 접기' : '도구 펼치기'}
                   accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
-                  accessibilityHint={queuedIngredients.length ? `이동 대기 중인 재료 ${queuedIngredients.length}개가 있습니다.` : undefined}
-                  disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar}
+                  disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} feedback="primary"
                   style={[styles.toolbarToggle, styles.floatingButton]} hitSlop={4}>
-                  <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={22} color={colors.chilled} accessible={false} />
-                  {!isToolbarExpanded && queuedIngredients.length > 0 ? (
-                    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.queueBadge}>
-                      <Text style={styles.queueCount} numberOfLines={1} allowFontScaling={false} adjustsFontSizeToFit minimumFontScale={0.8}>
-                        {queuedIngredients.length > 99 ? '99+' : queuedIngredients.length}
-                      </Text>
-                    </View>
-                  ) : null}
+                  <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={22} color={colors.buttonText} accessible={false} />
                 </FeedbackPressable>
               </View>
             </View>
@@ -403,17 +395,14 @@ const styles = StyleSheet.create({
   toolbarRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   // 슬라이드 영역 안쪽에 그림자 여유를 두고 버튼 밖의 터치는 도면으로 전달한다.
   toolbarToolsViewport: { flex: 1, minWidth: 0, overflow: 'hidden', paddingVertical: spacing.sm, paddingHorizontal: HOME_TOOLBAR_EDGE_SPACE },
-  homeActions: { alignItems: 'center' },
+  homeActions: { alignItems: 'center', justifyContent: 'flex-end' },
   homeAction: { flex: 0, flexShrink: 1, maxWidth: 180, minHeight: 36, flexDirection: 'row', gap: spacing.xs,
-    paddingHorizontal: spacing.md, borderRadius: 18, borderColor: colors.sage },
-  queueAction: { backgroundColor: colors.chilledBackground },
+    paddingHorizontal: spacing.md, borderRadius: 18, borderColor: colors.sage,
+    boxShadow: [{ offsetX: 0, offsetY: 1, blurRadius: 6, color: `${colors.button}14` }] },
   homeLabel: { color: colors.chilled },
   floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
   toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
-    borderRadius: HOME_MENU_SIZE / 2, borderWidth: 1.5, borderColor: colors.chilled, backgroundColor: colors.sageLight },
-  queueBadge: { position: 'absolute', top: -6, left: -6, width: 22, height: 22, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background, backgroundColor: colors.chilled },
-  queueCount: { maxWidth: 18, color: colors.buttonText, fontSize: 10, lineHeight: 12, textAlign: 'center', fontWeight: '700', includeFontPadding: false },
+    borderRadius: HOME_MENU_SIZE / 2, borderWidth: 1.5, borderColor: colors.chilled, backgroundColor: colors.chilled },
   hidden: { opacity: 0 },
   diagram: {
     flex: 1,
