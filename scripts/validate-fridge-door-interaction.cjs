@@ -233,8 +233,8 @@ quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 iosHomeButtonModule = loadComponent('src/components/FloatingIconButton.ios.tsx');
 defaultHomeButtonModule = loadComponent('src/components/FloatingIconButton.tsx');
 badgeModule = loadComponent('src/features/ingredient/components/IngredientCountBadges.tsx');
-legendModule = loadComponent('src/features/fridge/components/FridgeIngredientLegend.tsx');
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
+legendModule = loadComponent('src/features/fridge/components/FridgeIngredientLegend.tsx');
 headerStylesModule = loadComponent('src/theme/headerStyles.ts');
 diagramLayoutModule = loadComponent('src/features/fridge/components/fridgeDiagramLayout.ts');
 toolbarStylesModule = loadComponent('src/features/fridge/components/fridgeToolbarStyles.ts');
@@ -6156,7 +6156,7 @@ test('홈 문 앞면 배지는 모드 아이콘 아래에서 세로·서랍 손�
   map.unmount();
 });
 
-test('범례는 중앙 모달의 세 가지 배지를 설명하고 바깥 터치·뒤로가기·접근성 닫기를 처리한다', () => {
+test('범례는 팝업이 스크롤을 가로채지 않고 바깥 터치·뒤로가기·접근성 닫기를 처리한다', () => {
   let closes = 0;
   const popup = legendModule.FridgeIngredientLegend({ onClose: () => closes++ });
   assert.equal(popup.type, 'Modal');
@@ -6167,8 +6167,12 @@ test('범례는 중앙 모달의 세 가지 배지를 설명하고 바깥 터치
   assert.equal(overlayStyle.alignItems, 'center');
   assert.equal(overlayStyle.justifyContent, 'center');
   assert.equal(overlayStyle.backgroundColor, 'rgba(0, 0, 0, 0.5)');
-  const card = find(popup, node => !!node.props.onStartShouldSetResponder);
-  assert.equal(card.props.onStartShouldSetResponder(), true);
+  const card = children(overlay).find(node => node.type === 'View');
+  assert.equal(card.props.onStartShouldSetResponder, undefined, '팝업이 목록의 터치 응답을 선점하지 않는다');
+  const scroll = find(card, node => node.type === 'ScrollView');
+  assert.equal(flattenStyle(card.props.style).height, 340);
+  assert.equal(flattenStyle(scroll.props.style).flex, 1);
+  assert.equal(children(card).includes(scroll), true, '고정 제목 아래에서 설명만 스크롤한다');
   assert.equal(closes, 0);
   assert.deepEqual(findAll(card, named('IngredientCountBadge')).map(badge => badge.props.kind), ['normal', 'warning', 'expired']);
   assert(find(card, node => node.props.accessibilityLabel === '일반, 주의·경과를 제외한 재료 수 (유통기한 미입력 포함)'));

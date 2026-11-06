@@ -29,10 +29,10 @@ export function getIngredientCountLabel(counts: IngredientCounts) {
 
 export function IngredientCountBadge({ count, kind }: { count?: number; kind: typeof badgeKinds[number] }) {
   const backgroundColor = ingredientBadgeColors[kind];
-  const color = count === undefined ? backgroundColor : colors.buttonText;
+  const color = colors.buttonText;
   const iconSize = count === undefined ? 22 : 14;
   return (
-    <View style={[styles.badge, count === undefined ? styles.legendBadge : [styles.countBadge, { backgroundColor }]]}>
+    <View style={[styles.badge, styles.countBadge, count === undefined && styles.legendBadge, { backgroundColor }]}>
       <MaterialDesignIcons name={badgeIcons[kind]} size={iconSize} color={color}
         style={[styles.icon, { width: iconSize, height: iconSize, lineHeight: iconSize }]} accessible={false} />
       {count !== undefined ? (
@@ -73,8 +73,8 @@ const styles = StyleSheet.create({
   badge: { minWidth: 0, minHeight: BADGE_ROW_HEIGHT, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 3 },
   countBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: BADGE_ROW_HEIGHT / 2 },
   legendBadge: {
-    width: INGREDIENT_BADGE_SIZE, height: 26, borderRadius: 4, justifyContent: 'center',
-    backgroundColor: ingredientLabelColors.background,
+    width: INGREDIENT_BADGE_SIZE, height: INGREDIENT_BADGE_SIZE, borderRadius: INGREDIENT_BADGE_SIZE / 2,
+    paddingHorizontal: 2, justifyContent: 'center',
   },
   icon: { includeFontPadding: false, flexShrink: 0 },
   count: { flexShrink: 1, fontSize: 11, textAlignVertical: 'center', fontWeight: '700', fontVariant: ['tabular-nums'], includeFontPadding: false },
