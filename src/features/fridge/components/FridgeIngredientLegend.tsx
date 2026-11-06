@@ -32,7 +32,10 @@ export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {
           <View style={styles.header}>
             <Text accessibilityRole="header" style={styles.title}>배지 범례</Text>
           </View>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.content} bounces={false} showsVerticalScrollIndicator>
+          {/* 밝은 팝업에서 표시줄이 보이도록 검은색을 지정하고, 자체 여백으로 둥근 모서리에서 떨어뜨린다. */}
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.content} bounces={false} showsVerticalScrollIndicator
+            indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
+            scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}>
             {legendItems.map(item => (
               <View key={item.title} style={styles.item} accessible
                 accessibilityLabel={'description' in item ? `${item.title}, ${item.description}` : item.title}>

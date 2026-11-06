@@ -6170,6 +6170,10 @@ test('범례는 팝업이 스크롤을 가로채지 않고 바깥 터치·뒤로
   const card = children(overlay).find(node => node.type === 'View');
   assert.equal(card.props.onStartShouldSetResponder, undefined, '팝업이 목록의 터치 응답을 선점하지 않는다');
   const scroll = find(card, node => node.type === 'ScrollView');
+  assert.equal(scroll.props.showsVerticalScrollIndicator, true);
+  assert.equal(scroll.props.indicatorStyle, 'black');
+  assert.equal(scroll.props.automaticallyAdjustsScrollIndicatorInsets, false);
+  assert.deepEqual(scroll.props.scrollIndicatorInsets, { top: 0, bottom: tokens.spacing.md, left: 0, right: tokens.spacing.xs });
   assert.equal(flattenStyle(card.props.style).height, 340);
   assert.equal(flattenStyle(scroll.props.style).flex, 1);
   assert.equal(children(card).includes(scroll), true, '고정 제목 아래에서 설명만 스크롤한다');
