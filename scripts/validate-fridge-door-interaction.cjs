@@ -5985,7 +5985,7 @@ test('일반 재료가 없어도 주의·경과 배지는 유지하고 0건인 �
     const tree = badgeModule.IngredientCountBadges({ counts });
     assert.deepEqual(findAll(tree, named('IngredientCountBadge')).map(badge => [badge.props.kind, badge.props.count]), expected);
     assert.equal(tree === null, dates.length === 0);
-    assert.equal(badgeModule.getIngredientBadgeHeight(counts), expected.length === 0 ? 0 : expected.length * 16 + 4);
+    assert.equal(badgeModule.getIngredientBadgeHeight(counts), expected.length === 0 ? 0 : expected.length * 20 + (expected.length - 1) * 3 + 4);
   }
 });
 
@@ -6013,7 +6013,7 @@ test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 �
     const home = door.type({ ...door.props, ingredientCounts: { total: 6, normal: 2, warning: 3, expired: 1 } });
     const homeBadges = find(home, named('IngredientCountBadges'));
     const homeItems = findAll(homeBadges, named('IngredientCountBadge'));
-    assert.deepEqual(badges.map(badge => flattenStyle(children(badge.type(badge.props))[0].props.style).backgroundColor),
+    assert.deepEqual(badges.map(badge => flattenStyle(badge.type(badge.props).props.style).backgroundColor),
       [tokens.ingredientBadgeColors.normal, tokens.ingredientBadgeColors.warning, tokens.ingredientBadgeColors.expired]);
     assert.deepEqual(homeItems.map(badge => badge.props.count), [2, 3, 1]);
     for (const position of [leftPosition, rightPosition, find(map, node => node.key === pocket.id)]) {
@@ -6042,8 +6042,9 @@ test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 �
       const label = badge.type(badge.props);
       const mark = children(label)[0];
       const count = find(label, node => node.type === 'Text');
-      assert.equal(flattenStyle(count.props.style).color, flattenStyle(mark.props.style).backgroundColor);
-      assert.equal(flattenStyle(label.props.style).backgroundColor, undefined);
+      assert.equal(flattenStyle(count.props.style).color, mark.props.color);
+      assert.equal(mark.props.color, tokens.colors.buttonText);
+      assert.equal(flattenStyle(label.props.style).backgroundColor, tokens.ingredientBadgeColors[badge.props.kind]);
     }
     const pocketPosition = find(map, node => node.key === pocket.id);
     const bin = find(pocketPosition, named('DoorPocketBin'));
