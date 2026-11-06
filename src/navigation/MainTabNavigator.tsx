@@ -32,6 +32,7 @@ export function MainTabNavigator() {
       tabBarLabelVisibilityMode: 'labeled',
       tabBarLabelPosition: 'below-icon',
       tabBarIconSize: 24,
+      tabBarIconStyle: styles.icon,
       tabBarActiveTintColor: colors.chilled,
       tabBarInactiveTintColor: colors.textMuted,
       tabBarActiveBackgroundColor: 'transparent',
@@ -84,6 +85,8 @@ const styles = StyleSheet.create({
     elevation: 0, shadowOpacity: 0,
   },
   item: { marginHorizontal: spacing.xs },
-  button: { minHeight: 48, borderRadius: 18, paddingVertical: 2, justifyContent: 'center' },
+  button: { minHeight: 48, borderRadius: 18, paddingTop: spacing.xs, paddingBottom: 0, justifyContent: 'center' },
+  // 아이콘 슬롯을 실제 크기로 맞춰 탭바 높이를 늘리지 않고 상단 여백을 확보한다.
+  icon: { height: 24 },
   label: { fontSize: 12, lineHeight: 16, fontWeight: '600', marginBottom: 0 },
 });

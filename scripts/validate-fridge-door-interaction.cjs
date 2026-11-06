@@ -272,7 +272,9 @@ const homeScene = home => children(homeContent(home))[0];
 const homeToolsViewport = home => find(homeToolbarOverlay(home), node => node.props.onLayout);
 function expandHomeToolbar(home) {
   homeToolsViewport(home).props.onLayout({ nativeEvent: { layout: { width: 313, height: 56 } } }); home.render();
-  find(home.tree, node => node.props.accessibilityLabel === '도구 펼치기').props.onPress();
+  const toggle = find(home.tree, node => node.props.accessibilityLabel === '도구 펼치기');
+  if (!toggle) return;
+  toggle.props.onPress();
   home.render(); animations.at(-1).finish(); home.render();
 }
 function find(node, predicate) {
@@ -6188,6 +6190,9 @@ test('홈 툴바는 좌우로 전환하고 완전히 접혀도 오른쪽 메뉴�
   const animated = () => find(overlay(), node => node.type === 'Animated.View');
   const viewport = find(home.tree, node => node.props.ref && node.props.onLayout);
   viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 280 } } }); home.render();
+  assert.equal(toggle().props.accessibilityState.expanded, true);
+  assert.equal(flattenStyle(animated().props.style).opacity.value, 1, '첫 표시부터 도구를 펼친 상태로 그린다');
+  toggle().props.onPress(); home.render(); animations.at(-1).finish(); home.render();
   assert.equal(toggle().props.accessibilityState.expanded, false);
   assert.equal(find(toggle(), node => node.type === 'Icon').props.name, 'menu-open');
   assert.equal(animated().props.pointerEvents, 'none');
@@ -6256,7 +6261,7 @@ test('홈 메뉴는 대기 건수와 무관하게 배지 없이 중앙 아이콘
     queue.clear();
     for (const item of persisted) queue.add(item.id);
     refreshMoveQueue(); home.render();
-    const menu = find(home.tree, node => node.props.accessibilityLabel === '도구 펼치기');
+    const menu = find(home.tree, node => node.props.accessibilityLabel === '도구 접기');
     const buttonStyle = flattenStyle(menu.props.style);
     assert.equal(buttonStyle.width, 40);
     assert.equal(buttonStyle.height, 40);

@@ -55,10 +55,10 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
-  const [isToolbarExpanded, setIsToolbarExpanded] = useState(false);
+  const [isToolbarExpanded, setIsToolbarExpanded] = useState(true);
   const [isToolbarChanging, setIsToolbarChanging] = useState(false);
   const [toolbarWidth, setToolbarWidth] = useState(0);
-  const toolbarProgress = useAnimatedValue(0);
+  const toolbarProgress = useAnimatedValue(1);
   const toolbarChanging = useRef(false);
   const closedScrollY = useRef(0);
   const isFocusBlocked = useCallback(() => toolbarChanging.current, []);
