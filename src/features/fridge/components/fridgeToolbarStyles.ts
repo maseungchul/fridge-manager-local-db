@@ -1,7 +1,7 @@
 /**
  * @file
- * 홈·등록·편집 툴바의 바탕과 아이콘·문구 버튼 배치를 공유한다.
- * 툴바의 높이 전환과 표시 조건은 각 화면에서 관리한다.
+ * 홈·등록·편집의 아이콘·문구 버튼과 등록·편집 툴바 배치를 정의한다.
+ * 툴바의 표시 방식과 조건은 각 화면에서 관리한다.
  */
 import { StyleSheet } from 'react-native';
 import { colors, spacing } from '@/theme/tokens';

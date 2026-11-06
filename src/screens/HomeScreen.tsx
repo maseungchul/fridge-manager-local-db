@@ -57,7 +57,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
   const [isToolbarExpanded, setIsToolbarExpanded] = useState(false);
   const [isToolbarChanging, setIsToolbarChanging] = useState(false);
-  const [toolbarSize, setToolbarSize] = useState({ width: 0, height: 0 });
+  const [toolbarWidth, setToolbarWidth] = useState(0);
   const toolbarProgress = useAnimatedValue(0);
   const toolbarChanging = useRef(false);
   const closedScrollY = useRef(0);
@@ -137,7 +137,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
     return () => onTabInteractionBlockedChange?.(false);
   }, [isSheetOpen, onTabInteractionBlockedChange]);
 
-  // 툴바는 가로로 전환하고, 접기 완료 후에만 실제 점유 높이를 없앤다.
+  // 도면의 크기·스크롤은 유지하고 떠 있는 도구 버튼만 가로로 전환한다.
   useEffect(() => {
     if (!toolbarChanging.current) return;
     let active = true;
@@ -177,7 +177,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const canUseToolbar = isToolbarExpanded && !isToolbarBlocked && !isToolbarHidden;
 
   function toggleToolbar() {
-    if (toolbarChanging.current || isToolbarHidden || isToolbarBlocked || toolbarSize.height <= 0) return;
+    if (toolbarChanging.current || isToolbarHidden || isToolbarBlocked || toolbarWidth <= 0) return;
     toolbarChanging.current = true;
     setIsToolbarChanging(true);
     setIsToolbarExpanded(current => !current);
@@ -234,7 +234,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                 </ScrollView>
               )}
           </SafeAreaView>
-          {/* 툴바를 제외한 실제 영역을 측정하고 도면 자체의 공통 크기는 유지한다. */}
+          {/* 떠 있는 도구 버튼의 높이를 제외하지 않고 전체 도면 영역을 측정한다. */}
           <View ref={focusViewport} collapsable={false} pointerEvents={isToolbarHidden || isToolbarChanging ? 'none' : 'box-none'}
             accessibilityElementsHidden={isToolbarHidden || isToolbarChanging}
             importantForAccessibility={isToolbarHidden || isToolbarChanging ? 'no-hide-descendants' : 'auto'}
@@ -258,59 +258,54 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
           </View>
         </View>
         {isToolbarAvailable ? (
-          <View style={[styles.toolbarViewport, { height: isToolbarExpanded || isToolbarChanging ? toolbarSize.height : 0 }]}
-            pointerEvents={isToolbarHidden || isToolbarBlocked ? 'none' : 'auto'} accessibilityElementsHidden={isToolbarHidden || isToolbarBlocked}
-            importantForAccessibility={isToolbarHidden || isToolbarBlocked ? 'no-hide-descendants' : 'auto'}>
-            <SafeAreaView edges={{ top: false, bottom: false, left: true, right: true }}
-              pointerEvents={canUseToolbar ? 'auto' : 'none'} accessibilityElementsHidden={!canUseToolbar}
-              importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}
-              onLayout={({ nativeEvent: { layout } }) => setToolbarSize(current => current.width === layout.width && current.height === layout.height
-                ? current : { width: layout.width, height: layout.height })}
-              style={[styles.toolbarFooter, isToolbarHidden && styles.hidden]}>
-              <Animated.View style={{ opacity: toolbarProgress,
-                transform: [{ translateX: toolbarProgress.interpolate({ inputRange: [0, 1], outputRange: [toolbarSize.width, 0] }) }] }}
-                pointerEvents={canUseToolbar ? 'auto' : 'none'} accessibilityElementsHidden={!canUseToolbar}
-                importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
-                <View style={[styles.toolbar, styles.homeToolbar]}>
-                  <View style={[styles.actions, styles.homeActions]}>
+          <SafeAreaView edges={{ top: false, bottom: false, left: true, right: true }}
+            pointerEvents={isToolbarHidden || isToolbarBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isToolbarHidden || isToolbarBlocked}
+            importantForAccessibility={isToolbarHidden || isToolbarBlocked ? 'no-hide-descendants' : 'auto'}
+            style={[styles.toolbarOverlay, isToolbarHidden && styles.hidden]}>
+            <View pointerEvents="box-none" style={styles.toolbarAnchor}>
+              <View pointerEvents="box-none" style={styles.toolbarRow}>
+                <View style={styles.toolbarToolsViewport}
+                  onLayout={({ nativeEvent: { layout } }) => setToolbarWidth(layout.width)}
+                  pointerEvents={canUseToolbar ? 'box-none' : 'none'} accessibilityElementsHidden={!canUseToolbar}
+                  importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
+                  <Animated.View style={[styles.actions, styles.homeActions, { opacity: toolbarProgress,
+                    transform: [{ translateX: toolbarProgress.interpolate({ inputRange: [0, 1], outputRange: [toolbarWidth, 0] }) }] }]}
+                    pointerEvents={canUseToolbar ? 'box-none' : 'none'} accessibilityElementsHidden={!canUseToolbar}
+                    importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
                     {queuedIngredients.length > 0 ? (
                       <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 열기"
                         accessibilityHint={`이동 대기 중인 재료 ${queuedIngredients.length}개를 확인합니다.`}
                         accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
-                        onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }} style={[styles.action, styles.homeAction]} hitSlop={4}>
-                        <MaterialDesignIcons name="clipboard-text-outline" size={16} color={colors.text} accessible={false} />
-                        <Text style={styles.label} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>이동 대기 {queuedIngredients.length}개</Text>
+                        onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
+                        style={[styles.action, styles.homeAction, styles.queueAction, styles.floatingButton]} hitSlop={4}>
+                        <MaterialDesignIcons name="clipboard-text-outline" size={16} color={colors.chilled} accessible={false} />
+                        <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>이동 대기 {queuedIngredients.length}개</Text>
                       </FeedbackPressable>
                     ) : null}
                     <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 배지 범례"
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
-                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }} style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <MaterialDesignIcons name="information-outline" size={16} color={colors.text} accessible={false} />
-                      <Text style={styles.label} numberOfLines={1}>범례</Text>
+                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
+                      style={[styles.action, styles.homeAction, styles.floatingButton]} hitSlop={4}>
+                      <MaterialDesignIcons name="information-outline" size={16} color={colors.chilled} accessible={false} />
+                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>범례</Text>
                     </FeedbackPressable>
-                  </View>
+                  </Animated.View>
                 </View>
-              </Animated.View>
-            </SafeAreaView>
-          </View>
-        ) : null}
-        {isToolbarAvailable ? (
-          <SafeAreaView edges={{ top: false, bottom: false, left: true, right: true }}
-            pointerEvents={isToolbarHidden || isToolbarBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isToolbarHidden || isToolbarBlocked}
-            importantForAccessibility={isToolbarHidden || isToolbarBlocked ? 'no-hide-descendants' : 'auto'}
-            style={[styles.toolbarMenuOverlay, isToolbarHidden && styles.hidden]}>
-            <View pointerEvents="box-none" style={styles.toolbarMenuAnchor}>
-              <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? '도구 접기' : '도구 펼치기'}
-                accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
-                accessibilityHint={queuedIngredients.length ? `이동 대기 중인 재료 ${queuedIngredients.length}개가 있습니다.` : undefined}
-                disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} style={styles.toolbarToggle} hitSlop={4}>
-                <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={22} color={colors.text} accessible={false}
-                  style={!isToolbarExpanded && queuedIngredients.length > 0 ? styles.menuIconWithCount : undefined} />
-                {!isToolbarExpanded && queuedIngredients.length > 0 ? (
-                  <Text pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-                    style={styles.queueCount} numberOfLines={1} allowFontScaling={false}>{queuedIngredients.length > 99 ? '99+' : queuedIngredients.length}</Text>
-                ) : null}
-              </FeedbackPressable>
+                <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? '도구 접기' : '도구 펼치기'}
+                  accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
+                  accessibilityHint={queuedIngredients.length ? `이동 대기 중인 재료 ${queuedIngredients.length}개가 있습니다.` : undefined}
+                  disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar}
+                  style={[styles.toolbarToggle, styles.floatingButton]} hitSlop={4}>
+                  <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={22} color={colors.chilled} accessible={false} />
+                  {!isToolbarExpanded && queuedIngredients.length > 0 ? (
+                    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.queueBadge}>
+                      <Text style={styles.queueCount} numberOfLines={1} allowFontScaling={false} adjustsFontSizeToFit minimumFontScale={0.8}>
+                        {queuedIngredients.length > 99 ? '99+' : queuedIngredients.length}
+                      </Text>
+                    </View>
+                  ) : null}
+                </FeedbackPressable>
+              </View>
             </View>
           </SafeAreaView>
         ) : null}
@@ -403,20 +398,22 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   scene: { flex: 1, minHeight: 0, overflow: 'hidden' },
-  // 네이티브 SafeAreaView의 기본 flex: 1을 해제해 툴바가 남은 높이까지 차지하지 않게 한다.
-  toolbarFooter: { flex: 0, flexShrink: 0, position: 'absolute', bottom: 0, left: 0, right: 0 },
-  toolbarViewport: { flexShrink: 0, overflow: 'hidden' },
-  homeToolbar: { paddingHorizontal: HOME_TOOLBAR_EDGE_SPACE, paddingVertical: 4,
-    paddingRight: HOME_TOOLBAR_EDGE_SPACE + HOME_MENU_SIZE + spacing.xs },
-  homeActions: { minHeight: HOME_MENU_SIZE, alignItems: 'center' },
-  homeAction: { flex: 0, flexShrink: 1, maxWidth: 180, minHeight: 36, flexDirection: 'row', gap: spacing.xs, paddingHorizontal: spacing.sm },
-  toolbarMenuOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
-  toolbarMenuAnchor: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: HOME_TOOLBAR_EDGE_SPACE, paddingBottom: 4 },
-  toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: HOME_MENU_SIZE / 2,
-    backgroundColor: colors.toolbar },
-  menuIconWithCount: { transform: [{ translateY: 5 }] },
-  queueCount: { position: 'absolute', top: 3, right: 6, maxWidth: HOME_MENU_SIZE - 12,
-    color: colors.chilled, fontSize: 10, lineHeight: 11, textAlign: 'right', fontWeight: '700' },
+  toolbarOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
+  toolbarAnchor: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: HOME_TOOLBAR_EDGE_SPACE, paddingBottom: 4 },
+  toolbarRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  // 슬라이드 영역 안쪽에 그림자 여유를 두고 버튼 밖의 터치는 도면으로 전달한다.
+  toolbarToolsViewport: { flex: 1, minWidth: 0, overflow: 'hidden', paddingVertical: spacing.sm, paddingHorizontal: HOME_TOOLBAR_EDGE_SPACE },
+  homeActions: { alignItems: 'center' },
+  homeAction: { flex: 0, flexShrink: 1, maxWidth: 180, minHeight: 36, flexDirection: 'row', gap: spacing.xs,
+    paddingHorizontal: spacing.md, borderRadius: 18, borderColor: colors.sage },
+  queueAction: { backgroundColor: colors.chilledBackground },
+  homeLabel: { color: colors.chilled },
+  floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
+  toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
+    borderRadius: HOME_MENU_SIZE / 2, borderWidth: 1.5, borderColor: colors.chilled, backgroundColor: colors.sageLight },
+  queueBadge: { position: 'absolute', top: -6, left: -6, width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background, backgroundColor: colors.chilled },
+  queueCount: { maxWidth: 18, color: colors.buttonText, fontSize: 10, lineHeight: 12, textAlign: 'center', fontWeight: '700', includeFontPadding: false },
   hidden: { opacity: 0 },
   diagram: {
     flex: 1,

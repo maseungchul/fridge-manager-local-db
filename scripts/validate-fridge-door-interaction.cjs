@@ -266,13 +266,12 @@ const children = node => node?.type === quantityStepperModule.QuantityStepper ||
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 const mapCanvas = map => find(map.tree, node => node.type === 'View' && flattenStyle(node.props.style).alignSelf === 'center'
   && typeof flattenStyle(node.props.style).width === 'number');
-const homeFooter = home => find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
+const homeToolbarOverlay = home => find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
 const homeSafeArea = home => find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.bottom === true && node.props.edges.top === undefined);
 const homeScene = home => children(homeSafeArea(home))[0];
-const homeToolbarViewport = home => find(home.tree, node => children(node).includes(homeFooter(home)));
+const homeToolsViewport = home => find(homeToolbarOverlay(home), node => node.props.onLayout);
 function expandHomeToolbar(home) {
-  const measured = find(homeFooter(home), node => node.props.onLayout);
-  measured.props.onLayout({ nativeEvent: { layout: { width: 375, height: 49 } } }); home.render();
+  homeToolsViewport(home).props.onLayout({ nativeEvent: { layout: { width: 313, height: 56 } } }); home.render();
   find(home.tree, node => node.props.accessibilityLabel === '도구 펼치기').props.onPress();
   home.render(); animations.at(-1).finish(); home.render();
 }
@@ -3019,7 +3018,9 @@ test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입
   const actionStyle = flattenStyle(button().props.style);
   assert.equal(actionStyle.minHeight, 36);
   assert.equal(actionStyle.flexDirection, 'row');
-  assert.equal(actionStyle.backgroundColor, tokens.colors.surface);
+  assert.equal(actionStyle.backgroundColor, tokens.colors.chilledBackground);
+  assert.equal(actionStyle.borderRadius, 18);
+  assert(actionStyle.boxShadow.length > 0);
   assert.equal(button().type, 'FeedbackPressable');
   const before = { target: focus().props.target, viewport: focus().props.viewport };
   button().props.onPress(); home.render();
@@ -3309,29 +3310,37 @@ test('공통 Toast는 안내 교체·제거 시 타이머와 애니메이션을 
   assert.equal(animations.length, count);
 });
 
-test('홈은 툴바를 도면과 분리해 실제 공간에 배치하고 아래 안전 영역을 한 번 적용한다', async t => {
+test('홈 도구는 배경·점유 공간 없이 도면 위에 떠 있고 아래 안전 영역을 한 번 적용한다', async t => {
   const { home, focus } = await ingredientHomeFixture(t);
   const scene = homeScene(home);
   const background = children(scene)[0];
   assert.equal(background.type, 'SafeAreaView');
   assert.deepEqual(background.props.edges, { top: true, bottom: false, left: true, right: true });
   assert.equal(flattenStyle(scene.props.style).overflow, 'hidden');
-  assert(children(homeSafeArea(home)).includes(homeToolbarViewport(home)));
+  const overlay = homeToolbarOverlay(home);
+  assert(children(homeSafeArea(home)).includes(overlay));
   assert.equal(homeSafeArea(home).props.edges.bottom, true);
   assert.equal(home.tree.type, 'View');
   assert.equal(flattenStyle(home.tree.props.style).backgroundColor, tokens.colors.background, '안전 영역 바깥과 탭바 뒤도 홈 배경으로 채운다');
   assert(children(home.tree).includes(homeSafeArea(home)));
-  assert.equal(homeFooter(home).props.edges.bottom, false);
-  assert.equal(flattenStyle(homeFooter(home).props.style).position, 'absolute');
-  assert.equal(flattenStyle(homeToolbarViewport(home).props.style).height, 0, '접힌 툴바는 안전 영역·손잡이 높이를 남기지 않는다');
-  // 훅 검사에서 생략한 실제 네이티브 래퍼의 기본 flex까지 합쳐 툴바의 화면 확장을 막는다.
+  assert.deepEqual(overlay.props.edges, { top: false, bottom: false, left: true, right: true });
+  const overlayStyle = flattenStyle(overlay.props.style);
+  assert.equal(overlayStyle.position, 'absolute', '도구는 도면의 남은 높이를 배분받지 않는다');
+  assert.equal(overlayStyle.top, 0);
+  assert.equal(overlayStyle.bottom, 0);
+  assert.equal(overlayStyle.height, undefined);
+  assert.equal(overlayStyle.backgroundColor, undefined);
+  assert.equal(overlayStyle.borderTopWidth, undefined);
+  for (const node of findAll(overlay, node => children(node).length > 0 && node.type !== 'FeedbackPressable')) {
+    assert.equal(flattenStyle(node.props.style).backgroundColor, undefined, '버튼을 감싼 영역에 배경 띠를 만들지 않는다');
+  }
+  // 실제 네이티브 래퍼의 기본 flex가 있어도 absolute 도구는 도면 높이를 차지하지 않는다.
   const { SafeAreaView } = loadComponent('node_modules/react-native-screens/src/components/safe-area/SafeAreaView.tsx', {
     '../../fabric/safe-area/SafeAreaViewNativeComponent': { __esModule: true, default: 'NativeSafeAreaView' },
   });
-  const footerNative = SafeAreaView(homeFooter(home).props);
+  const overlayNative = SafeAreaView(overlay.props);
   const backgroundNative = SafeAreaView(background.props);
-  assert.equal(flattenStyle(footerNative.props.style).flex, 0, '툴바는 남은 화면 높이를 배분받지 않는다');
-  assert.equal(flattenStyle(footerNative.props.style).flexShrink, 0);
+  assert.equal(flattenStyle(overlayNative.props.style).position, 'absolute');
   assert.equal(flattenStyle(backgroundNative.props.style).flex, 1, '남은 영역은 도면이 사용한다');
   assert.equal(flattenStyle(background.props.style).flex, 1);
   assert.equal(flattenStyle(background.props.style).height, undefined);
@@ -6171,24 +6180,22 @@ test('범례는 중앙 모달의 세 가지 배지를 설명하고 바깥 터치
 test('홈 툴바는 좌우로 전환하고 완전히 접혀도 오른쪽 메뉴로 다시 열 수 있다', async t => {
   const { home, focus, sheet, blocked } = await ingredientHomeFixture(t);
   sheet.props.onClose(); home.render();
-  const footer = () => homeFooter(home);
+  const overlay = () => homeToolbarOverlay(home);
   const toggle = () => find(home.tree, node => node.props.accessibilityLabel === '도구 펼치기' || node.props.accessibilityLabel === '도구 접기');
-  const measured = find(footer(), node => node.props.onLayout);
-  measured.props.onLayout({ nativeEvent: { layout: { width: 375, height: 49 } } }); home.render();
-  const animated = () => find(footer(), node => node.type === 'Animated.View');
+  homeToolsViewport(home).props.onLayout({ nativeEvent: { layout: { width: 313, height: 56 } } }); home.render();
+  const animated = () => find(overlay(), node => node.type === 'Animated.View');
   const viewport = find(home.tree, node => node.props.ref && node.props.onLayout);
   viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 280 } } }); home.render();
   assert.equal(toggle().props.accessibilityState.expanded, false);
   assert.equal(find(toggle(), node => node.type === 'Icon').props.name, 'menu-open');
   assert.equal(animated().props.pointerEvents, 'none');
   assert.equal(animated().props.accessibilityElementsHidden, true);
-  assert.equal(flattenStyle(homeToolbarViewport(home).props.style).height, 0);
-  assert(toggle(), '툴바가 높이 0으로 접혀도 메뉴 버튼은 남는다');
-  const toolbar = children(animated())[0];
-  assert.equal(flattenStyle(toolbar.props.style).backgroundColor, tokens.colors.toolbar);
-  assert.equal(flattenStyle(toolbar.props.style).paddingRight, 8 + 40 + tokens.spacing.xs);
-  assert.equal(flattenStyle(toolbar.props.style).paddingVertical, 4);
-  const before = { target: focus().props.target, size: focus().props.sizeViewport, blocked: [...blocked] };
+  assert.equal(flattenStyle(overlay().props.style).position, 'absolute');
+  assert(toggle(), '도구가 보이지 않아도 메뉴 버튼은 남는다');
+  assert.equal(flattenStyle(animated().props.style).backgroundColor, undefined);
+  assert.equal(flattenStyle(homeToolsViewport(home).props.style).overflow, 'hidden');
+  assert.equal(homeToolsViewport(home).props.pointerEvents, 'none');
+  const before = { target: focus().props.target, size: focus().props.sizeViewport, viewport: focus().props.viewport, blocked: [...blocked] };
   const beforeGeometry = getFridgeFocusGeometry(focus().props.draft, before.target, focus().props.viewport, before.size);
   const press = toggle().props.onPress;
   const count = animations.length;
@@ -6199,33 +6206,35 @@ test('홈 툴바는 좌우로 전환하고 완전히 접혀도 오른쪽 메뉴�
   assert.equal(animation.config.useNativeDriver, true);
   assert.equal(animation.config.toValue, 1);
   assert.equal(flattenStyle(animated().props.style).height, undefined);
-  assert.equal(flattenStyle(homeToolbarViewport(home).props.style).height, 49);
-  assert.deepEqual(flattenStyle(animated().props.style).transform[0].translateX.outputRange, [375, 0]);
-  assert.equal(footer().props.pointerEvents, 'none');
+  assert.equal(flattenStyle(overlay().props.style).height, undefined);
+  assert.deepEqual(flattenStyle(animated().props.style).transform[0].translateX.outputRange, [313, 0]);
+  assert.equal(overlay().props.pointerEvents, 'none');
   assert.equal(viewport.props.pointerEvents, 'box-none');
   focus().props.onClose(); home.render();
   assert.equal(focus().props.phase, 'open', '툴바 전환 중에는 문 전환을 시작하지 않는다');
-  viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 218 } } }); home.render();
   const afterGeometry = getFridgeFocusGeometry(focus().props.draft, focus().props.target, focus().props.viewport, focus().props.sizeViewport);
-  assert.equal(focus().props.viewport.height, 218);
+  assert.deepEqual(focus().props.viewport, before.viewport, '도구를 펼쳐도 도면의 표시 영역을 줄이지 않는다');
   assert.equal(afterGeometry.body.width, beforeGeometry.body.width);
   assert.equal(afterGeometry.body.height, beforeGeometry.body.height);
-  assert.equal(afterGeometry.verticalScrollable, true);
+  assert.equal(afterGeometry.verticalScrollable, beforeGeometry.verticalScrollable);
   animation.finish(); home.render();
-  assert.equal(animated().props.pointerEvents, 'auto');
+  assert.equal(animated().props.pointerEvents, 'box-none');
+  assert.equal(homeToolsViewport(home).props.pointerEvents, 'box-none', '버튼 사이의 빈 곳은 도면을 조작할 수 있다');
   assert.equal(animated().props.accessibilityElementsHidden, false);
   assert.equal(find(toggle(), node => node.type === 'Icon').props.name, 'menu-close');
-  const legend = find(footer(), node => node.props.accessibilityLabel === '재료 배지 범례');
+  const legend = find(overlay(), node => node.props.accessibilityLabel === '재료 배지 범례');
   assert.equal(flattenStyle(legend.props.style).minHeight, 36);
   assert.equal(flattenStyle(legend.props.style).flexDirection, 'row');
-  assert.equal(flattenStyle(legend.props.style).borderColor, toolbarStylesModule.fridgeToolbarStyles.action.borderColor);
+  assert.equal(flattenStyle(legend.props.style).borderColor, tokens.colors.sage);
+  assert.equal(flattenStyle(legend.props.style).borderRadius, 18);
+  assert(flattenStyle(legend.props.style).boxShadow.length > 0);
   assert.equal(find(home.tree, named('FloatingIconButton')), undefined);
   toggle().props.onPress(); home.render();
   assert.equal(animations.at(-1).config.toValue, 0);
-  viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 280 } } }); home.render();
   animations.at(-1).finish(); home.render();
-  assert.equal(flattenStyle(homeToolbarViewport(home).props.style).height, 0);
+  assert.equal(flattenStyle(overlay().props.style).height, undefined);
   assert.equal(animated().props.pointerEvents, 'none');
+  assert.deepEqual(focus().props.viewport, before.viewport);
   assert.deepEqual(focus().props.target, before.target);
   assert.deepEqual(focus().props.sizeViewport, before.size);
   assert.deepEqual(blocked, before.blocked, '툴바 접기·펼치기는 네이티브 탭을 차단하지 않는다');
@@ -6236,7 +6245,7 @@ test('홈 툴바는 좌우로 전환하고 완전히 접혀도 오른쪽 메뉴�
   pending.finish();
 });
 
-test('홈 메뉴는 작은 원형 버튼이고 대기 숫자는 버튼 안에서 왼쪽으로 늘어나며 100건부터 99+로 표시한다', async t => {
+test('홈 메뉴 아이콘은 중앙을 유지하고 왼쪽 위 원형 배지는 100건부터 99+로 표시한다', async t => {
   const { home, original, persisted } = await ingredientHomeFixture(t);
   for (const count of [1, 9, 10, 99, 100, 101, 1000]) {
     persisted.splice(0, persisted.length, ...Array.from({ length: count }, (_, index) => ({ ...original, id: `queued-${index}` })));
@@ -6250,54 +6259,69 @@ test('홈 메뉴는 작은 원형 버튼이고 대기 숫자는 버튼 안에서
     assert.equal(buttonStyle.width, 40);
     assert.equal(buttonStyle.height, 40);
     assert.equal(buttonStyle.borderRadius, 20);
+    assert.equal(buttonStyle.alignItems, 'center');
+    assert.equal(buttonStyle.justifyContent, 'center');
+    const iconStyle = flattenStyle(find(menu, node => node.type === 'Icon').props.style);
+    assert.equal(iconStyle.transform, undefined, '배지 유무에 따라 아이콘을 이동하지 않는다');
+    assert.equal(buttonStyle.backgroundColor, tokens.colors.sageLight);
+    assert.equal(buttonStyle.borderColor, tokens.colors.chilled);
+    assert(buttonStyle.borderWidth > 0);
+    assert(buttonStyle.boxShadow.length > 0);
     assert(buttonStyle.width + menu.props.hitSlop * 2 >= 44);
     assert.match(menu.props.accessibilityHint, new RegExp(`${count}개`));
-    const anchor = find(home.tree, node => children(node).includes(menu));
-    assert.equal(flattenStyle(anchor.props.style).paddingRight, 8);
-    const badge = find(menu, node => node.type === 'Text');
-    assert.equal(badge.props.children, count > 99 ? '99+' : count);
+    const row = find(home.tree, node => children(node).includes(menu));
+    const anchor = find(home.tree, node => children(node).includes(row));
+    assert.equal(flattenStyle(anchor.props.style).paddingHorizontal, 8);
+    const badge = find(menu, node => node.type === 'View');
     const style = flattenStyle(badge.props.style);
-    assert.equal(style.color, tokens.colors.chilled);
-    assert.equal(style.backgroundColor, undefined);
-    assert.equal(style.borderRadius, undefined);
-    assert.equal(style.right, 6);
-    assert.equal(style.left, undefined, '숫자의 오른쪽 기준점을 고정해 왼쪽으로만 늘린다');
-    assert(style.top >= 0 && style.top + style.lineHeight <= buttonStyle.height);
-    assert(style.maxWidth + style.right <= buttonStyle.width);
-    assert.equal(badge.props.numberOfLines, 1);
-    assert.equal(badge.props.allowFontScaling, false, '장식 숫자는 버튼 밖으로 커지지 않고 실제 건수는 접근성 힌트로 제공한다');
-    assert.equal(flattenStyle(homeToolbarViewport(home).props.style).height, 0);
+    assert.equal(style.position, 'absolute');
+    assert(style.top < 0 && style.left < 0, '버튼의 왼쪽 위에 배지를 겹쳐 표시한다');
+    assert.equal(style.right, undefined);
+    assert.equal(style.width, style.height);
+    assert.equal(style.borderRadius, style.width / 2);
+    assert.equal(style.backgroundColor, tokens.colors.chilled);
+    assert.equal(badge.props.pointerEvents, 'none');
+    assert.equal(badge.props.accessibilityElementsHidden, true);
+    const label = find(badge, node => node.type === 'Text');
+    assert.equal(label.props.children, count > 99 ? '99+' : count);
+    const labelStyle = flattenStyle(label.props.style);
+    assert.equal(labelStyle.color, tokens.colors.buttonText);
+    assert(labelStyle.maxWidth <= style.width - style.borderWidth * 2);
+    assert.equal(label.props.numberOfLines, 1);
+    assert.equal(label.props.allowFontScaling, false, '장식 숫자는 배지 안에 맞추고 실제 건수는 접근성 힌트로 제공한다');
+    assert.equal(label.props.adjustsFontSizeToFit, true);
+    assert.equal(flattenStyle(homeToolbarOverlay(home).props.style).position, 'absolute');
   }
 });
 
-test('홈 범례·재료 시트는 툴바 공간을 보존하고 종료 후 이전 펼침 상태를 복원한다', async t => {
+test('홈 범례·재료 시트는 떠 있는 도구를 숨기고 종료 후 이전 펼침 상태를 복원한다', async t => {
   const { home, focus, sheet } = await ingredientHomeFixture(t);
   sheet.props.onClose(); home.render();
   expandHomeToolbar(home);
   const legend = () => find(home.tree, node => node.props.accessibilityLabel === '재료 배지 범례');
   const before = focus().props.target;
   legend().props.onPress(); home.render();
-  assert.equal(homeFooter(home).props.pointerEvents, 'none');
-  assert.equal(flattenStyle(homeFooter(home).props.style).opacity, 0);
-  assert.equal(homeFooter(home).props.accessibilityElementsHidden, true);
+  assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'none');
+  assert.equal(flattenStyle(homeToolbarOverlay(home).props.style).opacity, 0);
+  assert.equal(homeToolbarOverlay(home).props.accessibilityElementsHidden, true);
   const popup = find(home.tree, named('FridgeIngredientLegend'));
   popup.props.onClose(); home.render();
-  assert.equal(homeFooter(home).props.pointerEvents, 'auto');
+  assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'box-none');
   assert(find(home.tree, node => node.props.accessibilityLabel === '도구 접기'));
   assert.equal(focus().props.phase, 'open');
   assert.deepEqual(focus().props.target, before);
   const position = model.getDraftLayout(focus().props.draft).positions[0];
   focus().props.onSelectSlot(position.areaId, 0, position.id); home.render();
-  assert.equal(homeFooter(home).props.pointerEvents, 'none');
+  assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'none');
   find(home.tree, node => node.type === 'IngredientListSheet').props.onClose(); home.render();
-  assert.equal(homeFooter(home).props.pointerEvents, 'auto');
+  assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'box-none');
   assert(find(home.tree, node => node.props.accessibilityLabel === '도구 접기'));
   focus().props.onClose(); home.render();
-  assert.equal(homeFooter(home).props.pointerEvents, 'none');
+  assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'none');
   legend().props.onPress(); home.render();
   assert.equal(find(home.tree, named('FridgeIngredientLegend')), undefined);
   focus().props.onPhaseChange('closed'); home.render();
-  assert.equal(homeFooter(home).props.pointerEvents, 'auto');
+  assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'box-none');
 });
 
 test('닫힌 홈 도면은 높이가 줄어도 축소하지 않고 세로 스크롤하며 원래 문 위치를 보정한다', async t => {
@@ -6313,7 +6337,7 @@ test('닫힌 홈 도면은 높이가 줄어도 축소하지 않고 세로 스크
     const scroller = find(map.tree, node => node.type === 'ScrollView');
     assert.equal(scroller.props.accessibilityLabel, '냉장고 전체 도면, 위아래로 이동');
     assert.equal(scroller.props.horizontal, undefined);
-    assert.equal(flattenStyle(scroller.props.contentContainerStyle).paddingTop, tokens.spacing.sm * 2, '상단 간격은 스크롤 콘텐츠 안에서 복원한다');
+    assert.equal(flattenStyle(scroller.props.contentContainerStyle).paddingTop, tokens.spacing.sm, '상단에 10의 스크롤 간격을 둔다');
     assert.equal(flattenStyle(scroller.props.contentContainerStyle).paddingBottom, tokens.spacing.sm);
     assert.equal(scroller.props.scrollEnabled, false, '열린 문 뒤의 배경 도면은 스크롤을 막는다');
     const next = flattenStyle(mapCanvas(map).props.style);

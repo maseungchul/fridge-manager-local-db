@@ -761,7 +761,7 @@ const styles = StyleSheet.create({
   mapScroll: { flex: 1 },
   flushViewport: { paddingVertical: 0 },
   // 상단 간격은 콘텐츠와 함께 스크롤하고, 하단은 끝까지 내렸을 때만 여유를 둔다.
-  mapScrollContent: { paddingTop: spacing.sm * 2, paddingBottom: spacing.sm },
+  mapScrollContent: { paddingTop: spacing.sm, paddingBottom: spacing.sm },
   canvas: {
     height: MAP_HEIGHT,
     alignSelf: 'center',
