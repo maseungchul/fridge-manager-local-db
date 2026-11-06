@@ -266,9 +266,9 @@ const children = node => node?.type === quantityStepperModule.QuantityStepper ||
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 const mapCanvas = map => find(map.tree, node => node.type === 'View' && flattenStyle(node.props.style).alignSelf === 'center'
   && typeof flattenStyle(node.props.style).width === 'number');
-const homeToolbarOverlay = home => find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
-const homeSafeArea = home => find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.bottom === true && node.props.edges.top === undefined);
-const homeScene = home => children(homeSafeArea(home))[0];
+const homeToolbarOverlay = home => find(home.tree, node => node.type === 'SafeAreaView' && !node.props.edges.includes('top'));
+const homeContent = home => children(home.tree)[0];
+const homeScene = home => children(homeContent(home))[0];
 const homeToolsViewport = home => find(homeToolbarOverlay(home), node => node.props.onLayout);
 function expandHomeToolbar(home) {
   homeToolsViewport(home).props.onLayout({ nativeEvent: { layout: { width: 313, height: 56 } } }); home.render();
@@ -1256,34 +1256,25 @@ test('편집 조회 실패·미등록·다른 ID는 기본 구성을 노출하�
   });
 });
 
-test('하단 메뉴는 OS 기본 탭 3개로 연결하고 등록은 탭 밖에서 연다', async t => {
+test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입력 차단·탭 밖 등록을 유지한다', async t => {
   for (const platform of ['ios', 'android']) {
     await t.test(platform, async t => {
       const previousPlatform = native.Platform.OS;
       native.Platform.OS = platform;
       t.after(() => { native.Platform.OS = previousPlatform; });
-      const requests = [];
       const { ShoppingScreen } = loadComponent('src/screens/ShoppingScreen.tsx');
       const { SettingsScreen } = loadComponent('src/screens/SettingsScreen.tsx');
       const { MainTabNavigator } = loadComponent('src/navigation/MainTabNavigator.tsx', {
-        '@react-navigation/bottom-tabs/unstable': {
-          createNativeBottomTabNavigator: () => ({ Navigator: 'NativeTabs', Screen: 'NativeTabScreen' }),
+        '@react-navigation/bottom-tabs': {
+          createBottomTabNavigator: () => ({ Navigator: 'Tabs', Screen: 'TabScreen' }),
         },
-        '@react-native-vector-icons/material-design-icons': { MaterialDesignIcons: {
-          async getImageSource(name, size) {
-            requests.push({ name, size });
-            return { uri: `file:///${name}.png`, width: size, height: size, scale: 1 };
-          },
-        } },
         '@/screens/HomeScreen': { HomeScreen },
         '@/screens/ShoppingScreen': { ShoppingScreen },
         '@/screens/SettingsScreen': { SettingsScreen },
       });
       const tabs = mount(MainTabNavigator, {});
       t.after(() => tabs.unmount());
-      await new Promise(setImmediate);
-      tabs.render();
-      const navigator = () => find(tabs.tree, node => node.type === 'NativeTabs');
+      const navigator = () => find(tabs.tree, node => node.type === 'Tabs');
       assert.equal(navigator().props.initialRouteName, 'Home');
       assert.equal(navigator().props.screenOptions.headerShown, false);
       const routes = children(navigator());
@@ -1292,19 +1283,34 @@ test('하단 메뉴는 OS 기본 탭 3개로 연결하고 등록은 탭 밖에�
       const homeRoute = routes[0].props.children({ navigation: {}, route: { key: 'Home', name: 'Home' } });
       assert.strictEqual(homeRoute.type, HomeScreen);
       assert.deepEqual(routes.slice(1).map(route => route.props.component), [ShoppingScreen, SettingsScreen]);
-      assert.equal(navigator().props.screenOptions.tabBarSelectionEnabled, true);
+      let presses = 0;
+      const button = () => navigator().props.screenOptions.tabBarButton({ onPress() { presses++; }, 'aria-selected': true });
+      assert.equal(button().props.disabled, false);
+      assert.equal(button().props.accessibilityState.selected, true);
+      button().props.onPress();
+      assert.equal(presses, 1);
       const tabStyle = navigator().props.screenOptions.tabBarStyle;
+      assert.equal(flattenStyle(tabStyle).height - flattenStyle(tabStyle).paddingBottom, 50,
+        '탭의 콘텐츠 높이는 하단 안전 영역과 별도로 유지한다');
       homeRoute.props.onTabInteractionBlockedChange(true);
       tabs.render();
-      assert.equal(navigator().props.screenOptions.tabBarSelectionEnabled, false, '패널이 열리면 모든 하단 탭 선택을 막는다');
+      assert.equal(button().props.disabled, true, '패널이 열리면 탭 버튼의 입력을 막는다');
+      assert.equal(button().props.accessibilityState.disabled, true);
+      assert.equal(button().props.importantForAccessibility, 'no-hide-descendants');
       assert.deepEqual(navigator().props.screenOptions.tabBarStyle, tabStyle);
       homeRoute.props.onTabInteractionBlockedChange(false);
       tabs.render();
-      assert.equal(navigator().props.screenOptions.tabBarSelectionEnabled, true);
-      assert.deepEqual(requests.map(request => request.name), ['fridge-outline', 'cart-outline', 'cog-outline']);
+      assert.equal(button().props.disabled, false);
+      assert.equal(button().props.accessibilityState.disabled, false);
+      assert.equal(button().props.importantForAccessibility, 'auto');
       for (const [index, route] of routes.entries()) {
-        assert.equal(route.props.options.tabBarIcon.type, 'image');
-        assert.equal(route.props.options.tabBarIcon.source.uri, `file:///${requests[index].name}.png`);
+        for (const focused of [false, true]) {
+          const color = focused ? tokens.colors.chilled : tokens.colors.textMuted;
+          const icon = route.props.options.tabBarIcon({ focused, color, size: 24 });
+          assert.equal(icon.props.name, ['fridge', 'cart', 'cog'][index] + (focused ? '' : '-outline'));
+          assert.equal(icon.props.color, color);
+          assert.equal(icon.props.size, 24);
+        }
       }
       const { RootNavigator } = loadComponent('src/navigation/RootNavigator.tsx', {
         '@react-navigation/native-stack': {
@@ -1323,7 +1329,7 @@ test('하단 메뉴는 OS 기본 탭 3개로 연결하고 등록은 탭 밖에�
       for (const [Component, title] of [[ShoppingScreen, '장보기'], [SettingsScreen, '설정']]) {
         const screen = mount(Component, {});
         t.after(() => screen.unmount());
-        assert.deepEqual(screen.tree.props.edges, { top: true, bottom: true, left: true, right: true });
+        assert.deepEqual(screen.tree.props.edges, ['top', 'left', 'right']);
         assert.deepEqual(findAll(screen.tree, node => node.type === 'Text').map(node => node.props.children), [title]);
       }
     });
@@ -1405,7 +1411,7 @@ test('홈은 최상단 냉장고 이름과 등록 화면의 전체 도면을 표
   assert.equal(find(home.tree, named('FridgeMap')), undefined);
   assert.equal(find(home.tree, named('FridgeFocusView')), undefined);
   assert.equal(find(home.tree, node => node.type === 'FridgeAreaMenu'), undefined);
-  const texts = findAll(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === true), node => node.type === 'Text');
+  const texts = findAll(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.includes('top')), node => node.type === 'Text');
   assert.equal(texts.length, 1);
   assert.equal(texts[0].props.accessibilityRole, 'header');
   assert.equal(texts[0].props.children, snapshot.name);
@@ -1431,7 +1437,7 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       const map = () => find(home.tree, named('FridgeInteriorMap'));
       const viewport = find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
       // 헤더·안전 영역 안에 중앙 보기를 넣으면 이름 높이만큼 중심이 밀린다.
-      assert.equal(find(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === true), node => node === viewport), undefined);
+      assert.equal(find(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.includes('top')), node => node === viewport), undefined);
       assert(children(homeScene(home)).includes(viewport));
       assert.deepEqual(flattenStyle(viewport.props.style), native.StyleSheet.absoluteFill);
       viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 844 } } });
@@ -1449,7 +1455,7 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       assert.deepEqual(focus().props.viewport, { x: 0, y: 0, width: 375, height: 844 });
       const geometry = getFridgeFocusGeometry(snapshot, target, focus().props.viewport, focus().props.sizeViewport);
       near(geometry.focusedTop + geometry.height / 2, 844 / 2);
-      assert.equal(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === true).props.accessibilityElementsHidden, true);
+      assert.equal(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.includes('top')).props.accessibilityElementsHidden, true);
       const overlay = mount(focus().type, focus().props);
       t.after(() => overlay.unmount());
       assertFocusAccess(overlay, 'opening');
@@ -1498,7 +1504,7 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       assert.equal(map().props.focus, null);
       assert.equal(map().props.selectedAreaId, target.returnAreaId);
       assert.equal(backHandlers.size, 0);
-      assert.equal(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === true).props.accessibilityElementsHidden, false);
+      assert.equal(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.includes('top')).props.accessibilityElementsHidden, false);
       assert.equal(reads, 1);
       assert.deepEqual(map().props.draft, before);
       assert.deepEqual(findAll(home.tree, node => node.props.accessibilityRole === 'header').map(node => node.props.children), [snapshot.name]);
@@ -3032,7 +3038,7 @@ test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입
   assert.deepEqual(popup.props.ingredients, [original]);
   assert.equal(blocked.at(-1), true);
   assert.equal(focus().props.scrollHintBlocked, true);
-  const safeArea = find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
+  const safeArea = find(home.tree, node => node.type === 'SafeAreaView' && !node.props.edges.includes('top'));
   assert.equal(safeArea.props.pointerEvents, 'none');
   popup.props.onClose(); home.render();
   assert.equal(blocked.at(-1), false);
@@ -3314,20 +3320,20 @@ test('공통 Toast는 안내 교체·제거 시 타이머와 애니메이션을 
   assert.equal(animations.length, count);
 });
 
-test('홈 도구는 배경·점유 공간 없이 도면 위에 떠 있고 아래 안전 영역을 한 번 적용한다', async t => {
+test('홈 도구는 도면 위에 떠 있고 하단 안전 영역을 탭바에 맡긴다', async t => {
   const { home, focus } = await ingredientHomeFixture(t);
   const scene = homeScene(home);
   const background = children(scene)[0];
   assert.equal(background.type, 'SafeAreaView');
-  assert.deepEqual(background.props.edges, { top: true, bottom: false, left: true, right: true });
+  assert.deepEqual(background.props.edges, ['top', 'left', 'right']);
   assert.equal(flattenStyle(scene.props.style).overflow, 'hidden');
   const overlay = homeToolbarOverlay(home);
-  assert(children(homeSafeArea(home)).includes(overlay));
-  assert.equal(homeSafeArea(home).props.edges.bottom, true);
+  assert(children(homeContent(home)).includes(overlay));
+  assert.equal(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.includes('bottom')), undefined);
   assert.equal(home.tree.type, 'View');
   assert.equal(flattenStyle(home.tree.props.style).backgroundColor, tokens.colors.background, '안전 영역 바깥과 탭바 뒤도 홈 배경으로 채운다');
-  assert(children(home.tree).includes(homeSafeArea(home)));
-  assert.deepEqual(overlay.props.edges, { top: false, bottom: false, left: true, right: true });
+  assert(children(home.tree).includes(homeContent(home)));
+  assert.deepEqual(overlay.props.edges, ['left', 'right']);
   const overlayStyle = flattenStyle(overlay.props.style);
   assert.equal(overlayStyle.position, 'absolute', '도구는 도면의 남은 높이를 배분받지 않는다');
   assert.equal(overlayStyle.top, 0);
@@ -3338,14 +3344,6 @@ test('홈 도구는 배경·점유 공간 없이 도면 위에 떠 있고 아래
   for (const node of findAll(overlay, node => children(node).length > 0 && node.type !== 'FeedbackPressable')) {
     assert.equal(flattenStyle(node.props.style).backgroundColor, undefined, '버튼을 감싼 영역에 배경 띠를 만들지 않는다');
   }
-  // 실제 네이티브 래퍼의 기본 flex가 있어도 absolute 도구는 도면 높이를 차지하지 않는다.
-  const { SafeAreaView } = loadComponent('node_modules/react-native-screens/src/components/safe-area/SafeAreaView.tsx', {
-    '../../fabric/safe-area/SafeAreaViewNativeComponent': { __esModule: true, default: 'NativeSafeAreaView' },
-  });
-  const overlayNative = SafeAreaView(overlay.props);
-  const backgroundNative = SafeAreaView(background.props);
-  assert.equal(flattenStyle(overlayNative.props.style).position, 'absolute');
-  assert.equal(flattenStyle(backgroundNative.props.style).flex, 1, '남은 영역은 도면이 사용한다');
   assert.equal(flattenStyle(background.props.style).flex, 1);
   assert.equal(flattenStyle(background.props.style).height, undefined);
   assert.deepEqual(focus().props.viewport, { x: 0, y: 0, width: 375, height: 844 });
@@ -6241,7 +6239,7 @@ test('홈 툴바는 좌우로 전환하고 완전히 접혀도 오른쪽 메뉴�
   assert.deepEqual(focus().props.viewport, before.viewport);
   assert.deepEqual(focus().props.target, before.target);
   assert.deepEqual(focus().props.sizeViewport, before.size);
-  assert.deepEqual(blocked, before.blocked, '툴바 접기·펼치기는 네이티브 탭을 차단하지 않는다');
+  assert.deepEqual(blocked, before.blocked, '툴바 접기·펼치기는 하단 탭을 차단하지 않는다');
   toggle().props.onPress(); home.render();
   const pending = animations.at(-1);
   home.unmount();

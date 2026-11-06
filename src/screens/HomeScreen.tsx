@@ -4,7 +4,7 @@
  * 칸 선택으로 재료 목록을 열고, 미등록 상태에서는 안내·등록 버튼을 표시한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { NativeBottomTabScreenProps } from '@react-navigation/bottom-tabs/unstable';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -13,7 +13,7 @@ import { ActivityIndicator, Animated, AppState, BackHandler, Easing, ScrollView,
 import { useSQLiteContext } from 'expo-sqlite';
 import { colors, fridgeDoorColors, spacing } from '@/theme/tokens';
 import { headerStyles } from '@/theme/headerStyles';
-import { SafeAreaView } from 'react-native-screens/experimental';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
@@ -34,7 +34,7 @@ import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDi
 import { fridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 
 type HomeScreenProps = CompositeScreenProps<
-  NativeBottomTabScreenProps<MainTabParamList, 'Home'>,
+  BottomTabScreenProps<MainTabParamList, 'Home'>,
   NativeStackScreenProps<RootStackParamList>
 > & {
   onTabInteractionBlockedChange?: (blocked: boolean) => void;
@@ -191,13 +191,13 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
       ? { ...current, canvas: { ...current.canvas, y: current.canvas.y + shift } } : current);
   }
 
-  // 안전 영역의 바깥 여백도 홈 배경으로 채워 탭바 뒤에 기본 회색 배경이 드러나지 않게 한다.
+  // 하단 안전 영역은 탭바가 확보하며, 도구와 도면은 탭바 위의 같은 영역을 사용한다.
   return (
     <View style={styles.container}>
-      <SafeAreaView edges={{ bottom: true }} style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.scene}>
           <SafeAreaView style={[styles.container, (isLoading || error !== null) && styles.feedback]}
-            edges={{ top: true, bottom: false, left: true, right: true }}
+            edges={['top', 'left', 'right']}
             pointerEvents={activeFocus || isToolbarHidden || isToolbarChanging ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isToolbarHidden || isToolbarChanging}
             importantForAccessibility={activeFocus || isToolbarHidden || isToolbarChanging ? 'no-hide-descendants' : 'auto'}>
             {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" />
@@ -258,7 +258,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
           </View>
         </View>
         {isToolbarAvailable ? (
-          <SafeAreaView edges={{ top: false, bottom: false, left: true, right: true }}
+          <SafeAreaView edges={['left', 'right']}
             pointerEvents={isToolbarHidden || isToolbarBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isToolbarHidden || isToolbarBlocked}
             importantForAccessibility={isToolbarHidden || isToolbarBlocked ? 'no-hide-descendants' : 'auto'}
             style={[styles.toolbarOverlay, isToolbarHidden && styles.hidden]}>
@@ -312,7 +312,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
             onMoved={moved => setIngredients(current => current.map(item => moved.find(ingredient => ingredient.id === item.id) ?? item))}
             onClose={closeIngredientList} />
         ) : null}
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
