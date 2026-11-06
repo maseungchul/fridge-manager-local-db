@@ -12,7 +12,8 @@ import { SlotStructureSelector } from '@/features/fridge/components/SlotStructur
 import { doorOpeningOptions, getSlotName, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { colors, spacing } from '@/theme/tokens';
-import { FRIDGE_SUBMENU_HEIGHT, FRIDGE_SUBMENU_BOTTOM_SPACE, FRIDGE_TOOLBAR_ACTION_HEIGHT } from '@/features/fridge/components/fridgeDiagramLayout';
+import { FRIDGE_SUBMENU_HEIGHT, FRIDGE_SUBMENU_BOTTOM_SPACE } from '@/features/fridge/components/fridgeDiagramLayout';
+import { fridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 
 export type FridgeMenuCategory = 'mode' | 'opening' | 'slots';
 
@@ -158,14 +159,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
 }
 
 const styles = StyleSheet.create({
-  toolbar: {
-    flexShrink: 0,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    backgroundColor: colors.toolbar,
-  },
+  ...fridgeToolbarStyles,
   // 툴바의 배치 높이를 바꾸지 않고, 도면 계산에서 별도로 제외한 공간에 하위 설정을 펼친다.
   submenuSlot: {
     position: 'absolute',
@@ -185,25 +179,6 @@ const styles = StyleSheet.create({
   submenuContent: {
     padding: spacing.sm,
     gap: spacing.sm,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  action: {
-    flex: 1,
-    maxWidth: 110,
-    minWidth: 0,
-    minHeight: FRIDGE_TOOLBAR_ACTION_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
   activeCategory: {
     borderColor: colors.chilled,
@@ -269,13 +244,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-  },
-  label: {
-    flexShrink: 1,
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
   },
   choiceLabel: {
     flexShrink: 0,

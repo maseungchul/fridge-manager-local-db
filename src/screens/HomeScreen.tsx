@@ -9,13 +9,12 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { ActivityIndicator, AppState, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, BackHandler, Easing, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { colors, fridgeDoorColors, spacing } from '@/theme/tokens';
 import { SafeAreaView } from 'react-native-screens/experimental';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { FloatingIconButton } from '@/components/FloatingIconButton';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
 import { getIngredients } from '@/db/ingredientRepository';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
@@ -31,6 +30,7 @@ import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueu
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
+import { fridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 
 type HomeScreenProps = CompositeScreenProps<
   NativeBottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -40,6 +40,8 @@ type HomeScreenProps = CompositeScreenProps<
 };
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
+const HOME_MENU_SIZE = 40;
+const HOME_TOOLBAR_EDGE_SPACE = 8;
 
 export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeScreenProps) {
   const db = useSQLiteContext();
@@ -52,15 +54,22 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
+  const [isToolbarExpanded, setIsToolbarExpanded] = useState(false);
+  const [isToolbarChanging, setIsToolbarChanging] = useState(false);
+  const [toolbarSize, setToolbarSize] = useState({ width: 0, height: 0 });
+  const toolbarProgress = useAnimatedValue(0);
+  const toolbarChanging = useRef(false);
+  const closedScrollY = useRef(0);
+  const isFocusBlocked = useCallback(() => toolbarChanging.current, []);
   const isSheetOpen = isIngredientListOpen || isMoveQueueOpen;
   const queuedIngredients = queuedIds.flatMap(id => ingredients.find(ingredient => ingredient.id === id) ?? []);
   const [badgeDate, setBadgeDate] = useState(() => new Date());
   const loadRequest = useRef(0);
   const {
-    selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
+    selectedAreaId, setSelectedAreaId, setFocusTarget, focusPhase, focusBounds, focusViewport, activeFocus,
     hasSeenScrollHint, markScrollHintSeen, finishFocusTransition, resetFocus,
     layoutFocusViewport, openFocusedArea, closeFocusedArea, diagramSizes,
-  } = useFridgeFocus();
+  } = useFridgeFocus(0, isFocusBlocked);
   const finishHomeFocus = useCallback((phase: FridgeFocusPhase) => {
     finishFocusTransition(phase);
     if (phase === 'closed') { setSelectedSlot(null); setIsIngredientListOpen(false); }
@@ -75,6 +84,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   // 홈 재진입·재시도 이전에 시작한 조회가 늦게 끝나도 최신 결과만 반영한다.
   const loadRefrigerator = useCallback(async () => {
     const request = ++loadRequest.current;
+    closedScrollY.current = 0;
     resetFocus();
     setSelectedSlot(null);
     setIsIngredientListOpen(false);
@@ -126,11 +136,29 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
     return () => onTabInteractionBlockedChange?.(false);
   }, [isSheetOpen, onTabInteractionBlockedChange]);
 
+  // 툴바는 가로로 전환하고, 접기 완료 후에만 실제 점유 높이를 없앤다.
+  useEffect(() => {
+    if (!toolbarChanging.current) return;
+    let active = true;
+    const animation = Animated.timing(toolbarProgress, {
+      toValue: isToolbarExpanded ? 1 : 0, duration: 240,
+      easing: Easing.inOut(Easing.cubic), useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (!active) return;
+      if (!finished) toolbarProgress.setValue(isToolbarExpanded ? 1 : 0);
+      toolbarChanging.current = false;
+      setIsToolbarChanging(false);
+    });
+    return () => { active = false; animation.stop(); };
+  }, [isToolbarExpanded, toolbarProgress]);
+
   useEffect(() => {
     if (!activeFocus && !isMoveQueueOpen) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       // 대기 목록은 네이티브 시트의 종료 신호에서만 정리한다.
       if (isMoveQueueOpen) return true;
+      if (toolbarChanging.current) return true;
       if (isLegendOpen) setIsLegendOpen(false);
       else if (isIngredientListOpen) closeIngredientList();
       else closeFocusedArea();
@@ -142,111 +170,167 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const layout = refrigerator ? getDraftLayout(refrigerator) : null;
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
-  const isLegendHidden = isSheetOpen || isLegendOpen;
-  // 도면 전환 중에는 시스템 비활성화 색상 대신 입력만 차단한다.
-  const isLegendBlocked = focusPhase === 'opening' || focusPhase === 'closing';
-  const legendButton = refrigerator && !isLoading && !error ? (
-    <FloatingIconButton label="범례" icon="information-outline" accessibilityLabel="재료 배지 범례" size="small"
-      accessibilityHint="재료 배지의 색상과 의미를 확인합니다." expanded={isLegendOpen}
-      disabled={false}
-      onPress={() => { if (!isLegendBlocked) setIsLegendOpen(true); }} />
-  ) : null;
+  const isToolbarAvailable = !!refrigerator && !isLoading && !error;
+  const isToolbarHidden = isSheetOpen || isLegendOpen;
+  const isToolbarBlocked = focusPhase === 'opening' || focusPhase === 'closing' || isToolbarChanging;
+  const canUseToolbar = isToolbarExpanded && !isToolbarBlocked && !isToolbarHidden;
 
+  function toggleToolbar() {
+    if (toolbarChanging.current || isToolbarHidden || isToolbarBlocked || toolbarSize.height <= 0) return;
+    toolbarChanging.current = true;
+    setIsToolbarChanging(true);
+    setIsToolbarExpanded(current => !current);
+  }
+
+  function updateClosedScroll(y: number) {
+    const shift = closedScrollY.current - y;
+    closedScrollY.current = y;
+    // 배경 스크롤이 표시 영역에 맞게 보정돼도 문이 실제 원래 자리로 돌아가게 한다.
+    if (activeFocus && shift !== 0) setFocusTarget(current => current
+      ? { ...current, canvas: { ...current.canvas, y: current.canvas.y + shift } } : current);
+  }
+
+  // 안전 영역의 바깥 여백도 홈 배경으로 채워 탭바 뒤에 기본 회색 배경이 드러나지 않게 한다.
   return (
     <View style={styles.container}>
-      <SafeAreaView style={[styles.container, (isLoading || error !== null) && styles.feedback]}
-        edges={{ top: true, bottom: true, left: true, right: true }}
-        pointerEvents={activeFocus || isLegendOpen || isMoveQueueOpen ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isLegendOpen || isMoveQueueOpen}
-        importantForAccessibility={activeFocus || isLegendOpen || isMoveQueueOpen ? 'no-hide-descendants' : 'auto'}>
-        {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" />
-          : error ? <>
-            <Text accessibilityRole="alert">{error}</Text>
-            <PrimaryButton label="다시 불러오기" onPress={loadRefrigerator} />
-          </> : refrigerator ? <>
-            <View style={styles.header}>
-              <Text accessibilityRole="header" style={styles.title}>{refrigerator.name}</Text>
-              <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 편집" style={styles.headerIconButton}
-                onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
-                <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
+      <SafeAreaView edges={{ bottom: true }} style={styles.container}>
+        <View style={styles.scene}>
+          <SafeAreaView style={[styles.container, (isLoading || error !== null) && styles.feedback]}
+            edges={{ top: true, bottom: false, left: true, right: true }}
+            pointerEvents={activeFocus || isToolbarHidden || isToolbarChanging ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isToolbarHidden || isToolbarChanging}
+            importantForAccessibility={activeFocus || isToolbarHidden || isToolbarChanging ? 'no-hide-descendants' : 'auto'}>
+            {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" />
+              : error ? <>
+                <Text accessibilityRole="alert">{error}</Text>
+                <PrimaryButton label="다시 불러오기" onPress={loadRefrigerator} />
+              </> : refrigerator ? <>
+                <View style={styles.header}>
+                  <Text accessibilityRole="header" style={styles.title}>{refrigerator.name}</Text>
+                  <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 편집" style={styles.headerIconButton}
+                    onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
+                    <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
+                  </FeedbackPressable>
+                </View>
+                <View style={styles.diagram}>
+                  <View style={StyleSheet.absoluteFill}>
+                    <FridgeInteriorMap draft={refrigerator} ingredients={ingredients} now={badgeDate} selectedAreaId={selectedAreaId ?? undefined}
+                      onSelectArea={setSelectedAreaId} focus={activeFocus} onFocus={openFocusedArea} fitHeight layoutSize={diagramSizes.closed}
+                      scrollVertically onCanvasOffsetChange={updateClosedScroll} />
+                  </View>
+                </View>
+              </> : (
+                <ScrollView style={styles.emptyScroll} contentContainerStyle={styles.emptyContent}
+                  alwaysBounceVertical={false}>
+                  <View style={styles.emptyState}>
+                    <View style={styles.emptyIllustration} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none">
+                      <FridgeStructurePreview rows={EMPTY_PREVIEW_ROWS} style={styles.emptyPreview} />
+                    </View>
+                    <Text accessibilityRole="header" style={styles.emptyTitle}>우리 집 냉장고를 등록해 보세요</Text>
+                    <Text style={styles.emptyDescription}>문과 수납칸을 우리 집 냉장고 구조에 맞게 설정할 수 있어요.</Text>
+                    <PrimaryButton label="냉장고 등록하기" icon="plus" style={styles.emptyButton}
+                      onPress={() => navigation.navigate('RefrigeratorRegistration')} />
+                  </View>
+                </ScrollView>
+              )}
+          </SafeAreaView>
+          {/* 툴바를 제외한 실제 영역을 측정하고 도면 자체의 공통 크기는 유지한다. */}
+          <View ref={focusViewport} collapsable={false} pointerEvents={isToolbarHidden || isToolbarChanging ? 'none' : 'box-none'}
+            accessibilityElementsHidden={isToolbarHidden || isToolbarChanging}
+            importantForAccessibility={isToolbarHidden || isToolbarChanging ? 'no-hide-descendants' : 'auto'}
+            style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
+            {refrigerator && activeFocus && focusBounds ? (
+              <FridgeFocusView draft={refrigerator} ingredients={ingredients} now={badgeDate} target={activeFocus} viewport={focusBounds} phase={focusPhase}
+                sizeViewport={diagramSizes.opened} flushVerticalEdges
+                selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
+                selectedSlotIndex={selectedSlot?.index}
+                selectedPositionId={selectedSlot?.positionId}
+                scrollHintBlocked={isToolbarHidden || isToolbarChanging}
+                onSelectSlot={(areaId, index, positionId) => {
+                  if (focusPhase !== 'open' || isToolbarHidden || toolbarChanging.current) return;
+                  setSelectedAreaId(areaId);
+                  setSelectedSlot({ index, positionId });
+                  setIsIngredientListOpen(!!layout?.positions.some(position => position.id === positionId && position.areaId === areaId));
+                }}
+                onScrollHintSeen={markScrollHintSeen} onPhaseChange={finishHomeFocus}
+                onClose={closeFocusedArea} />
+            ) : null}
+          </View>
+        </View>
+        {isToolbarAvailable ? (
+          <View style={[styles.toolbarViewport, { height: isToolbarExpanded || isToolbarChanging ? toolbarSize.height : 0 }]}
+            pointerEvents={isToolbarHidden || isToolbarBlocked ? 'none' : 'auto'} accessibilityElementsHidden={isToolbarHidden || isToolbarBlocked}
+            importantForAccessibility={isToolbarHidden || isToolbarBlocked ? 'no-hide-descendants' : 'auto'}>
+            <SafeAreaView edges={{ top: false, bottom: false, left: true, right: true }}
+              pointerEvents={canUseToolbar ? 'auto' : 'none'} accessibilityElementsHidden={!canUseToolbar}
+              importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}
+              onLayout={({ nativeEvent: { layout } }) => setToolbarSize(current => current.width === layout.width && current.height === layout.height
+                ? current : { width: layout.width, height: layout.height })}
+              style={[styles.toolbarFooter, isToolbarHidden && styles.hidden]}>
+              <Animated.View style={{ opacity: toolbarProgress,
+                transform: [{ translateX: toolbarProgress.interpolate({ inputRange: [0, 1], outputRange: [toolbarSize.width, 0] }) }] }}
+                pointerEvents={canUseToolbar ? 'auto' : 'none'} accessibilityElementsHidden={!canUseToolbar}
+                importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
+                <View style={[styles.toolbar, styles.homeToolbar]}>
+                  <View style={[styles.actions, styles.homeActions]}>
+                    {queuedIngredients.length > 0 ? (
+                      <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 열기"
+                        accessibilityHint={`이동 대기 중인 재료 ${queuedIngredients.length}개를 확인합니다.`}
+                        accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
+                        onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }} style={[styles.action, styles.homeAction]} hitSlop={4}>
+                        <MaterialDesignIcons name="clipboard-text-outline" size={16} color={colors.text} accessible={false} />
+                        <Text style={styles.label} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>이동 대기 {queuedIngredients.length}개</Text>
+                      </FeedbackPressable>
+                    ) : null}
+                    <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 배지 범례"
+                      accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
+                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }} style={[styles.action, styles.homeAction]} hitSlop={4}>
+                      <MaterialDesignIcons name="information-outline" size={16} color={colors.text} accessible={false} />
+                      <Text style={styles.label} numberOfLines={1}>범례</Text>
+                    </FeedbackPressable>
+                  </View>
+                </View>
+              </Animated.View>
+            </SafeAreaView>
+          </View>
+        ) : null}
+        {isToolbarAvailable ? (
+          <SafeAreaView edges={{ top: false, bottom: false, left: true, right: true }}
+            pointerEvents={isToolbarHidden || isToolbarBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isToolbarHidden || isToolbarBlocked}
+            importantForAccessibility={isToolbarHidden || isToolbarBlocked ? 'no-hide-descendants' : 'auto'}
+            style={[styles.toolbarMenuOverlay, isToolbarHidden && styles.hidden]}>
+            <View pointerEvents="box-none" style={styles.toolbarMenuAnchor}>
+              <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? '도구 접기' : '도구 펼치기'}
+                accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
+                accessibilityHint={queuedIngredients.length ? `이동 대기 중인 재료 ${queuedIngredients.length}개가 있습니다.` : undefined}
+                disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} style={styles.toolbarToggle} hitSlop={4}>
+                <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={22} color={colors.text} accessible={false}
+                  style={!isToolbarExpanded && queuedIngredients.length > 0 ? styles.menuIconWithCount : undefined} />
+                {!isToolbarExpanded && queuedIngredients.length > 0 ? (
+                  <Text pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                    style={styles.queueCount} numberOfLines={1} allowFontScaling={false}>{queuedIngredients.length > 99 ? '99+' : queuedIngredients.length}</Text>
+                ) : null}
               </FeedbackPressable>
             </View>
-            <View style={styles.diagram}>
-              <View style={[StyleSheet.absoluteFill, styles.content]}>
-                <FridgeInteriorMap draft={refrigerator} ingredients={ingredients} now={badgeDate} selectedAreaId={selectedAreaId ?? undefined}
-                  onSelectArea={setSelectedAreaId} focus={activeFocus} onFocus={openFocusedArea} fitHeight layoutSize={diagramSizes.closed} />
-              </View>
-            </View>
-          </> : (
-            <ScrollView style={styles.emptyScroll} contentContainerStyle={styles.emptyContent}
-              alwaysBounceVertical={false}>
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIllustration} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none">
-                  <FridgeStructurePreview rows={EMPTY_PREVIEW_ROWS} style={styles.emptyPreview} />
-                </View>
-                <Text accessibilityRole="header" style={styles.emptyTitle}>우리 집 냉장고를 등록해 보세요</Text>
-                <Text style={styles.emptyDescription}>문과 수납칸을 우리 집 냉장고 구조에 맞게 설정할 수 있어요.</Text>
-                <PrimaryButton label="냉장고 등록하기" icon="plus" style={styles.emptyButton}
-                  onPress={() => navigation.navigate('RefrigeratorRegistration')} />
-              </View>
-            </ScrollView>
-          )}
-      </SafeAreaView>
-      {/* 이름과 안전 영역의 여백을 제외하지 않은 화면 전체를 중앙 보기의 기준으로 사용한다. */}
-      <View ref={focusViewport} collapsable={false} pointerEvents={isSheetOpen || isLegendOpen ? 'none' : 'box-none'}
-        accessibilityElementsHidden={isSheetOpen || isLegendOpen}
-        importantForAccessibility={isSheetOpen || isLegendOpen ? 'no-hide-descendants' : 'auto'}
-        style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
-        {refrigerator && activeFocus && focusBounds ? (
-          <FridgeFocusView draft={refrigerator} ingredients={ingredients} now={badgeDate} target={activeFocus} viewport={focusBounds} phase={focusPhase}
-            sizeViewport={diagramSizes.opened}
-            selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
-            selectedSlotIndex={selectedSlot?.index}
-            selectedPositionId={selectedSlot?.positionId}
-            scrollHintBlocked={isSheetOpen || isLegendOpen}
-            onSelectSlot={(areaId, index, positionId) => {
-              if (focusPhase !== 'open' || isSheetOpen || isLegendOpen) return;
-              setSelectedAreaId(areaId);
-              setSelectedSlot({ index, positionId });
-              setIsIngredientListOpen(!!layout?.positions.some(position => position.id === positionId && position.areaId === areaId));
-            }}
-            onScrollHintSeen={markScrollHintSeen} onPhaseChange={finishHomeFocus}
-            onClose={closeFocusedArea} />
+          </SafeAreaView>
         ) : null}
-      </View>
-      {/* 열린 도면의 배경 위에서도 같은 하단 위치를 유지하고, 버튼 밖은 도면으로 터치를 전달한다. */}
-      {legendButton ? (
-        <SafeAreaView pointerEvents={isLegendHidden || isLegendBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isLegendHidden || isLegendBlocked}
-          importantForAccessibility={isLegendHidden || isLegendBlocked ? 'no-hide-descendants' : 'auto'}
-          edges={{ top: false, bottom: true, left: true, right: true }} style={[styles.legendOverlay, isLegendHidden && styles.hidden]}>
-          <View pointerEvents="box-none" style={styles.buttonRow}>
-          {queuedIngredients.length > 0 ? (
-            <View pointerEvents="box-none" style={styles.queueAnchor}>
-              <FloatingIconButton label={`이동 대기 ${queuedIngredients.length}개`} icon="clipboard-text-outline" size="small"
-                accessibilityLabel="이동 대기 목록 열기" accessibilityHint={`이동 대기 중인 재료 ${queuedIngredients.length}개를 확인합니다.`}
-                expanded={isMoveQueueOpen} disabled={false}
-                onPress={() => { if (!isLegendBlocked && !isLegendHidden) setIsMoveQueueOpen(true); }} />
-            </View>
-          ) : null}
-          <View pointerEvents="box-none" style={styles.legendAnchor}>{legendButton}</View>
-          </View>
-        </SafeAreaView>
-      ) : null}
-      {isLegendOpen ? <FridgeIngredientLegend onClose={() => setIsLegendOpen(false)} /> : null}
-      {isMoveQueueOpen && layout ? <IngredientMoveQueueSheet ingredients={queuedIngredients} layout={layout}
-        onClose={() => setIsMoveQueueOpen(false)} /> : null}
-      {isIngredientListOpen && focusPhase === 'open' && selectedPosition && layout ? (
-        <IngredientListSheet key={selectedPosition.id} position={selectedPosition} layout={layout} allIngredients={ingredients}
-          onSaved={ingredient => setIngredients(current => current.some(item => item.id === ingredient.id)
-            ? current.map(item => item.id === ingredient.id ? ingredient : item) : [...current, ingredient])}
-          onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
-          onMoved={moved => setIngredients(current => current.map(item => moved.find(ingredient => ingredient.id === item.id) ?? item))}
-          onClose={closeIngredientList} />
-      ) : null}
+        {isLegendOpen ? <FridgeIngredientLegend onClose={() => setIsLegendOpen(false)} /> : null}
+        {isMoveQueueOpen && layout ? <IngredientMoveQueueSheet ingredients={queuedIngredients} layout={layout}
+          onClose={() => setIsMoveQueueOpen(false)} /> : null}
+        {isIngredientListOpen && focusPhase === 'open' && selectedPosition && layout ? (
+          <IngredientListSheet key={selectedPosition.id} position={selectedPosition} layout={layout} allIngredients={ingredients}
+            onSaved={ingredient => setIngredients(current => current.some(item => item.id === ingredient.id)
+              ? current.map(item => item.id === ingredient.id ? ingredient : item) : [...current, ingredient])}
+            onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
+            onMoved={moved => setIngredients(current => current.map(item => moved.find(ingredient => ingredient.id === item.id) ?? item))}
+            onClose={closeIngredientList} />
+        ) : null}
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  ...fridgeToolbarStyles,
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -308,14 +392,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.xs,
     paddingBottom: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   title: {
     flex: 1,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
   },
@@ -326,17 +410,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 24,
   },
-  legendOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
-  legendAnchor: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: spacing.lg, paddingBottom: spacing.sm },
-  buttonRow: { flex: 1, flexDirection: 'row' },
-  queueAnchor: { flex: 1, alignItems: 'flex-start', justifyContent: 'flex-end', paddingLeft: spacing.lg, paddingBottom: spacing.sm },
+  scene: { flex: 1, minHeight: 0, overflow: 'hidden' },
+  // 네이티브 SafeAreaView의 기본 flex: 1을 해제해 툴바가 남은 높이까지 차지하지 않게 한다.
+  toolbarFooter: { flex: 0, flexShrink: 0, position: 'absolute', bottom: 0, left: 0, right: 0 },
+  toolbarViewport: { flexShrink: 0, overflow: 'hidden' },
+  homeToolbar: { paddingHorizontal: HOME_TOOLBAR_EDGE_SPACE, paddingVertical: 4,
+    paddingRight: HOME_TOOLBAR_EDGE_SPACE + HOME_MENU_SIZE + spacing.xs },
+  homeActions: { minHeight: HOME_MENU_SIZE, alignItems: 'center' },
+  homeAction: { flex: 0, flexShrink: 1, maxWidth: 180, minHeight: 36, flexDirection: 'row', gap: spacing.xs, paddingHorizontal: spacing.sm },
+  toolbarMenuOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
+  toolbarMenuAnchor: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: HOME_TOOLBAR_EDGE_SPACE, paddingBottom: 4 },
+  toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, alignItems: 'center', justifyContent: 'center', borderRadius: HOME_MENU_SIZE / 2,
+    backgroundColor: colors.toolbar },
+  menuIconWithCount: { transform: [{ translateY: 5 }] },
+  queueCount: { position: 'absolute', top: 3, right: 6, maxWidth: HOME_MENU_SIZE - 12,
+    color: colors.chilled, fontSize: 10, lineHeight: 11, textAlign: 'right', fontWeight: '700' },
   hidden: { opacity: 0 },
   diagram: {
     flex: 1,
-  },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
   },
 });
