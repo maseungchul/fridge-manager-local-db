@@ -45,7 +45,6 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
             <MaterialDesignIcons name="clipboard-remove-outline" size={32} color={colors.text} accessible={false} />
           </FeedbackPressable>
         </View>
-        <Text style={styles.guide}>옮길 칸의 재료 목록에서 ‘여기로 이동’을 누르세요.</Text>
         <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false} onRemove={remove} />
       </View>
     </IngredientSheet>
@@ -60,5 +59,4 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md, paddingBottom: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   title: { flex: 1, color: colors.text, fontSize: 22, lineHeight: 28, fontWeight: '700', textAlign: 'center', includeFontPadding: false },
   clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  guide: { color: colors.textMuted, fontSize: 13, lineHeight: 20, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
 });

@@ -29,7 +29,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
     if (!section) {
       // 문의 이름은 여는 방향이므로 실제 출발 위치는 단·영역 순서로 구분한다.
       const title = position && area
-        ? `${area.compartment} → ${area.isBody ? '본체' : '도어포켓'} → ${getPositionName(position)}`
+        ? `${area.compartment} → ${area.isBody ? '본체' : '도어포켓'} → ${getPositionName(position).replace(/^위에서 /, '')}`
         : '보관 위치를 확인해 주세요.';
       section = { key, title, data: [] };
       sections.push(section);
@@ -40,7 +40,6 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
   return (
     <SectionList sections={sections} keyExtractor={item => item.id} stickySectionHeadersEnabled={false}
       style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.empty : undefined}
-      ListHeaderComponent={ingredients.length > 0 ? <Text style={styles.guide}>출발 위치별 목록입니다. 단·칸은 위에서부터, 같은 단의 영역은 왼쪽부터 셉니다.</Text> : undefined}
       ListEmptyComponent={<View style={styles.emptyContent}>
         <MaterialDesignIcons name="clipboard-outline" size={40} color={colors.textMuted} accessible={false} />
         <Text style={styles.emptyTitle}>이동 대기 중인 재료가 없어요</Text>
