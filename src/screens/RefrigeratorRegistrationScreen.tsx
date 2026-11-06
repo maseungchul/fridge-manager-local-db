@@ -6,6 +6,7 @@
  * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
  * 편집은 저장된 구성을 불러오며, 전체 저장 실패 시 입력을 유지하고 성공 알림 확인 후 홈으로 돌아간다.
  * 편집 화면의 이름 변경은 구조 초안을 유지한 채 별도로 저장한다.
+ * 재료의 보관 위치를 없애거나 숨기는 변경은 초안에 반영하기 전에 안내한다.
  * 내부 설정의 홈 아이콘은 상단 뒤로가기 오른쪽에 배치하고 저장하지 않은 초안을 종료한다.
  */
 import { usePreventRemove } from '@react-navigation/native';
@@ -21,6 +22,7 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantityStepper';
 import { alertTitles } from '@/constants/alertTitles';
+import { getIngredients } from '@/db/ingredientRepository';
 import { getRefrigerator, registerRefrigerator, updateRefrigerator, updateRefrigeratorName } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
@@ -30,10 +32,11 @@ import type { FridgeMenuCategory } from '@/features/fridge/components/FridgeArea
 import { fridgeMessages } from '@/features/fridge/constants/messages';
 import {
   addDraftRow, areaNames, changeDraftDoorCount, createRefrigeratorDraft,
-  getAdjacentCompartment, getDraftAreaLocation, getSlotName, MAX_DOOR_SLOTS, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
+  getAdjacentCompartment, getDraftAreaLocation, getDraftLayout, getSlotName, MAX_DOOR_SLOTS, MAX_DOORS_PER_ROW, MAX_ROWS, MAX_SLOTS, mergeDraftCompartments,
   removeDraftRow, setDraftDoorOpening, splitDraftCompartment,
 } from '@/features/fridge/model/fridgeLayout';
-import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
+import type { DoorOpening, RefrigeratorDraft, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
+import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { colors, spacing } from '@/theme/tokens';
 import { HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
@@ -59,6 +62,7 @@ export function RefrigeratorRegistrationScreen({
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const [draft, setDraft] = useState(createRefrigeratorDraft);
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [savedName, setSavedName] = useState('');
   const [isLoading, setIsLoading] = useState(isEditing);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -120,10 +124,11 @@ export function RefrigeratorRegistrationScreen({
     if (refrigeratorId === undefined) return;
     let mounted = true;
     loadedRefrigeratorId.current = null;
-    getRefrigerator(db).then(refrigerator => {
+    Promise.all([getRefrigerator(db), getIngredients(db)]).then(([refrigerator, storedIngredients]) => {
       if (!mounted) return;
       if (!refrigerator || refrigerator.id !== refrigeratorId) throw new Error('수정할 냉장고를 찾을 수 없습니다.');
       setDraft(createRefrigeratorDraft(refrigerator));
+      setIngredients(storedIngredients);
       setSavedName(refrigerator.name);
       loadedRefrigeratorId.current = refrigerator.id;
     }).catch(error => {
@@ -248,20 +253,31 @@ export function RefrigeratorRegistrationScreen({
     setSelectedPositionId(undefined);
   }
 
+  // 홈과 같은 위치 계산으로 재료가 사라지는 변경만 막고, 거부 시 기존 초안과 선택을 유지한다.
+  function updateStructure(nextDraft: RefrigeratorDraft) {
+    if (saving.current || isUnavailable) return false;
+    if (getDraftLayout(nextDraft, ingredients).ingredients.length !== ingredients.length) {
+      Alert.alert(alertTitles.info, fridgeMessages.ingredientLocationChangeBlocked);
+      return false;
+    }
+    setDraft(nextDraft);
+    return true;
+  }
+
   // 문 수납을 꺼도 문 식별자·방향·칸 입력은 유지해 다시 켤 수 있다.
   function updateDoorStorage(storageEnabled: boolean) {
     if (saving.current || !selectedDoor) return;
     Keyboard.dismiss();
-    setDraft(current => ({ ...current, rows: current.rows.map(row => row.id !== selectedRow.id ? row : {
+    updateStructure({ ...draft, rows: draft.rows.map(row => row.id !== selectedRow.id ? row : {
       ...row, doors: row.doors.map(door => door.id === selectedDoor.id ? { ...door, storageEnabled } : door),
-    }) }));
+    }) });
   }
 
   // 선택한 본체를 유지하되, 서랍형으로 초기화하면 편집 칸 선택도 처음으로 돌린다.
   function selectDoorOpening(doorId: string, opening: DoorOpening) {
     if (saving.current || isMergedBody) return;
     Keyboard.dismiss();
-    setDraft(current => setDraftDoorOpening(current, selectedRow.id, doorId, opening));
+    if (!updateStructure(setDraftDoorOpening(draft, selectedRow.id, doorId, opening))) return;
     if (opening === 'DRAWER') {
       setSlotIndex(0);
       setSelectedPositionId(undefined);
@@ -269,32 +285,32 @@ export function RefrigeratorRegistrationScreen({
   }
 
   function updateSlots(update: (slots: SlotConfiguration[]) => SlotConfiguration[]) {
-    if (saving.current || !storageEnabled || isDrawerBody) return;
-    setDraft(current => ({ ...current, rows: current.rows.map(row => row.id !== selectedRow.id ? row : {
+    if (saving.current || !storageEnabled || isDrawerBody) return false;
+    return updateStructure({ ...draft, rows: draft.rows.map(row => row.id !== selectedRow.id ? row : {
       ...row,
       doors: row.doors.map(door => door.id === selectedArea.id ? { ...door, slots: update(door.slots) } : door),
       compartments: row.compartments.map(body => body.id === selectedArea.id ? { ...body, slots: update(body.slots) } : body),
-    }) }));
+    }) });
   }
 
   // 마지막 칸부터 추가·제거해 남은 칸과 다른 문·본체의 입력을 유지한다.
   function changeSlotCount(delta: -1 | 1) {
     Keyboard.dismiss();
-    if (delta === -1) setSlotIndex(index => Math.max(0, Math.min(index, selectedArea.slots.length - 2)));
-    if (delta === -1 && slotIndex >= selectedArea.slots.length - 1) setSelectedPositionId(undefined);
-    updateSlots(slots => {
+    if (!updateSlots(slots => {
       const nextCount = slots.length + delta;
       if (nextCount < 1 || nextCount > maxSlotCount) return slots;
       return delta === 1 ? [...slots, { name: getSlotName(nextCount - 1), drawerCount: 0 }] : slots.slice(0, -1);
-    });
+    })) return;
+    if (delta === -1) setSlotIndex(index => Math.max(0, Math.min(index, selectedArea.slots.length - 2)));
+    if (delta === -1 && slotIndex >= selectedArea.slots.length - 1) setSelectedPositionId(undefined);
   }
 
   function updateSlot(index: number, changes: Partial<SlotConfiguration>) {
     if (saving.current || selectedDoor && changes.drawerCount !== undefined) return;
+    if (!updateSlots(slots => slots.map((slot, slotIndex) => slotIndex === index ? { ...slot, ...changes } : slot))) return;
     if (changes.drawerCount !== undefined && changes.drawerCount !== selectedArea.slots[index]?.drawerCount) {
       setSelectedPositionId(undefined);
     }
-    updateSlots(slots => slots.map((slot, slotIndex) => slotIndex === index ? { ...slot, ...changes } : slot));
   }
 
   // 보관 모드는 본체를 선택한 경우에만 기록한다.
@@ -442,9 +458,9 @@ export function RefrigeratorRegistrationScreen({
                                 <View key={row.id} style={styles.structureRow}>
                                   <QuantityStepper value={row.doors.length} maximum={MAX_DOORS_PER_ROW} unit="도어"
                                     accessibilityLabel={`${index + 1}단 문`}
-                                    onChange={delta => { Keyboard.dismiss(); setDraft(current => changeDraftDoorCount(current, row.id, delta)); }} />
+                                    onChange={delta => { Keyboard.dismiss(); updateStructure(changeDraftDoorCount(draft, row.id, delta)); }} />
                                   <FeedbackPressable feedback="danger" accessibilityRole="button" accessibilityLabel={`${index + 1}단 삭제`} disabled={draft.rows.length <= 1}
-                                    onPress={() => { Keyboard.dismiss(); setDraft(current => removeDraftRow(current, row.id)); }}
+                                    onPress={() => { Keyboard.dismiss(); updateStructure(removeDraftRow(draft, row.id)); }}
                                     style={styles.deleteRowButton}>
                                     <MaterialDesignIcons name="trash-can-outline" size={18} color={colors.error} accessible={false} style={styles.controlIcon} />
                                   </FeedbackPressable>
@@ -457,7 +473,7 @@ export function RefrigeratorRegistrationScreen({
                               style={[styles.addRowButton, { width: structurePreviewWidth }]}
                               labelStyle={styles.addRowLabel}
                               disabled={draft.rows.length >= MAX_ROWS}
-                              onPress={() => { Keyboard.dismiss(); setDraft(addDraftRow); }} />
+                              onPress={() => { Keyboard.dismiss(); updateStructure(addDraftRow(draft)); }} />
                             <View style={styles.structureControls} />
                           </View>
                         </View>
@@ -509,8 +525,7 @@ export function RefrigeratorRegistrationScreen({
                     onOpeningChange={selectDoorOpening}
                     onMerge={selectedAreaId && !selectedDoor && !isMergedBody && !mergeIncludesDrawer
                       ? () => {
-                        if (saving.current) return;
-                        setDraft(current => mergeDraftCompartments(current, selectedRow.id, selectedBody.id));
+                        if (!updateStructure(mergeDraftCompartments(draft, selectedRow.id, selectedBody.id))) return;
                         setSlotIndex(0);
                         setSelectedPositionId(undefined);
                         setFocusTarget(current => current ? { ...current, returnAreaId: selectedBody.doorIds[0] } : current);
@@ -518,8 +533,7 @@ export function RefrigeratorRegistrationScreen({
                     mergeDisabled={!adjacentBody}
                     onSplit={selectedAreaId && !selectedDoor && isMergedBody
                       ? () => {
-                        if (saving.current) return;
-                        setDraft(current => splitDraftCompartment(current, selectedRow.id, selectedBody.id, activeFocus.returnAreaId));
+                        if (!updateStructure(splitDraftCompartment(draft, selectedRow.id, selectedBody.id, activeFocus.returnAreaId))) return;
                         setSlotIndex(0);
                         setSelectedPositionId(undefined);
                       } : undefined}

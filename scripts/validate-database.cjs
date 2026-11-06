@@ -315,6 +315,72 @@ test('지원 버전보다 높은 DB는 변경하지 않는다', async t => {
   assert.equal(db.prepare('PRAGMA user_version').get().user_version, 6);
 });
 
+// 철회했던 코드가 앱 새로고침으로 적용된 상황을 당시 테이블·트리거 구조로 재현한다.
+async function createTemporaryVersion6(t) {
+  const { db, adapter } = createDatabase(t);
+  await initializeDatabase(adapter);
+  const schema = getSchema(db);
+  for (const trigger of schema.filter(item => item.type === 'trigger')) db.exec(`DROP TRIGGER ${trigger.name}`);
+  const table = schema.find(item => item.name === 'ingredients');
+  db.exec('DROP TABLE ingredients');
+  db.exec(table.sql.replace('slot_id TEXT NOT NULL', 'slot_id TEXT')
+    .replace('memo TEXT', 'memo TEXT, CHECK (slot_id IS NOT NULL OR drawer_number = 0)'));
+  db.exec(schema.find(item => item.name === 'idx_ingredients_position').sql);
+  for (const trigger of schema.filter(item => item.type === 'trigger')) {
+    db.exec(trigger.sql.replace('WHEN NOT EXISTS (', 'WHEN NEW.slot_id IS NOT NULL AND NOT EXISTS ('));
+  }
+  seedDatabase(db);
+  db.exec(`INSERT INTO ingredients VALUES ('item', '계란', '2개', '2026-11-30', 'body-split', 1, '개봉 후 밀폐');
+    PRAGMA user_version = 6;`);
+  return { db, adapter };
+}
+
+test('철회한 임시 버전 6은 구조·재료·메모를 보존하고 버전 5 제약으로 복구한다', async t => {
+  const { db, adapter } = await createTemporaryVersion6(t);
+  const before = readStoredData(db);
+  const ingredients = db.prepare('SELECT * FROM ingredients').all();
+  await initializeDatabase(adapter);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
+  assert.deepEqual(readStoredData(db), before);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), ingredients);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  assert.equal(db.prepare("PRAGMA table_info(ingredients)").all().find(column => column.name === 'slot_id').notnull, 1);
+  assert.throws(() => db.exec("UPDATE ingredients SET slot_id = NULL, drawer_number = 0"), /보관할 수 없는 위치|NOT NULL/);
+  assert.throws(() => db.exec("UPDATE refrigerator_slots SET drawer_count = 0 WHERE id = 'body-split'"), /재료를 먼저 이동/);
+  const schema = getSchema(db);
+  await initializeDatabase(adapter);
+  assert.deepEqual(getSchema(db), schema);
+});
+
+test('임시 버전 6의 위치 없는 재료는 삭제하거나 임의 배치하지 않고 복구를 중단한다', async t => {
+  const { db, adapter } = await createTemporaryVersion6(t);
+  db.exec('UPDATE ingredients SET slot_id = NULL, drawer_number = 0');
+  const schema = getSchema(db);
+  const ingredients = db.prepare('SELECT * FROM ingredients').all();
+  await assert.rejects(initializeDatabase(adapter), /보관 위치가 없는 재료/);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 6);
+  assert.deepEqual(getSchema(db), schema);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), ingredients);
+});
+
+test('임시 버전 6 복구 중 실패하면 테이블·재료·버전을 모두 보존하고 재시도한다', async t => {
+  const { db, adapter } = await createTemporaryVersion6(t);
+  const schema = getSchema(db);
+  const ingredients = db.prepare('SELECT * FROM ingredients').all();
+  const execAsync = adapter.execAsync;
+  adapter.execAsync = async sql => {
+    await execAsync(sql);
+    if (/PRAGMA user_version = 5/.test(sql)) throw new Error('검증용 복구 실패');
+  };
+  await assert.rejects(initializeDatabase(adapter), /검증용 복구 실패/);
+  assert.deepEqual(getSchema(db), schema);
+  assert.deepEqual(db.prepare('SELECT * FROM ingredients').all(), ingredients);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 6);
+  adapter.execAsync = execAsync;
+  await initializeDatabase(adapter);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 5);
+});
+
 const structureTables = ['refrigerators', 'refrigerator_rows', 'refrigerator_compartments', 'refrigerator_doors', 'refrigerator_slots'];
 
 function readStoredData(db) {

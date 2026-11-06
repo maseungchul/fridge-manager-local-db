@@ -7,6 +7,21 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 const DATABASE_VERSION = 5;
 
+const INGREDIENT_TABLE_SQL = `CREATE TABLE IF NOT EXISTS ingredients (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50 AND length(trim(name)) > 0),
+  quantity TEXT NOT NULL CHECK (length(quantity) BETWEEN 1 AND 50 AND length(trim(quantity)) > 0),
+  expiration_date TEXT CHECK (
+    expiration_date IS NULL OR (
+      expiration_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+      AND date(expiration_date, '+0 days') IS expiration_date
+    )
+  ),
+  slot_id TEXT NOT NULL REFERENCES refrigerator_slots (id) ON DELETE RESTRICT,
+  drawer_number INTEGER NOT NULL DEFAULT 0 CHECK (drawer_number IN (0, 1, 2)),
+  memo TEXT
+)`;
+
 /** 연결마다 외래 키 검사를 켜고 현재 버전에 필요한 초기화를 실행한다. */
 export async function initializeDatabase(db: SQLiteDatabase) {
   await db.execAsync('PRAGMA foreign_keys = ON;');
@@ -15,6 +30,11 @@ export async function initializeDatabase(db: SQLiteDatabase) {
     'PRAGMA user_version;'
   );
   const version = row?.user_version ?? 0;
+
+  if (version === 6) {
+    await db.withTransactionAsync(() => restoreVersion5(db));
+    return;
+  }
 
   if (version > DATABASE_VERSION) {
     throw new Error('현재 앱에서 지원하지 않는 DB 버전입니다.');
@@ -42,6 +62,42 @@ export async function initializeDatabase(db: SQLiteDatabase) {
   } finally {
     await db.execAsync('PRAGMA foreign_keys = ON;');
   }
+}
+
+/** 철회한 임시 버전 6만 식별하고, 모든 재료를 보존할 수 있을 때 버전 5 제약으로 복구한다. */
+async function restoreVersion5(db: SQLiteDatabase) {
+  const table = await db.getFirstAsync<{ sql: string }>(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ingredients';",
+  );
+  const temporarySchema = INGREDIENT_TABLE_SQL
+    .replace('slot_id TEXT NOT NULL', 'slot_id TEXT')
+    .replace('memo TEXT', 'memo TEXT, CHECK (slot_id IS NOT NULL OR drawer_number = 0)');
+  const normalize = (sql: string) => sql.replace('IF NOT EXISTS ', '').replace(/\s+/g, ' ').trim();
+  if (!table || normalize(table.sql) !== normalize(temporarySchema)) {
+    throw new Error('현재 앱에서 지원하지 않는 DB 버전입니다.');
+  }
+  const unlocated = await db.getFirstAsync('SELECT id FROM ingredients WHERE slot_id IS NULL LIMIT 1;');
+  if (unlocated) throw new Error('보관 위치가 없는 재료가 있어 DB를 자동 복구할 수 없습니다. 기존 데이터는 유지했습니다.');
+
+  // 기존 테이블은 복사가 끝날 때까지 남기고, 제약 검사나 저장 실패 시 구조·데이터를 함께 되돌린다.
+  await db.execAsync(`
+    DROP TRIGGER IF EXISTS protect_ingredient_slot_split;
+    DROP TRIGGER IF EXISTS protect_ingredient_door_storage;
+    DROP TRIGGER IF EXISTS protect_ingredient_drawer_conversion;
+    DROP TRIGGER IF EXISTS validate_ingredient_position_insert;
+    DROP TRIGGER IF EXISTS validate_ingredient_position_update;
+    DROP INDEX IF EXISTS idx_ingredients_position;
+    ALTER TABLE ingredients RENAME TO recovery_v6_ingredients;
+  `);
+  await createTables(db);
+  await db.execAsync(`
+    INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number, memo)
+      SELECT id, name, quantity, expiration_date, slot_id, drawer_number, memo FROM recovery_v6_ingredients;
+    DROP TABLE recovery_v6_ingredients;
+  `);
+  const violation = await db.getFirstAsync('PRAGMA foreign_key_check;');
+  if (violation) throw new Error('기존 냉장고 데이터의 연결 정보를 확인해 주세요.');
+  await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION};`);
 }
 
 /** 문 배치 정보가 없는 버전 1의 개발용 데이터와 테이블을 새 구조로 교체한다. */
@@ -136,20 +192,7 @@ async function createTables(db: SQLiteDatabase) {
       CHECK (door_id IS NULL OR drawer_count = 0)
     );
 
-    CREATE TABLE IF NOT EXISTS ingredients (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50 AND length(trim(name)) > 0),
-      quantity TEXT NOT NULL CHECK (length(quantity) BETWEEN 1 AND 50 AND length(trim(quantity)) > 0),
-      expiration_date TEXT CHECK (
-        expiration_date IS NULL OR (
-          expiration_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
-          AND date(expiration_date, '+0 days') IS expiration_date
-        )
-      ),
-      slot_id TEXT NOT NULL REFERENCES refrigerator_slots (id) ON DELETE RESTRICT,
-      drawer_number INTEGER NOT NULL DEFAULT 0 CHECK (drawer_number IN (0, 1, 2)),
-      memo TEXT
-    );
+    ${INGREDIENT_TABLE_SQL};
 
     CREATE INDEX IF NOT EXISTS idx_ingredients_position ON ingredients (slot_id, drawer_number);
 

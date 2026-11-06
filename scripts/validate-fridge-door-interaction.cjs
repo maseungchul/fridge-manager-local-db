@@ -362,14 +362,44 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function savedRefrigerator(name) {
-  const draft = model.createRefrigeratorDraft();
+function savedRefrigerator(name, draft = model.createRefrigeratorDraft()) {
   for (const row of draft.rows) {
     for (const area of [...row.compartments, ...row.doors]) {
       area.slots = area.slots.map((slot, index) => ({ ...slot, id: `${area.id}-slot-${index}` }));
     }
   }
   return { id: 'saved', name, rows: draft.rows };
+}
+
+/** 저장된 재료가 있는 편집 화면을 열고, 실제 도면 선택과 툴바 이벤트로 위치 보호를 검사한다. */
+async function refrigeratorEditFixture(t, saved, ingredients) {
+  const previousGet = repository.getRefrigerator;
+  const previousIngredients = ingredientRepository.getIngredients;
+  t.after(() => { repository.getRefrigerator = previousGet; ingredientRepository.getIngredients = previousIngredients; });
+  repository.getRefrigerator = async () => structuredClone(saved);
+  ingredientRepository.getIngredients = async () => structuredClone(ingredients);
+  const screen = mount(RefrigeratorRegistrationScreen, {
+    navigation: { goBack() {}, dispatch() {} }, route: { params: { refrigeratorId: saved.id } },
+  });
+  t.after(() => screen.unmount());
+  await new Promise(setImmediate);
+  screen.render();
+  const map = () => find(screen.tree, named('FridgeInteriorMap'));
+  const focus = () => find(screen.tree, named('FridgeFocusView'));
+  const menu = () => find(screen.tree, node => node.type === 'FridgeAreaMenu');
+  return { screen, map, focus, menu, open(row, area) {
+    find(screen.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동').props.onPress();
+    animations.at(-1).finish(); screen.render();
+    const viewport = find(screen.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout);
+    viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
+    const body = row.compartments.find(body => body.id === area.id || body.doorIds.includes(area.id));
+    map().props.onFocus({ areaId: body.id, returnAreaId: body.doorIds[0], canvas: { x: 24, y: 210, width: 327, height: 540 } });
+    screen.render(); focus().props.onPhaseChange('open'); screen.render();
+    const index = area.slots.length - 1;
+    const position = model.getDraftLayout(map().props.draft).positions.find(position => position.slotId === area.slots[index].id);
+    focus().props.onSelectSlot(area.id, index, position.id); screen.render();
+    menu().props.onCategoryChange('slots'); screen.render();
+  } };
 }
 
 /** 목록의 추가 버튼이나 재료 항목을 눌러 공통 폼을 열고, 실제 필드·저장 이벤트로 검사한다. */
@@ -1229,13 +1259,18 @@ test('수정 저장에 실패하면 편집 초안을 유지해 신규 등록 없
 });
 
 test('편집 조회 실패·미등록·다른 ID는 기본 구성을 노출하거나 저장하지 않고 재시도한다', async t => {
-  for (const failure of ['조회 실패', '미등록', '다른 ID']) await t.test(failure, async t => {
+  for (const failure of ['조회 실패', '재료 조회 실패', '미등록', '다른 ID']) await t.test(failure, async t => {
     const previous = { ...repository };
-    t.after(() => Object.assign(repository, previous));
+    const previousIngredients = ingredientRepository.getIngredients;
+    t.after(() => { Object.assign(repository, previous); ingredientRepository.getIngredients = previousIngredients; });
     const saved = savedRefrigerator('조회 복구한 냉장고');
     repository.getRefrigerator = async () => {
       if (failure === '조회 실패') throw new Error('조회 실패');
-      return failure === '미등록' ? null : { ...saved, id: '다른 냉장고' };
+      return failure === '미등록' ? null : failure === '다른 ID' ? { ...saved, id: '다른 냉장고' } : saved;
+    };
+    ingredientRepository.getIngredients = async () => {
+      if (failure === '재료 조회 실패') throw new Error('재료 조회 실패');
+      return [];
     };
     const screen = mount(RefrigeratorRegistrationScreen, {
       navigation: { goBack() {}, dispatch() {} }, route: { params: { refrigeratorId: saved.id } },
@@ -1248,6 +1283,7 @@ test('편집 조회 실패·미등록·다른 ID는 기본 구성을 노출하�
     assert.equal(find(screen.tree, named('FridgeInteriorMap')), undefined);
     assert.equal(find(screen.tree, node => node.props.accessibilityLabel === '내부 설정으로 이동').props.disabled, true);
     repository.getRefrigerator = async () => structuredClone(saved);
+    ingredientRepository.getIngredients = async () => [];
     find(screen.tree, node => node.props.label === '다시 불러오기').props.onPress();
     screen.render();
     await new Promise(setImmediate);
@@ -1255,6 +1291,113 @@ test('편집 조회 실패·미등록·다른 ID는 기본 구성을 노출하�
     assert.equal(find(screen.tree, node => node.props.accessibilityRole === 'alert'), undefined);
     assert.equal(find(screen.tree, node => node.props.accessibilityLabel === '냉장고 이름').props.value, saved.name);
     assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft.rows, saved.rows);
+  });
+});
+
+test('재료 위치를 없애거나 숨기는 조작은 저장 전에 안내하고 초안·선택·중앙 보기를 유지한다', async t => {
+  const cases = [
+    { name: '단 삭제', basic: '1단 삭제' },
+    { name: '문 삭제·본체 재료', basic: '1단 문 줄이기', source: row => row.compartments[1] },
+    { name: '문 삭제·포켓 재료', basic: '1단 문 줄이기', source: row => row.doors[1] },
+    { name: '본체 칸 삭제', change: menu => menu.onSlotCountChange(-1) },
+    { name: '포켓 칸 삭제', source: row => row.doors[0], change: menu => menu.onSlotCountChange(-1) },
+    { name: '좌우 분할', change: menu => menu.onSlotStructureChange(2) },
+    { name: '분할 해제', split: true, change: menu => menu.onSlotStructureChange(0) },
+    { name: '본체 합치기', change: menu => menu.onMerge() },
+    { name: '이웃에 재료가 있는 본체 합치기', source: row => row.compartments[1], change: menu => menu.onMerge() },
+    { name: '본체 분리', merged: true, change: menu => menu.onSplit() },
+    { name: '서랍형 전환·본체 재료', change: menu => menu.onOpeningChange(menu.openingDoors[0].id, 'DRAWER') },
+    { name: '서랍형 전환·포켓 재료', source: row => row.doors[0], change: menu => menu.onOpeningChange(menu.openingDoors[0].id, 'DRAWER') },
+    { name: '문 수납 끄기', source: row => row.doors[0], change: menu => menu.onStorageChange(false) },
+  ];
+  for (const entry of cases) await t.test(entry.name, async t => {
+    let draft = model.createRefrigeratorDraft();
+    draft = model.changeDraftDoorCount(draft, draft.rows[0].id, 1);
+    if (entry.merged) draft = model.mergeDraftCompartments(draft, draft.rows[0].id, draft.rows[0].compartments[0].id);
+    draft.rows[0].compartments[0].slots.push({ name: model.getSlotName(1), drawerCount: entry.split ? 2 : 0 });
+    const saved = savedRefrigerator('재료 위치 보호', draft);
+    const row = saved.rows[0];
+    const source = entry.source?.(row) ?? row.compartments[0];
+    const ingredients = [{ id: 'eggs', name: '계란', quantity: '2개', memo: null, expirationDate: null,
+      slotId: source.slots.at(-1).id, drawerNumber: entry.split ? 2 : 0 }];
+    const { screen, map, focus, menu, open } = await refrigeratorEditFixture(t, saved, ingredients);
+    if (!entry.basic) {
+      const selectedArea = entry.name.includes('포켓 칸') || entry.name === '문 수납 끄기' ? source : row.compartments[0];
+      open(row, selectedArea);
+    }
+    const before = { draft: map().props.draft, focus: focus()?.props, menu: menu()?.props };
+    const alertCount = alerts.length;
+    if (entry.basic) find(screen.tree, node => node.props.accessibilityLabel === entry.basic).props.onPress();
+    else entry.change(menu().props);
+    screen.render();
+    assert.equal(alerts.length, alertCount + 1);
+    assert.deepEqual(alerts.at(-1), [alertTitles.info, fridgeMessages.ingredientLocationChangeBlocked]);
+    assert.strictEqual(map().props.draft, before.draft);
+    assert.equal(focus()?.props.selectedPositionId, before.focus?.selectedPositionId);
+    assert.strictEqual(focus()?.props.target, before.focus?.target);
+    assert.equal(focus()?.props.phase, before.focus?.phase);
+    assert.equal(menu()?.props.selectedSlotIndex, before.menu?.selectedSlotIndex);
+    assert.equal(menu()?.props.activeCategory, before.menu?.activeCategory);
+  });
+});
+
+test('재료가 있어도 이름·보관 모드·문 방향과 기존 위치를 보존하는 추가·빈 칸 편집은 저장한다', async t => {
+  const saved = savedRefrigerator('수정할 냉장고');
+  const row = saved.rows[0];
+  const ingredient = { id: 'eggs', name: '계란', quantity: '2개', memo: null, expirationDate: null,
+    slotId: row.compartments[0].slots[0].id, drawerNumber: 0 };
+  const { screen, map, menu, open } = await refrigeratorEditFixture(t, saved, [ingredient]);
+  const previousUpdate = repository.updateRefrigerator;
+  let stored;
+  repository.updateRefrigerator = async (db, id, draft) => { stored = structuredClone(draft); return id; };
+  t.after(() => { repository.updateRefrigerator = previousUpdate; });
+  const alertCount = alerts.length;
+  find(screen.tree, node => node.props.accessibilityLabel === '냉장고 이름').props.onChangeText('새 이름'); screen.render();
+  for (const label of ['단 추가', '2단 삭제', '1단 문 늘리기', '1단 문 줄이기']) {
+    find(screen.tree, node => node.props.label === label || node.props.accessibilityLabel === label).props.onPress(); screen.render();
+  }
+  open(row, row.compartments[0]);
+  menu().props.onSlotCountChange(1); screen.render();
+  find(screen.tree, named('FridgeFocusView')).props.onSelectSlot(row.compartments[0].id, 1); screen.render();
+  menu().props.onSlotStructureChange(2); screen.render();
+  assert.equal(menu().props.slots[1].drawerCount, 2);
+  menu().props.onSlotCountChange(-1); screen.render();
+  menu().props.onStorageModeChange('FROZEN'); screen.render();
+  menu().props.onOpeningChange(row.doors[0].id, 'RIGHT_DOOR'); screen.render();
+  find(screen.tree, named('FridgeFocusView')).props.onSelectArea(row.doors[0].id); screen.render();
+  menu().props.onStorageChange(false); screen.render();
+  assert.equal(alerts.length, alertCount);
+  const next = map().props.draft;
+  assert.equal(next.name, '새 이름');
+  assert.equal(next.rows[0].compartments[0].storageMode, 'FROZEN');
+  assert.equal(next.rows[0].doors[0].side, 'RIGHT_DOOR');
+  assert.equal(next.rows[0].doors[0].storageEnabled, false);
+  assert.equal(model.getDraftLayout(next, [ingredient]).ingredients.length, 1);
+  await find(screen.tree, node => node.props.accessibilityLabel === '냉장고 수정 저장').props.onPress();
+  assert.deepEqual(stored, next);
+  assert.deepEqual(alerts.at(-1).slice(0, 2), [alertTitles.info, fridgeMessages.updateSuccess]);
+});
+
+test('다른 공간에 재료가 있어도 빈 본체의 합치기·분리·서랍형 전환은 허용한다', async t => {
+  for (const action of ['merge', 'split', 'drawer']) await t.test(action, async t => {
+    let draft = model.createRefrigeratorDraft();
+    draft = model.changeDraftDoorCount(draft, draft.rows[0].id, 1);
+    if (action === 'split') draft = model.mergeDraftCompartments(draft, draft.rows[0].id, draft.rows[0].compartments[0].id);
+    const saved = savedRefrigerator('빈 공간 편집', draft);
+    const row = saved.rows[0];
+    const ingredient = { id: 'eggs', name: '계란', quantity: '2개', memo: null, expirationDate: null,
+      slotId: saved.rows[1].compartments[0].slots[0].id, drawerNumber: 0 };
+    const { screen, map, menu, open } = await refrigeratorEditFixture(t, saved, [ingredient]);
+    open(row, row.compartments[0]);
+    const before = map().props.draft;
+    const alertCount = alerts.length;
+    if (action === 'merge') menu().props.onMerge();
+    else if (action === 'split') menu().props.onSplit();
+    else menu().props.onOpeningChange(row.doors[0].id, 'DRAWER');
+    screen.render();
+    assert.equal(alerts.length, alertCount);
+    assert.notStrictEqual(map().props.draft, before);
+    assert.equal(model.getDraftLayout(map().props.draft, [ingredient]).ingredients.length, 1);
   });
 });
 
