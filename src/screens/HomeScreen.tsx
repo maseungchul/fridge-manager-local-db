@@ -1,7 +1,7 @@
 /**
  * @file
  * 저장된 냉장고를 공통 도면으로 표시하며, 홈에서는 영역 대신 개별 수납 칸을 선택한다.
- * 칸 선택을 재료 목록 또는 이동 목적지로 연결하고, 미등록 상태에서는 안내·등록 버튼을 표시한다.
+ * 칸 선택으로 재료 목록을 열고, 미등록 상태에서는 안내·등록 버튼을 표시한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeBottomTabScreenProps } from '@react-navigation/bottom-tabs/unstable';
@@ -9,26 +9,25 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { ActivityIndicator, Alert, AppState, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { colors, fridgeDoorColors, spacing } from '@/theme/tokens';
 import { SafeAreaView } from 'react-native-screens/experimental';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FloatingIconButton } from '@/components/FloatingIconButton';
-import { Toast } from '@/components/Toast';
-import { alertTitles } from '@/constants/alertTitles';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
-import { getIngredients, moveIngredient } from '@/db/ingredientRepository';
+import { getIngredients } from '@/db/ingredientRepository';
 import { FridgeStructurePreview } from '@/features/fridge/components/FridgeStructurePreview';
 import { FridgeIngredientLegend } from '@/features/fridge/components/FridgeIngredientLegend';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase } from '@/features/fridge/components/FridgeInteriorMap';
 import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
-import type { Refrigerator, SlotPosition } from '@/features/fridge/model/fridgeLayout';
+import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
 import { IngredientListSheet } from '@/features/ingredient/components/IngredientListSheet';
+import { IngredientMoveQueueSheet } from '@/features/ingredient/components/IngredientMoveQueueSheet';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
-import type { IngredientMoveBarState } from '@/features/ingredient/components/IngredientMoveBar';
+import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
@@ -38,18 +37,13 @@ type HomeScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 > & {
   onTabInteractionBlockedChange?: (blocked: boolean) => void;
-  onIngredientMoveChange?: (move: IngredientMoveBarState | null) => void;
 };
-
-interface IngredientMove {
-  ingredient: Ingredient;
-  phase: 'selecting' | 'saving';
-}
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
 
-export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngredientMoveChange }: HomeScreenProps) {
+export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeScreenProps) {
   const db = useSQLiteContext();
+  const { ingredientIds: queuedIds, retain: retainMoveQueue } = useIngredientMoveQueue();
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,25 +51,16 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+  const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
+  const isSheetOpen = isIngredientListOpen || isMoveQueueOpen;
+  const queuedIngredients = queuedIds.flatMap(id => ingredients.find(ingredient => ingredient.id === id) ?? []);
   const [badgeDate, setBadgeDate] = useState(() => new Date());
-  const [ingredientMove, setIngredientMove] = useState<IngredientMove | null>(null);
-  const [moveNotice, setMoveNotice] = useState<{ message: string } | null>(null);
-  const moveRequest = useRef<IngredientMove | null>(null);
-  const isMoveLocked = ingredientMove?.phase === 'saving';
-  const isIngredientMoveActive = ingredientMove !== null;
-  const isTabInteractionBlocked = isIngredientListOpen || isIngredientMoveActive;
   const loadRequest = useRef(0);
-  // 같은 이벤트 묶음의 중복 선택·확인도 막을 수 있게 화면 상태와 요청 참조를 함께 바꾼다.
-  const changeIngredientMove = useCallback((move: IngredientMove | null) => {
-    moveRequest.current = move;
-    setIngredientMove(move);
-  }, []);
-  const isMoveBlocked = useCallback(() => moveRequest.current?.phase === 'saving', []);
   const {
     selectedAreaId, setSelectedAreaId, focusPhase, focusBounds, focusViewport, activeFocus,
     hasSeenScrollHint, markScrollHintSeen, finishFocusTransition, resetFocus,
     layoutFocusViewport, openFocusedArea, closeFocusedArea, diagramSizes,
-  } = useFridgeFocus(0, isMoveBlocked);
+  } = useFridgeFocus();
   const finishHomeFocus = useCallback((phase: FridgeFocusPhase) => {
     finishFocusTransition(phase);
     if (phase === 'closed') { setSelectedSlot(null); setIsIngredientListOpen(false); }
@@ -87,21 +72,14 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
     setSelectedAreaId(null);
   }, [setSelectedAreaId]);
 
-  const cancelIngredientMove = useCallback(() => {
-    if (moveRequest.current?.phase !== 'selecting') return;
-    changeIngredientMove(null);
-    closeIngredientList();
-  }, [changeIngredientMove, closeIngredientList]);
-
   // 홈 재진입·재시도 이전에 시작한 조회가 늦게 끝나도 최신 결과만 반영한다.
   const loadRefrigerator = useCallback(async () => {
     const request = ++loadRequest.current;
-    changeIngredientMove(null);
-    setMoveNotice(null);
     resetFocus();
     setSelectedSlot(null);
     setIsIngredientListOpen(false);
     setIsLegendOpen(false);
+    setIsMoveQueueOpen(false);
     setIsLoading(true);
     setError(null);
     try {
@@ -110,23 +88,23 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
       if (request === loadRequest.current) {
         setRefrigerator(result);
         setIngredients(storedIngredients);
+        retainMoveQueue(storedIngredients.map(ingredient => ingredient.id));
       }
     } catch {
       if (request === loadRequest.current) setError('냉장고 정보를 불러오지 못했습니다.');
     } finally {
       if (request === loadRequest.current) setIsLoading(false);
     }
-  }, [db, resetFocus, changeIngredientMove]);
+  }, [db, resetFocus, retainMoveQueue]);
 
   useFocusEffect(useCallback(() => {
     void loadRefrigerator();
     return () => {
-      loadRequest.current++; changeIngredientMove(null); resetFocus();
-      setMoveNotice(null);
+      loadRequest.current++; resetFocus();
       setSelectedSlot(null); setIsIngredientListOpen(false); setIsLegendOpen(false);
-      onIngredientMoveChange?.(null);
+      setIsMoveQueueOpen(false);
     };
-  }, [loadRefrigerator, resetFocus, changeIngredientMove, onIngredientMoveChange]));
+  }, [loadRefrigerator, resetFocus]));
 
   // 자정과 앱 복귀 때 날짜를 갱신해 도면을 다시 열지 않아도 배지의 기한 분류를 맞춘다.
   useEffect(() => {
@@ -142,37 +120,29 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
     return () => { clearTimeout(timer); subscription.remove(); };
   }, []);
 
-  // 패널·이동을 종료할 때까지 탭 이동으로 작업 흐름이 끊기지 않게 한다.
+  // 네이티브 패널이 열린 동안에만 배경 탭의 조작을 막는다.
   useEffect(() => {
-    onTabInteractionBlockedChange?.(isTabInteractionBlocked);
+    onTabInteractionBlockedChange?.(isSheetOpen);
     return () => onTabInteractionBlockedChange?.(false);
-  }, [isTabInteractionBlocked, onTabInteractionBlockedChange]);
+  }, [isSheetOpen, onTabInteractionBlockedChange]);
 
   useEffect(() => {
-    onIngredientMoveChange?.(ingredientMove ? {
-      name: ingredientMove.ingredient.name, quantity: ingredientMove.ingredient.quantity,
-      isSaving: ingredientMove.phase === 'saving', onCancel: cancelIngredientMove,
-    } : null);
-  }, [ingredientMove, cancelIngredientMove, onIngredientMoveChange]);
-
-  useEffect(() => () => onIngredientMoveChange?.(null), [onIngredientMoveChange]);
-
-  useEffect(() => {
-    if (!activeFocus && !ingredientMove) return;
+    if (!activeFocus && !isMoveQueueOpen) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (moveRequest.current) cancelIngredientMove();
-      else if (isLegendOpen) setIsLegendOpen(false);
+      // 대기 목록은 네이티브 시트의 종료 신호에서만 정리한다.
+      if (isMoveQueueOpen) return true;
+      if (isLegendOpen) setIsLegendOpen(false);
       else if (isIngredientListOpen) closeIngredientList();
       else closeFocusedArea();
       return true;
     });
     return () => subscription.remove();
-  }, [activeFocus, closeFocusedArea, closeIngredientList, isIngredientListOpen, isLegendOpen, ingredientMove, cancelIngredientMove]);
+  }, [activeFocus, closeFocusedArea, closeIngredientList, isIngredientListOpen, isLegendOpen, isMoveQueueOpen]);
 
   const layout = refrigerator ? getDraftLayout(refrigerator) : null;
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
-  const isLegendHidden = isIngredientListOpen || isIngredientMoveActive || isLegendOpen;
+  const isLegendHidden = isSheetOpen || isLegendOpen;
   // 도면 전환 중에는 시스템 비활성화 색상 대신 입력만 차단한다.
   const isLegendBlocked = focusPhase === 'opening' || focusPhase === 'closing';
   const legendButton = refrigerator && !isLoading && !error ? (
@@ -182,37 +152,12 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
       onPress={() => { if (!isLegendBlocked) setIsLegendOpen(true); }} />
   ) : null;
 
-  async function selectMoveDestination(destination: SlotPosition, index: number) {
-    const move = moveRequest.current;
-    if (!move || move.phase !== 'selecting') return;
-    if (move.ingredient.slotId === destination.slotId && move.ingredient.drawerNumber === (destination.drawerNumber ?? 0)) return;
-    const saving: IngredientMove = { ...move, phase: 'saving' };
-    changeIngredientMove(saving);
-    setSelectedAreaId(destination.areaId);
-    setSelectedSlot({ index, positionId: destination.id });
-    let ingredient: Ingredient;
-    try {
-      ingredient = await moveIngredient(db, move.ingredient, { slotId: destination.slotId, drawerNumber: destination.drawerNumber ?? 0 });
-    } catch {
-      if (moveRequest.current !== saving) return;
-      changeIngredientMove({ ...move, phase: 'selecting' });
-      closeIngredientList();
-      Alert.alert(alertTitles.error, '재료를 이동하지 못했습니다. 보관 위치를 다시 확인하고 재시도해 주세요.');
-      return;
-    }
-    if (moveRequest.current !== saving) return;
-    setIngredients(current => current.map(item => item.id === ingredient.id ? ingredient : item));
-    changeIngredientMove(null);
-    closeIngredientList();
-    setMoveNotice({ message: '재료를 이동했습니다.' });
-  }
-
   return (
-    <View style={styles.container} onAccessibilityEscape={ingredientMove ? cancelIngredientMove : undefined}>
+    <View style={styles.container}>
       <SafeAreaView style={[styles.container, (isLoading || error !== null) && styles.feedback]}
         edges={{ top: true, bottom: true, left: true, right: true }}
-        pointerEvents={activeFocus || isLegendOpen || isMoveLocked ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isLegendOpen || isMoveLocked}
-        importantForAccessibility={activeFocus || isLegendOpen || isMoveLocked ? 'no-hide-descendants' : 'auto'}>
+        pointerEvents={activeFocus || isLegendOpen || isMoveQueueOpen ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isLegendOpen || isMoveQueueOpen}
+        importantForAccessibility={activeFocus || isLegendOpen || isMoveQueueOpen ? 'no-hide-descendants' : 'auto'}>
         {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" />
           : error ? <>
             <Text accessibilityRole="alert">{error}</Text>
@@ -221,8 +166,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
             <View style={styles.header}>
               <Text accessibilityRole="header" style={styles.title}>{refrigerator.name}</Text>
               <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 편집" style={styles.headerIconButton}
-                disabled={ingredientMove !== null} accessibilityState={{ disabled: ingredientMove !== null }}
-                onPress={() => { if (!moveRequest.current) navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id }); }}>
+                onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
                 <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
               </FeedbackPressable>
             </View>
@@ -248,9 +192,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
           )}
       </SafeAreaView>
       {/* 이름과 안전 영역의 여백을 제외하지 않은 화면 전체를 중앙 보기의 기준으로 사용한다. */}
-      <View ref={focusViewport} collapsable={false} pointerEvents={isIngredientListOpen || isLegendOpen || isMoveLocked ? 'none' : 'box-none'}
-        accessibilityElementsHidden={isIngredientListOpen || isLegendOpen || isMoveLocked}
-        importantForAccessibility={isIngredientListOpen || isLegendOpen || isMoveLocked ? 'no-hide-descendants' : 'auto'}
+      <View ref={focusViewport} collapsable={false} pointerEvents={isSheetOpen || isLegendOpen ? 'none' : 'box-none'}
+        accessibilityElementsHidden={isSheetOpen || isLegendOpen}
+        importantForAccessibility={isSheetOpen || isLegendOpen ? 'no-hide-descendants' : 'auto'}
         style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
         {refrigerator && activeFocus && focusBounds ? (
           <FridgeFocusView draft={refrigerator} ingredients={ingredients} now={badgeDate} target={activeFocus} viewport={focusBounds} phase={focusPhase}
@@ -258,15 +202,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
             selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
             selectedSlotIndex={selectedSlot?.index}
             selectedPositionId={selectedSlot?.positionId}
-            scrollHintBlocked={isIngredientListOpen || isLegendOpen || ingredientMove !== null}
+            scrollHintBlocked={isSheetOpen || isLegendOpen}
             onSelectSlot={(areaId, index, positionId) => {
-              if (focusPhase !== 'open' || isMoveBlocked()) return;
-              const destination = layout?.positions.find(position => position.id === positionId && position.areaId === areaId);
-              if (moveRequest.current) {
-                if (!destination || isIngredientListOpen) return;
-                void selectMoveDestination(destination, index);
-                return;
-              }
+              if (focusPhase !== 'open' || isSheetOpen || isLegendOpen) return;
               setSelectedAreaId(areaId);
               setSelectedSlot({ index, positionId });
               setIsIngredientListOpen(!!layout?.positions.some(position => position.id === positionId && position.areaId === areaId));
@@ -280,29 +218,28 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, onIngred
         <SafeAreaView pointerEvents={isLegendHidden || isLegendBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isLegendHidden || isLegendBlocked}
           importantForAccessibility={isLegendHidden || isLegendBlocked ? 'no-hide-descendants' : 'auto'}
           edges={{ top: false, bottom: true, left: true, right: true }} style={[styles.legendOverlay, isLegendHidden && styles.hidden]}>
+          <View pointerEvents="box-none" style={styles.buttonRow}>
+          {queuedIngredients.length > 0 ? (
+            <View pointerEvents="box-none" style={styles.queueAnchor}>
+              <FloatingIconButton label={`이동 대기 ${queuedIngredients.length}개`} icon="clipboard-text-outline" size="small"
+                accessibilityLabel="이동 대기 목록 열기" accessibilityHint={`이동 대기 중인 재료 ${queuedIngredients.length}개를 확인합니다.`}
+                expanded={isMoveQueueOpen} disabled={false}
+                onPress={() => { if (!isLegendBlocked && !isLegendHidden) setIsMoveQueueOpen(true); }} />
+            </View>
+          ) : null}
           <View pointerEvents="box-none" style={styles.legendAnchor}>{legendButton}</View>
-        </SafeAreaView>
-      ) : null}
-      {moveNotice ? (
-        <SafeAreaView pointerEvents="none" edges={{ top: false, bottom: true, left: true, right: true }} style={styles.legendOverlay}>
-          <View style={styles.noticeAnchor}>
-            <Toast message={moveNotice.message} icon="check-circle-outline"
-              onDismiss={() => setMoveNotice(current => current === moveNotice ? null : current)} />
           </View>
         </SafeAreaView>
       ) : null}
       {isLegendOpen ? <FridgeIngredientLegend onClose={() => setIsLegendOpen(false)} /> : null}
-      {isIngredientListOpen && focusPhase === 'open' && selectedPosition ? (
-        <IngredientListSheet key={selectedPosition.id} position={selectedPosition}
+      {isMoveQueueOpen && layout ? <IngredientMoveQueueSheet ingredients={queuedIngredients} layout={layout}
+        onClose={() => setIsMoveQueueOpen(false)} /> : null}
+      {isIngredientListOpen && focusPhase === 'open' && selectedPosition && layout ? (
+        <IngredientListSheet key={selectedPosition.id} position={selectedPosition} layout={layout} allIngredients={ingredients}
           onSaved={ingredient => setIngredients(current => current.some(item => item.id === ingredient.id)
             ? current.map(item => item.id === ingredient.id ? ingredient : item) : [...current, ingredient])}
           onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
-          onMove={ingredient => {
-            if (moveRequest.current) return;
-            setMoveNotice(null);
-            closeIngredientList();
-            changeIngredientMove({ ingredient, phase: 'selecting' });
-          }}
+          onMoved={moved => setIngredients(current => current.map(item => moved.find(ingredient => ingredient.id === item.id) ?? item))}
           onClose={closeIngredientList} />
       ) : null}
     </View>
@@ -391,8 +328,9 @@ const styles = StyleSheet.create({
   },
   legendOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
   legendAnchor: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: spacing.lg, paddingBottom: spacing.sm },
+  buttonRow: { flex: 1, flexDirection: 'row' },
+  queueAnchor: { flex: 1, alignItems: 'flex-start', justifyContent: 'flex-end', paddingLeft: spacing.lg, paddingBottom: spacing.sm },
   hidden: { opacity: 0 },
-  noticeAnchor: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg * 3 },
   diagram: {
     flex: 1,
   },

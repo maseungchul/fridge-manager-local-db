@@ -1,9 +1,9 @@
 /**
  * @file
- * 선택한 위치의 재료 목록과 등록·편집 폼을 스와이프로 닫는 네이티브 시트에 표시한다.
- * 조회·저장·삭제와 이동 요청은 여기서 처리하고, 변경 결과 반영과 목적지 선택은 호출자가 관리한다.
+ * 선택한 위치의 재료 목록·등록·편집 폼과 임시이동목록을 네이티브 시트에 표시한다.
+ * 현재 칸으로 일괄 이동하고, 변경 결과와 홈 도면의 배지 반영은 호출자가 관리한다.
  */
-import { type ComponentRef, useEffect, useRef, useState } from 'react';
+import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
 import type { LayoutRectangle } from 'react-native';
 import { IngredientSheet as BottomSheet } from '@/features/ingredient/components/IngredientSheet';
@@ -13,46 +13,56 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { Toast } from '@/components/Toast';
 import { alertTitles } from '@/constants/alertTitles';
-import { deleteIngredient, getIngredientsByPosition, registerIngredient, updateIngredient } from '@/db/ingredientRepository';
-import type { SlotPosition } from '@/features/fridge/model/fridgeLayout';
+import { deleteIngredient, getIngredientsByPosition, moveIngredients, registerIngredient, updateIngredient } from '@/db/ingredientRepository';
+import type { FridgeLayout, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
 import { IngredientDateFieldAnchor } from '@/features/ingredient/components/IngredientDateFieldAnchor';
 import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
 import { IngredientSwipeRow } from '@/features/ingredient/components/IngredientSwipeRow';
+import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
+import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
 
 interface IngredientListSheetProps {
   position: SlotPosition;
+  layout: FridgeLayout;
+  allIngredients: Ingredient[];
   onClose: () => void;
   onSaved?: (ingredient: Ingredient) => void;
   onDeleted?: (ingredientId: string) => void;
-  onMove?: (ingredient: Ingredient) => void;
+  onMoved?: (ingredients: Ingredient[]) => void;
 }
 
-export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onMove }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, layout, allIngredients = [], onClose, onSaved, onDeleted, onMoved }: IngredientListSheetProps) {
   const db = useSQLiteContext();
+  const moveQueue = useIngredientMoveQueue();
+  const queuedIngredients = moveQueue.ingredientIds.flatMap(id => allIngredients.find(ingredient => ingredient.id === id) ?? []);
   const sheetRef = useRef<IngredientSheetRef>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const memoInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const datePicker = useRef<{ request: number; keyboardSubscription?: ReturnType<typeof Keyboard.addListener> }>({ request: 0 });
   const saving = useRef(false);
   const deleting = useRef(false);
-  const pendingMove = useRef<Ingredient | null>(null);
+  const moving = useRef(false);
   const transition = useRef<{ active: boolean; animation?: Animated.CompositeAnimation }>({ active: false });
   const panelProgress = useAnimatedValue(0);
   const { width: windowWidth } = useWindowDimensions();
   const [pageWidth, setPageWidth] = useState(windowWidth);
   const [isChanging, setIsChanging] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSecondaryOpen, setIsSecondaryOpen] = useState(false);
+  const [secondaryPage, setSecondaryPage] = useState<'form' | 'queue'>('form');
+  const isFormOpen = isSecondaryOpen && secondaryPage === 'form';
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const isEditing = editingIngredient !== null;
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isLeavingForMove, setIsLeavingForMove] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
+  const [moveNotice, setMoveNotice] = useState<{ message: string } | null>(null);
   const [swipedIngredientId, setSwipedIngredientId] = useState<string | null>(null);
-  const isBusy = isSaving || isDeleting || isLeavingForMove;
+  const isBusy = isSaving || isDeleting || isMoving;
   const [saveError, setSaveError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Pick<Ingredient, 'name' | 'quantity' | 'memo' | 'expirationDate'>>({
     name: '', quantity: '', memo: '', expirationDate: null,
@@ -71,6 +81,8 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
   const ingredients = currentResult?.ingredients ?? [];
   const error = currentResult?.error ?? null;
   const isLoading = currentResult === null;
+  const canMove = queuedIngredients.some(ingredient => ingredient.slotId !== slotId || ingredient.drawerNumber !== drawerNumber)
+    && !isLoading && error === null;
   const canSave = !!draft.name.trim() && !!draft.quantity.trim()
     && draft.name.trim().length <= 50 && draft.quantity.trim().length <= 50 && !isDatePickerOpen && datePickerMeasurement === null;
 
@@ -90,12 +102,6 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
   }, [db, slotId, drawerNumber, requestKey]);
 
   useEffect(() => {
-    // Android의 홈 뒤로가기보다 먼저 삭제 확인·처리 중 시트 종료를 막는다.
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => deleting.current);
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
     const currentTransition = transition.current;
     const currentDatePicker = datePicker.current;
     return () => {
@@ -107,13 +113,15 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
   }, []);
 
   // 제목·버튼·본문을 함께 전환하고 완료 전까지 연속 조작을 막는다.
-  function changePanel(showForm: boolean, onComplete?: () => void) {
-    if (transition.current.active || showForm === isFormOpen) return;
+  const changePanel = useCallback((nextPage: 'list' | 'form' | 'queue', onComplete?: () => void) => {
+    const showSecondary = nextPage !== 'list';
+    if (transition.current.active || showSecondary === isSecondaryOpen) return;
     Keyboard.dismiss();
     transition.current.active = true;
     setIsChanging(true);
-    setIsFormOpen(showForm);
-    const target = showForm ? 1 : 0;
+    if (nextPage !== 'list') setSecondaryPage(nextPage);
+    setIsSecondaryOpen(showSecondary);
+    const target = showSecondary ? 1 : 0;
     const animation = Animated.timing(panelProgress, { toValue: target, duration: 240, useNativeDriver: true });
     transition.current.animation = animation;
     animation.start(({ finished }) => {
@@ -123,52 +131,63 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
       setIsChanging(false);
       onComplete?.();
     });
-  }
+  }, [isSecondaryOpen, panelProgress]);
 
   function startAdding() {
-    if (saving.current || deleting.current || pendingMove.current || transition.current.active || isLoading || error !== null) return;
+    if (saving.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isLoading || error !== null) return;
     setSwipedIngredientId(null);
     setSaveError(null);
-    changePanel(true);
+    changePanel('form');
   }
 
   function startEditing(ingredient: Ingredient) {
-    if (saving.current || deleting.current || pendingMove.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    if (saving.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isLoading || error !== null) return;
     setSwipedIngredientId(null);
     addDraft.current = draft;
     setEditingIngredient(ingredient);
     setDraft({ name: ingredient.name, quantity: ingredient.quantity, memo: ingredient.memo, expirationDate: ingredient.expirationDate });
     setSaveError(null);
-    changePanel(true);
+    changePanel('form');
   }
 
-  function closeSheet() {
-    if (saving.current || deleting.current || pendingMove.current || transition.current.active) return;
-    dismissDatePicker();
-    Keyboard.dismiss();
-    sheetRef.current?.close();
-  }
-
-  function returnToList() {
-    if (saving.current || transition.current.active) return;
-    Keyboard.dismiss();
-    dismissDatePicker();
-    setSaveError(null);
-    changePanel(false, () => {
-      if (isEditing) {
-        setEditingIngredient(null);
-        setDraft(addDraft.current);
-      }
-    });
-  }
-
-  function dismissDatePicker() {
+  const dismissDatePicker = useCallback(() => {
     datePicker.current.request++;
     datePicker.current.keyboardSubscription?.remove();
     datePicker.current.keyboardSubscription = undefined;
     setDatePickerMeasurement(null);
     setDatePickerAnchor(null);
+  }, []);
+
+  function closeSheet() {
+    if (saving.current || deleting.current || moving.current || transition.current.active) return;
+    dismissDatePicker();
+    Keyboard.dismiss();
+    sheetRef.current?.close();
   }
+
+  const returnToList = useCallback(() => {
+    if (saving.current || deleting.current || moving.current || transition.current.active) return;
+    Keyboard.dismiss();
+    dismissDatePicker();
+    setSaveError(null);
+    changePanel('list', () => {
+      if (isEditing) {
+        setEditingIngredient(null);
+        setDraft(addDraft.current);
+      }
+    });
+  }, [changePanel, dismissDatePicker, isEditing]);
+
+  useEffect(() => {
+    // 저장·전환 중에는 홈의 종료 동작을 막고, 하위 화면에서는 먼저 목록으로 돌아간다.
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (saving.current || deleting.current || moving.current || transition.current.active) return true;
+      if (!isSecondaryOpen) return false;
+      returnToList();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [isSecondaryOpen, returnToList]);
 
   function toggleDatePicker() {
     if (saving.current || transition.current.active) return;
@@ -216,7 +235,7 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
     // 성공 알림을 확인하고 목록 전환이 끝날 때까지 잠금을 유지해 중복 저장을 막는다.
     Alert.alert(alertTitles.info, isEditing ? '재료를 수정했습니다.' : '재료를 등록했습니다.', [{ text: '확인', onPress: () => {
       if (!saving.current || transition.current.active) return;
-      changePanel(false, () => {
+      changePanel('list', () => {
         setDraft(isEditing ? addDraft.current : { name: '', quantity: '', memo: '', expirationDate: null });
         setEditingIngredient(null);
         saving.current = false;
@@ -228,7 +247,7 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
   }
 
   function requestDelete(ingredient: Ingredient) {
-    if (saving.current || deleting.current || pendingMove.current || transition.current.active || isFormOpen || isLoading || error !== null) return;
+    if (saving.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isLoading || error !== null) return;
     deleting.current = true;
     setIsDeleting(true);
     let handled = false;
@@ -255,33 +274,57 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
         setResult(current => current?.requestKey === requestKey
           ? { ...current, ingredients: current.ingredients.filter(item => item.id !== ingredient.id) } : current);
         setSwipedIngredientId(null);
+        moveQueue.remove(ingredient.id);
         onDeleted?.(ingredient.id);
         unlock();
       } },
     ], { cancelable: false });
   }
 
-  function startMoving(ingredient: Ingredient) {
-    if (!onMove || !sheetRef.current || saving.current || deleting.current || pendingMove.current
-      || transition.current.active || isFormOpen || isLoading || error !== null) return;
-    // 시트가 종료된 뒤 홈에 전달해 패널과 목적지 선택의 입력이 겹치지 않게 한다.
-    pendingMove.current = ingredient;
-    setIsLeavingForMove(true);
-    sheetRef.current.close();
+  function enqueueIngredient(ingredient: Ingredient) {
+    if (saving.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen
+      || isLoading || error !== null || moveQueue.ingredientIds.includes(ingredient.id)) return;
+    moveQueue.add(ingredient.id);
+    setSwipedIngredientId(null);
+    setMoveNotice(null);
+  }
+
+  function openMoveQueue() {
+    if (saving.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen) return;
+    setSwipedIngredientId(null);
+    setMoveNotice(null);
+    changePanel('queue');
+  }
+
+  async function moveQueuedIngredients() {
+    if (saving.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || !canMove) return;
+    moving.current = true;
+    setIsMoving(true);
+    setSwipedIngredientId(null);
+    setMoveNotice(null);
+    try {
+      const moved = await moveIngredients(db, queuedIngredients, { slotId, drawerNumber });
+      onMoved?.(moved);
+      moveQueue.clear();
+      setReloadCount(count => count + 1);
+      setMoveNotice({ message: `재료 ${moved.length}개를 이동했습니다.` });
+    } catch {
+      Alert.alert(alertTitles.error, '재료를 이동하지 못했습니다. 보관 위치와 이동 대기 목록을 확인하고 재시도해 주세요.');
+    } finally {
+      moving.current = false;
+      setIsMoving(false);
+    }
   }
 
   return (
-    <BottomSheet ref={sheetRef} disabled={isSaving || isDeleting || isChanging} expanded={isFormOpen} transitioning={isChanging}
+    <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} expanded={isFormOpen} transitioning={isChanging}
       onClose={() => {
-        if (saving.current || deleting.current || transition.current.active) return;
-        const ingredient = pendingMove.current;
-        pendingMove.current = null;
+        if (saving.current || deleting.current || moving.current || transition.current.active) return;
         onClose();
-        if (ingredient) onMove?.(ingredient);
       }}>
         <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}
           onStartShouldSetResponder={() => {
-            if (!saving.current && !deleting.current && !pendingMove.current && !transition.current.active) setSwipedIngredientId(null);
+            if (!saving.current && !deleting.current && !moving.current && !transition.current.active) setSwipedIngredientId(null);
             // 항목·삭제 버튼이 먼저 처리하는 버블 단계만 확인하고, 터치는 가로채지 않는다.
             return false;
           }}>
@@ -293,23 +336,26 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
             <Animated.View style={[styles.pageTrack, { width: pageWidth * 2, transform: [{
               translateX: panelProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -pageWidth] }),
             }] }]}>
-              {([false, true] as const).map(formPage => (
-                <View key={formPage ? 'add' : 'list'} style={[styles.page, { width: pageWidth }]}
-                  pointerEvents={formPage === isFormOpen && !isChanging && !isBusy ? 'auto' : 'none'}
-                  accessibilityElementsHidden={formPage !== isFormOpen || isChanging}
-                  importantForAccessibility={formPage === isFormOpen && !isChanging ? 'auto' : 'no-hide-descendants'}>
-                  {formPage === isFormOpen || isChanging ? (
+              {([false, true] as const).map(secondary => {
+                const formPage = secondary && secondaryPage === 'form';
+                const queuePage = secondary && secondaryPage === 'queue';
+                return (
+                <View key={secondary ? 'detail' : 'list'} style={[styles.page, { width: pageWidth }]}
+                  pointerEvents={secondary === isSecondaryOpen && !isChanging && !isBusy ? 'auto' : 'none'}
+                  accessibilityElementsHidden={secondary !== isSecondaryOpen || isChanging}
+                  importantForAccessibility={secondary === isSecondaryOpen && !isChanging ? 'auto' : 'no-hide-descendants'}>
+                  {secondary === isSecondaryOpen || isChanging ? (
                     <>
                       <View style={styles.header}>
-                        {formPage ? (
+                        {secondary ? (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 목록으로 돌아가기"
-                            disabled={isSaving} interactionBlocked={isChanging} accessibilityState={{ disabled: isSaving || isChanging }}
+                            disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
                             onPress={returnToList} style={styles.headerIconButton}>
                             <MaterialDesignIcons name="arrow-left" size={32} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                         ) : null}
                         <View style={styles.heading}>
-                          <Text accessibilityRole="header" style={[styles.title, formPage && styles.centeredTitle]}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : '재료 목록'}</Text>
+                          <Text accessibilityRole="header" style={[styles.title, formPage && styles.centeredTitle]}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : queuePage ? `이동 대기 ${queuedIngredients.length}개` : '재료 목록'}</Text>
                         </View>
                         {formPage ? (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '재료 수정 저장' : '재료 등록'}
@@ -319,6 +365,14 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
                             {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? '재료 수정 중' : '재료 등록 중'} />
                               : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={32} color={colors.text} accessible={false} />}
                           </FeedbackPressable>
+                        ) : queuePage ? (
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 전체 비우기"
+                            disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
+                            accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
+                            onPress={() => { if (!saving.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
+                            style={styles.clearQueueButton}>
+                            <Text style={styles.clearDate}>전체 비우기</Text>
+                          </FeedbackPressable>
                         ) : (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 추가"
                             accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
@@ -327,8 +381,29 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
                           </FeedbackPressable>
                         )}
                       </View>
+                      {!secondary && queuedIngredients.length > 0 ? (
+                        <View style={styles.moveToolbar}>
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={`이동 대기 ${queuedIngredients.length}개 확인`}
+                            disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
+                            onPress={openMoveQueue} style={styles.queueButton}>
+                            <MaterialDesignIcons name="tray-full" size={20} color={colors.chilled} accessible={false} />
+                            <Text style={styles.queueLabel}>이동 대기 {queuedIngredients.length}개</Text>
+                            <MaterialDesignIcons name="chevron-right" size={18} color={colors.chilled} accessible={false} />
+                          </FeedbackPressable>
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="대기 재료를 여기로 이동"
+                            disabled={!canMove || isBusy} interactionBlocked={isChanging}
+                            accessibilityState={{ disabled: !canMove || isBusy || isChanging, busy: isMoving }}
+                            onPress={moveQueuedIngredients} style={styles.moveButton} feedback="primary">
+                            {isMoving ? <ActivityIndicator color={colors.buttonText} accessibilityLabel="재료 일괄 이동 중" /> : null}
+                            <Text style={styles.moveLabel}>여기로 이동</Text>
+                          </FeedbackPressable>
+                        </View>
+                      ) : null}
                       <View style={styles.pageContent}>
-                        {formPage ? (
+                        {queuePage ? (
+                          <IngredientMoveQueueList ingredients={queuedIngredients} layout={layout} disabled={isBusy || isChanging}
+                            onRemove={moveQueue.remove} />
+                        ) : formPage ? (
                           <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="always"
                             keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false} scrollsChildToFocus={false}>
                             <FormTextInput label="재료명" accessibilityLabel="재료명" placeholder="예: 계란"
@@ -386,7 +461,7 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
                           </View>
                         ) : (
                           <FlatList data={ingredients} keyExtractor={item => item.id}
-                            extraData={swipedIngredientId} onScrollBeginDrag={() => setSwipedIngredientId(null)}
+                            extraData={{ swipedIngredientId, queuedIds: moveQueue.ingredientIds }} onScrollBeginDrag={() => setSwipedIngredientId(null)}
                             style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.emptyList : undefined}
                             ListEmptyComponent={
                               <View style={styles.emptyState}>
@@ -397,17 +472,18 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
                             }
                             renderItem={({ item }) => {
                               const expiration = getIngredientExpirationStatus(item.expirationDate);
+                              const isQueued = moveQueue.ingredientIds.includes(item.id);
                               return (
-                                <IngredientSwipeRow name={item.name} width={pageWidth} isOpen={swipedIngredientId === item.id} disabled={isBusy || isChanging}
+                                <IngredientSwipeRow name={item.name} width={pageWidth} isOpen={swipedIngredientId === item.id} disabled={isBusy || isChanging} isQueued={isQueued}
                                   onOpen={() => setSwipedIngredientId(item.id)} onClose={() => setSwipedIngredientId(null)}
-                                  onMove={() => startMoving(item)}
+                                  onEnqueue={() => enqueueIngredient(item)}
                                   onDelete={() => requestDelete(item)}>
                                   <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${item.name} 편집`}
                                     accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
-                                    accessibilityHint="눌러서 편집하거나 왼쪽으로 밀어 이동·삭제 버튼을 표시합니다."
-                                    accessibilityActions={[{ name: 'move', label: '재료 이동' }, { name: 'delete', label: '재료 삭제' }]}
+                                    accessibilityHint={isQueued ? '이동 대기 중입니다. 눌러서 편집할 수 있습니다.' : '눌러서 편집하거나 왼쪽으로 밀어 이동목록 담기·삭제 버튼을 표시합니다.'}
+                                    accessibilityActions={[...(!isQueued ? [{ name: 'enqueue', label: '이동목록에 담기' }] : []), { name: 'delete', label: '재료 삭제' }]}
                                     onAccessibilityAction={({ nativeEvent }) => {
-                                      if (nativeEvent.actionName === 'move') startMoving(item);
+                                      if (nativeEvent.actionName === 'enqueue') enqueueIngredient(item);
                                       else if (nativeEvent.actionName === 'delete') requestDelete(item);
                                     }}
                                     accessibilityState={{ disabled: isBusy || isChanging }} disabled={isBusy} interactionBlocked={isChanging}
@@ -420,6 +496,7 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
                                       }]}>{expiration.label}</Text>
                                     </View>
                                     {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
+                                    {isQueued ? <Text style={styles.queuedLabel}>이동 대기</Text> : null}
                                   </FeedbackPressable>
                                 </IngredientSwipeRow>
                               );
@@ -429,13 +506,18 @@ export function IngredientListSheet({ position, onClose, onSaved, onDeleted, onM
                     </>
                   ) : null}
                 </View>
-              ))}
+                );
+              })}
             </Animated.View>
           </View>
           {datePickerAnchor ? (
             <IngredientExpirationCalendar value={draft.expirationDate} anchor={datePickerAnchor}
               disabled={isSaving || isChanging} onSelect={selectExpirationDate} onDismiss={dismissDatePicker} />
           ) : null}
+          {moveNotice ? <View pointerEvents="none" style={styles.notice}>
+            <Toast key={moveNotice.message} message={moveNotice.message} icon="check-circle-outline"
+              onDismiss={() => setMoveNotice(current => current === moveNotice ? null : current)} />
+          </View> : null}
         </View>
     </BottomSheet>
   );
@@ -468,6 +550,16 @@ const styles = StyleSheet.create({
   pageTrack: { flex: 1, flexDirection: 'row' },
   page: { height: '100%' },
   pageContent: { flex: 1 },
+  moveToolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  queueButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44, flexGrow: 1, borderRadius: 10 },
+  queueLabel: { color: colors.chilled, fontSize: 15, flexShrink: 1 },
+  moveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 12, backgroundColor: colors.button },
+  moveLabel: { color: colors.buttonText, fontSize: 15, fontWeight: '600' },
+  clearQueueButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.xs, borderRadius: 10 },
+  queuedLabel: { color: colors.chilled, fontSize: 13 },
+  notice: { position: 'absolute', left: 0, right: 0, bottom: spacing.lg, alignItems: 'center' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
   retryButton: { alignSelf: 'stretch' },

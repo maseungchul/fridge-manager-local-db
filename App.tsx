@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SQLiteProvider } from 'expo-sqlite';
 import { initializeDatabase } from '@/db/initializeDatabase';
 import { RootNavigator } from '@/navigation/RootNavigator';
+import { IngredientMoveQueueProvider } from '@/features/ingredient/IngredientMoveQueueProvider';
 
 export default function App() {
   return (
@@ -17,7 +18,9 @@ export default function App() {
         onInit={initializeDatabase}
       >
         <NavigationContainer>
-          <RootNavigator />
+          <IngredientMoveQueueProvider>
+            <RootNavigator />
+          </IngredientMoveQueueProvider>
         </NavigationContainer>
       </SQLiteProvider>
       <StatusBar style="dark" />

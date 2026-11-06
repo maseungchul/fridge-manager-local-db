@@ -59,16 +59,30 @@ export async function deleteIngredient(db: SQLiteDatabase, ingredient: Pick<Ingr
   if (result.changes !== 1) throw new Error('삭제할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
 }
 
-/** 출발 위치가 일치하는 재료의 위치만 한 번에 바꾸고, 목적지의 유효성은 DB 제약으로 검사한다. */
-export async function moveIngredient(db: SQLiteDatabase, ingredient: Ingredient,
-  destination: Pick<Ingredient, 'slotId' | 'drawerNumber'>): Promise<Ingredient> {
-  if (ingredient.slotId === destination.slotId && ingredient.drawerNumber === destination.drawerNumber) {
-    throw new Error('현재 보관 중인 위치입니다. 다른 칸을 선택해 주세요.');
-  }
-  const result = await db.runAsync(`
-    UPDATE ingredients SET slot_id = ?, drawer_number = ?
-    WHERE id = ? AND slot_id = ? AND drawer_number = ?;
-  `, destination.slotId, destination.drawerNumber, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
-  if (result.changes !== 1) throw new Error('이동할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
-  return { ...ingredient, slotId: destination.slotId, drawerNumber: destination.drawerNumber };
+/** 최신 재료와 출발 위치를 확인하고, 한 건이라도 달라졌으면 전체 이동을 취소한다. */
+export async function moveIngredients(db: SQLiteDatabase, ingredients: readonly Ingredient[],
+  destination: Pick<Ingredient, 'slotId' | 'drawerNumber'>): Promise<Ingredient[]> {
+  const moved: Ingredient[] = [];
+  if (ingredients.length === 0) return moved;
+  await db.withExclusiveTransactionAsync(async transaction => {
+    const seen = new Set<string>();
+    for (const ingredient of ingredients) {
+      if (seen.has(ingredient.id)) continue;
+      seen.add(ingredient.id);
+      const stored = await transaction.getFirstAsync<Ingredient>(`
+        SELECT id, name, quantity, memo, expiration_date AS expirationDate,
+          slot_id AS slotId, drawer_number AS drawerNumber
+        FROM ingredients WHERE id = ? AND slot_id = ? AND drawer_number = ?;
+      `, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
+      if (!stored) throw new Error('이동할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
+      if (stored.slotId === destination.slotId && stored.drawerNumber === destination.drawerNumber) continue;
+      const result = await transaction.runAsync(`
+        UPDATE ingredients SET slot_id = ?, drawer_number = ?
+        WHERE id = ? AND slot_id = ? AND drawer_number = ?;
+      `, destination.slotId, destination.drawerNumber, stored.id, stored.slotId, stored.drawerNumber);
+      if (result.changes !== 1) throw new Error('이동할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
+      moved.push({ ...stored, ...destination });
+    }
+  });
+  return moved;
 }

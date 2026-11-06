@@ -6,7 +6,7 @@
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
-const { test } = require('node:test');
+const { test, beforeEach } = require('node:test');
 const ts = require('typescript');
 const model = require('../src/features/fridge/model/fridgeLayout.ts');
 const ingredientModel = require('../src/features/ingredient/model/ingredient.ts');
@@ -29,12 +29,14 @@ const ingredientRepository = {
   async registerIngredient() { throw new Error('재료 등록 동작을 지정하지 않았습니다.'); },
   async updateIngredient() { throw new Error('재료 수정 동작을 지정하지 않았습니다.'); },
   async deleteIngredient() { throw new Error('재료 삭제 동작을 지정하지 않았습니다.'); },
-  async moveIngredient() { throw new Error('재료 이동 동작을 지정하지 않았습니다.'); },
+  async moveIngredients() { throw new Error('재료 이동 동작을 지정하지 않았습니다.'); },
 };
 
 let current;
 const animations = [];
 const hooks = {
+  createContext(value) { const context = { value }; context.Provider = context; return context; },
+  useContext(context) { return context.value; },
   useState(initial) {
     const index = current.cursor++;
     const slot = current.slots[index] ??= { value: typeof initial === 'function' ? initial() : initial };
@@ -93,7 +95,7 @@ class AnimatedValue {
   stopAnimation() {}
 }
 const native = {
-  View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', FlatList: 'FlatList', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
+  View: 'View', Pressable: 'Pressable', Text: 'Text', ScrollView: 'ScrollView', FlatList: 'FlatList', SectionList: 'SectionList', Switch: 'Switch', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView',
   Keyboard: { dismiss() {}, isVisible() { return false; }, addListener() { return { remove() {} }; } }, Platform: { OS: 'ios', Version: '26.1' },
   ActivityIndicator: 'ActivityIndicator', Alert: { alert(...args) { alerts.push(args); } },
   AppState: { addEventListener(event, handler) {
@@ -134,7 +136,7 @@ let legendModule;
 let interiorModule;
 let structureModule;
 let menuModule;
-let ingredientMoveBarModule;
+let moveQueueModule;
 let quantityStepperModule;
 let diagramLayoutModule;
 let iosHomeButtonModule;
@@ -173,7 +175,9 @@ function loadComponent(path, overrides = {}) {
     '@expo/ui/community/bottom-sheet': { BottomSheet: 'BottomSheet' },
     '@/features/ingredient/components/IngredientSheet': { IngredientSheet: 'BottomSheet' },
     '@/features/ingredient/components/IngredientSwipeRow': { IngredientSwipeRow: 'IngredientSwipeRow' },
-    '@/features/ingredient/components/IngredientMoveBar': ingredientMoveBarModule,
+    '@/features/ingredient/IngredientMoveQueueProvider': moveQueueModule,
+    '@/features/ingredient/components/IngredientMoveQueueList': { IngredientMoveQueueList: 'IngredientMoveQueueList' },
+    '@/features/ingredient/components/IngredientMoveQueueSheet': { IngredientMoveQueueSheet: 'IngredientMoveQueueSheet' },
     '@/features/ingredient/model/ingredient': ingredientModel,
     '@/features/ingredient/components/IngredientCountBadges': badgeModule,
     '@/features/fridge/components/FridgeIngredientLegend': legendModule,
@@ -215,7 +219,6 @@ function loadComponent(path, overrides = {}) {
     },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }) },
     'react-native-screens/experimental': { SafeAreaView: 'SafeAreaView' },
-    'react-native-screens': { FullWindowOverlay: 'FullWindowOverlay' },
     ...overrides,
   };
   new Function('require', 'module', 'exports', 'setTimeout', output)(name => name in dependencies ? dependencies[name] : require(name), module, module.exports,
@@ -231,8 +234,17 @@ mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
 diagramLayoutModule = loadComponent('src/features/fridge/components/fridgeDiagramLayout.ts');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
 structureModule = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
-ingredientMoveBarModule = loadComponent('src/features/ingredient/components/IngredientMoveBar.tsx');
-const { IngredientMoveBar } = ingredientMoveBarModule;
+moveQueueModule = loadComponent('src/features/ingredient/IngredientMoveQueueProvider.tsx');
+let queueProvider;
+function refreshMoveQueue() {
+  queueProvider.render();
+  queueProvider.tree.type.value = queueProvider.tree.props.value;
+  return queueProvider.tree.props.value;
+}
+beforeEach(() => {
+  queueProvider = mount(moveQueueModule.IngredientMoveQueueProvider, { children: null });
+  refreshMoveQueue();
+});
 const { FridgeInteriorMap, FridgeFocusView, getFridgeFocusGeometry } = interiorModule;
 menuModule = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
 const { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } = menuModule;
@@ -254,7 +266,6 @@ function find(node, predicate) {
   }
 }
 const named = name => node => node?.type?.name === name;
-const ingredientMoveNotice = home => find(home.tree, node => node.type === 'Toast' && node.props.message === '재료를 이동했습니다.');
 const homeButton = screen => find(screen.tree, node => node.type === 'FeedbackPressable' && node.props.accessibilityLabel === '홈으로 이동'
   || node.type === 'SwiftUIButton' && node.props.modifiers.some(modifier => modifier.type === 'accessibilityLabel' && modifier.value === '홈으로 이동'));
 const homeButtonDisabled = button => button.props.disabled
@@ -375,8 +386,8 @@ async function ingredientFormFixture(t, onClose = () => {}, editingIngredient) {
     },
   };
 }
-/** 이동할 재료와 홈을 준비하고, 시트 종료 후 실제 도면의 문·칸 선택을 검사한다. */
-async function ingredientMoveFixture(t) {
+/** 재료와 홈을 준비하고, 실제 도면의 문·칸과 재료 시트 연결을 검사한다. */
+async function ingredientHomeFixture(t) {
   const previousGet = repository.getRefrigerator;
   const previousIngredients = { ...ingredientRepository };
   t.after(() => { repository.getRefrigerator = previousGet; Object.assign(ingredientRepository, previousIngredients); });
@@ -390,12 +401,8 @@ async function ingredientMoveFixture(t) {
   repository.getRefrigerator = async () => refrigerator;
   ingredientRepository.getIngredients = async () => [...persisted];
   const blocked = [];
-  const moveModes = [];
-  const bar = mount(IngredientMoveBar, { move: null });
-  t.after(() => bar.unmount());
-  const home = mount(HomeScreen, { navigation: { navigate() { assert.fail('이동 중에는 냉장고 편집을 열지 않는다'); } },
-    onTabInteractionBlockedChange: value => blocked.push(value),
-    onIngredientMoveChange: value => { moveModes.push(!!value); bar.props.move = value; bar.render(); } });
+  const home = mount(HomeScreen, { navigation: { navigate() {} },
+    onTabInteractionBlockedChange: value => blocked.push(value) });
   t.after(() => home.unmount());
   await new Promise(setImmediate); home.render();
   find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout).props.ref.current = {
@@ -418,9 +425,7 @@ async function ingredientMoveFixture(t) {
   openRow(0);
   focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-left`); home.render();
   const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
-  sheet.props.onClose(); sheet.props.onMove(original); home.render();
-  return { home, bar, refrigerator, sourceRow, slotId, original, persisted, blocked, moveModes, focus, openRow,
-    cancel: () => bar.props.move ? find(bar.tree, node => node.props.accessibilityLabel === '재료 이동 취소') : undefined };
+  return { home, refrigerator, sourceRow, slotId, original, persisted, blocked, focus, openRow, sheet };
 }
 
 const moving = focus => find(focus.tree, node => typeof node.props?.onStartShouldSetResponder === 'function');
@@ -1199,7 +1204,6 @@ test('하단 메뉴는 OS 기본 탭 3개로 연결하고 등록은 탭 밖에�
       await new Promise(setImmediate);
       tabs.render();
       const navigator = () => find(tabs.tree, node => node.type === 'NativeTabs');
-      const moveBar = () => find(tabs.tree, named('IngredientMoveBar'));
       assert.equal(navigator().props.initialRouteName, 'Home');
       assert.equal(navigator().props.screenOptions.headerShown, false);
       const routes = children(navigator());
@@ -1213,12 +1217,6 @@ test('하단 메뉴는 OS 기본 탭 3개로 연결하고 등록은 탭 밖에�
       homeRoute.props.onTabInteractionBlockedChange(true);
       tabs.render();
       assert.equal(navigator().props.screenOptions.tabBarSelectionEnabled, false, '패널이 열리면 모든 하단 탭 선택을 막는다');
-      const move = { name: '계란', quantity: '2개', isSaving: false, onCancel() {} };
-      homeRoute.props.onIngredientMoveChange(move); tabs.render();
-      assert.strictEqual(moveBar().props.move, move);
-      assert.deepEqual(navigator().props.screenOptions.tabBarStyle, tabStyle, '이동 전후 네이티브 탭 배치·안전 영역을 바꾸지 않는다');
-      homeRoute.props.onIngredientMoveChange(null); tabs.render();
-      assert.equal(moveBar().props.move, null);
       assert.deepEqual(navigator().props.screenOptions.tabBarStyle, tabStyle);
       homeRoute.props.onTabInteractionBlockedChange(false);
       tabs.render();
@@ -2885,213 +2883,305 @@ test('재료 삭제 실패는 목록·배지를 유지하고 같은 항목을 �
   assert.deepEqual(deleted, [original.id]);
 });
 
-test('재료 이동은 시트 종료 후 한 번만 홈에 전달하고 닫히는 동안 추가·편집·삭제를 막는다', async t => {
+/** 칸마다 새 시트를 열어도 같은 앱 공통 임시목록을 사용한다. */
+async function ingredientQueueFixture(t) {
   const previous = { ...ingredientRepository };
   t.after(() => Object.assign(ingredientRepository, previous));
-  const original = { id: 'eggs', name: '계란', quantity: '2개', memo: null, expirationDate: null, slotId: 'slot', drawerNumber: 1 };
-  const other = { ...original, id: 'milk', name: '우유' };
-  ingredientRepository.getIngredientsByPosition = async () => [original, other];
-  const events = [];
-  const sheet = mount(IngredientListSheet, {
-    position: { id: 'slot-left', slotId: 'slot', drawerNumber: 1 },
-    onClose() { events.push('dismissed'); }, onMove: ingredient => events.push(ingredient),
+  const refrigerator = savedRefrigerator('임시목록 냉장고');
+  const sourceSlot = refrigerator.rows[0].compartments[0].slots[0];
+  sourceSlot.drawerCount = 2;
+  const layout = model.getDraftLayout(refrigerator);
+  const original = { id: 'milk-left', name: '우유', quantity: '1팩', expirationDate: '2026-11-10', memo: null,
+    slotId: sourceSlot.id, drawerNumber: 1 };
+  const stored = [original,
+    { ...original, id: 'milk-right', quantity: '2팩', expirationDate: '2026-11-15', drawerNumber: 2 },
+    { ...original, id: 'milk-pocket', slotId: refrigerator.rows[0].doors[0].slots[0].id, drawerNumber: 0 },
+    { ...original, id: 'milk-target', slotId: refrigerator.rows[1].compartments[0].slots[0].id, drawerNumber: 0 },
+  ];
+  ingredientRepository.getIngredientsByPosition = async (db, position) => stored.filter(item => item.slotId === position.slotId && item.drawerNumber === position.drawerNumber);
+  async function open(item, overrides = {}) {
+    const sheet = mount(IngredientListSheet, {
+      position: layout.positions.find(position => position.slotId === item.slotId && (position.drawerNumber ?? 0) === item.drawerNumber),
+      layout, allIngredients: stored, onClose() {}, ...overrides,
+    });
+    t.after(() => sheet.unmount());
+    await new Promise(setImmediate); sheet.render();
+    return sheet;
+  }
+  const render = sheet => { refreshMoveQueue(); sheet.render(); };
+  const list = sheet => find(sheet.tree, node => node.type === 'FlatList');
+  const row = (sheet, item) => list(sheet).props.renderItem({ item });
+  const move = sheet => find(sheet.tree, node => node.props.accessibilityLabel === '대기 재료를 여기로 이동');
+  return { stored, original, layout, open, render, row, list, move };
+}
+
+test('임시목록 공통 상태는 화면 전환으로 제거되지 않게 앱의 전체 경로를 감싼다', t => {
+  const { default: App } = loadComponent('App.tsx', {
+    '@react-navigation/native': { NavigationContainer: 'NavigationContainer' },
+    'expo-status-bar': { StatusBar: 'StatusBar' },
+    'expo-sqlite': { SQLiteProvider: 'SQLiteProvider' },
+    '@/db/initializeDatabase': { initializeDatabase() {} },
+    '@/navigation/RootNavigator': { RootNavigator: 'RootNavigator' },
   });
+  const app = mount(App, {});
+  t.after(() => app.unmount());
+  const provider = find(app.tree, named('IngredientMoveQueueProvider'));
+  assert(provider);
+  assert(find(provider, node => node.type === 'RootNavigator'));
+});
+
+test('홈 대기 목록 진입은 범례와 같은 네이티브 버튼으로 왼쪽에 표시하고 도면 상태를 유지한다', async t => {
+  const { home, original, focus, sheet, blocked } = await ingredientHomeFixture(t);
+  const button = () => find(home.tree, node => node.props.accessibilityLabel === '이동 대기 목록 열기');
+  assert.equal(button(), undefined);
+  refreshMoveQueue().add(original.id); refreshMoveQueue(); home.render();
+  sheet.props.onClose(); home.render();
+  assert.equal(button().props.icon, 'clipboard-text-outline');
+  assert.equal(button().props.size, 'small');
+  assert.equal(button().props.label, '이동 대기 1개');
+  const anchor = find(home.tree, node => children(node).includes(button()));
+  assert.equal(flattenStyle(anchor.props.style).alignItems, 'flex-start');
+  assert.equal(flattenStyle(anchor.props.style).paddingLeft, tokens.spacing.lg);
+  assert.equal(flattenStyle(anchor.props.style).paddingBottom, tokens.spacing.sm);
+  const nativeButton = find(button(), node => node.type === 'SwiftUIButton');
+  assert.equal(nativeButton.props.modifiers.find(modifier => modifier.type === 'buttonStyle').value, 'glass');
+  const before = { target: focus().props.target, viewport: focus().props.viewport };
+  button().props.onPress(); home.render();
+  const popup = find(home.tree, node => node.type === 'IngredientMoveQueueSheet');
+  assert.deepEqual(popup.props.ingredients, [original]);
+  assert.equal(blocked.at(-1), true);
+  assert.equal(focus().props.scrollHintBlocked, true);
+  const safeArea = find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
+  assert.equal(safeArea.props.pointerEvents, 'none');
+  popup.props.onClose(); home.render();
+  assert.equal(blocked.at(-1), false);
+  assert.deepEqual({ target: focus().props.target, viewport: focus().props.viewport }, before);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [original.id]);
+  refreshMoveQueue().clear(); refreshMoveQueue(); home.render();
+  assert.equal(button(), undefined);
+});
+
+test('홈 대기 시트는 같은 목록의 해제·전체 비우기를 지원하고 네이티브 종료 전까지 유지한다', t => {
+  const { IngredientMoveQueueSheet } = loadComponent('src/features/ingredient/components/IngredientMoveQueueSheet.tsx');
+  const original = { id: 'queued', name: '우유', quantity: '1팩', memo: null, expirationDate: null, slotId: 'slot', drawerNumber: 0 };
+  refreshMoveQueue().add(original.id); refreshMoveQueue();
+  let dismissed = 0;
+  let requested = 0;
+  const sheet = mount(IngredientMoveQueueSheet, { ingredients: [original], layout: { areas: [], positions: [] }, onClose() { dismissed++; } });
   t.after(() => sheet.unmount());
-  await new Promise(setImmediate); sheet.render();
-  sheet.tree.props.ref.current = { close() { events.push('close'); } };
-  const row = ingredient => find(sheet.tree, node => node.type === 'FlatList').props.renderItem({ item: ingredient });
-  row(original).props.onMove(); sheet.render();
-  assert.deepEqual(events, ['close'], '시스템 시트의 종료 전에는 목적지 선택을 시작하지 않는다');
-  assert.equal(sheet.tree.props.disabled, false, '프로그램으로 요청한 시트 종료를 막지 않는다');
-  assert.equal(row(original).props.disabled, true);
-  row(other).props.onMove();
-  row(other).props.children.props.onPress();
-  row(other).props.onDelete();
-  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress();
-  sheet.render();
-  assert.deepEqual(events, ['close']);
-  assert.equal(sheet.tree.props.expanded, false);
-  sheet.tree.props.onClose();
-  assert.deepEqual(events, ['close', 'dismissed', original]);
-  sheet.tree.props.onClose();
-  assert.equal(events.filter(event => event === original).length, 1);
-});
-
-test('홈의 재료 이동은 현재 문을 유지하고 버튼·뒤로가기로 도면을 바꾸지 않고 취소한다', async t => {
-  for (const trigger of ['button', 'back']) await t.test(trigger, async t => {
-    const { home, bar, original, persisted, blocked, moveModes, focus, cancel } = await ingredientMoveFixture(t);
-    const before = structuredClone(persisted);
-    assert.equal(focus().props.phase, 'open');
-    assert.equal(focus().props.selectedPositionId, undefined);
-    assert.equal(find(home.tree, node => node.type === 'IngredientListSheet'), undefined);
-    assert.equal(blocked.at(-1), true);
-    assert.equal(moveModes.at(-1), true);
-    const legend = find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
-    assert.equal(legend.props.pointerEvents, 'none');
-    assert.equal(flattenStyle(legend.props.style).opacity, 0);
-    assert(find(bar.tree, node => node.props.children === `${original.name} ${original.quantity}`));
-    assert.equal(cancel().props.disabled, false);
-    const diagram = focus().props.target;
-    if (trigger === 'button') cancel().props.onPress();
-    else assert.equal([...backHandlers].at(-1)(), true);
-    home.render();
-    assert.equal(cancel(), undefined);
-    assert.equal(focus().props.phase, 'open');
-    assert.deepEqual(focus().props.target, diagram);
-    assert.deepEqual(persisted, before);
-    assert.equal(blocked.at(-1), false);
-    assert.equal(moveModes.at(-1), false);
-    assert(find(home.tree, node => node.props.accessibilityLabel === '재료 배지 범례'));
-    assert.equal(flattenStyle(children(home.tree)[0].props.style).height, undefined, '취소해도 홈 높이를 제한하지 않는다');
-  });
-});
-
-test('홈의 재료 이동은 현재 위치·없는 칸을 제외하고 다른 문에서 알림 없이 즉시 한 번만 저장한다', async t => {
-  const { home, bar, original, persisted, sourceRow, refrigerator, slotId, blocked, moveModes, focus, openRow, cancel } = await ingredientMoveFixture(t);
-  const pending = deferred();
-  const writes = [];
-  ingredientRepository.moveIngredient = (db, ingredient, destination) => {
-    assert.strictEqual(db, database); writes.push({ ingredient, destination }); return pending.promise;
-  };
-  const alertCount = alerts.length;
-  focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-left`);
-  focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, 'missing');
-  assert.equal(alerts.length, alertCount);
-  assert.equal(cancel().props.disabled, false);
-  assert.equal(focus().props.selectedPositionId, undefined);
-  assert.deepEqual(writes, []);
-  const targetRow = openRow(1);
-  const targetSlot = targetRow.compartments[0].slots[0].id;
-  const destinationViewport = structuredClone(focus().props.viewport);
-  const select = focus().props.onSelectSlot;
-  select(targetRow.compartments[0].id, 0, targetSlot);
-  select(targetRow.compartments[0].id, 0, targetSlot);
-  home.render();
-  assert.equal(alerts.length, alertCount, '위치 경로·확인 Alert 없이 저장한다');
-  assert.deepEqual(writes, [{ ingredient: original, destination: { slotId: targetSlot, drawerNumber: 0 } }]);
-  assert.equal(persisted[0].slotId, original.slotId, '저장 중에는 원본이 출발 칸에 남는다');
-  assert.equal(ingredientMoveNotice(home), undefined);
-  assert.equal(cancel().props.disabled, true);
-  assert.deepEqual(focus().props.viewport, destinationViewport, '저장 중에도 표시 영역을 유지한다');
-  assert.equal(find(bar.tree, node => node.props.accessibilityLabel === '재료 이동 중').props.animating, true);
-  cancel().props.onPress();
+  assert.equal(sheet.tree.type, 'BottomSheet');
+  assert.equal(sheet.tree.props.expanded, undefined);
+  const list = find(sheet.tree, node => node.type === 'IngredientMoveQueueList');
+  assert.deepEqual(list.props.ingredients, [original]);
+  list.props.onRemove(original.id);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+  refreshMoveQueue().add(original.id); refreshMoveQueue();
+  find(sheet.tree, node => node.props.accessibilityLabel === '이동 대기 목록 전체 비우기').props.onPress();
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+  sheet.tree.props.ref.current = { close() { requested++; } };
   assert.equal([...backHandlers].at(-1)(), true);
-  focus().props.onClose(); home.render();
-  assert.equal(focus().props.phase, 'open');
-  assert.deepEqual(focus().props.viewport, destinationViewport, '저장 완료 후에도 표시 영역을 유지한다');
-  assert.equal(find(home.tree, node => node.type === 'View' && node.props.ref && node.props.onLayout).props.pointerEvents, 'none');
-  const other = persisted[1];
-  persisted[0] = { ...original, slotId: targetSlot, drawerNumber: 0 };
-  pending.resolve(persisted[0]); await new Promise(setImmediate); home.render();
-  assert.equal(alerts.length, alertCount);
-  assert(ingredientMoveNotice(home));
-  assert.equal(cancel(), undefined);
-  assert.equal(blocked.at(-1), false);
-  assert.equal(moveModes.at(-1), false);
-  assert.equal(flattenStyle(children(home.tree)[0].props.style).height, undefined, '저장 완료 후에도 홈 높이를 제한하지 않는다');
-  assert.equal(focus().props.phase, 'open');
-  assert.equal(focus().props.selectedPositionId, undefined);
-  assert.equal(focus().props.ingredients.length, 2);
-  assert.deepEqual(focus().props.ingredients.find(item => item.id === original.id), persisted[0]);
-  assert.deepEqual(focus().props.ingredients.find(item => item.id === other.id), other);
-  const positions = model.getDraftLayout(refrigerator, focus().props.ingredients).ingredients.map(item => item.positionId);
-  assert.deepEqual(positions.sort(), [`${slotId}-left`, targetSlot].sort());
-  focus().props.onSelectSlot(targetRow.compartments[0].id, 0, targetSlot); home.render();
-  assert.equal(find(home.tree, node => node.type === 'IngredientListSheet').props.position.id, targetSlot,
-    '이동 완료 후 칸 선택은 일반 재료 목록을 연다');
+  assert.equal(requested, 1);
+  assert.equal(dismissed, 0);
+  sheet.tree.props.onClose();
+  assert.equal(dismissed, 1);
 });
 
-test('홈의 재료 이동 실패는 원본·이동 상태를 유지해 재시도하고 닫힌 전체 도면에서도 취소한다', async t => {
-  const { home, original, persisted, sourceRow, slotId, blocked, focus, cancel } = await ingredientMoveFixture(t);
-  let writes = 0;
-  ingredientRepository.moveIngredient = async (db, ingredient, destination) => {
-    if (++writes === 1) throw new Error('검증용 이동 실패');
-    persisted[0] = { ...ingredient, ...destination };
-    return persisted[0];
-  };
-  const select = async () => {
-    focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`);
-    await new Promise(setImmediate); home.render();
-  };
-  await select();
-  assert.deepEqual(alerts.at(-1).slice(0, 2), ['오류', '재료를 이동하지 못했습니다. 보관 위치를 다시 확인하고 재시도해 주세요.']);
-  assert.deepEqual(persisted[0], original);
-  assert.deepEqual(focus().props.ingredients[0], original);
-  assert.equal(cancel().props.disabled, false);
-  assert.equal(ingredientMoveNotice(home), undefined);
-  await select();
-  assert.equal(writes, 2);
-  assert.equal(cancel(), undefined);
-  assert.equal(focus().props.ingredients[0].drawerNumber, 2);
-  focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`); home.render();
-  const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
-  sheet.props.onClose(); sheet.props.onMove(persisted[0]); home.render();
-  assert.equal(ingredientMoveNotice(home), undefined);
-  focus().props.onClose(); home.render();
-  focus().props.onPhaseChange('closed'); home.render();
-  assert.equal(focus(), undefined);
-  find(home.tree, node => node.props.accessibilityLabel === '냉장고 편집').props.onPress();
-  assert.equal([...backHandlers].at(-1)(), true); home.render();
-  assert.equal(cancel(), undefined);
-  assert.equal(blocked.at(-1), false);
+test('앱 공통 임시목록은 ID 중복을 막고 개별 해제·전체 비우기·프로세스 초기화를 지원한다', () => {
+  const queue = refreshMoveQueue();
+  queue.add('milk-a'); queue.add('milk-a'); queue.add('milk-b');
+  assert.deepEqual(refreshMoveQueue().ingredientIds, ['milk-a', 'milk-b']);
+  refreshMoveQueue().remove('milk-a');
+  assert.deepEqual(refreshMoveQueue().ingredientIds, ['milk-b']);
+  const freshApp = mount(moveQueueModule.IngredientMoveQueueProvider, { children: null });
+  assert.deepEqual(freshApp.tree.props.value.ingredientIds, []);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, ['milk-b']);
+  refreshMoveQueue().clear();
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+  freshApp.unmount();
 });
 
-test('이동 저장 중 홈을 다시 열면 늦은 완료로 이전 이동의 안내·상태를 덮어쓰지 않는다', async t => {
-  const { home, sourceRow, slotId, focus } = await ingredientMoveFixture(t);
+test('여러 칸에서 같은 이름의 재료를 담아도 원래 위치·시트를 유지하고 단건도 같은 이동 버튼을 쓴다', async t => {
+  const { stored, open, render, row, move } = await ingredientQueueFixture(t);
+  let closed = 0;
+  const first = await open(stored[0], { onClose() { closed++; } });
+  const enqueue = row(first, stored[0]).props.onEnqueue;
+  enqueue(); enqueue(); render(first);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [stored[0].id]);
+  assert.equal(row(first, stored[0]).props.isQueued, true);
+  assert.equal(move(first).props.disabled, true, '모두 현재 칸에 있으면 위치 변경을 실행하지 않는다');
+  assert.equal(closed, 0, '담기는 시트를 닫지 않는다');
+  assert.equal(first.tree.props.expanded, false);
+  assert.equal(stored[0].drawerNumber, 1);
+  const target = await open(stored[3]);
+  assert.equal(move(target).props.disabled, false, '한 건만 담아도 동일 버튼으로 이동한다');
+  first.tree.props.onClose(); first.unmount();
+  assert.equal(closed, 1);
+  const second = await open(stored[1]);
+  row(second, stored[1]).props.children.props.onAccessibilityAction({ nativeEvent: { actionName: 'enqueue' } }); render(second);
+  const pocket = await open(stored[2]);
+  row(pocket, stored[2]).props.onEnqueue(); render(pocket);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, stored.slice(0, 3).map(item => item.id));
+  const reopened = await open(stored[0]);
+  assert.equal(row(reopened, stored[0]).props.isQueued, true);
+  assert.equal(move(reopened).props.disabled, false, '다른 칸에서 담은 재료가 있으면 현재 칸으로 옮길 수 있다');
+});
+
+test('담긴 행의 담기 버튼만 비활성화하고 삭제와 네이티브 스와이프는 유지한다', t => {
+  let added = 0;
+  let deleted = 0;
+  const row = mount(IngredientSwipeRow, { name: '우유', width: 375, isOpen: true, disabled: false, isQueued: true,
+    onOpen() {}, onClose() {}, onEnqueue() { added++; }, onDelete() { deleted++; } });
+  t.after(() => row.unmount());
+  const add = find(row.tree, node => node.props.accessibilityLabel === '우유 이동목록에 담김');
+  assert.equal(add.props.disabled, true);
+  add.props.onPress();
+  assert.equal(added, 0);
+  assert.equal(row.tree.props.scrollEnabled, true);
+  find(row.tree, node => node.props.accessibilityLabel === '우유 삭제').props.onPress();
+  assert.equal(deleted, 1);
+});
+
+test('임시목록은 출발 칸·좌우·포켓별로 묶고 같은 이름의 수량·실제 날짜와 개별 해제를 제공한다', async t => {
+  const { stored, layout } = await ingredientQueueFixture(t);
+  const { IngredientMoveQueueList } = loadComponent('src/features/ingredient/components/IngredientMoveQueueList.tsx');
+  const removed = [];
+  const panel = mount(IngredientMoveQueueList, { ingredients: [stored[0], { ...stored[0], id: 'another', memo: '개봉함' }, stored[1], stored[2]],
+    layout, disabled: false, onRemove: id => removed.push(id) });
+  t.after(() => panel.unmount());
+  const sections = panel.tree.props.sections;
+  assert.equal(sections.length, 3);
+  assert.deepEqual(sections.map(section => section.data.length), [2, 1, 1]);
+  assert.match(sections[0].title, /1단.*본체.*왼쪽/);
+  assert.match(sections[1].title, /1단.*본체.*오른쪽/);
+  assert.match(sections[2].title, /도어포켓/);
+  for (const section of sections) for (const item of section.data) {
+    const rendered = panel.tree.props.renderItem({ item, section });
+    assert(find(rendered, node => node.props.children === `유통기한 ${item.expirationDate}`));
+    const remove = find(rendered, node => node.props.accessibilityLabel === '우유 이동 대기 해제');
+    assert.match(remove.props.accessibilityHint, new RegExp(section.title));
+    remove.props.onPress();
+  }
+  assert.deepEqual(removed, ['milk-left', 'another', 'milk-right', 'milk-pocket']);
+});
+
+test('임시목록은 같은 시트 높이에서 전환하고 해제·전체 비우기 후 빈 화면과 기존 추가 초안을 유지한다', async t => {
+  const { stored, open, render, row } = await ingredientQueueFixture(t);
+  const sheet = await open(stored[0]);
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress(); animations.at(-1).finish(); sheet.render();
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료명').props.onChangeText('작성 중인 초안'); sheet.render();
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 목록으로 돌아가기').props.onPress(); animations.at(-1).finish(); sheet.render();
+  row(sheet, stored[0]).props.onEnqueue(); refreshMoveQueue().add(stored[1].id); render(sheet);
+  find(sheet.tree, node => node.props.accessibilityLabel === '이동 대기 2개 확인').props.onPress(); sheet.render();
+  assert.equal(sheet.tree.props.expanded, false);
+  assert.equal(sheet.tree.props.disabled, true);
+  assert.equal(animations.at(-1).config.duration, 240);
+  animations.at(-1).finish(); sheet.render();
+  const queueList = () => find(sheet.tree, node => node.type === 'IngredientMoveQueueList');
+  assert.equal(sheet.tree.props.expanded, false);
+  assert.equal(find(sheet.tree, node => node.type === 'FlatList'), undefined);
+  queueList().props.onRemove(stored[0].id); render(sheet);
+  assert.deepEqual(queueList().props.ingredients, [stored[1]]);
+  find(sheet.tree, node => node.props.accessibilityLabel === '이동 대기 목록 전체 비우기').props.onPress(); render(sheet);
+  assert.deepEqual(queueList().props.ingredients, []);
+  assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '이동 대기 목록 전체 비우기').props.disabled, true);
+  assert.equal([...backHandlers].at(-1)(), true); animations.at(-1).finish(); sheet.render();
+  assert.equal(queueList(), undefined);
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress(); animations.at(-1).finish(); sheet.render();
+  assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '재료명').props.value, '작성 중인 초안');
+});
+
+test('일괄 이동은 중복 요청·수정·삭제·뒤로가기·종료를 막고 성공 후 목록·배지·대기 상태를 갱신한다', async t => {
+  const { stored, open, render, row, list, move } = await ingredientQueueFixture(t);
+  for (const item of stored) refreshMoveQueue().add(item.id);
+  refreshMoveQueue();
+  let closed = 0;
+  const changes = [];
+  const sheet = await open(stored[3], { onClose() { closed++; }, onMoved: items => changes.push(items) });
   const pending = deferred();
-  ingredientRepository.moveIngredient = () => pending.promise;
-  const original = focus().props.ingredients[0];
-  focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-right`); home.render();
-  home.focus(); await new Promise(setImmediate); home.render();
-  pending.resolve({ ...original, drawerNumber: 2 }); await new Promise(setImmediate); home.render();
-  assert.equal(ingredientMoveNotice(home), undefined);
-  assert.equal(find(home.tree, node => node.props.accessibilityLabel === '재료 이동 취소'), undefined);
-  assert.deepEqual(find(home.tree, named('FridgeInteriorMap')).props.ingredients[0], original);
+  const calls = [];
+  ingredientRepository.moveIngredients = (db, items, destination) => { calls.push({ db, items, destination }); return pending.promise; };
+  const old = structuredClone(stored);
+  const save = move(sheet).props.onPress;
+  const saving = save(); await save(); render(sheet);
+  assert.equal(calls.length, 1);
+  assert.strictEqual(calls[0].db, database);
+  assert.deepEqual(calls[0].items, old);
+  assert.deepEqual(calls[0].destination, { slotId: stored[3].slotId, drawerNumber: 0 });
+  assert.equal(sheet.tree.props.disabled, true);
+  assert.equal(move(sheet).props.disabled, true);
+  assert(find(sheet.tree, node => node.props.accessibilityLabel === '재료 일괄 이동 중'));
+  assert.equal([...backHandlers].at(-1)(), true);
+  sheet.tree.props.onClose(); row(sheet, stored[3]).props.onDelete(); row(sheet, stored[3]).props.children.props.onPress();
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress(); sheet.render();
+  assert.equal(closed, 0);
+  assert.equal(sheet.tree.props.expanded, false);
+  assert.deepEqual(stored, old);
+  const moved = stored.slice(0, 3).map(item => ({ ...item, slotId: stored[3].slotId, drawerNumber: 0 }));
+  stored.splice(0, 3, ...moved);
+  pending.resolve(moved); await saving; render(sheet); await new Promise(setImmediate); render(sheet);
+  assert.deepEqual(changes, [moved]);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+  assert.deepEqual(list(sheet).props.data, stored);
+  assert.equal(move(sheet), undefined);
+  assert.equal(sheet.tree.props.disabled, false);
+  const toast = find(sheet.tree, node => node.type === 'Toast');
+  assert.equal(toast.props.message, '재료 3개를 이동했습니다.');
+  assert.equal(find(sheet.tree, node => children(node).includes(toast)).props.pointerEvents, 'none');
 });
 
-test('이동 완료 안내는 조작을 막지 않고 연속 이동의 마지막 성공 시점부터 2.9초 후 사라진다', async t => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const { home, persisted, sourceRow, slotId, focus } = await ingredientMoveFixture(t);
-  ingredientRepository.moveIngredient = async (db, ingredient, destination) => {
-    persisted[0] = { ...ingredient, ...destination };
-    return persisted[0];
+test('일괄 이동 실패는 재료와 대기 목록을 유지해 같은 버튼으로 재시도한다', async t => {
+  const { stored, open, render, list, move } = await ingredientQueueFixture(t);
+  refreshMoveQueue().add(stored[0].id); refreshMoveQueue();
+  const sheet = await open(stored[3]);
+  const before = structuredClone(stored);
+  let attempts = 0;
+  ingredientRepository.moveIngredients = async (db, items, destination) => {
+    if (++attempts === 1) throw new Error('이동 실패');
+    return items.map(item => ({ ...item, ...destination }));
   };
-  const notice = () => ingredientMoveNotice(home);
-  const select = async positionId => {
-    focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, positionId);
-    await new Promise(setImmediate); home.render();
-  };
-  await select(`${slotId}-right`);
-  assert(notice());
-  const message = notice();
-  const firstToast = mount(Toast, message.props);
-  t.after(() => firstToast.unmount());
-  animations.at(-1).finish();
-  const noticeOverlay = find(home.tree, node => node.type === 'SafeAreaView' && find(node, child => child === message));
-  assert.equal(noticeOverlay.props.pointerEvents, 'none');
-  t.mock.timers.tick(1000); home.render();
-  await select(`${slotId}-right`);
-  const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
-  assert(sheet, '안내 중에도 일반 칸 선택으로 재료 목록을 열 수 있다');
-  sheet.props.onClose(); sheet.props.onMove(persisted[0]); home.render();
-  assert.equal(notice(), undefined);
-  firstToast.unmount();
-  await select(`${slotId}-left`);
-  assert(notice());
-  const secondToast = mount(Toast, notice().props);
-  t.after(() => secondToast.unmount());
-  animations.at(-1).finish();
-  message.props.onDismiss(); home.render();
-  assert(notice(), '이전 안내의 늦은 숨김 신호가 새 안내를 지우지 않는다');
-  t.mock.timers.tick(1000); home.render();
-  assert(notice(), '이전 안내의 만료 시점에 새 안내를 숨기지 않는다');
-  t.mock.timers.tick(1899); home.render();
-  assert(notice());
-  const fadeOut = animations.at(-1);
-  assert.equal(fadeOut.config.toValue, 0);
-  t.mock.timers.tick(1); home.render();
-  fadeOut.finish(); home.render();
-  assert.equal(notice(), undefined);
+  await move(sheet).props.onPress(); render(sheet);
+  assert.deepEqual(stored, before);
+  assert.deepEqual(list(sheet).props.data, [stored[3]]);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [stored[0].id]);
+  assert.equal(sheet.tree.props.disabled, false);
+  assert.equal(find(sheet.tree, node => node.type === 'Toast'), undefined);
+  assert.match(alerts.at(-1)[1], /이동하지 못했습니다/);
+  await move(sheet).props.onPress(); render(sheet);
+  assert.equal(attempts, 2);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+});
+
+test('담긴 재료의 삭제 성공은 공통 대기 목록도 정리한다', async t => {
+  const { stored, open, render, row } = await ingredientQueueFixture(t);
+  refreshMoveQueue().add(stored[0].id); refreshMoveQueue();
+  const sheet = await open(stored[0]);
+  ingredientRepository.deleteIngredient = async () => {};
+  row(sheet, stored[0]).props.onDelete();
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [stored[0].id]);
+  await alerts.at(-1)[2].find(button => button.text === '삭제').onPress(); render(sheet);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+});
+
+test('홈 재진입은 대기 ID를 유지하고 최신 편집·일괄 이동 결과를 배지에 반영하며 사라진 ID만 정리한다', async t => {
+  const { home, original, persisted, sheet } = await ingredientHomeFixture(t);
+  refreshMoveQueue().add(original.id); refreshMoveQueue().add('missing'); refreshMoveQueue();
+  sheet.props.onSaved({ ...original, name: '개봉 우유', expirationDate: '2026-11-08' }); home.render();
+  const currentSheet = find(home.tree, node => node.type === 'IngredientListSheet');
+  assert.equal(currentSheet.props.allIngredients.find(item => item.id === original.id).name, '개봉 우유');
+  const moved = { ...original, drawerNumber: 2 };
+  currentSheet.props.onMoved([moved]); home.render();
+  assert.equal(find(home.tree, named('FridgeInteriorMap')).props.ingredients.find(item => item.id === original.id).drawerNumber, 2);
+  assert.equal(find(home.tree, node => node.type === 'IngredientListSheet').props.position.id, sheet.props.position.id);
+  sheet.props.onClose(); home.render();
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [original.id, 'missing']);
+  persisted[0] = moved;
+  home.focusCleanup(); home.focus(); await new Promise(setImmediate); home.render();
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [original.id]);
+  const previous = repository.getRefrigerator;
+  repository.getRefrigerator = async () => { throw new Error('조회 실패'); };
+  home.focus(); await new Promise(setImmediate); home.render();
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [original.id]);
+  repository.getRefrigerator = previous;
 });
 
 test('공통 Toast는 페이드인 0.2초·유지 2.5초·페이드아웃 0.2초 후 콜백 변경과 관계없이 종료한다', t => {
@@ -3143,113 +3233,8 @@ test('공통 Toast는 안내 교체·제거 시 타이머와 애니메이션을 
   assert.equal(animations.length, count);
 });
 
-test('이동·취소를 반복해도 닫힌 도면 크기와 열린 도면의 크기·중심·표시 영역을 유지한다', async t => {
-  const { home, focus, cancel, sourceRow, slotId, original, moveModes } = await ingredientMoveFixture(t);
-  const snapshot = () => {
-    const scene = children(home.tree)[0];
-    const config = find(home.tree, named('FridgeInteriorMap'));
-    const map = mount(config.type, config.props);
-    map.tree.props.onLayout({ nativeEvent: { layout: { width: 327, height: 420 } } }); map.render();
-    const canvas = flattenStyle(children(map.tree)[0].props.style);
-    map.unmount();
-    return { scene: flattenStyle(scene.props.style), canvas, viewport: focus().props.viewport,
-      geometry: getFridgeFocusGeometry(focus().props.draft, focus().props.target, focus().props.viewport, focus().props.sizeViewport) };
-  };
-  const before = snapshot();
-  const overlay = mount(focus().type, focus().props);
-  t.after(() => overlay.unmount());
-  const repositioned = [];
-  for (const scroll of findAll(overlay.tree, node => node.type === 'ScrollView')) {
-    scroll.props.ref.current = { scrollTo: value => repositioned.push(value) };
-  }
-  const legend = () => find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.top === false);
-  for (let count = 0; count < 3; count++) {
-    assert.equal(legend().props.pointerEvents, 'none');
-    cancel().props.onPress(); home.render();
-    overlay.props = focus().props; overlay.render();
-    assert.deepEqual(snapshot(), before, '취소해도 도면 좌표·크기를 유지한다');
-    assert.equal(legend().props.pointerEvents, 'box-none');
-    assert.equal(legend().type, 'SafeAreaView', '범례는 제거하지 않고 표시만 전환한다');
-    focus().props.onSelectSlot(sourceRow.compartments[0].id, 0, `${slotId}-left`); home.render();
-    const sheet = find(home.tree, node => node.type === 'IngredientListSheet');
-    sheet.props.onClose(); sheet.props.onMove(original); home.render();
-    overlay.props = focus().props; overlay.render();
-    assert.deepEqual(snapshot(), before, '이동 안내가 다시 나와도 도면 좌표·크기를 유지한다');
-  }
-  assert.deepEqual(repositioned, [], '이동 전후 좌우·상하 스크롤을 초기 위치로 되돌리지 않는다');
-  home.unmount();
-  assert.equal(moveModes.at(-1), false);
-});
-
-test('하단 이동 안내는 항상 같은 크기로 남고 네이티브 탭 위에서 터치·표시만 전환한다', async t => {
-  for (const platform of ['ios', 'android']) await t.test(platform, t => {
-    const previousPlatform = native.Platform.OS;
-    native.Platform.OS = platform;
-    t.after(() => { native.Platform.OS = previousPlatform; });
-    let cancelled = 0;
-    const bar = mount(IngredientMoveBar, { move: null });
-    t.after(() => bar.unmount());
-    if (platform === 'ios') {
-      assert.equal(bar.tree.type, 'FullWindowOverlay');
-      assert.equal(bar.tree.props.unstable_accessibilityContainerViewIsModal, false, '도면 접근성과 터치를 유지한다');
-    }
-    const root = () => platform === 'ios' ? children(bar.tree)[0] : bar.tree;
-    root().props.onLayout({ nativeEvent: { layout: { height: 128 } } }); bar.render();
-    const dimensions = () => {
-      const { opacity, transform, ...style } = flattenStyle(root().props.style);
-      return style;
-    };
-    const before = dimensions();
-    for (const move of [null,
-      { name: '계란', quantity: '2개', isSaving: false, onCancel() { cancelled++; } },
-      { name: '아주 긴 재료 이름'.repeat(10), quantity: '한 봉지', isSaving: true, onCancel() { cancelled++; } }, null]) {
-      bar.props.move = move; bar.render();
-      if (move) animations.at(-1).finish();
-      assert.deepEqual(dimensions(), before);
-      assert.equal(root().props.pointerEvents, move ? 'auto' : 'none');
-      assert.equal(root().props.accessibilityElementsHidden, !move);
-      const opacity = flattenStyle(root().props.style).opacity;
-      assert.equal(move ? opacity.value : opacity, move ? 1 : 0);
-      assert.equal(find(bar.tree, node => node.type === 'Text' && node.props.numberOfLines === 1).props.numberOfLines, 1);
-      assert.equal(find(bar.tree, node => node.props.accessibilityLabel === '재료 이동 중').props.animating, !!move?.isSaving);
-      find(bar.tree, node => node.props.accessibilityLabel === '재료 이동 취소').props.onPress();
-    }
-    assert.equal(cancelled, 1);
-    assert.equal(find(bar.tree, named('FloatingIconButton')), undefined, '취소 버튼은 지연 측정하는 SwiftUI Host를 사용하지 않는다');
-  });
-});
-
-test('이동 안내는 올라오는 애니메이션만 사용하고 취소하면 즉시 숨긴 뒤 재진입한다', t => {
-  const bar = mount(IngredientMoveBar, { move: null });
-  t.after(() => bar.unmount());
-  const root = () => native.Platform.OS === 'ios' ? children(bar.tree)[0] : bar.tree;
-  root().props.onLayout({ nativeEvent: { layout: { height: 140 } } }); bar.render();
-  const move = { name: '계란', quantity: '2개', isSaving: false, onCancel() {} };
-  bar.props.move = move; bar.render();
-  const enter = animations.at(-1);
-  assert.equal(enter.config.toValue, 1);
-  assert.equal(enter.config.duration, 280);
-  assert.equal(enter.config.useNativeDriver, true);
-  assert.deepEqual(flattenStyle(root().props.style).transform[0].translateY.outputRange, [140, 0]);
-  bar.props.move = { ...move, isSaving: true }; bar.render();
-  assert.strictEqual(animations.at(-1), enter, '저장 상태 변경으로 진입 애니메이션을 다시 시작하지 않는다');
-  const count = animations.length;
-  bar.props.move = null; bar.render();
-  assert.equal(enter.stopped, true);
-  assert.equal(animations.length, count, '닫기 애니메이션을 생성하지 않는다');
-  assert.equal(enter.value.value, 0);
-  assert.equal(flattenStyle(root().props.style).opacity, 0);
-  assert.equal(root().props.pointerEvents, 'none');
-  bar.props.move = move; bar.render();
-  const reopened = animations.at(-1);
-  reopened.finish();
-  assert.equal(flattenStyle(root().props.style).opacity.value, 1);
-  bar.unmount();
-  assert.equal(reopened.stopped, true);
-});
-
-test('홈은 이동 안내의 예약 공간 없이 기존 안전 영역과 전체 높이를 사용한다', async t => {
-  const { home, focus } = await ingredientMoveFixture(t);
+test('홈은 기존 안전 영역과 전체 높이를 사용한다', async t => {
+  const { home, focus } = await ingredientHomeFixture(t);
   const background = children(home.tree)[0];
   assert.equal(background.type, 'SafeAreaView');
   assert.deepEqual(background.props.edges, { top: true, bottom: true, left: true, right: true });
@@ -3259,12 +3244,12 @@ test('홈은 이동 안내의 예약 공간 없이 기존 안전 영역과 전�
   assert.equal(focus().props.phase, 'open');
 });
 
-test('홈 중앙 보기는 이동·취소에 관계없이 기존 화면 전체의 같은 좌표 기준을 사용한다', async t => {
-  const { home, focus, cancel } = await ingredientMoveFixture(t);
+test('홈 중앙 보기는 시트 종료 전후 화면 전체의 같은 좌표 기준을 사용한다', async t => {
+  const { home, focus, sheet } = await ingredientHomeFixture(t);
   const target = focus().props.target;
   const content = () => find(home.tree, node => children(node).includes(focus()));
   assert.equal(flattenStyle(content().props.style).top, 0);
-  assert.equal(content().props.pointerEvents, 'box-none');
+  assert.equal(content().props.pointerEvents, 'none');
   const viewport = find(home.tree, node => node.props.ref && node.props.onLayout);
   viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 460 } } }); home.render();
   const draft = structuredClone(focus().props.draft);
@@ -3277,15 +3262,16 @@ test('홈 중앙 보기는 이동·취소에 관계없이 기존 화면 전체�
   assert(bounds.y + geometry.focusedTop + geometry.scrollViewportHeight <= 460);
   near(bounds.y + geometry.top + geometry.height / 2, geometry.source.y + geometry.source.height / 2,
     '문을 닫을 때 원래 도면 좌표로 돌아간다');
-  cancel().props.onPress(); home.render();
+  sheet.props.onClose(); home.render();
+  assert.equal(content().props.pointerEvents, 'box-none');
   assert.equal(flattenStyle(content().props.style).top, 0);
   assert.equal(focus().props.viewport.y, 0);
   assert.equal(focus().props.viewport.height, 460);
   assert.deepEqual(focus().props.target, target);
 });
 
-test('닫힌 홈 도면은 안내 높이나 실측 영역에 맞춰 축소하지 않고 기존 공통 크기를 유지한다', async t => {
-  const { home } = await ingredientMoveFixture(t);
+test('닫힌 홈 도면은 실측 영역에 맞춰 축소하지 않고 기존 공통 크기를 유지한다', async t => {
+  const { home } = await ingredientHomeFixture(t);
   const config = find(home.tree, named('FridgeInteriorMap'));
   let draft = model.createRefrigeratorDraft();
   draft = model.addDraftRow(model.addDraftRow(draft));
