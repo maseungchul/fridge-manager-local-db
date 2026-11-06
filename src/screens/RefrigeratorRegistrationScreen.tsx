@@ -6,7 +6,7 @@
  * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
  * 편집은 저장된 구성을 불러오며, 전체 저장 실패 시 입력을 유지하고 성공 알림 확인 후 홈으로 돌아간다.
  * 편집 화면의 이름 변경은 구조 초안을 유지한 채 별도로 저장한다.
- * 내부 설정의 홈 버튼은 툴바·하위 설정 위에 띄우고 저장하지 않은 초안을 종료한다.
+ * 내부 설정의 홈 아이콘은 상단 뒤로가기 오른쪽에 배치하고 저장하지 않은 초안을 종료한다.
  */
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -23,7 +23,6 @@ import { QuantityStepper, QUANTITY_STEPPER_WIDTH } from '@/components/QuantitySt
 import { alertTitles } from '@/constants/alertTitles';
 import { getRefrigerator, registerRefrigerator, updateRefrigerator, updateRefrigeratorName } from '@/db/refrigeratorRepository';
 import { FridgeStructurePreview, STRUCTURE_PREVIEW_ASPECT_RATIO } from '@/features/fridge/components/FridgeStructurePreview';
-import { FloatingIconButton } from '@/components/FloatingIconButton';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusTarget } from '@/features/fridge/components/FridgeInteriorMap';
 import { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } from '@/features/fridge/components/FridgeAreaMenu';
@@ -37,10 +36,8 @@ import {
 import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { colors, spacing } from '@/theme/tokens';
-import { headerStyles } from '@/theme/headerStyles';
-import {
-  FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE, FRIDGE_SUBMENU_HEIGHT, FRIDGE_SUBMENU_BOTTOM_SPACE,
-} from '@/features/fridge/components/fridgeDiagramLayout';
+import { HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
+import { FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 
 type RefrigeratorRegistrationScreenProps = NativeStackScreenProps<
   RootStackParamList,
@@ -78,7 +75,6 @@ export function RefrigeratorRegistrationScreen({
   const structurePreviewWidth = Math.max(1, Math.min(STRUCTURE_PREVIEW_MAX_WIDTH,
     stepWidth - spacing.lg * 2 - STRUCTURE_CONTROL_WIDTH - spacing.xs));
   const [stepHeight, setStepHeight] = useState(0);
-  const [toolbarHeight, setToolbarHeight] = useState(0);
   const leaveRequested = useRef(false);
   const saving = useRef(false);
   const stepAnimation = useRef(new Animated.Value(0)).current;
@@ -114,11 +110,6 @@ export function RefrigeratorRegistrationScreen({
     || menuCategory === 'opening' && (selectedDoor || isMergedBody)
     || menuCategory === 'slots' && (isDrawerBody || !storageEnabled)
     ? null : menuCategory;
-  const isToolbarVisible = step === 'configuration' && !!activeFocus && focusPhase === 'open';
-  // 도면의 배치 공간을 바꾸지 않고 실제 툴바·하위 설정의 위쪽에 홈 버튼만 이동한다.
-  const homeButtonBottom = spacing.md + (isToolbarVisible
-    ? toolbarHeight + (activeMenuCategory ? FRIDGE_SUBMENU_HEIGHT + FRIDGE_SUBMENU_BOTTOM_SPACE : 0)
-    : insets.bottom);
   useEffect(() => () => {
     stepChanging.current = false;
     stepAnimation.stopAnimation();
@@ -317,7 +308,7 @@ export function RefrigeratorRegistrationScreen({
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      {/* 상단 아이콘은 왼쪽 이전 이동, 오른쪽 다음 이동·등록으로 고정한다. */}
+      {/* 상단 아이콘은 왼쪽 이전 이동·홈, 오른쪽 다음 이동·등록으로 고정한다. */}
       <View style={[styles.header, activeFocus && styles.focusHeader]}>
         {/* 큰 도면이 헤더에 닿아도 제목·여백은 바깥 닫기로 처리하고 기존 버튼은 위에 유지한다. */}
         {activeFocus ? <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button"
@@ -325,31 +316,39 @@ export function RefrigeratorRegistrationScreen({
           disabled={isSaving || focusPhase !== 'open'} accessibilityState={{ disabled: isSaving || focusPhase !== 'open' }}
           pointerEvents={!isSaving && focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={isSaving || focusPhase !== 'open'}
           importantForAccessibility={!isSaving && focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
-        <View style={styles.headerNavigation}>
+        <View style={[styles.headerNavigation, step === 'configuration' && styles.headerHomeNavigation]}>
           <FeedbackPressable accessibilityRole="button"
             accessibilityLabel={step === 'basic' ? (isEditing ? '냉장고 편집 취소' : '냉장고 등록 취소') : '기본 정보로 돌아가기'}
             accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
             disabled={isSaving || isStepChanging || isFocusMoving}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
-            <MaterialDesignIcons name="arrow-left" size={32} color={colors.text} accessible={false} />
+            <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
+          {step === 'configuration' ? (
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel="홈으로 이동"
+              accessibilityHint="저장하지 않은 편집을 종료하고 홈으로 이동합니다."
+              accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
+              disabled={isSaving || isStepChanging || isFocusMoving} onPress={cancelRegistration}>
+              <MaterialDesignIcons name="home" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+            </FeedbackPressable>
+          ) : null}
         </View>
         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
           pointerEvents={activeFocus ? 'none' : 'auto'}
           style={styles.title}>{isEditing ? '냉장고 편집' : '냉장고 등록'}</Text>
-        <View style={[styles.headerNavigation, styles.headerNextNavigation]}>
+        <View style={[styles.headerNavigation, step === 'configuration' && styles.headerHomeNavigation, styles.headerNextNavigation]}>
           {step === 'basic' ? (
             <FeedbackPressable accessibilityRole="button" accessibilityLabel="내부 설정으로 이동"
               accessibilityState={{ disabled: !draft.name.trim() || isSaving || isStepChanging || isUnavailable }} style={styles.headerIconButton}
               disabled={!draft.name.trim() || isSaving || isUnavailable} interactionBlocked={isStepChanging} onPress={() => changeStep('configuration')}>
-              <MaterialDesignIcons name="arrow-right" size={32} color={colors.text} accessible={false} />
+              <MaterialDesignIcons name="arrow-right" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : (
             <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '냉장고 수정 저장' : '냉장고 등록'}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving, busy: isSaving }}
               disabled={isSaving} interactionBlocked={isStepChanging || isFocusMoving} onPress={saveRegistration} style={styles.headerIconButton}>
               {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 저장 중" />
-                : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={32} color={colors.text} accessible={false} />}
+                : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
             </FeedbackPressable>
           )}
         </View>
@@ -492,7 +491,6 @@ export function RefrigeratorRegistrationScreen({
               {pageStep === 'configuration' && activeFocus ? (
                 <View pointerEvents={focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={focusPhase !== 'open'}
                   importantForAccessibility={focusPhase === 'open' ? 'auto' : 'no-hide-descendants'}
-                  onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
                   style={[styles.configurationToolbar, { paddingBottom: insets.bottom, opacity: focusPhase === 'open' ? 1 : 0 }]}>
                   <FridgeAreaMenu disabled={!selectedAreaId || isSaving || isStepChanging || isFocusMoving}
                     activeCategory={activeMenuCategory} onCategoryChange={setMenuCategory}
@@ -533,12 +531,6 @@ export function RefrigeratorRegistrationScreen({
         </Animated.View>
       </View>
       </>}
-      {step === 'configuration' ? (
-        <FloatingIconButton label="홈" icon="home" accessibilityLabel="홈으로 이동"
-          accessibilityHint="저장하지 않은 편집을 종료하고 홈으로 이동합니다."
-          disabled={isSaving || isStepChanging || isFocusMoving} onPress={cancelRegistration}
-          style={[styles.homeButtonPosition, { bottom: homeButtonBottom }]} />
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -592,21 +584,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.toolbar,
     zIndex: 30,
   },
-  homeButtonPosition: {
-    position: 'absolute',
-    left: spacing.lg,
-    zIndex: 40,
-  },
   header: {
     ...headerStyles.header,
-    gap: spacing.xs,
   },
   headerNavigation: {
-    width: 64,
-    alignItems: 'flex-start',
+    width: FRIDGE_HEADER_BUTTON_SIZE,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  // 홈 아이콘이 있어도 제목이 중앙에 오도록 좌우 버튼 영역의 너비를 맞춘다.
+  headerHomeNavigation: {
+    width: FRIDGE_HEADER_BUTTON_SIZE * 2,
   },
   headerNextNavigation: {
-    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
   },
   headerIconButton: {
     width: FRIDGE_HEADER_BUTTON_SIZE,

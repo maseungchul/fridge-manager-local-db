@@ -8,12 +8,13 @@ import { colors, spacing } from '@/theme/tokens';
 
 export const HEADER_CONTENT_HEIGHT = 48;
 export const HEADER_HEIGHT = HEADER_CONTENT_HEIGHT + spacing.xs * 2 + StyleSheet.hairlineWidth;
+export const HEADER_ICON_SIZE = 28;
 
 export const headerStyles = StyleSheet.create({
   header: {
-    minHeight: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.xs,
+    minHeight: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
-  title: { color: colors.text, fontSize: 22, lineHeight: 28, fontWeight: '700', includeFontPadding: false },
+  title: { color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: '700', includeFontPadding: false },
 });

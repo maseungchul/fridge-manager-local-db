@@ -606,7 +606,7 @@ test('모든 화면·재료 시트는 홈의 xs 상단 간격과 같은 헤더 �
   assert.equal(reference.header.paddingTop, tokens.spacing.xs);
   assert.equal(reference.header.paddingBottom, tokens.spacing.xs);
   assert.equal(reference.header.minHeight, 48 + tokens.spacing.xs * 2 + native.StyleSheet.hairlineWidth);
-  assert.equal(reference.title.fontSize, 22);
+  assert.equal(reference.title.fontSize, 20);
   function assertHeader(instance, title) {
     const actual = headerOf(instance, title);
     for (const key of ['minHeight', 'paddingTop', 'paddingBottom', 'paddingHorizontal', 'alignItems']) {
@@ -656,7 +656,7 @@ test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이�
   const back = find(basic.tree, node => node.props.accessibilityLabel === '냉장고 등록 취소');
   const icon = find(back, node => node.type === 'Icon');
   assert.equal(icon.props.name, 'arrow-left');
-  assert.equal(icon.props.size, 32);
+  assert.equal(icon.props.size, 28);
   assert.equal(find(back, node => node.type === 'Text'), undefined);
   assert.equal(flattenStyle(back.props.style).width, 48);
   assert.equal(flattenStyle(back.props.style).height, 48);
@@ -681,7 +681,7 @@ test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이�
     const register = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
     const registerIcon = find(register, node => node.type === 'Icon');
     assert.equal(registerIcon.props.name, 'checkbox-marked-circle-plus-outline');
-    assert.equal(registerIcon.props.size, 32);
+    assert.equal(registerIcon.props.size, 28);
     assert.equal(flattenStyle(register.props.style).width, 48);
     assert.equal(flattenStyle(register.props.style).height, 48);
     assert.equal(find(register, node => node.type === 'Text'), undefined);
@@ -807,18 +807,27 @@ test('편집 내부 설정의 홈 버튼은 도면·메뉴·이전 단계를 거
   });
 });
 
-test('홈 버튼은 안전 영역·실제 툴바·하위 메뉴 위로 이동하고 도면 위치와 크기를 유지한다', t => {
+test('홈 아이콘은 뒤로가기 오른쪽 헤더에 고정하고 메뉴를 열어도 도면 위치와 크기를 유지한다', t => {
   let removed = 0;
   const { screen, viewport, map, target } = registrationFixture(2, 2, {
     goBack() { removed++; }, dispatch() {},
   });
   t.after(() => screen.unmount());
   const home = () => homeButton(screen);
-  const control = () => find(screen.tree, named('FloatingIconButton'));
-  const position = () => flattenStyle(control().props.style);
-  assert.equal(position().position, 'absolute');
-  assert.equal(position().left, tokens.spacing.lg);
-  assert.equal(position().bottom, 34 + tokens.spacing.md);
+  const header = () => children(screen.tree)[0];
+  const navigation = () => children(header()).filter(node => node.type === 'View');
+  const [left, right] = navigation();
+  assert.equal(children(left)[0].props.accessibilityLabel, '기본 정보로 돌아가기');
+  assert.strictEqual(children(left)[1], home());
+  assert.equal(flattenStyle(left.props.style).flexDirection, 'row');
+  assert.equal(flattenStyle(left.props.style).width, flattenStyle(right.props.style).width);
+  assert.equal(flattenStyle(home().props.style).width, 48);
+  assert.equal(flattenStyle(home().props.style).height, 48);
+  assert.equal(find(screen.tree, named('FloatingIconButton')), undefined);
+  const icon = children(home())[0];
+  assert.equal(icon.props.name, 'home');
+  assert.equal(icon.props.size, children(children(left)[0])[0].props.size);
+  assert.equal(icon.props.color, children(children(left)[0])[0].props.color);
   const closedSize = structuredClone(map.props.layoutSize);
   viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
   map.props.onFocus(target);
@@ -826,27 +835,21 @@ test('홈 버튼은 안전 영역·실제 툴바·하위 메뉴 위로 이동하
   assert.equal(homeButtonDisabled(home()), true);
   home().props.onPress();
   assert.equal(removed, 0);
-  const toolbar = find(screen.tree, node => children(node).some(child => child.type === 'FridgeAreaMenu'));
-  toolbar.props.onLayout({ nativeEvent: { layout: { height: 120 } } });
   find(screen.tree, named('FridgeFocusView')).props.onPhaseChange('open');
   screen.render();
   assert.equal(homeButtonDisabled(home()), false);
-  assert.equal(position().bottom, 120 + tokens.spacing.md);
   const focus = find(screen.tree, named('FridgeFocusView'));
   const bounds = structuredClone(focus.props.viewport);
   const openedSize = structuredClone(focus.props.sizeViewport);
   find(screen.tree, node => node.type === 'FridgeAreaMenu').props.onCategoryChange('slots');
   screen.render();
-  assert.equal(position().bottom, 120 + diagramLayoutModule.FRIDGE_SUBMENU_HEIGHT
-    + diagramLayoutModule.FRIDGE_SUBMENU_BOTTOM_SPACE + tokens.spacing.md);
   assert.deepEqual(find(screen.tree, named('FridgeFocusView')).props.viewport, bounds);
   assert.deepEqual(find(screen.tree, named('FridgeFocusView')).props.sizeViewport, openedSize);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.layoutSize, closedSize);
-  assert(children(screen.tree).includes(control()), '홈 버튼은 단계·도면 배치 밖에 떠 있어야 한다');
+  assert.strictEqual(children(navigation()[0])[1], home());
   find(screen.tree, named('FridgeFocusView')).props.onClose();
   screen.render();
   assert.equal(homeButtonDisabled(home()), true);
-  assert.equal(position().bottom, 34 + tokens.spacing.md);
   home().props.onPress();
   assert.equal(removed, 0);
 });
@@ -2150,7 +2153,7 @@ test('추가도 같은 시트를 사용하고 날짜 선택·해제와 목록 �
   for (const button of [input('재료 목록으로 돌아가기'), save()]) {
     assert.equal(flattenStyle(button.props.style).width, 48);
     assert.equal(flattenStyle(button.props.style).height, 48);
-    assert.equal(find(button, node => node.type === 'Icon').props.size, 32);
+    assert.equal(find(button, node => node.type === 'Icon').props.size, 28);
   }
   assert.equal(find(save(), node => node.type === 'Icon').props.name, 'checkbox-marked-circle-plus-outline');
   assert.equal(find(sheet.tree, node => node.props.label === '저장'), undefined);

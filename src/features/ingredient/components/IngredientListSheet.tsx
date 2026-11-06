@@ -25,7 +25,7 @@ import { IngredientSwipeRow } from '@/features/ingredient/components/IngredientS
 import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
-import { HEADER_CONTENT_HEIGHT, headerStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
 
 interface IngredientListSheetProps {
   position: SlotPosition;
@@ -352,12 +352,12 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 목록으로 돌아가기"
                             disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
                             onPress={returnToList} style={styles.headerIconButton}>
-                            <MaterialDesignIcons name="arrow-left" size={32} color={colors.text} accessible={false} />
+                            <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
-                        ) : null}
+                        ) : <View style={styles.headerIconButton} pointerEvents="none" />}
                         <View style={styles.heading}>
                           <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
-                            style={[styles.title, secondary && styles.centeredTitle]}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : queuePage ? `이동 대기 ${queuedIngredients.length}개` : '재료 목록'}</Text>
+                            style={styles.title}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : queuePage ? `이동 대기 ${queuedIngredients.length}개` : '재료 목록'}</Text>
                         </View>
                         {formPage ? (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '재료 수정 저장' : '재료 등록'}
@@ -365,7 +365,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                             disabled={!canSave || isSaving} interactionBlocked={isChanging}
                             onPress={saveIngredient} style={styles.headerIconButton}>
                             {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? '재료 수정 중' : '재료 등록 중'} />
-                              : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={32} color={colors.text} accessible={false} />}
+                              : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
                           </FeedbackPressable>
                         ) : queuePage ? (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 전체 비우기"
@@ -373,13 +373,13 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                             accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
                             onPress={() => { if (!saving.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
                             style={styles.headerIconButton}>
-                            <MaterialDesignIcons name="clipboard-remove-outline" size={32} color={colors.text} accessible={false} />
+                            <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                         ) : (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 추가"
                             accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
                             interactionBlocked={isChanging} onPress={startAdding} style={styles.headerIconButton}>
-                            <MaterialDesignIcons name="plus" size={32} color={colors.text} accessible={false} />
+                            <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                         )}
                       </View>
@@ -538,8 +538,7 @@ const styles = StyleSheet.create({
     ...headerStyles.header,
   },
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
-  title: headerStyles.title,
-  centeredTitle: { textAlign: 'center' },
+  title: { ...headerStyles.title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   content: { flex: 1, overflow: 'hidden' },
   pageTrack: { flex: 1, flexDirection: 'row' },

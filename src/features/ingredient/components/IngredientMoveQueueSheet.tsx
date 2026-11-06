@@ -14,7 +14,7 @@ import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueu
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { colors, spacing } from '@/theme/tokens';
-import { headerStyles } from '@/theme/headerStyles';
+import { HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
 
 interface IngredientMoveQueueSheetProps {
   ingredients: Ingredient[];
@@ -42,7 +42,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
           <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 전체 비우기"
             disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
             onPress={clear} style={styles.clearButton}>
-            <MaterialDesignIcons name="clipboard-remove-outline" size={32} color={colors.text} accessible={false} />
+            <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
         </View>
         <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false} onRemove={remove} />
