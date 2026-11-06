@@ -25,6 +25,7 @@ import { IngredientSwipeRow } from '@/features/ingredient/components/IngredientS
 import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
+import { HEADER_CONTENT_HEIGHT, headerStyles } from '@/theme/headerStyles';
 
 interface IngredientListSheetProps {
   position: SlotPosition;
@@ -355,7 +356,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           </FeedbackPressable>
                         ) : null}
                         <View style={styles.heading}>
-                          <Text accessibilityRole="header" style={[styles.title, secondary && styles.centeredTitle]}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : queuePage ? `이동 대기 ${queuedIngredients.length}개` : '재료 목록'}</Text>
+                          <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
+                            style={[styles.title, secondary && styles.centeredTitle]}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : queuePage ? `이동 대기 ${queuedIngredients.length}개` : '재료 목록'}</Text>
                         </View>
                         {formPage ? (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '재료 수정 저장' : '재료 등록'}
@@ -533,17 +535,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    ...headerStyles.header,
   },
-  heading: { flex: 1, minHeight: 48, justifyContent: 'center' },
-  title: { color: colors.text, fontSize: 22, lineHeight: 28, fontWeight: '700', includeFontPadding: false },
+  heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
+  title: headerStyles.title,
   centeredTitle: { textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   content: { flex: 1, overflow: 'hidden' },

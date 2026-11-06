@@ -37,6 +37,7 @@ import {
 import type { DoorOpening, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { colors, spacing } from '@/theme/tokens';
+import { headerStyles } from '@/theme/headerStyles';
 import {
   FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE, FRIDGE_SUBMENU_HEIGHT, FRIDGE_SUBMENU_BOTTOM_SPACE,
 } from '@/features/fridge/components/fridgeDiagramLayout';
@@ -597,14 +598,8 @@ const styles = StyleSheet.create({
     zIndex: 40,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    ...headerStyles.header,
     gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
   },
   headerNavigation: {
     width: 64,
@@ -625,10 +620,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   title: {
+    ...headerStyles.title,
     flex: 1,
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '700',
     textAlign: 'center',
   },
   stepIndicator: {

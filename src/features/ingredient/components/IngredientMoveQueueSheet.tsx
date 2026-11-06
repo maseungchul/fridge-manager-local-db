@@ -14,6 +14,7 @@ import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueu
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { colors, spacing } from '@/theme/tokens';
+import { headerStyles } from '@/theme/headerStyles';
 
 interface IngredientMoveQueueSheetProps {
   ingredients: Ingredient[];
@@ -37,7 +38,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
       <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={() => sheet.current?.close()}>
         <View style={styles.dragIndicator} pointerEvents="none" />
         <View style={styles.header}>
-          <Text accessibilityRole="header" style={styles.title}>이동 대기 {ingredients.length}개</Text>
+          <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>이동 대기 {ingredients.length}개</Text>
           <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 전체 비우기"
             disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
             onPress={clear} style={styles.clearButton}>
@@ -54,8 +55,7 @@ const styles = StyleSheet.create({
   panel: { flex: 1, backgroundColor: colors.surface },
   dragIndicator: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
     marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md, paddingBottom: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  title: { flexShrink: 1, color: colors.text, fontSize: 22, lineHeight: 28, fontWeight: '700', includeFontPadding: false },
+  header: { ...headerStyles.header, justifyContent: 'space-between' },
+  title: { ...headerStyles.title, flexShrink: 1 },
   clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
 });

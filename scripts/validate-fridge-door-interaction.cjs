@@ -139,6 +139,7 @@ let menuModule;
 let moveQueueModule;
 let quantityStepperModule;
 let diagramLayoutModule;
+let headerStylesModule;
 let toolbarStylesModule;
 let iosHomeButtonModule;
 let defaultHomeButtonModule;
@@ -198,6 +199,7 @@ function loadComponent(path, overrides = {}) {
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
     '@/features/fridge/components/FridgeInteriorMap': interiorModule,
     '@/features/fridge/components/fridgeDiagramLayout': diagramLayoutModule,
+    '@/theme/headerStyles': headerStylesModule,
     '@/features/fridge/components/fridgeToolbarStyles': toolbarStylesModule,
     '@/features/fridge/components/FridgeAreaMenu': { ...menuModule, FridgeAreaMenu: 'FridgeAreaMenu' },
     '@/features/fridge/components/FridgeStructurePreview': {
@@ -233,6 +235,7 @@ defaultHomeButtonModule = loadComponent('src/components/FloatingIconButton.tsx')
 badgeModule = loadComponent('src/features/ingredient/components/IngredientCountBadges.tsx');
 legendModule = loadComponent('src/features/fridge/components/FridgeIngredientLegend.tsx');
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
+headerStylesModule = loadComponent('src/theme/headerStyles.ts');
 diagramLayoutModule = loadComponent('src/features/fridge/components/fridgeDiagramLayout.ts');
 toolbarStylesModule = loadComponent('src/features/fridge/components/fridgeToolbarStyles.ts');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
@@ -586,6 +589,66 @@ test('닫힌 도면은 단을 여백 없이 붙이고 문에 선택 테두리를
       near(end, canvasStyle.width);
     }
   }
+});
+
+test('모든 화면·재료 시트는 홈의 xs 상단 간격과 같은 헤더 높이·제목 크기를 사용한다', async t => {
+  const { home } = await ingredientHomeFixture(t);
+  function headerOf(instance, title) {
+    const text = find(instance.tree, node => node.type === 'Text' && node.props.accessibilityRole === 'header'
+      && (title === undefined || [node.props.children].flat(Infinity).join('') === title));
+    assert(text, `${title ?? '홈'} 제목을 표시한다`);
+    const header = find(instance.tree, node => node.type === 'View' && flattenStyle(node.props.style).borderBottomWidth !== undefined
+      && find(node, child => child === text));
+    assert(header, `${title ?? '홈'}에 고정 헤더가 있다`);
+    assert.equal(text.props.numberOfLines, 1, '긴 제목의 줄바꿈으로 기본 헤더 높이가 달라지지 않게 한다');
+    return { header: flattenStyle(header.props.style), title: flattenStyle(text.props.style) };
+  }
+  const reference = headerOf(home);
+  assert.equal(reference.header.paddingTop, tokens.spacing.xs);
+  assert.equal(reference.header.paddingBottom, tokens.spacing.xs);
+  assert.equal(reference.header.minHeight, 48 + tokens.spacing.xs * 2 + native.StyleSheet.hairlineWidth);
+  assert.equal(reference.title.fontSize, 22);
+  function assertHeader(instance, title) {
+    const actual = headerOf(instance, title);
+    for (const key of ['minHeight', 'paddingTop', 'paddingBottom', 'paddingHorizontal', 'alignItems']) {
+      assert.equal(actual.header[key], reference.header[key], `${title}의 ${key}`);
+    }
+    for (const key of ['fontSize', 'lineHeight', 'fontWeight', 'includeFontPadding']) {
+      assert.equal(actual.title[key], reference.title[key], `${title} 제목의 ${key}`);
+    }
+  }
+  for (const [path, name, title] of [
+    ['src/screens/ShoppingScreen.tsx', 'ShoppingScreen', '장보기'],
+    ['src/screens/SettingsScreen.tsx', 'SettingsScreen', '설정'],
+  ]) {
+    const screen = mount(loadComponent(path)[name], {});
+    t.after(() => screen.unmount());
+    assertHeader(screen, title);
+  }
+  for (const editing of [false, true]) {
+    const screen = mount(RefrigeratorRegistrationScreen, {
+      navigation: { goBack() {}, dispatch() {} }, route: { params: editing ? { refrigeratorId: 'saved' } : undefined },
+    });
+    t.after(() => screen.unmount());
+    assertHeader(screen, editing ? '냉장고 편집' : '냉장고 등록');
+  }
+  const { sheet } = await ingredientFormFixture(t);
+  assertHeader(sheet, '재료 추가');
+  find(sheet.tree, node => node.props.accessibilityLabel === '재료 목록으로 돌아가기').props.onPress();
+  animations.at(-1).finish(); sheet.render();
+  assertHeader(sheet, '재료 목록');
+  const { sheet: editingSheet } = await ingredientFormFixture(t, () => {}, {
+    id: 'edit', name: '우유', quantity: '1팩', memo: null, expirationDate: null, slotId: 'slot', drawerNumber: 1,
+  });
+  assertHeader(editingSheet, '재료 편집');
+  const { IngredientMoveQueueSheet } = loadComponent('src/features/ingredient/components/IngredientMoveQueueSheet.tsx');
+  const queue = mount(IngredientMoveQueueSheet, { ingredients: [], layout: { areas: [], positions: [] }, onClose() {} });
+  t.after(() => queue.unmount());
+  assertHeader(queue, '이동 대기 0개');
+  const layout = diagramLayoutModule.getFridgeDiagramSizes({ width: 375, height: 844 }, { top: 44, bottom: 34, left: 0, right: 0 });
+  const toolbarHeight = diagramLayoutModule.FRIDGE_TOOLBAR_ACTION_HEIGHT + tokens.spacing.xs * 2 + native.StyleSheet.hairlineWidth;
+  assert.equal(layout.opened.height, 844 - 44 - reference.header.minHeight - toolbarHeight - 34 - FRIDGE_MENU_RESERVED_SPACE,
+    '도면 크기 계산도 실제 헤더 높이를 차감한다');
 });
 
 test('상단 화살표·등록 체크의 크기를 맞추고 이전 단계 이동과 입력 제한을 유지한다', () => {

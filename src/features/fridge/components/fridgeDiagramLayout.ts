@@ -5,13 +5,14 @@
  */
 import { StyleSheet } from 'react-native';
 import { spacing } from '@/theme/tokens';
+import { HEADER_CONTENT_HEIGHT, HEADER_HEIGHT } from '@/theme/headerStyles';
 
 export interface FridgeDiagramSize {
   width: number;
   height: number;
 }
 
-export const FRIDGE_HEADER_BUTTON_SIZE = 48;
+export const FRIDGE_HEADER_BUTTON_SIZE = HEADER_CONTENT_HEIGHT;
 export const FRIDGE_STEP_BADGE_SIZE = 28;
 export const FRIDGE_TOOLBAR_ACTION_HEIGHT = 56;
 export const FRIDGE_SUBMENU_HEIGHT = 82;
@@ -21,8 +22,7 @@ export const FRIDGE_MENU_RESERVED_SPACE = FRIDGE_SUBMENU_HEIGHT + FRIDGE_SUBMENU
 /** 화면별 남는 공간이 아니라 등록·편집의 같은 레이아웃을 기준으로 닫힘·열림 크기를 정한다. */
 export function getFridgeDiagramSizes(window: FridgeDiagramSize, insets: { top: number; bottom: number; left: number; right: number }) {
   const width = Math.max(1, window.width - insets.left - insets.right);
-  const headerHeight = FRIDGE_HEADER_BUTTON_SIZE + spacing.md + spacing.xs + StyleSheet.hairlineWidth;
-  const stageHeight = window.height - insets.top - headerHeight;
+  const stageHeight = window.height - insets.top - HEADER_HEIGHT;
   const stepHeight = FRIDGE_STEP_BADGE_SIZE + spacing.sm * 2;
   const toolbarHeight = FRIDGE_TOOLBAR_ACTION_HEIGHT + spacing.xs * 2 + StyleSheet.hairlineWidth;
   return {

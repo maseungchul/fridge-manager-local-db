@@ -12,6 +12,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { ActivityIndicator, Animated, AppState, BackHandler, Easing, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { colors, fridgeDoorColors, spacing } from '@/theme/tokens';
+import { headerStyles } from '@/theme/headerStyles';
 import { SafeAreaView } from 'react-native-screens/experimental';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
@@ -205,7 +206,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                 <PrimaryButton label="다시 불러오기" onPress={loadRefrigerator} />
               </> : refrigerator ? <>
                 <View style={styles.header}>
-                  <Text accessibilityRole="header" style={styles.title}>{refrigerator.name}</Text>
+                  <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{refrigerator.name}</Text>
                   <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 편집" style={styles.headerIconButton}
                     onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
                     <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
@@ -388,20 +389,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    ...headerStyles.header,
   },
   title: {
+    ...headerStyles.title,
     flex: 1,
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
   },
   headerIconButton: {
     width: FRIDGE_HEADER_BUTTON_SIZE,
