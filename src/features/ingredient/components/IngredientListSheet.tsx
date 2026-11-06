@@ -355,7 +355,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           </FeedbackPressable>
                         ) : null}
                         <View style={styles.heading}>
-                          <Text accessibilityRole="header" style={[styles.title, formPage && styles.centeredTitle]}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : queuePage ? `이동 대기 ${queuedIngredients.length}개` : '재료 목록'}</Text>
+                          <Text accessibilityRole="header" style={[styles.title, secondary && styles.centeredTitle]}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : queuePage ? `이동 대기 ${queuedIngredients.length}개` : '재료 목록'}</Text>
                         </View>
                         {formPage ? (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '재료 수정 저장' : '재료 등록'}
@@ -370,8 +370,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                             disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
                             onPress={() => { if (!saving.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
-                            style={styles.clearQueueButton}>
-                            <Text style={styles.clearDate}>전체 비우기</Text>
+                            style={styles.headerIconButton}>
+                            <MaterialDesignIcons name="clipboard-remove-outline" size={32} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                         ) : (
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 추가"
@@ -386,7 +386,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={`이동 대기 ${queuedIngredients.length}개 확인`}
                             disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
                             onPress={openMoveQueue} style={styles.queueButton}>
-                            <MaterialDesignIcons name="tray-full" size={20} color={colors.chilled} accessible={false} />
+                            <MaterialDesignIcons name="clipboard-text-outline" size={20} color={colors.chilled} accessible={false} />
                             <Text style={styles.queueLabel}>이동 대기 {queuedIngredients.length}개</Text>
                             <MaterialDesignIcons name="chevron-right" size={18} color={colors.chilled} accessible={false} />
                           </FeedbackPressable>
@@ -557,7 +557,6 @@ const styles = StyleSheet.create({
   moveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
     minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 12, backgroundColor: colors.button },
   moveLabel: { color: colors.buttonText, fontSize: 15, fontWeight: '600' },
-  clearQueueButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.xs, borderRadius: 10 },
   queuedLabel: { color: colors.chilled, fontSize: 13 },
   notice: { position: 'absolute', left: 0, right: 0, bottom: spacing.lg, alignItems: 'center' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },

@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { BackHandler, StyleSheet, Text, View } from 'react-native';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { IngredientSheet } from '@/features/ingredient/components/IngredientSheet';
 import type { IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
@@ -36,11 +37,12 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
       <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={() => sheet.current?.close()}>
         <View style={styles.dragIndicator} pointerEvents="none" />
         <View style={styles.header}>
+          <View style={styles.clearButton} pointerEvents="none" />
           <Text accessibilityRole="header" style={styles.title}>이동 대기 {ingredients.length}개</Text>
           <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 전체 비우기"
             disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
             onPress={clear} style={styles.clearButton}>
-            <Text style={styles.clearLabel}>전체 비우기</Text>
+            <MaterialDesignIcons name="clipboard-remove-outline" size={32} color={colors.text} accessible={false} />
           </FeedbackPressable>
         </View>
         <Text style={styles.guide}>옮길 칸의 재료 목록에서 ‘여기로 이동’을 누르세요.</Text>
@@ -56,8 +58,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4' },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg,
     paddingTop: spacing.md, paddingBottom: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  title: { flex: 1, color: colors.text, fontSize: 22, lineHeight: 28, fontWeight: '700' },
-  clearButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.xs, borderRadius: 10 },
-  clearLabel: { color: colors.textMuted, fontSize: 14 },
+  title: { flex: 1, color: colors.text, fontSize: 22, lineHeight: 28, fontWeight: '700', textAlign: 'center', includeFontPadding: false },
+  clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   guide: { color: colors.textMuted, fontSize: 13, lineHeight: 20, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
 });

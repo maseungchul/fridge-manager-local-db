@@ -42,7 +42,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
       style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.empty : undefined}
       ListHeaderComponent={ingredients.length > 0 ? <Text style={styles.guide}>출발 위치별 목록입니다. 단·칸은 위에서부터, 같은 단의 영역은 왼쪽부터 셉니다.</Text> : undefined}
       ListEmptyComponent={<View style={styles.emptyContent}>
-        <MaterialDesignIcons name="tray" size={40} color={colors.textMuted} accessible={false} />
+        <MaterialDesignIcons name="clipboard-outline" size={40} color={colors.textMuted} accessible={false} />
         <Text style={styles.emptyTitle}>이동 대기 중인 재료가 없어요</Text>
         <Text style={styles.guide}>재료 목록에서 왼쪽으로 밀어 담을 수 있어요.</Text>
       </View>}
