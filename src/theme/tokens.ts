@@ -39,7 +39,7 @@ export const colors = {
 // 냉장·냉동의 배지와 D-day에서 같은 색으로 일반·기한주의·경과 재료를 구분한다.
 export const ingredientBadgeColors = {
   normal: '#597D68',
-  warning: '#B35F2B',
+  warning: '#C5753C',
   expired: '#B15A5D',
 } as const;
 
