@@ -9,6 +9,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, spacing } from '@/theme/tokens';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface IngredientExpirationCalendarProps {
   value: string | null;
@@ -17,7 +18,7 @@ interface IngredientExpirationCalendarProps {
   onDismiss: () => void;
 }
 
-const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+const weekdayKeys = ['date.sunday', 'date.monday', 'date.tuesday', 'date.wednesday', 'date.thursday', 'date.friday', 'date.saturday'] as const;
 const MIN_YEAR = 1;
 const MAX_YEAR = 9999;
 
@@ -34,6 +35,8 @@ function formatCalendarDate(year: number, month: number, day: number) {
 }
 
 export function IngredientExpirationCalendar({ value, disabled = false, onSelect, onDismiss }: IngredientExpirationCalendarProps) {
+  const { t } = useTranslation();
+  const weekdays = weekdayKeys.map(key => t(key));
   const [month, setMonth] = useState(() => {
     const date = value ? new Date(`${value}T12:00:00`) : new Date();
     return { year: date.getFullYear(), month: date.getMonth() };
@@ -50,8 +53,8 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
     : view === 'months' ? month.year === MIN_YEAR : yearStart === MIN_YEAR);
   const nextDisabled = disabled || (view === 'days' ? month.year === MAX_YEAR && month.month === 11
     : view === 'months' ? month.year === MAX_YEAR : yearStart + 12 > MAX_YEAR);
-  const period = view === 'days' ? `${month.year}년 ${month.month + 1}월`
-    : view === 'months' ? `${month.year}년` : `${yearStart}–${Math.min(yearStart + 11, MAX_YEAR)}년`;
+  const period = view === 'days' ? t('date.yearMonth', { year: month.year, month: month.month + 1 })
+    : view === 'months' ? t('date.year', { year: month.year }) : t('date.year', { year: `${yearStart}–${Math.min(yearStart + 11, MAX_YEAR)}` });
 
   useEffect(() => {
     closed.current = false;
@@ -81,26 +84,26 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
       <View style={[styles.overlay, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.md,
         paddingLeft: insets.left + spacing.md, paddingRight: insets.right + spacing.md }]}
         accessibilityViewIsModal onAccessibilityEscape={() => closeCalendar()}>
-        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="유통기한 달력 닫기"
+        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={t('calendar.close')}
           onPress={() => closeCalendar()} />
         <View style={styles.popup}>
           <ScrollView style={styles.scroll} contentContainerStyle={styles.content} bounces={false} keyboardShouldPersistTaps="handled">
             <View style={styles.header}>
-              <Text accessibilityRole="header" style={styles.title}>유통기한 선택</Text>
-              <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 달력 닫기 버튼"
+              <Text accessibilityRole="header" style={styles.title}>{t('calendar.title')}</Text>
+              <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('calendar.closeButton')}
                 onPress={() => closeCalendar()} style={styles.iconButton}>
                 <MaterialDesignIcons name="close" size={22} color={colors.textMuted} accessible={false} />
               </FeedbackPressable>
             </View>
             <View style={styles.header}>
               <FeedbackPressable accessibilityRole="button"
-                accessibilityLabel={view === 'days' ? '이전 달' : view === 'months' ? '이전 연도' : '이전 연도 묶음'}
+                accessibilityLabel={view === 'days' ? t('calendar.previousMonth') : view === 'months' ? t('calendar.previousYear') : t('calendar.previousYears')}
                 accessibilityState={{ disabled: previousDisabled }} disabled={previousDisabled}
                 onPress={() => changePeriod(-1)} style={styles.iconButton}>
                 <MaterialDesignIcons name="chevron-left" size={24} color={colors.chilled} accessible={false} />
               </FeedbackPressable>
               {view === 'years' ? <Text accessibilityRole="header" style={styles.period}>{period}</Text> : (
-                <FeedbackPressable accessibilityRole="button" accessibilityLabel={view === 'days' ? '연도·월 선택' : '연도 선택'}
+                <FeedbackPressable accessibilityRole="button" accessibilityLabel={view === 'days' ? t('calendar.selectYearMonth') : t('calendar.selectYear')}
                   accessibilityValue={{ text: period }} disabled={disabled} accessibilityState={{ disabled }}
                   onPress={() => { if (!disabled && !closed.current) setView(view === 'days' ? 'months' : 'years'); }} style={styles.periodButton}>
                   <Text style={styles.periodText} maxFontSizeMultiplier={1.2}>{period}</Text>
@@ -108,7 +111,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                 </FeedbackPressable>
               )}
               <FeedbackPressable accessibilityRole="button"
-                accessibilityLabel={view === 'days' ? '다음 달' : view === 'months' ? '다음 연도' : '다음 연도 묶음'}
+                accessibilityLabel={view === 'days' ? t('calendar.nextMonth') : view === 'months' ? t('calendar.nextYear') : t('calendar.nextYears')}
                 accessibilityState={{ disabled: nextDisabled }} disabled={nextDisabled}
                 onPress={() => changePeriod(1)} style={styles.iconButton}>
                 <MaterialDesignIcons name="chevron-right" size={24} color={colors.chilled} accessible={false} />
@@ -130,7 +133,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                     const isToday = todayDate === date;
                     return (
                       <FeedbackPressable key={index} accessibilityRole="button"
-                        accessibilityLabel={`${month.year}년 ${month.month + 1}월 ${day}일${isToday ? ', 오늘' : ''}`}
+                        accessibilityLabel={`${t('date.full', { year: month.year, month: month.month + 1, day })}${isToday ? t('calendar.today') : ''}`}
                         accessibilityState={{ selected, disabled }} disabled={disabled} style={styles.dayCell}
                         onPress={() => closeCalendar(date)}>
                         <View style={[styles.dayNumber, isToday && styles.today, selected && styles.selected]}>
@@ -152,7 +155,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                     : Number(value.slice(0, 4)) === year && Number(value.slice(5, 7)) === index + 1);
                   return (
                     <FeedbackPressable key={index} accessibilityRole="button"
-                      accessibilityLabel={view === 'years' ? `${year}년 선택` : `${year}년 ${index + 1}월 선택`}
+                      accessibilityLabel={view === 'years' ? t('calendar.selectYearLabel', { year }) : t('calendar.selectMonthLabel', { year, month: index + 1 })}
                       accessibilityState={{ selected, disabled }} disabled={disabled} style={styles.periodCell}
                       onPress={() => {
                         if (disabled || closed.current) return;
@@ -161,7 +164,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                       }}>
                       <View style={[styles.periodNumber, selected && styles.selected]}>
                         <Text style={[styles.dayText, selected && styles.selectedText]} maxFontSizeMultiplier={1.2}>
-                          {view === 'years' ? `${year}년` : `${index + 1}월`}
+                          {view === 'years' ? t('date.year', { year }) : t('date.month', { month: index + 1 })}
                         </Text>
                       </View>
                     </FeedbackPressable>

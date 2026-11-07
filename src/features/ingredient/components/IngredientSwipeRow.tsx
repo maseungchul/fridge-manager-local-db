@@ -9,6 +9,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { colors, spacing } from '@/theme/tokens';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface IngredientSwipeRowProps {
   children: ReactNode;
@@ -27,6 +28,7 @@ const ACTIONS_WIDTH = 144;
 const SNAP_OFFSETS = [0, ACTIONS_WIDTH];
 
 export function IngredientSwipeRow({ children, name, width, isOpen, disabled, isQueued, onOpen, onClose, onEnqueue, onDelete }: IngredientSwipeRowProps) {
+  const { t } = useTranslation();
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const swipe = useRef({ dragging: false, pending: false });
 
@@ -63,12 +65,12 @@ export function IngredientSwipeRow({ children, name, width, isOpen, disabled, is
       <View style={[styles.content, { width }]}>{children}</View>
       <View style={styles.action} pointerEvents={isOpen && !disabled ? 'auto' : 'none'}
         accessibilityElementsHidden={!isOpen} importantForAccessibility={isOpen ? 'auto' : 'no-hide-descendants'}>
-        <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${name} ${isQueued ? '이동목록에 담김' : '이동목록에 담기'}`}
+        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.enqueueItem', { name, action: t(isQueued ? 'queue.enqueued' : 'queue.enqueue') })}
           accessibilityState={{ disabled: disabled || isQueued }} disabled={disabled || isQueued}
           onPress={() => { if (!disabled && !isQueued) onEnqueue(); }} style={[styles.actionButton, styles.moveButton]}>
           <MaterialDesignIcons name={isQueued ? 'clipboard-check-outline' : 'clipboard-plus-outline'} size={24} color={colors.chilled} accessible={false} />
         </FeedbackPressable>
-        <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${name} 삭제`}
+        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.deleteItem', { name })}
           accessibilityState={{ disabled }} disabled={disabled} feedback="danger" onPress={onDelete} style={[styles.actionButton, styles.deleteButton]}>
           <MaterialDesignIcons name="trash-can-outline" size={24} color={colors.error} accessible={false} />
         </FeedbackPressable>

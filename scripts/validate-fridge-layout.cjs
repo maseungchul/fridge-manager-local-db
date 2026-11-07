@@ -5,10 +5,11 @@
  */
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
+const { loadSource } = require('./helpers/load-source.cjs');
 const {
   changeDraftDoorCount, createRefrigeratorDraft, getAdjacentCompartment, getDraftLayout, getDraftRowGeometry, getPositionName, getPositionPath,
   mergeDraftCompartments, setDraftDoorOpening, splitDraftCompartment,
-} = require('../src/features/fridge/model/fridgeLayout.ts');
+} = loadSource('src/features/fridge/model/fridgeLayout.ts');
 
 /** 문 생성 제한과 독립된 기존 초안으로 이전 3문 배치의 합치기·분리도 검사한다. */
 function createDraftWithSlots(counts) {
@@ -247,7 +248,7 @@ test('기존 칸 이름과 관계없이 위에서부터 위치명을 만들고 �
   const layout = getDraftLayout(draft);
   const bodyPositions = layout.positions.filter(position => position.areaId === row.compartments[0].id);
   const pocketPositions = layout.positions.filter(position => position.areaId === row.doors[0].id);
-  assert.deepEqual(bodyPositions.map(getPositionName), [
+  assert.deepEqual(bodyPositions.map(position => getPositionName(position)), [
     '위에서 1번째 칸 · 왼쪽', '위에서 1번째 칸 · 오른쪽', '위에서 2번째 칸',
   ]);
   assert.deepEqual(pocketPositions.map(position => position.name), ['위에서 1번째 칸', '위에서 2번째 칸', '위에서 3번째 칸']);

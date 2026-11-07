@@ -6,7 +6,8 @@
 const assert = require('node:assert/strict');
 const { DatabaseSync } = require('node:sqlite');
 const { test } = require('node:test');
-const { initializeDatabase } = require('../src/db/initializeDatabase.ts');
+const { loadSource } = require('./helpers/load-source.cjs');
+const { initializeDatabase } = loadSource('src/db/initializeDatabase.ts');
 
 function createDatabase(t) {
   const db = new DatabaseSync(':memory:');

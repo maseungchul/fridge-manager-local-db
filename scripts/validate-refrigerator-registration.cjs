@@ -11,8 +11,10 @@ const { join, resolve } = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { test } = require('node:test');
 const ts = require('typescript');
-const model = require('../src/features/fridge/model/fridgeLayout.ts');
-const { initializeDatabase } = require('../src/db/initializeDatabase.ts');
+const { loadSource } = require('./helpers/load-source.cjs');
+const model = loadSource('src/features/fridge/model/fridgeLayout.ts');
+const { initializeDatabase } = loadSource('src/db/initializeDatabase.ts');
+const errors = loadSource('src/i18n/errors.ts');
 
 // 기존 컴포넌트 검사와 같이 경로 별칭만 실제 모델 모듈로 연결한다.
 function loadModule(path, dependencies) {
@@ -22,7 +24,7 @@ function loadModule(path, dependencies) {
   } }).outputText;
   const module = { exports: {} };
   new Function('require', 'module', 'exports', output)(
-    name => name in dependencies ? dependencies[name] : require(name), module, module.exports,
+    name => name in dependencies ? dependencies[name] : name === '@/i18n/errors' ? errors : require(name), module, module.exports,
   );
   return module.exports;
 }
@@ -34,7 +36,7 @@ const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRef
   '@/features/fridge/model/fridgeLayout': model,
 });
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
-const ingredientRegistration = require('../src/db/ingredientRegistration.ts');
+const ingredientRegistration = loadSource('src/db/ingredientRegistration.ts');
 const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient, deleteIngredient, moveIngredients } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
 });

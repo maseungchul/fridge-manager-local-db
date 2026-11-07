@@ -8,18 +8,22 @@ const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const { test, beforeEach, afterEach } = require('node:test');
 const ts = require('typescript');
-const model = require('../src/features/fridge/model/fridgeLayout.ts');
-const ingredientModel = require('../src/features/ingredient/model/ingredient.ts');
+const { loadSource } = require('./helpers/load-source.cjs');
+const model = loadSource('src/features/fridge/model/fridgeLayout.ts');
+const ingredientModel = loadSource('src/features/ingredient/model/ingredient.ts');
 const tokens = require('../src/theme/tokens.ts');
-const { alertTitles } = require('../src/constants/alertTitles.ts');
-const { fridgeMessages } = require('../src/features/fridge/constants/messages.ts');
+const { alertTitles: alertTitleKeys } = require('../src/constants/alertTitles.ts');
+const { fridgeMessages: fridgeMessageKeys } = require('../src/features/fridge/constants/messages.ts');
 const { ko } = require('../src/i18n/locales/ko.ts');
 const { ja } = require('../src/i18n/locales/ja.ts');
 const languageStorage = {
   async getItemAsync() { return null; },
   async setItemAsync() {},
 };
-let translationModule;
+const translationModule = loadSource('src/i18n/translations.ts');
+const errors = loadSource('src/i18n/errors.ts');
+const alertTitles = Object.fromEntries(Object.entries(alertTitleKeys).map(([name, key]) => [name, translationModule.defaultTranslate(key)]));
+const fridgeMessages = Object.fromEntries(Object.entries(fridgeMessageKeys).map(([name, key]) => [name, translationModule.defaultTranslate(key)]));
 let languageModule;
 const database = {};
 const alerts = [];
@@ -172,13 +176,14 @@ function loadComponent(path, overrides = {}) {
     '@/components/SelectionCheck': { SelectionCheck: 'SelectionCheck' },
     '@/i18n/locales/ko': { ko }, '@/i18n/locales/ja': { ja },
     '@/i18n/translations': translationModule,
+    '@/i18n/errors': errors,
     '@/i18n/LanguageProvider': languageModule,
     'expo-sqlite/kv-store': { __esModule: true, default: languageStorage },
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
     '@/components/QuantityStepper': quantityStepperModule,
-    '@/constants/alertTitles': { alertTitles },
-    '@/features/fridge/constants/messages': { fridgeMessages },
+    '@/constants/alertTitles': { alertTitles: alertTitleKeys },
+    '@/features/fridge/constants/messages': { fridgeMessages: fridgeMessageKeys },
     '@expo/ui/swift-ui': { Button: 'SwiftUIButton', Host: 'SwiftUIHost', Label: 'SwiftUILabel', RNHostView: 'RNHostView', BottomSheet: 'SwiftUIBottomSheet', Group: 'SwiftUIGroup' },
     '@expo/ui/swift-ui/modifiers': swiftUIModifiers,
     '@expo/ui/community/bottom-sheet': { BottomSheet: 'BottomSheet' },
@@ -197,6 +202,7 @@ function loadComponent(path, overrides = {}) {
     'expo-sqlite': { useSQLiteContext: () => database },
     '@/db/refrigeratorRepository': repository,
     '@/db/ingredientRepository': ingredientRepository,
+    '@/db/DatabaseProvider': { DatabaseProvider: 'DatabaseProvider' },
     '@/features/ingredient/components/IngredientListSheet': { IngredientListSheet: 'IngredientListSheet' },
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
@@ -232,7 +238,6 @@ function loadComponent(path, overrides = {}) {
     (...args) => { const timer = setTimeout(...args); timer.unref?.(); return timer; });
   return module.exports;
 }
-translationModule = loadComponent('src/i18n/translations.ts');
 languageModule = loadComponent('src/i18n/LanguageProvider.tsx');
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 iosHomeButtonModule = loadComponent('src/components/FloatingIconButton.ios.tsx');
@@ -992,10 +997,10 @@ test('등록 실패 시 오류를 알리고 초안을 유지해 다시 저장할
   t.after(() => screen.unmount());
   const before = structuredClone(map.props.draft);
   const saving = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록').props.onPress();
-  pending.reject(new Error('냉장·냉동을 선택해 주세요.'));
+  pending.reject(new errors.AppError('errors.storageMode', { row: 1 }));
   await saving;
   screen.render();
-  assert.deepEqual(alerts.at(-1), ['오류', '냉장·냉동을 선택해 주세요.']);
+  assert.deepEqual(alerts.at(-1), ['오류', '1단의 모든 본체에 냉장·냉동을 선택해 주세요.', [{ text: '확인' }]]);
   assert.equal(removed, 0);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
   const retry = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 등록');
@@ -1164,7 +1169,7 @@ test('이름 변경은 편집에서만 표시하고 구조 초안을 유지하�
   assert.equal(button().props.disabled, true);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft.rows, rows);
   assert.equal(removed, 0);
-  assert.deepEqual(alerts.at(-1), ['알림', '냉장고 이름을 변경했습니다.']);
+  assert.deepEqual(alerts.at(-1), ['알림', '냉장고 이름을 변경했습니다.', [{ text: '확인' }]]);
   find(screen.tree, node => node.props.accessibilityLabel === '냉장고 편집 취소').props.onPress();
   assert.equal(removed, 1);
   assert.equal(calls.length, 1);
@@ -1195,7 +1200,7 @@ test('이름 변경 실패 시 이름과 구조 초안을 유지해 다시 저�
   const before = structuredClone(find(screen.tree, named('FridgeInteriorMap')).props.draft);
   await button().props.onPress();
   screen.render();
-  assert.deepEqual(alerts.at(-1), ['오류', '검증용 이름 변경 실패']);
+  assert.deepEqual(alerts.at(-1), ['오류', fridgeMessages.nameChangeFailure, [{ text: '확인' }]]);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
   assert.equal(button().props.disabled, false);
   assert.equal(button().props.loading, false);
@@ -1259,7 +1264,7 @@ test('수정 저장에 실패하면 편집 초안을 유지해 신규 등록 없
   pending.reject(new Error('검증용 수정 실패'));
   await saving;
   screen.render();
-  assert.deepEqual(alerts.at(-1), ['오류', '검증용 수정 실패']);
+  assert.deepEqual(alerts.at(-1), ['오류', fridgeMessages.saveFailure, [{ text: '확인' }]]);
   assert.equal(removed, 0);
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
   const retry = find(screen.tree, node => node.props.accessibilityLabel === '냉장고 수정 저장');
@@ -1347,7 +1352,7 @@ test('재료 위치를 없애거나 숨기는 조작은 저장 전에 안내하�
     else entry.change(menu().props);
     screen.render();
     assert.equal(alerts.length, alertCount + 1);
-    assert.deepEqual(alerts.at(-1), [alertTitles.info, fridgeMessages.ingredientLocationChangeBlocked]);
+    assert.deepEqual(alerts.at(-1), [alertTitles.info, fridgeMessages.ingredientLocationChangeBlocked, [{ text: '확인' }]]);
     assert.strictEqual(map().props.draft, before.draft);
     assert.equal(focus()?.props.selectedPositionId, before.focus?.selectedPositionId);
     assert.strictEqual(focus()?.props.target, before.focus?.target);
@@ -1614,6 +1619,121 @@ test('종료된 언어 복원 요청은 새로 열린 앱의 언어를 덮어쓰
   await new Promise(setImmediate);
   assert.equal(refreshLanguage(closed), null);
   assert.equal(refreshLanguage().language, 'ko');
+});
+
+test('홈의 오류·빈 화면과 등록 초안은 재조회·입력 초기화 없이 현재 언어로 전환한다', async t => {
+  const previous = repository.getRefrigerator;
+  t.after(() => { repository.getRefrigerator = previous; });
+  let loads = 0;
+  repository.getRefrigerator = async () => { loads++; throw new Error('read failed'); };
+  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  const { screen } = registrationFixture();
+  t.after(() => { home.unmount(); screen.unmount(); });
+  await new Promise(setImmediate); home.render();
+  const before = structuredClone(find(screen.tree, named('FridgeInteriorMap')).props.draft);
+  await languageModule.useTranslation().changeLanguage('ja'); refreshLanguage();
+  home.render(); screen.render();
+  assert.equal(loads, 1);
+  assert.equal(find(home.tree, node => node.props.accessibilityRole === 'alert').props.children, ja['home.loadError']);
+  assert(find(home.tree, node => node.props.label === '再読み込み'));
+  assert(find(screen.tree, node => node.props.accessibilityLabel === '冷蔵庫を登録'));
+  assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
+  repository.getRefrigerator = async () => null;
+  await find(home.tree, node => node.props.label === '再読み込み').props.onPress(); home.render();
+  assert(find(home.tree, node => node.props.children === 'わが家の冷蔵庫を登録しましょう'));
+  assert(find(home.tree, node => node.props.label === '冷蔵庫を登録'));
+});
+
+test('일본어 전환 시 재료 입력을 보존하고 저장·삭제 알림의 버튼도 선택한 언어로 표시한다', async t => {
+  const previous = ingredientRepository.registerIngredient;
+  t.after(() => { ingredientRepository.registerIngredient = previous; });
+  let registered;
+  ingredientRepository.registerIngredient = async (db, input) => { registered = { id: 'saved', ...input }; return registered; };
+  const { sheet, input } = await ingredientFormFixture(t);
+  input('재료명').props.onChangeText('계란・卵');
+  input('재료 수량').props.onChangeText('2개');
+  input('재료 메모').props.onChangeText('개봉 후・開封後'); sheet.render();
+  await languageModule.useTranslation().changeLanguage('ja'); refreshLanguage(); sheet.render();
+  assert.equal(input('食材名').props.value, '계란・卵');
+  assert.equal(input('食材の数量').props.value, '2개');
+  assert.equal(input('食材のメモ').props.value, '개봉 후・開封後');
+  assert.equal(input('食材名').props.placeholder, '例：卵');
+  await input('食材を登録').props.onPress(); sheet.render();
+  assert.equal(registered.name, '계란・卵');
+  assert.equal(registered.memo, '개봉 후・開封後');
+  const success = alerts.at(-1);
+  assert.deepEqual(success.slice(0, 2), ['お知らせ', '食材を登録しました。']);
+  assert.equal(success[2][0].text, '確認');
+  success[2][0].onPress(); animations.at(-1).finish(); sheet.render();
+  await new Promise(setImmediate); sheet.render();
+  const row = find(sheet.tree, node => node.type === 'FlatList').props.renderItem({ item: registered });
+  row.props.onDelete(); sheet.render();
+  assert.equal(alerts.at(-1)[0], '警告');
+  assert(alerts.at(-1)[1].includes('「계란・卵」'));
+  assert.deepEqual(alerts.at(-1)[2].map(button => button.text), ['キャンセル', '削除']);
+  alerts.at(-1)[2][0].onPress();
+});
+
+test('일본어 달력은 요일·연월·접근성 문구를 바꾸고 선택 날짜는 기존 저장 형식으로 전달한다', async t => {
+  let selected;
+  const calendar = mount(IngredientExpirationCalendar, { value: '2028-02-29', onSelect(date) { selected = date; }, onDismiss() {} });
+  t.after(() => calendar.unmount());
+  await languageModule.useTranslation().changeLanguage('ja'); refreshLanguage(); calendar.render();
+  const labels = findAll(calendar.tree, node => node.type === 'Text').map(node => node.props.children);
+  assert(labels.includes('賞味期限を選択'));
+  assert(labels.includes('2028年2月'));
+  assert.deepEqual(labels.filter(label => ['日', '月', '火', '水', '木', '金', '土'].includes(label)), ['日', '月', '火', '水', '木', '金', '土']);
+  assert(find(calendar.tree, node => node.props.accessibilityLabel === '前の月'));
+  find(calendar.tree, node => node.props.accessibilityLabel === '2028年2月29日').props.onPress();
+  assert.equal(selected, '2028-02-29');
+});
+
+test('일본어 도면·하위 설정·범례·이동 대기 목록은 위치와 건수까지 번역한다', async t => {
+  await languageModule.useTranslation().changeLanguage('ja'); refreshLanguage();
+  const translate = languageModule.useTranslation().t;
+  const draft = model.createRefrigeratorDraft(undefined, translate);
+  draft.rows[0].compartments[0].slots[0].id = 'slot';
+  const ingredient = { id: 'egg', name: '계란', quantity: '2개', memo: '메모', expirationDate: '2028-02-29', slotId: 'slot', drawerNumber: 0 };
+  const layout = model.getDraftLayout(draft, [ingredient], translate);
+  const map = mount(FridgeInteriorMap, { draft, ingredients: [ingredient], onSelectArea() {}, onFocus() {} });
+  const legend = mount(legendModule.FridgeIngredientLegend, { onClose() {} });
+  const menu = mount(FridgeAreaMenu, { disabled: false, activeCategory: 'mode', onCategoryChange() {},
+    showOpeningAction: true, openingDoors: [], storageMode: 'CHILLED', showSlots: true,
+    slots: draft.rows[0].compartments[0].slots, maxSlotCount: 4, selectedSlotIndex: 0, location: '上から1段目 庫内' });
+  const { IngredientMoveQueueList } = loadComponent('src/features/ingredient/components/IngredientMoveQueueList.tsx');
+  const queue = mount(IngredientMoveQueueList, { ingredients: [ingredient], layout, disabled: false, onRemove() {} });
+  t.after(() => { map.unmount(); legend.unmount(); menu.unmount(); queue.unmount(); });
+  map.tree.props.onLayout({ nativeEvent: { layout: { width: 327 } } }); map.render();
+  const group = children(children(map.tree)[0]).find(named('FridgeCompartment'));
+  const compartment = mount(group.type, group.props);
+  t.after(() => compartment.unmount());
+  const door = doors(compartment)[0];
+  assert(door.props.label.includes('上から1段目'));
+  assert(door.props.label.includes('食材1件'));
+  assert(find(menu.tree, node => node.props.accessibilityLabel === '保存モード'));
+  assert(find(menu.tree, node => node.props.accessibilityLabel === '上から1段目 庫内 冷蔵'));
+  assert(find(legend.tree, node => node.props.children === '期限切れ'));
+  const list = find(queue.tree, node => node.type === 'SectionList');
+  const section = list.props.sections[0];
+  assert.equal(section.title, '上から1段目 → 庫内 → 1番目の区画');
+  const row = list.props.renderItem({ item: ingredient, section });
+  assert(find(row, node => node.props.children === '賞味期限 2028/02/29'));
+  assert(find(row, node => node.props.accessibilityLabel === '계란を移動待ちから外す'));
+});
+
+test('DB 초기화 실패 안내는 언어를 바꾸어도 원인을 보존하고 재시도로 앱 화면을 다시 연다', async t => {
+  const { DatabaseProvider } = loadComponent('src/db/DatabaseProvider.tsx', {
+    'expo-sqlite': { SQLiteProvider: 'SQLiteProvider' }, '@/db/initializeDatabase': { initializeDatabase() {} },
+  });
+  const provider = mount(DatabaseProvider, { children: 'app-content' });
+  t.after(() => provider.unmount());
+  provider.tree.props.onError(new errors.AppError('errors.databaseVersion')); provider.render();
+  assert.equal(find(provider.tree, node => node.props.accessibilityRole === 'alert').props.children, ko['errors.databaseVersion']);
+  await languageModule.useTranslation().changeLanguage('ja'); refreshLanguage(); provider.render();
+  assert.equal(find(provider.tree, node => node.props.accessibilityRole === 'alert').props.children, ja['errors.databaseVersion']);
+  find(provider.tree, node => node.props.label === '再読み込み').props.onPress(); provider.render();
+  assert.equal(provider.tree.type, 'SQLiteProvider');
+  assert.equal(provider.tree.props.children, 'app-content');
 });
 
 test('홈은 조회가 끝난 뒤 미등록 상태에서만 등록 버튼을 표시한다', async t => {

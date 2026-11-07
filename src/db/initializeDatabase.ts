@@ -4,6 +4,7 @@
  * 테이블 생성·구조 변경과 버전 기록은 한 트랜잭션으로 처리해 실패 시 함께 취소한다.
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { AppError } from '@/i18n/errors';
 
 const DATABASE_VERSION = 5;
 
@@ -37,7 +38,7 @@ export async function initializeDatabase(db: SQLiteDatabase) {
   }
 
   if (version > DATABASE_VERSION) {
-    throw new Error('현재 앱에서 지원하지 않는 DB 버전입니다.');
+    throw new AppError('errors.databaseVersion');
   }
 
   if (version === DATABASE_VERSION) return;
@@ -56,7 +57,7 @@ export async function initializeDatabase(db: SQLiteDatabase) {
       else if (version === 2) await migrateVersion2(db);
       else await createTables(db);
       const violation = await db.getFirstAsync('PRAGMA foreign_key_check;');
-      if (violation) throw new Error('기존 냉장고 데이터의 연결 정보를 확인해 주세요.');
+      if (violation) throw new AppError('errors.databaseConnections');
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION};`);
     });
   } finally {
@@ -74,10 +75,10 @@ async function restoreVersion5(db: SQLiteDatabase) {
     .replace('memo TEXT', 'memo TEXT, CHECK (slot_id IS NOT NULL OR drawer_number = 0)');
   const normalize = (sql: string) => sql.replace('IF NOT EXISTS ', '').replace(/\s+/g, ' ').trim();
   if (!table || normalize(table.sql) !== normalize(temporarySchema)) {
-    throw new Error('현재 앱에서 지원하지 않는 DB 버전입니다.');
+    throw new AppError('errors.databaseVersion');
   }
   const unlocated = await db.getFirstAsync('SELECT id FROM ingredients WHERE slot_id IS NULL LIMIT 1;');
-  if (unlocated) throw new Error('보관 위치가 없는 재료가 있어 DB를 자동 복구할 수 없습니다. 기존 데이터는 유지했습니다.');
+  if (unlocated) throw new AppError('errors.databaseRecovery');
 
   // 기존 테이블은 복사가 끝날 때까지 남기고, 제약 검사나 저장 실패 시 구조·데이터를 함께 되돌린다.
   await db.execAsync(`
@@ -96,7 +97,7 @@ async function restoreVersion5(db: SQLiteDatabase) {
     DROP TABLE recovery_v6_ingredients;
   `);
   const violation = await db.getFirstAsync('PRAGMA foreign_key_check;');
-  if (violation) throw new Error('기존 냉장고 데이터의 연결 정보를 확인해 주세요.');
+  if (violation) throw new AppError('errors.databaseConnections');
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION};`);
 }
 

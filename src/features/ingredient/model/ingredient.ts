@@ -3,6 +3,9 @@
  * 재료의 기본 정보·보관 위치 타입과 유통기한 표시 규칙을 정의한다.
  * 도면용 위치 ID 대신 칸 UUID와 좌우 번호를 사용하며, 화면 입력과 DB 처리는 호출자가 관리한다.
  */
+import { defaultTranslate } from '@/i18n/translations';
+import type { Translator } from '@/i18n/translations';
+
 export interface Ingredient {
   id: string;
   name: string;
@@ -23,12 +26,12 @@ export interface IngredientCounts {
 }
 
 /** 시각·일광 절약 시간과 무관하게 현지 달력 날짜로 남은 일수를 계산한다. */
-export function getIngredientExpirationStatus(expirationDate: string | null, now = new Date()) {
-  if (expirationDate == null) return { label: '유통기한 미입력', isUrgent: false, isExpired: false };
+export function getIngredientExpirationStatus(expirationDate: string | null, now = new Date(), t: Translator = defaultTranslate) {
+  if (expirationDate == null) return { label: t('ingredient.noExpiration'), isUrgent: false, isExpired: false };
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   const days = Math.round((Date.parse(`${expirationDate}T00:00:00Z`) - today) / 86_400_000);
   return {
-    label: days > 0 ? `D-${days}` : days === 0 ? 'D-DAY' : `D+${-days}`,
+    label: days > 0 ? t('ingredient.remaining', { days }) : days === 0 ? t('ingredient.today') : t('ingredient.expiredDays', { days: -days }),
     isUrgent: days <= 2,
     isExpired: days < 0,
   };

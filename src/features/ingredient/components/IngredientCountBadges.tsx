@@ -8,6 +8,8 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import type { IngredientCounts } from '@/features/ingredient/model/ingredient';
 import { colors, ingredientBadgeColors } from '@/theme/tokens';
+import { defaultTranslate } from '@/i18n/translations';
+import type { Translator } from '@/i18n/translations';
 
 export const INGREDIENT_BADGE_SIZE = 28;
 const BADGE_ROW_HEIGHT = 20;
@@ -19,8 +21,12 @@ const badgeIcons = { normal: 'circle-outline', warning: 'clock-outline', expired
 export const INGREDIENT_BADGES_MAX_WIDTH = badgeKinds.length * BADGE_MAX_WIDTH;
 
 /** 색을 구별하지 못하는 경우에도 실제 건수와 기한 상태를 함께 안내한다. */
-export function getIngredientCountLabel(counts: IngredientCounts) {
-  return `재료 ${counts.total}건${counts.normal > 0 ? `, 일반 ${counts.normal}건` : ''}${counts.warning > 0 ? `, 유통기한 주의 ${counts.warning}건` : ''}${counts.expired > 0 ? `, 경과 ${counts.expired}건` : ''}`;
+export function getIngredientCountLabel(counts: IngredientCounts, t: Translator = defaultTranslate) {
+  return [t('counts.total', { count: counts.total }),
+    ...(counts.normal > 0 ? [t('counts.normal', { count: counts.normal })] : []),
+    ...(counts.warning > 0 ? [t('counts.warning', { count: counts.warning })] : []),
+    ...(counts.expired > 0 ? [t('counts.expired', { count: counts.expired })] : []),
+  ].join(', ');
 }
 
 export function IngredientCountBadge({ count, kind, style }: {

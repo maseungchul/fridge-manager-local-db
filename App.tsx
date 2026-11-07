@@ -5,8 +5,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { SQLiteProvider } from 'expo-sqlite';
-import { initializeDatabase } from '@/db/initializeDatabase';
+import { DatabaseProvider } from '@/db/DatabaseProvider';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { IngredientMoveQueueProvider } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { LanguageProvider } from '@/i18n/LanguageProvider';
@@ -15,16 +14,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <LanguageProvider>
-        <SQLiteProvider
-          databaseName="fridge-manager.db"
-          onInit={initializeDatabase}
-        >
+        <DatabaseProvider>
           <NavigationContainer>
             <IngredientMoveQueueProvider>
               <RootNavigator />
             </IngredientMoveQueueProvider>
           </NavigationContainer>
-        </SQLiteProvider>
+        </DatabaseProvider>
       </LanguageProvider>
       <StatusBar style="dark" />
     </SafeAreaProvider>

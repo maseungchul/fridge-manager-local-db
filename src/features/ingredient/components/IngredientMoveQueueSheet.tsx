@@ -15,6 +15,7 @@ import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { colors, spacing } from '@/theme/tokens';
 import { HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface IngredientMoveQueueSheetProps {
   ingredients: Ingredient[];
@@ -23,6 +24,7 @@ interface IngredientMoveQueueSheetProps {
 }
 
 export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: IngredientMoveQueueSheetProps) {
+  const { t } = useTranslation();
   const sheet = useRef<IngredientSheetRef>(null);
   const { remove, clear } = useIngredientMoveQueue();
   useEffect(() => {
@@ -38,8 +40,8 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
       <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={() => sheet.current?.close()}>
         <View style={styles.dragIndicator} pointerEvents="none" />
         <View style={styles.header}>
-          <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>이동 대기 {ingredients.length}개</Text>
-          <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 전체 비우기"
+          <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{t('queue.title', { count: ingredients.length })}</Text>
+          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.clear')}
             disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
             onPress={clear} style={styles.clearButton}>
             <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />

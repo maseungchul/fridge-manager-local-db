@@ -9,6 +9,7 @@ import {
 import type {
   DraftDoor, DrawerCount, Refrigerator, RefrigeratorDraft, SlotConfiguration, StorageMode,
 } from '@/features/fridge/model/fridgeLayout';
+import { AppError } from '@/i18n/errors';
 
 export interface RefrigeratorRegistrationData {
   refrigerator: { id: string; name: string };
@@ -39,7 +40,7 @@ export interface RefrigeratorRegistrationData {
 /** 등록·전체 수정·이름 변경에서 같은 이름 규칙과 공백 제거를 적용한다. */
 export function normalizeRefrigeratorName(name: string): string {
   const normalizedName = name.trim();
-  if (!normalizedName || normalizedName.length > 50) throw new Error('냉장고 이름은 1~50자로 입력해 주세요.');
+  if (!normalizedName || normalizedName.length > 50) throw new AppError('errors.fridgeName');
   return normalizedName;
 }
 
@@ -51,7 +52,7 @@ export function prepareRefrigeratorRegistration(
 ): RefrigeratorRegistrationData {
   const name = normalizeRefrigeratorName(draft.name);
   if (draft.rows.length < 1 || draft.rows.length > MAX_ROWS) {
-    throw new Error(`냉장고는 1~${MAX_ROWS}단으로 구성해 주세요.`);
+    throw new AppError('errors.rowCount', { max: MAX_ROWS });
   }
 
   const inputIds = new Set<string>();
@@ -61,21 +62,21 @@ export function prepareRefrigeratorRegistration(
 
   for (const [rowIndex, row] of draft.rows.entries()) {
     if (row.doors.length < 1 || row.doors.length > MAX_DOORS_PER_ROW) {
-      throw new Error(`${rowIndex + 1}단의 문은 1~${MAX_DOORS_PER_ROW}개로 구성해 주세요.`);
+      throw new AppError('errors.doorCount', { row: rowIndex + 1, max: MAX_DOORS_PER_ROW });
     }
     if (row.compartments.length < 1 || row.compartments.length > row.doors.length) {
-      throw new Error(`${rowIndex + 1}단의 본체 연결을 확인해 주세요.`);
+      throw new AppError('errors.bodyConnection', { row: rowIndex + 1 });
     }
     for (const area of [row, ...row.doors, ...row.compartments]) {
-      if (!area.id.trim() || inputIds.has(area.id)) throw new Error('단·문·본체의 식별자가 올바르지 않습니다.');
+      if (!area.id.trim() || inputIds.has(area.id)) throw new AppError('errors.areaId');
       inputIds.add(area.id);
     }
     for (const door of row.doors) {
       if ((door.kind !== 'HINGED' && door.kind !== 'DRAWER')
         || (door.side !== 'LEFT_DOOR' && door.side !== 'RIGHT_DOOR')) {
-        throw new Error(`${rowIndex + 1}단의 여는 방식을 확인해 주세요.`);
+        throw new AppError('errors.opening', { row: rowIndex + 1 });
       }
-      if (typeof door.storageEnabled !== 'boolean') throw new Error('문 수납 사용 여부를 확인해 주세요.');
+      if (typeof door.storageEnabled !== 'boolean') throw new AppError('errors.doorStorage');
       validateSlots(door.slots, MAX_DOOR_SLOTS, false, inputIds);
     }
 
@@ -88,16 +89,16 @@ export function prepareRefrigeratorRegistration(
       const connectedDoors = row.doors.slice(doorIndex, doorIndex + body.doorIds.length);
       if (body.doorIds.length < 1 || connectedDoors.length !== body.doorIds.length
         || connectedDoors.some((door, index) => door.id !== body.doorIds[index])) {
-        throw new Error(`${rowIndex + 1}단의 본체와 문 연결 순서를 확인해 주세요.`);
+        throw new AppError('errors.connectionOrder', { row: rowIndex + 1 });
       }
       const storageMode = body.storageMode;
       if (storageMode !== 'CHILLED' && storageMode !== 'FROZEN') {
-        throw new Error(`${rowIndex + 1}단의 모든 본체에 냉장·냉동을 선택해 주세요.`);
+        throw new AppError('errors.storageMode', { row: rowIndex + 1 });
       }
       const isShared = connectedDoors.length > 1;
       if (isShared && connectedDoors.some((door, index) => door.kind !== 'HINGED'
         || door.side !== (index === 0 ? 'LEFT_DOOR' : 'RIGHT_DOOR'))) {
-        throw new Error('공용 본체는 왼쪽·오른쪽으로 열리는 여닫이 문이어야 합니다.');
+        throw new AppError('errors.sharedDoors');
       }
       const kind = connectedDoors[0].kind;
       validateSlots(body.slots, kind === 'DRAWER' ? 1 : MAX_SLOTS, kind !== 'DRAWER', inputIds);
@@ -120,22 +121,22 @@ export function prepareRefrigeratorRegistration(
         data.slots.push(...createSlotRecords(door.slots, createId, null, doorId, storedDoor?.slots));
       }
     }
-    if (doorIndex !== row.doors.length) throw new Error(`${rowIndex + 1}단에 본체와 연결되지 않은 문이 있습니다.`);
+    if (doorIndex !== row.doors.length) throw new AppError('errors.unconnectedDoor', { row: rowIndex + 1 });
   }
   return data;
 }
 
 function validateSlots(slots: SlotConfiguration[], maxCount: number, allowSplit: boolean, inputIds: Set<string>) {
-  if (slots.length < 1 || slots.length > maxCount) throw new Error(`칸은 1~${maxCount}개로 구성해 주세요.`);
+  if (slots.length < 1 || slots.length > maxCount) throw new AppError('errors.slotCount', { max: maxCount });
   if (slots.some(slot => slot.drawerCount !== 0 && slot.drawerCount !== 1 && slot.drawerCount !== 2)) {
-    throw new Error('칸의 좌우 분할 설정을 확인해 주세요.');
+    throw new AppError('errors.slotSplit');
   }
   if (!allowSplit && slots.some(slot => slot.drawerCount === 2)) {
-    throw new Error('도어포켓과 서랍형 본체는 좌우로 분할할 수 없습니다.');
+    throw new AppError('errors.unsupportedSplit');
   }
   for (const slot of slots) {
     if (slot.id === undefined) continue;
-    if (!slot.id.trim() || inputIds.has(slot.id)) throw new Error('칸의 식별자가 올바르지 않습니다.');
+    if (!slot.id.trim() || inputIds.has(slot.id)) throw new AppError('errors.slotId');
     inputIds.add(slot.id);
   }
 }

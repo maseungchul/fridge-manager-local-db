@@ -9,16 +9,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INGREDIENT_BADGE_SIZE, IngredientCountBadge } from '@/features/ingredient/components/IngredientCountBadges';
 import { DoorModeArt } from '@/features/fridge/components/FridgeMap';
 import { colors, spacing } from '@/theme/tokens';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 const legendItems = [
-  { storageMode: 'CHILLED', title: '냉장' },
-  { storageMode: 'FROZEN', title: '냉동' },
-  { kind: 'normal', title: '일반', description: '주의·경과를 제외한 재료 수 (유통기한 미입력 포함)' },
-  { kind: 'warning', title: '주의', description: '유통기한이 2일 이내로 남은 재료 수 (당일 포함)' },
-  { kind: 'expired', title: '경과', description: '유통기한이 지난 재료 수' },
+  { storageMode: 'CHILLED', title: 'fridge.chilled' },
+  { storageMode: 'FROZEN', title: 'fridge.frozen' },
+  { kind: 'normal', title: 'legend.normal', description: 'legend.normalHint' },
+  { kind: 'warning', title: 'legend.warning', description: 'legend.warningHint' },
+  { kind: 'expired', title: 'legend.expired', description: 'legend.expiredHint' },
 ] as const;
 
 export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   return (
     <Modal transparent visible animationType="fade" presentationStyle="overFullScreen"
@@ -26,11 +28,11 @@ export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {
       <View style={[styles.overlay, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg,
         paddingLeft: insets.left + spacing.lg, paddingRight: insets.right + spacing.lg }]}
         accessibilityViewIsModal onAccessibilityEscape={onClose}>
-        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="재료 배지 범례 닫기" onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={t('legend.close')} onPress={onClose} />
         {/* 바깥 닫기는 뒤쪽 형제 레이어에 맡기고, 팝업은 목록의 스크롤 제스처를 가로채지 않는다. */}
         <View style={styles.popup}>
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.title}>배지 범례</Text>
+            <Text accessibilityRole="header" style={styles.title}>{t('legend.title')}</Text>
           </View>
           {/* 밝은 팝업에서 표시줄이 보이도록 검은색을 지정하고, 자체 여백으로 둥근 모서리에서 떨어뜨린다. */}
           <ScrollView style={styles.scroll} contentContainerStyle={styles.content} bounces={false} showsVerticalScrollIndicator
@@ -38,15 +40,15 @@ export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {
             scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}>
             {legendItems.map(item => (
               <View key={item.title} style={styles.item} accessible
-                accessibilityLabel={'description' in item ? `${item.title}, ${item.description}` : item.title}>
+                accessibilityLabel={'description' in item ? `${t(item.title)}, ${t(item.description)}` : t(item.title)}>
                 <View style={styles.itemHeader}>
                   <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                     {'kind' in item ? <IngredientCountBadge kind={item.kind} />
                       : <DoorModeArt storageMode={item.storageMode} size={22} style={styles.modeIcon} />}
                   </View>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
+                  <Text style={styles.itemTitle}>{t(item.title)}</Text>
                 </View>
-                {'description' in item ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
+                {'description' in item ? <Text style={styles.itemDescription}>{t(item.description)}</Text> : null}
               </View>
             ))}
           </ScrollView>

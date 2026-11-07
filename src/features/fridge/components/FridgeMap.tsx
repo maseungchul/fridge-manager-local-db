@@ -14,6 +14,7 @@ import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle, spacin
 import { getPositionPath, getSlotName } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotConfiguration, SlotPosition, StorageMode } from '../model/fridgeLayout';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 const BODY_SHELF_HEIGHT = 4;
 const CELL_SEPARATOR_INSET = 4;
@@ -147,6 +148,7 @@ export function FridgeMap({
   showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, style, areaHeader, disabled = false, onSelectPosition, onSelectArea,
   selectedSlotIndex, onSelectSlot,
 }: FridgeMapProps) {
+  const { t } = useTranslation();
   const groupInteraction = !!onSelectArea;
   const slotInteraction = !!onSelectSlot;
   const positionInteraction = !groupInteraction && !slotInteraction;
@@ -176,7 +178,7 @@ export function FridgeMap({
             {showAreaLabels ? <Text style={styles.areaLabel}>{area.name}</Text> : null}
             <Area accessible={slotInteraction ? false : undefined} accessibilityRole={groupInteraction ? 'button' : undefined}
               accessibilityLabel={groupInteraction ? `${area.compartment} → ${area.name}${area.isBody && storageMode
-                ? `, ${storageMode === 'CHILLED' ? '냉장' : '냉동'}` : ''}` : undefined}
+                ? `, ${storageMode === 'CHILLED' ? t('fridge.chilled') : t('fridge.frozen')}` : ''}` : undefined}
               accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
               disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
               style={[styles.areaInterior, { minHeight: minAreaHeight },
@@ -190,7 +192,7 @@ export function FridgeMap({
                   .filter((position, index, all) => all.findIndex(candidate => candidate.slotId === position.slotId) === index).map((firstPosition, slotIndex) => {
                   // 위→아래 칸 순서를 유지하고 같은 칸의 좌우 분할만 한 행에 묶는다.
                   const slotPositions = positions.filter(position => position.slotId === firstPosition.slotId);
-                  const slotLabel = `${area.compartment} → ${area.name} → ${getSlotName(slotIndex)}`;
+                  const slotLabel = `${area.compartment} → ${area.name} → ${getSlotName(slotIndex, t)}`;
                   // 칸 삭제·분할 변경으로 선택 ID가 사라지면 해당 행의 첫 위치를 선택한다.
                   const selectedSlotPositionId = slotPositions.some(position => position.id === selectedPositionId)
                     ? selectedPositionId : firstPosition.id;
@@ -204,14 +206,14 @@ export function FridgeMap({
                             : selectedAreaId ? areaSelected : selectedPositionId === position.id;
                           // 좌우 분할은 위치별로 집계하고, 수량 문자열과 관계없이 등록 한 건을 하나로 센다.
                           const counts = getIngredientCounts(showIngredientCounts ? ingredients.filter(ingredient => ingredient.positionId === position.id) : [], now);
-                          const countLabel = showIngredientCounts ? `, ${getIngredientCountLabel(counts)}` : '';
+                          const countLabel = showIngredientCounts ? `, ${getIngredientCountLabel(counts, t)}` : '';
                           const badges = counts.total > 0 ? (
                             <IngredientCountBadges counts={counts} placement="top-left" direction="horizontal" style={styles.ingredientBadges} />
                           ) : null;
                           return (
                             <Position key={position.id} accessible={rowInteraction || positionInteraction ? undefined : false}
-                              accessibilityRole={rowInteraction || positionInteraction ? 'button' : undefined} accessibilityLabel={`${getPositionPath(area, position)}${countLabel}`}
-                              accessibilityHint={position.drawerCount === 2 ? '좌우로 나뉜 칸' : undefined}
+                              accessibilityRole={rowInteraction || positionInteraction ? 'button' : undefined} accessibilityLabel={`${getPositionPath(area, position, t)}${countLabel}`}
+                              accessibilityHint={position.drawerCount === 2 ? t('fridge.splitDescription') : undefined}
                               accessibilityState={{ selected, disabled }} disabled={disabled}
                               onPress={rowInteraction ? event => { event.stopPropagation(); onSelectSlot?.(slotIndex, position.id); }
                                 : positionInteraction ? () => onSelectPosition?.(position.id) : undefined}

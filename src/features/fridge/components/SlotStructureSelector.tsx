@@ -10,10 +10,11 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { colors, spacing } from '@/theme/tokens';
 import type { DrawerCount } from '../model/fridgeLayout';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 const structureOptions = [
-  { value: 0, label: '분할 없음', icon: 'rectangle-outline' },
-  { value: 2, label: '좌우 2칸', icon: 'view-split-vertical' },
+  { value: 0, label: 'fridge.noSplit', icon: 'rectangle-outline' },
+  { value: 2, label: 'fridge.twoColumns', icon: 'view-split-vertical' },
 ] as const;
 
 // 선택값과 변경 처리는 부모에게서 받고, 화면 제목과 선택 버튼의 접근성 이름을 분리한다.
@@ -40,13 +41,14 @@ interface SlotStructureSelectorProps {
  * @returns 가로 분할 구조 선택 버튼.
  */
 export function SlotStructureSelector({ label, accessibilityLabel = label, value, disabled, inline = false, onChange }: SlotStructureSelectorProps) {
+  const { t } = useTranslation();
   const selectedValue = value === 2 ? 2 : 0;
   const options = structureOptions.map(option => (
-    <FeedbackPressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${option.label}`}
+    <FeedbackPressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${t(option.label)}`}
       accessibilityState={{ checked: selectedValue === option.value, disabled: !!disabled }} disabled={disabled}
       onPress={() => onChange(option.value)} style={[styles.option, selectedValue === option.value && styles.selected]}>
       <MaterialDesignIcons name={option.icon} size={18} color={colors.text} accessible={false} />
-      <Text numberOfLines={1} style={[styles.label, styles.optionLabel]}>{option.label}</Text>
+      <Text numberOfLines={1} style={[styles.label, styles.optionLabel]}>{t(option.label)}</Text>
       <SelectionCheck selected={selectedValue === option.value} />
     </FeedbackPressable>
   ));

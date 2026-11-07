@@ -18,6 +18,7 @@ import type { Ingredient, IngredientCounts } from '@/features/ingredient/model/i
 import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle, spacing } from '@/theme/tokens';
 import { getFridgeDiagramSizes } from '@/features/fridge/components/fridgeDiagramLayout';
 import type { FridgeDiagramSize } from '@/features/fridge/components/fridgeDiagramLayout';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface FridgeInteriorMapProps {
   draft: Pick<RefrigeratorDraft, 'rows'>;
@@ -153,6 +154,7 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
   cornerStyle?: ViewStyle;
   areaHeader?: ReactNode;
 }) {
+  const { t } = useTranslation();
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { width, height } = size;
   const length = Math.hypot(width, height);
@@ -160,7 +162,7 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
   const Container = onPress ? Pressable : View;
   return (
     <Container accessible={onPress ? undefined : true} accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityLabel={`${label}, 수납 없음`} accessibilityState={onPress ? { selected } : undefined}
+      accessibilityLabel={t('fridge.noStorage', { label })} accessibilityState={onPress ? { selected } : undefined}
       onPress={onPress}
       style={[styles.noStorage, getFridgeSurfaceStyle(storageMode), cornerStyle]}>
       {areaHeader}
@@ -204,11 +206,12 @@ function InteriorArea({ area, layout, now, compact, selected, storageMode, corne
   onSelectSlot?: (index: number, positionId?: string) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
   const positions = layout.positions.filter(position => position.areaId === area.id);
   const header = (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.interiorHeader}>
       <Text numberOfLines={1} style={[styles.areaName, storageMode && { color: fridgeDoorColors[storageMode].ink }]}>
-        {area.isBody ? storageMode ? getStorageModeName(storageMode) : '본체' : '도어포켓'}
+        {area.isBody ? storageMode ? getStorageModeName(storageMode, t) : t('fridge.body') : t('fridge.doorPocket')}
       </Text>
     </View>
   );
@@ -240,6 +243,7 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   // 합친 본체는 첫 문에만 왼쪽 아이콘을 두고, 지정하지 않으면 손잡이 위치를 따른다.
   modeArt?: 'left' | 'hidden';
 }) {
+  const { t } = useTranslation();
   const drawer = door.kind === 'DRAWER';
   const closed = phase === 'closed';
   const leftHinge = door.side === 'LEFT_DOOR';
@@ -272,7 +276,7 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
             : [{ perspective: 1200 }, { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, unfoldOffset] }) },
               { rotateY: progress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', leftHinge ? '-180deg' : '180deg'] }) }],
         }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${label}, ${storageMode ? getStorageModeName(storageMode) : '보관 모드 미설정'} 열기`}
+        <Pressable accessibilityRole="button" accessibilityLabel={t('fridge.openDoor', { label, mode: storageMode ? getStorageModeName(storageMode, t) : t('fridge.modeUnset') })}
           accessibilityState={{ expanded: !closed, selected }} disabled={!closed} onPress={onSelect}
           style={[styles.exteriorFace, modeStyle, gridStyle]}>
           {modeArt !== 'hidden' ? (
@@ -318,13 +322,14 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, select
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
   focus: FridgeInteriorMapProps['focus']; onFocus: FridgeInteriorMapProps['onFocus'];
 }) {
+  const { t } = useTranslation();
   const frameRef = useRef<ComponentRef<typeof View>>(null);
   const progress = useAnimatedValue(0);
   const { body } = group;
   const selectedBody = selectedAreaId === body.id;
   const selectedDoor = body.doorIds.includes(selectedAreaId ?? '');
   const counts = layout ? getAreaIngredientCounts(layout, [body.id, ...body.doorIds], now) : undefined;
-  const countLabel = counts ? `, ${getIngredientCountLabel(counts)}` : '';
+  const countLabel = counts ? `, ${getIngredientCountLabel(counts, t)}` : '';
 
   function showArea(door: DraftDoor) {
     if (focus) return;
@@ -344,7 +349,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, select
           modeArt={body.doorIds.length > 1 ? door.id === group.doors[0].door.id ? 'left' : 'hidden' : undefined}
           ingredientCounts={door.id === group.doors[0].door.id ? counts : undefined}
           gridEdges={getGridEdges(row, rowIndex, rowCount, [door.id])}
-          label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${door.kind === 'DRAWER' ? '서랍' : areaNames[door.side]}${countLabel}`}
+          label={`${getDraftAreaLocation(row, rowIndex, door.id, t)} ${door.kind === 'DRAWER' ? t('fridge.drawer') : t(areaNames[door.side])}${countLabel}`}
           onSelect={() => { onSelectArea(door.kind === 'DRAWER' ? body.id : door.id); showArea(door); }}
           style={{ left: (left - group.left) * width, width: doorWidth * width, height,
             paddingLeft: 0, paddingRight: 0 }} />
@@ -486,6 +491,7 @@ function DoorHinges({ fromX, toX, height, storageMode }: { fromX: number; toX: n
 function FridgeScrollHint({ enabled, viewport, onSeen }: {
   enabled: boolean; viewport: LayoutRectangle; onSeen?: () => void;
 }) {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(enabled);
 
   useEffect(() => {
@@ -497,7 +503,7 @@ function FridgeScrollHint({ enabled, viewport, onSeen }: {
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
       style={[styles.scrollHintOverlay, { width: viewport.width, height: viewport.height }]}>
-      <Toast message="좌우로 밀어 확인" icon="arrow-left-right" accessibilityHidden onDismiss={() => setVisible(false)} />
+      <Toast message={t('fridge.scrollHint')} icon="arrow-left-right" accessibilityHidden onDismiss={() => setVisible(false)} />
     </View>
   );
 }
@@ -519,6 +525,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   selectedPositionId?: string;
   onSelectSlot?: (areaId: string, index: number, positionId?: string) => void;
 }) {
+  const { t } = useTranslation();
   const progress = useAnimatedValue(0);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const verticalScrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -526,7 +533,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const latestScrollPosition = useRef(scrollPosition);
   const previousVertical = useRef({ key: '', enabled: false });
   const geometry = getFridgeFocusGeometry(draft, target, viewport, sizeViewport, flushVerticalEdges, !onSelectArea);
-  const layout = getDraftLayout(draft, ingredients);
+  const layout = getDraftLayout(draft, ingredients, t);
   const open = phase === 'open';
   const scrollKey = `${target.areaId}:${geometry?.width}:${geometry?.height}:${viewport.width}`;
   const initialScrollX = geometry?.initialScrollX ?? 0;
@@ -644,7 +651,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         {doors.map(({ door, frame, pocket, unfoldOffset }) => {
           const gridEdges = getGridEdges(row, rowIndex, draft.rows.length, [door.id]);
           return (
-            <FridgeDoor key={door.id} door={door} label={`${getDraftAreaLocation(row, rowIndex, door.id)} ${areaNames[door.side]}`}
+            <FridgeDoor key={door.id} door={door} label={`${getDraftAreaLocation(row, rowIndex, door.id, t)} ${t(areaNames[door.side])}`}
               phase={phase} progress={progress} bodyWidth={body.width} gridEdges={gridEdges}
               sourceSize={{ width: body.fromWidth * frame.width / body.width, height: body.fromHeight }}
               selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
@@ -668,7 +675,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   // 각 수납 칸의 편집 크기를 유지하고, 넘치는 방향에만 도면 내부 스크롤을 허용한다.
   const horizontalScene = horizontalScrolling ? (
     <ScrollView ref={scrollRef} horizontal scrollEnabled nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never" removeClippedSubviews={false}
-      accessibilityLabel="냉장고 내부 도면, 좌우로 이동" showsHorizontalScrollIndicator
+      accessibilityLabel={t('fridge.scrollHorizontal')} showsHorizontalScrollIndicator
       contentOffset={{ x: initialScrollX, y: 0 }} scrollEventThrottle={16}
       onScroll={({ nativeEvent }) => updateScrollPosition(nativeEvent.contentOffset.x)}
       style={[styles.compartment, { left: 0, top: verticalScrolling ? 0 : geometry.focusedTop,
@@ -683,7 +690,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const scrollScene = verticalScrolling ? (
     <ScrollView ref={verticalScrollRef} horizontal={false} scrollEnabled nestedScrollEnabled directionalLockEnabled bounces={false}
       overScrollMode="never" removeClippedSubviews={false} showsVerticalScrollIndicator scrollEventThrottle={16}
-      accessibilityLabel="냉장고 내부 도면, 위아래로 이동"
+      accessibilityLabel={t('fridge.scrollVertical')}
       onScroll={({ nativeEvent }) => updateScrollPosition(undefined, nativeEvent.contentOffset.y)}
       style={[styles.compartment, { left: 0, top: geometry.focusedTop, width: viewport.width, height: geometry.scrollViewportHeight }]}>
       <View style={{ width: viewport.width, height: geometry.contentHeight }}>
@@ -700,7 +707,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, styles.focusBackdrop, {
         opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.78] }),
       }]}>
-        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="냉장고 도면 바깥 영역 눌러 닫기"
+        <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={t('fridge.closeOutside')}
           accessibilityState={{ disabled: !open }} disabled={!open} onPress={onClose} />
       </Animated.View>
       {scrollScene}
@@ -713,6 +720,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
 /** 닫힌 도면은 공통 크기 기준으로 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
 export function FridgeInteriorMap({ draft, ingredients, now, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false, layoutSize,
   scrollVertically = false, onCanvasOffsetChange }: FridgeInteriorMapProps) {
+  const { t } = useTranslation();
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const size = layoutSize ?? viewportSize;
   const { width: viewportWidth } = size;
@@ -720,7 +728,7 @@ export function FridgeInteriorMap({ draft, ingredients, now, selectedAreaId, onS
   const mapWidth = Math.min(viewportWidth, maxHeight * FRIDGE_ASPECT_RATIO);
   const mapHeight = mapWidth / FRIDGE_ASPECT_RATIO;
   const rowGeometries = draft.rows.map(getDraftRowGeometry);
-  const layout = ingredients ? getDraftLayout(draft, ingredients) : undefined;
+  const layout = ingredients ? getDraftLayout(draft, ingredients, t) : undefined;
   const canvas = (
     <View style={[styles.canvas, { width: mapWidth, height: mapHeight }]}>
       {viewportWidth > 0 ? rowGeometries.flatMap((rowGeometry, rowIndex) => {
@@ -739,7 +747,7 @@ export function FridgeInteriorMap({ draft, ingredients, now, selectedAreaId, onS
       const { width, height } = nativeEvent.layout;
       setViewportSize(current => current.width === width && current.height === height ? current : { width, height });
     }}>
-      {scrollVertically ? <ScrollView accessibilityLabel="냉장고 전체 도면, 위아래로 이동" scrollEnabled={!focus}
+      {scrollVertically ? <ScrollView accessibilityLabel={t('fridge.scrollOverview')} scrollEnabled={!focus}
         nestedScrollEnabled bounces={false} showsVerticalScrollIndicator removeClippedSubviews={false} scrollEventThrottle={16}
         contentContainerStyle={styles.mapScrollContent}
         onScroll={({ nativeEvent }) => onCanvasOffsetChange?.(nativeEvent.contentOffset.y)} style={styles.mapScroll}>

@@ -7,6 +7,7 @@ import { uuid } from 'expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { prepareIngredientRegistration } from '@/db/ingredientRegistration';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
+import { AppError } from '@/i18n/errors';
 
 /** 냉장고 한 대의 전체 재료를 조회해 홈 도면의 위치별 등록 건수를 복원한다. */
 export function getIngredients(db: SQLiteDatabase) {
@@ -47,7 +48,7 @@ export async function updateIngredient(db: SQLiteDatabase, input: Ingredient): P
     WHERE id = ? AND slot_id = ? AND drawer_number = ?;
   `, ingredient.name, ingredient.quantity, ingredient.memo, ingredient.expirationDate,
   ingredient.id, ingredient.slotId, ingredient.drawerNumber);
-  if (result.changes !== 1) throw new Error('수정할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
+  if (result.changes !== 1) throw new AppError('errors.ingredientUpdateMissing');
   return ingredient;
 }
 
@@ -56,7 +57,7 @@ export async function deleteIngredient(db: SQLiteDatabase, ingredient: Pick<Ingr
   const result = await db.runAsync(`
     DELETE FROM ingredients WHERE id = ? AND slot_id = ? AND drawer_number = ?;
   `, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
-  if (result.changes !== 1) throw new Error('삭제할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
+  if (result.changes !== 1) throw new AppError('errors.ingredientDeleteMissing');
 }
 
 /** 최신 재료와 출발 위치를 확인하고, 한 건이라도 달라졌으면 전체 이동을 취소한다. */
@@ -74,13 +75,13 @@ export async function moveIngredients(db: SQLiteDatabase, ingredients: readonly 
           slot_id AS slotId, drawer_number AS drawerNumber
         FROM ingredients WHERE id = ? AND slot_id = ? AND drawer_number = ?;
       `, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
-      if (!stored) throw new Error('이동할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
+      if (!stored) throw new AppError('errors.ingredientMoveMissing');
       if (stored.slotId === destination.slotId && stored.drawerNumber === destination.drawerNumber) continue;
       const result = await transaction.runAsync(`
         UPDATE ingredients SET slot_id = ?, drawer_number = ?
         WHERE id = ? AND slot_id = ? AND drawer_number = ?;
       `, destination.slotId, destination.drawerNumber, stored.id, stored.slotId, stored.drawerNumber);
-      if (result.changes !== 1) throw new Error('이동할 재료를 찾을 수 없습니다. 재료 목록을 다시 확인해 주세요.');
+      if (result.changes !== 1) throw new AppError('errors.ingredientMoveMissing');
       moved.push({ ...stored, ...destination });
     }
   });

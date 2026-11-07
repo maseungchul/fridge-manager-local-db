@@ -4,6 +4,8 @@
  * 사용자가 구성한 문 배치·본체 연결과 보관 모드를 분리하고, DB 저장은 호출자가 관리한다.
  */
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
+import { defaultTranslate } from '@/i18n/translations';
+import type { Translator } from '@/i18n/translations';
 
 export type StorageMode = 'CHILLED' | 'FROZEN';
 export type AreaType = 'LEFT_DOOR' | 'BODY' | 'RIGHT_DOOR';
@@ -11,27 +13,27 @@ export type DoorOpening = Exclude<AreaType, 'BODY'> | 'DRAWER';
 // 기존 저장값과 호환하며, 0·1은 분할 없음, 2는 좌우 2칸으로 해석한다.
 export type DrawerCount = 0 | 1 | 2;
 
-export const storageModeOptions: { value: StorageMode; label: string }[] = [
-  { value: 'CHILLED', label: '냉장' },
-  { value: 'FROZEN', label: '냉동' },
-];
+export const storageModeOptions = [
+  { value: 'CHILLED', label: 'fridge.chilled' },
+  { value: 'FROZEN', label: 'fridge.frozen' },
+] as const;
 
 /** 도면과 접근성 안내에서 보관 모드를 공간 이름으로 표시한다. */
-export function getStorageModeName(storageMode: StorageMode) {
-  return storageMode === 'CHILLED' ? '냉장실' : '냉동실';
+export function getStorageModeName(storageMode: StorageMode, t: Translator = defaultTranslate) {
+  return t(storageMode === 'CHILLED' ? 'fridge.chilledRoom' : 'fridge.frozenRoom');
 }
 
-export const doorOpeningOptions: { value: DoorOpening; label: string }[] = [
-  { value: 'LEFT_DOOR', label: '왼쪽 열림' },
-  { value: 'RIGHT_DOOR', label: '오른쪽 열림' },
-  { value: 'DRAWER', label: '서랍형' },
-];
+export const doorOpeningOptions = [
+  { value: 'LEFT_DOOR', label: 'fridge.leftOpening' },
+  { value: 'RIGHT_DOOR', label: 'fridge.rightOpening' },
+  { value: 'DRAWER', label: 'fridge.drawerType' },
+] as const;
 
-export const areaNames: Record<AreaType, string> = {
-  LEFT_DOOR: '왼쪽 문',
-  BODY: '본체',
-  RIGHT_DOOR: '오른쪽 문',
-};
+export const areaNames = {
+  LEFT_DOOR: 'fridge.leftDoor',
+  BODY: 'fridge.body',
+  RIGHT_DOOR: 'fridge.rightDoor',
+} as const;
 
 export interface SlotConfiguration {
   // 저장된 칸은 UUID를 유지하고 신규 입력 칸은 저장할 때 발급한다.
@@ -113,8 +115,8 @@ export const MAX_SLOTS = 4;
 export const MAX_DOOR_SLOTS = 3;
 
 /** 칸 이름은 입력받지 않고 영역 안의 위→아래 순서로 자동 지정한다. */
-export function getSlotName(index: number) {
-  return `위에서 ${index + 1}번째 칸`;
+export function getSlotName(index: number, t: Translator = defaultTranslate) {
+  return t('fridge.slotName', { index: index + 1 });
 }
 
 function createDraftDoor(id: number, side: DraftDoor['side'] = 'LEFT_DOOR'): DraftDoor {
@@ -129,7 +131,7 @@ function createDraftCompartment(id: number, doorIds: string[]): DraftCompartment
 }
 
 /** 저장된 구성을 편집용으로 복사하거나, 신규 등록은 문·본체 하나씩 있는 2단으로 시작한다. */
-export function createRefrigeratorDraft(refrigerator?: Refrigerator): RefrigeratorDraft {
+export function createRefrigeratorDraft(refrigerator?: Refrigerator, t: Translator = defaultTranslate): RefrigeratorDraft {
   if (refrigerator) {
     const ids = refrigerator.rows.flatMap(row => [row, ...row.doors, ...row.compartments].map(area => area.id));
     return {
@@ -144,7 +146,7 @@ export function createRefrigeratorDraft(refrigerator?: Refrigerator): Refrigerat
       })),
     };
   }
-  const draft = addDraftRow({ name: '우리 집 냉장고', nextId: 1, rows: [] });
+  const draft = addDraftRow({ name: t('fridge.defaultName'), nextId: 1, rows: [] });
   return addDraftRow(draft);
 }
 
@@ -239,27 +241,28 @@ export function splitDraftCompartment(draft: RefrigeratorDraft, rowId: string, b
 }
 
 /** 화면의 단·좌우 위치 이름은 현재 순서에서 구하고 식별자는 배치 변경에도 유지한다. */
-export function getDraftAreaLocation(row: DraftRow, rowIndex: number, areaId: string) {
+export function getDraftAreaLocation(row: DraftRow, rowIndex: number, areaId: string, t: Translator = defaultTranslate) {
   const body = row.compartments.find(candidate => candidate.id === areaId);
   const doorIds = body ? body.doorIds : [areaId];
   const first = row.doors.findIndex(door => door.id === doorIds[0]) + 1;
   const last = row.doors.findIndex(door => door.id === doorIds[doorIds.length - 1]) + 1;
-  return `${rowIndex + 1}단${row.doors.length === 1 ? '' : ` ${first === last ? first : `${first}~${last}`}번째`}`;
+  return row.doors.length === 1 ? t('fridge.rowLocation', { row: rowIndex + 1 })
+    : t('fridge.columnLocation', { row: rowIndex + 1, column: first === last ? first : `${first}~${last}` });
 }
 
 /** 칸 식별자를 유지하고, 저장된 재료는 칸 ID·좌우 번호가 같은 도면 위치에 연결한다. */
-export function getDraftLayout(draft: Pick<RefrigeratorDraft, 'rows'>, ingredients: Ingredient[] = []): FridgeLayout {
+export function getDraftLayout(draft: Pick<RefrigeratorDraft, 'rows'>, ingredients: Ingredient[] = [], t: Translator = defaultTranslate): FridgeLayout {
   const areas: StorageArea[] = [];
   const positions: SlotPosition[] = [];
 
   for (const [rowIndex, row] of draft.rows.entries()) {
     for (const area of [...row.compartments, ...row.doors.filter(door => door.kind !== 'DRAWER')]) {
       const isDoor = 'side' in area;
-      areas.push({ id: area.id, compartment: getDraftAreaLocation(row, rowIndex, area.id),
-        name: isDoor ? areaNames[area.side] : areaNames.BODY, isBody: !isDoor });
+      areas.push({ id: area.id, compartment: getDraftAreaLocation(row, rowIndex, area.id, t),
+        name: t(isDoor ? areaNames[area.side] : areaNames.BODY), isBody: !isDoor });
       if (!isDoor || area.storageEnabled) {
         area.slots.forEach((slot, index) => positions.push(...getSlotPositions(
-          slot.id ?? `${area.id}-${index}`, area.id, getSlotName(index), slot.drawerCount,
+          slot.id ?? `${area.id}-${index}`, area.id, getSlotName(index, t), slot.drawerCount,
         )));
       }
     }
@@ -287,13 +290,13 @@ export function getDraftRowGeometry(row: DraftRow) {
 }
 
 /** 배치도의 접근성 라벨에 사용할 실과 영역·칸 경로를 조합한다. */
-export function getPositionPath(area: StorageArea, position: SlotPosition) {
-  return `${area.compartment} → ${area.name}${area.isBody ? '' : ' 도어포켓'} → ${getPositionName(position)}`;
+export function getPositionPath(area: StorageArea, position: SlotPosition, t: Translator = defaultTranslate) {
+  return `${area.compartment} → ${area.name}${area.isBody ? '' : ` ${t('fridge.doorPocket')}`} → ${getPositionName(position, t)}`;
 }
 
 /** 자동 위치명에 좌우 분할 방향을 붙여 같은 칸의 선택 위치를 구분한다. */
-export function getPositionName(position: SlotPosition) {
-  return position.drawerNumber ? `${position.name} · ${position.drawerNumber === 1 ? '왼쪽' : '오른쪽'}` : position.name;
+export function getPositionName(position: SlotPosition, t: Translator = defaultTranslate) {
+  return position.drawerNumber ? `${position.name} · ${t(position.drawerNumber === 1 ? 'fridge.left' : 'fridge.right')}` : position.name;
 }
 
 /** 기존 값 0·1은 한 위치로, 2는 같은 칸에 속한 좌우 두 위치로 표시한다. */

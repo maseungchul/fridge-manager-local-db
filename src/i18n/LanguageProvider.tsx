@@ -8,14 +8,14 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import Storage from 'expo-sqlite/kv-store';
 import { DEFAULT_LANGUAGE, resolveLanguage, translate } from '@/i18n/translations';
-import type { AppLanguage, TranslationKey } from '@/i18n/translations';
+import type { AppLanguage, TranslationArgs, TranslationKey, Translator } from '@/i18n/translations';
 import { colors } from '@/theme/tokens';
 
 interface LanguageContextValue {
   language: AppLanguage;
   isChangingLanguage: boolean;
   changeLanguage: (language: AppLanguage) => Promise<void>;
-  t: (key: TranslationKey) => string;
+  t: Translator;
 }
 
 const LANGUAGE_STORAGE_KEY = 'settings.language';
@@ -37,7 +37,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const currentLanguage = language ?? DEFAULT_LANGUAGE;
-  const t = useCallback((key: TranslationKey) => translate(currentLanguage, key), [currentLanguage]);
+  const t = useCallback(function translateKey<Key extends TranslationKey>(key: Key, ...args: TranslationArgs<Key>) {
+    return translate(currentLanguage, key, ...args);
+  }, [currentLanguage]);
   const changeLanguage = useCallback(async (next: AppLanguage) => {
     if (next === language || changing.current) return;
     // 재렌더링 전에 연속으로 눌러도 저장 순서가 뒤집히지 않게 한다.

@@ -32,6 +32,7 @@ import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 import { fridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -45,12 +46,13 @@ const HOME_MENU_SIZE = 40;
 const HOME_TOOLBAR_EDGE_SPACE = 8;
 
 export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeScreenProps) {
+  const { t } = useTranslation();
   const db = useSQLiteContext();
   const { ingredientIds: queuedIds, retain: retainMoveQueue } = useIngredientMoveQueue();
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<'home.loadError' | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
@@ -102,7 +104,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
         retainMoveQueue(storedIngredients.map(ingredient => ingredient.id));
       }
     } catch {
-      if (request === loadRequest.current) setError('냉장고 정보를 불러오지 못했습니다.');
+      if (request === loadRequest.current) setError('home.loadError');
     } finally {
       if (request === loadRequest.current) setIsLoading(false);
     }
@@ -168,7 +170,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
     return () => subscription.remove();
   }, [activeFocus, closeFocusedArea, closeIngredientList, isIngredientListOpen, isLegendOpen, isMoveQueueOpen]);
 
-  const layout = refrigerator ? getDraftLayout(refrigerator) : null;
+  const layout = refrigerator ? getDraftLayout(refrigerator, [], t) : null;
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
   const isToolbarAvailable = !!refrigerator && !isLoading && !error;
@@ -200,14 +202,14 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
             edges={['top', 'left', 'right']}
             pointerEvents={activeFocus || isToolbarHidden || isToolbarChanging ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isToolbarHidden || isToolbarChanging}
             importantForAccessibility={activeFocus || isToolbarHidden || isToolbarChanging ? 'no-hide-descendants' : 'auto'}>
-            {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" />
+            {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel={t('home.loading')} />
               : error ? <>
-                <Text accessibilityRole="alert">{error}</Text>
-                <PrimaryButton label="다시 불러오기" onPress={loadRefrigerator} />
+                <Text accessibilityRole="alert">{t(error)}</Text>
+                <PrimaryButton label={t('common.retry')} onPress={loadRefrigerator} />
               </> : refrigerator ? <>
                 <View style={styles.header}>
                   <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{refrigerator.name}</Text>
-                  <FeedbackPressable accessibilityRole="button" accessibilityLabel="냉장고 편집" style={styles.headerIconButton}
+                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('fridge.edit')} style={styles.headerIconButton}
                     onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
                     <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
                   </FeedbackPressable>
@@ -226,9 +228,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                     <View style={styles.emptyIllustration} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none">
                       <FridgeStructurePreview rows={EMPTY_PREVIEW_ROWS} style={styles.emptyPreview} />
                     </View>
-                    <Text accessibilityRole="header" style={styles.emptyTitle}>우리 집 냉장고를 등록해 보세요</Text>
-                    <Text style={styles.emptyDescription}>문과 수납칸을 우리 집 냉장고 구조에 맞게 설정할 수 있어요.</Text>
-                    <PrimaryButton label="냉장고 등록하기" icon="plus" style={styles.emptyButton}
+                    <Text accessibilityRole="header" style={styles.emptyTitle}>{t('home.emptyTitle')}</Text>
+                    <Text style={styles.emptyDescription}>{t('home.emptyDescription')}</Text>
+                    <PrimaryButton label={t('home.register')} icon="plus" style={styles.emptyButton}
                       onPress={() => navigation.navigate('RefrigeratorRegistration')} />
                   </View>
                 </ScrollView>
@@ -273,25 +275,25 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                     pointerEvents={canUseToolbar ? 'box-none' : 'none'} accessibilityElementsHidden={!canUseToolbar}
                     importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
                     {queuedIngredients.length > 0 ? (
-                      <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 열기"
-                        accessibilityHint={`이동 대기 중인 재료 ${queuedIngredients.length}개를 확인합니다.`}
+                      <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.open')}
+                        accessibilityHint={t('queue.openHint', { count: queuedIngredients.length })}
                         accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                         onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
                         style={[styles.action, styles.homeAction]} hitSlop={4}>
                         <MaterialDesignIcons name="clipboard-text-outline" size={16} color={colors.chilled} accessible={false} />
-                        <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>이동 대기 {queuedIngredients.length}개</Text>
+                        <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('queue.title', { count: queuedIngredients.length })}</Text>
                       </FeedbackPressable>
                     ) : null}
-                    <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 배지 범례"
+                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('legend.open')}
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
                       style={[styles.action, styles.homeAction]} hitSlop={4}>
                       <MaterialDesignIcons name="information-outline" size={16} color={colors.chilled} accessible={false} />
-                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>범례</Text>
+                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>{t('legend.label')}</Text>
                     </FeedbackPressable>
                   </Animated.View>
                 </View>
-                <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? '도구 접기' : '도구 펼치기'}
+                <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? t('home.collapseTools') : t('home.expandTools')}
                   accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
                   disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} feedback="primary"
                   style={[styles.toolbarToggle, styles.floatingButton]} hitSlop={4}>

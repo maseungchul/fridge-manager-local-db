@@ -10,6 +10,8 @@ import { getPositionName } from '@/features/fridge/model/fridgeLayout';
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { colors, spacing } from '@/theme/tokens';
+import { useTranslation } from '@/i18n/LanguageProvider';
+import { formatDate } from '@/i18n/translations';
 
 interface IngredientMoveQueueListProps {
   ingredients: Ingredient[];
@@ -19,6 +21,7 @@ interface IngredientMoveQueueListProps {
 }
 
 export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemove }: IngredientMoveQueueListProps) {
+  const { t } = useTranslation();
   const sections: { key: string; title: string; data: Ingredient[] }[] = [];
   for (const ingredient of ingredients) {
     const position = layout.positions.find(candidate => candidate.slotId === ingredient.slotId
@@ -28,9 +31,12 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
     let section = sections.find(candidate => candidate.key === key);
     if (!section) {
       // 문의 이름은 여는 방향이므로 실제 출발 위치는 단·영역 순서로 구분한다.
+      const slotIndex = layout.positions.filter(candidate => candidate.areaId === area?.id)
+        .filter((candidate, index, positions) => positions.findIndex(other => other.slotId === candidate.slotId) === index)
+        .findIndex(candidate => candidate.slotId === position?.slotId);
       const title = position && area
-        ? `${area.compartment} → ${area.isBody ? '본체' : '도어포켓'} → ${getPositionName(position).replace(/^위에서 /, '')}`
-        : '보관 위치를 확인해 주세요.';
+        ? `${area.compartment} → ${area.isBody ? t('fridge.body') : t('fridge.doorPocket')} → ${getPositionName({ ...position, name: t('fridge.shortSlotName', { index: slotIndex + 1 }) }, t)}`
+        : t('queue.locationMissing');
       section = { key, title, data: [] };
       sections.push(section);
     }
@@ -42,19 +48,19 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
       style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.empty : undefined}
       ListEmptyComponent={<View style={styles.emptyContent}>
         <MaterialDesignIcons name="clipboard-outline" size={40} color={colors.textMuted} accessible={false} />
-        <Text style={styles.emptyTitle}>이동 대기 중인 재료가 없어요</Text>
-        <Text style={styles.guide}>재료 목록에서 왼쪽으로 밀어 담을 수 있어요.</Text>
+        <Text style={styles.emptyTitle}>{t('queue.emptyTitle')}</Text>
+        <Text style={styles.guide}>{t('queue.emptyDescription')}</Text>
       </View>}
       renderSectionHeader={({ section }) => <Text accessibilityRole="header" style={styles.location}>{section.title}</Text>}
       renderItem={({ item, section }) => (
         <View style={styles.item}>
           <View style={styles.labels}>
             <Text style={styles.name}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
-            <Text style={styles.detail}>{item.expirationDate ? `유통기한 ${item.expirationDate}` : '유통기한 미입력'}</Text>
+            <Text style={styles.detail}>{item.expirationDate ? t('ingredient.expirationLabel', { date: formatDate(item.expirationDate, t) }) : t('ingredient.noExpiration')}</Text>
             {item.memo ? <Text style={styles.detail}>{item.memo}</Text> : null}
           </View>
-          <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${item.name} 이동 대기 해제`}
-            accessibilityHint={`${section.title}, ${item.quantity}, ${item.expirationDate ?? '유통기한 미입력'}`}
+          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.remove', { name: item.name })}
+            accessibilityHint={`${section.title}, ${item.quantity}, ${item.expirationDate ? formatDate(item.expirationDate, t) : t('ingredient.noExpiration')}`}
             disabled={disabled} accessibilityState={{ disabled }} onPress={() => { if (!disabled) onRemove(item.id); }} style={styles.remove}>
             <MaterialDesignIcons name="close" size={22} color={colors.textMuted} accessible={false} />
           </FeedbackPressable>

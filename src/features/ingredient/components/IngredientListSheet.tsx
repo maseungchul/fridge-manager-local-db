@@ -24,6 +24,9 @@ import { IngredientMoveQueueList } from '@/features/ingredient/components/Ingred
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
 import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
+import { useTranslation } from '@/i18n/LanguageProvider';
+import { getErrorMessage } from '@/i18n/errors';
+import { formatDate } from '@/i18n/translations';
 
 interface IngredientListSheetProps {
   position: SlotPosition;
@@ -36,6 +39,7 @@ interface IngredientListSheetProps {
 }
 
 export function IngredientListSheet({ position, layout, allIngredients = [], onClose, onSaved, onDeleted, onMoved }: IngredientListSheetProps) {
+  const { t } = useTranslation();
   const db = useSQLiteContext();
   const moveQueue = useIngredientMoveQueue();
   const queuedIngredients = moveQueue.ingredientIds.flatMap(id => allIngredients.find(ingredient => ingredient.id === id) ?? []);
@@ -58,10 +62,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
-  const [moveNotice, setMoveNotice] = useState<{ message: string } | null>(null);
+  const [moveNotice, setMoveNotice] = useState<{ count: number } | null>(null);
   const [swipedIngredientId, setSwipedIngredientId] = useState<string | null>(null);
   const isBusy = isSaving || isDeleting || isMoving;
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<{ cause: unknown } | null>(null);
   const [draft, setDraft] = useState<Pick<Ingredient, 'name' | 'quantity' | 'memo' | 'expirationDate'>>({
     name: '', quantity: '', memo: '', expirationDate: null,
   });
@@ -69,7 +73,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   const addDraft = useRef(draft);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
-  const [result, setResult] = useState<{ requestKey: string; ingredients: Ingredient[]; error: string | null } | null>(null);
+  const [result, setResult] = useState<{ requestKey: string; ingredients: Ingredient[]; error: 'ingredient.loadError' | null } | null>(null);
   const { slotId } = position;
   const drawerNumber = position.drawerNumber ?? 0;
   const requestKey = `${slotId}:${drawerNumber}:${reloadCount}`;
@@ -89,7 +93,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
         const ingredients = await getIngredientsByPosition(db, { slotId, drawerNumber });
         if (active) setResult({ requestKey, ingredients, error: null });
       } catch {
-        if (active) setResult({ requestKey, ingredients: [], error: '재료 목록을 불러오지 못했습니다.' });
+        if (active) setResult({ requestKey, ingredients: [], error: 'ingredient.loadError' });
       }
     }
     void loadIngredients();
@@ -201,15 +205,15 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
       ingredient = editingIngredient
         ? await updateIngredient(db, { ...editingIngredient, ...draft })
         : await registerIngredient(db, { ...draft, slotId, drawerNumber });
-    } catch {
-      setSaveError('재료를 저장하지 못했습니다. 보관 위치와 입력 내용을 확인하고 다시 시도해 주세요.');
+    } catch (cause) {
+      setSaveError({ cause });
       saving.current = false;
       setIsSaving(false);
       return;
     }
     onSaved?.(ingredient);
     // 성공 알림을 확인하고 목록 전환이 끝날 때까지 잠금을 유지해 중복 저장을 막는다.
-    Alert.alert(alertTitles.info, isEditing ? '재료를 수정했습니다.' : '재료를 등록했습니다.', [{ text: '확인', onPress: () => {
+    Alert.alert(t(alertTitles.info), isEditing ? t('ingredient.updated') : t('ingredient.registered'), [{ text: t('common.ok'), onPress: () => {
       if (!saving.current || transition.current.active) return;
       changePanel('list', () => {
         setDraft(isEditing ? addDraft.current : { name: '', quantity: '', memo: '', expirationDate: null });
@@ -231,20 +235,20 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
       deleting.current = false;
       setIsDeleting(false);
     }
-    Alert.alert(alertTitles.warning, `“${ingredient.name}” 재료를 삭제할까요?\n삭제한 재료는 복구할 수 없습니다.`, [
-      { text: '취소', style: 'cancel', onPress: () => {
+    Alert.alert(t(alertTitles.warning), t('ingredient.deleteConfirm', { name: ingredient.name }), [
+      { text: t('common.cancel'), style: 'cancel', onPress: () => {
         if (handled) return;
         handled = true;
         unlock();
       } },
-      { text: '삭제', style: 'destructive', onPress: async () => {
+      { text: t('common.delete'), style: 'destructive', onPress: async () => {
         if (handled) return;
         handled = true;
         try {
           await deleteIngredient(db, ingredient);
         } catch {
           unlock();
-          Alert.alert(alertTitles.error, '재료를 삭제하지 못했습니다. 목록을 다시 확인하고 재시도해 주세요.');
+          Alert.alert(t(alertTitles.error), t('ingredient.deleteError'), [{ text: t('common.ok') }]);
           return;
         }
         setResult(current => current?.requestKey === requestKey
@@ -283,9 +287,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
       onMoved?.(moved);
       moveQueue.clear();
       setReloadCount(count => count + 1);
-      setMoveNotice({ message: `재료 ${moved.length}개를 이동했습니다.` });
+      setMoveNotice({ count: moved.length });
     } catch {
-      Alert.alert(alertTitles.error, '재료를 이동하지 못했습니다. 보관 위치와 이동 대기 목록을 확인하고 재시도해 주세요.');
+      Alert.alert(t(alertTitles.error), t('queue.moveError'), [{ text: t('common.ok') }]);
     } finally {
       moving.current = false;
       setIsMoving(false);
@@ -324,7 +328,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                     <>
                       <View style={styles.header}>
                         {secondary ? (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 목록으로 돌아가기"
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
                             disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
                             onPress={returnToList} style={styles.headerIconButton}>
                             <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
@@ -332,18 +336,18 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                         ) : <View style={styles.headerIconButton} pointerEvents="none" />}
                         <View style={styles.heading}>
                           <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
-                            style={styles.title}>{formPage ? isEditing ? '재료 편집' : '재료 추가' : queuePage ? `이동 대기 ${queuedIngredients.length}개` : '재료 목록'}</Text>
+                            style={styles.title}>{formPage ? isEditing ? t('ingredient.edit') : t('ingredient.add') : queuePage ? t('queue.title', { count: queuedIngredients.length }) : t('ingredient.list')}</Text>
                         </View>
                         {formPage ? (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '재료 수정 저장' : '재료 등록'}
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? t('ingredient.saveEdit') : t('ingredient.register')}
                             accessibilityState={{ disabled: !canSave || isSaving || isChanging, busy: isSaving }}
                             disabled={!canSave || isSaving} interactionBlocked={isChanging}
                             onPress={saveIngredient} style={styles.headerIconButton}>
-                            {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? '재료 수정 중' : '재료 등록 중'} />
+                            {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
                               : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
                           </FeedbackPressable>
                         ) : queuePage ? (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="이동 대기 목록 전체 비우기"
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.clear')}
                             disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
                             onPress={() => { if (!saving.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
@@ -351,7 +355,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                             <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                         ) : (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="재료 추가"
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
                             accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
                             interactionBlocked={isChanging} onPress={startAdding} style={styles.headerIconButton}>
                             <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
@@ -360,19 +364,19 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                       </View>
                       {!secondary && queuedIngredients.length > 0 ? (
                         <View style={styles.moveToolbar}>
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={`이동 대기 ${queuedIngredients.length}개 확인`}
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.check', { count: queuedIngredients.length })}
                             disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
                             onPress={openMoveQueue} style={styles.queueButton}>
                             <MaterialDesignIcons name="clipboard-text-outline" size={20} color={colors.chilled} accessible={false} />
-                            <Text style={styles.queueLabel}>이동 대기 {queuedIngredients.length}개</Text>
+                            <Text style={styles.queueLabel}>{t('queue.title', { count: queuedIngredients.length })}</Text>
                             <MaterialDesignIcons name="chevron-right" size={18} color={colors.chilled} accessible={false} />
                           </FeedbackPressable>
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel="대기 재료를 여기로 이동"
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.moveHere')}
                             disabled={!canMove || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: !canMove || isBusy || isChanging, busy: isMoving }}
                             onPress={moveQueuedIngredients} style={styles.moveButton} feedback="primary">
-                            {isMoving ? <ActivityIndicator color={colors.buttonText} accessibilityLabel="재료 일괄 이동 중" /> : null}
-                            <Text style={styles.moveLabel}>여기로 이동</Text>
+                            {isMoving ? <ActivityIndicator color={colors.buttonText} accessibilityLabel={t('queue.moving')} /> : null}
+                            <Text style={styles.moveLabel}>{t('queue.moveHereLabel')}</Text>
                           </FeedbackPressable>
                         </View>
                       ) : null}
@@ -383,48 +387,48 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                         ) : formPage ? (
                           <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="always"
                             keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false} scrollsChildToFocus={false}>
-                            <FormTextInput label="재료명" accessibilityLabel="재료명" placeholder="예: 계란"
+                            <FormTextInput label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')}
                               value={draft.name} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="next"
                               onSubmitEditing={() => quantityInput.current?.focus()}
                               onChangeText={name => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, name })); }} />
-                            <FormTextInput ref={quantityInput} label="수량" accessibilityLabel="재료 수량" placeholder="예: 2개, 반 통, 500g"
+                            <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} accessibilityLabel={t('ingredient.quantityLabel')} placeholder={t('ingredient.quantityPlaceholder')}
                               value={draft.quantity} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="next"
                               onSubmitEditing={() => memoInput.current?.focus()}
                               onChangeText={quantity => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, quantity })); }} />
-                            <FormTextInput ref={memoInput} label="메모 (선택)" accessibilityLabel="재료 메모" placeholder="예: 개봉 후 밀폐 보관"
+                            <FormTextInput ref={memoInput} label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
                               value={draft.memo ?? ''} editable={!isSaving && !isChanging} returnKeyType="done"
                               onChangeText={memo => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, memo })); }} />
-                            <Text style={styles.fieldLabel}>유통기한 (선택)</Text>
+                            <Text style={styles.fieldLabel}>{t('ingredient.expiration')}</Text>
                             <View style={styles.dateRow}>
-                              <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 날짜 선택"
+                              <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.selectDate')}
                                 accessibilityState={{ disabled: isSaving || isChanging, expanded: isDatePickerOpen }}
                                 disabled={isSaving} interactionBlocked={isChanging}
                                 onPress={toggleDatePicker} style={styles.dateButton}>
                                 <MaterialDesignIcons name="calendar-outline" size={22} color={colors.text} accessible={false} />
-                                <Text style={styles.positionName}>{draft.expirationDate ?? '날짜 선택'}</Text>
+                                <Text style={styles.positionName}>{(draft.expirationDate ? formatDate(draft.expirationDate, t) : t('ingredient.datePlaceholder'))}</Text>
                               </FeedbackPressable>
                               {draft.expirationDate ? (
-                                <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 선택 해제"
+                                <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.clearDate')}
                                   disabled={isSaving} interactionBlocked={isChanging} accessibilityState={{ disabled: isSaving || isChanging }} style={styles.clearDateButton}
                                   onPress={() => {
                                     if (saving.current || transition.current.active) return;
                                     setDraft(current => ({ ...current, expirationDate: null }));
                                     dismissDatePicker();
                                   }}>
-                                  <Text style={styles.clearDate}>선택 해제</Text>
+                                  <Text style={styles.clearDate}>{t('ingredient.clearDateLabel')}</Text>
                                 </FeedbackPressable>
                               ) : null}
                             </View>
-                            {saveError ? <Text accessibilityRole="alert" style={styles.error}>{saveError}</Text> : null}
+                            {saveError ? <Text accessibilityRole="alert" style={styles.error}>{getErrorMessage(saveError.cause, t, t('ingredient.saveError'))}</Text> : null}
                           </ScrollView>
                         ) : isLoading ? (
                           <View style={styles.feedback}>
-                            <ActivityIndicator color={colors.text} accessibilityLabel="재료 목록 불러오는 중" />
+                            <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.loading')} />
                           </View>
                         ) : error ? (
                           <View style={styles.feedback}>
-                            <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
-                            <PrimaryButton label="다시 불러오기" onPress={() => setReloadCount(count => count + 1)}
+                            <Text accessibilityRole="alert" style={styles.error}>{t(error)}</Text>
+                            <PrimaryButton label={t('common.retry')} onPress={() => setReloadCount(count => count + 1)}
                               variant="secondary" style={styles.retryButton} />
                           </View>
                         ) : (
@@ -434,22 +438,22 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                             ListEmptyComponent={
                               <View style={styles.emptyState}>
                                 <MaterialDesignIcons name="tray-plus" size={40} color={colors.textMuted} accessible={false} />
-                                <Text style={styles.emptyTitle}>아직 보관 중인 재료가 없어요</Text>
-                                <Text style={styles.emptyDescription}>이 칸에 보관할 재료를 추가해 보세요.</Text>
+                                <Text style={styles.emptyTitle}>{t('ingredient.emptyTitle')}</Text>
+                                <Text style={styles.emptyDescription}>{t('ingredient.emptyDescription')}</Text>
                               </View>
                             }
                             renderItem={({ item }) => {
-                              const expiration = getIngredientExpirationStatus(item.expirationDate);
+                              const expiration = getIngredientExpirationStatus(item.expirationDate, undefined, t);
                               const isQueued = moveQueue.ingredientIds.includes(item.id);
                               return (
                                 <IngredientSwipeRow name={item.name} width={pageWidth} isOpen={swipedIngredientId === item.id} disabled={isBusy || isChanging} isQueued={isQueued}
                                   onOpen={() => setSwipedIngredientId(item.id)} onClose={() => setSwipedIngredientId(null)}
                                   onEnqueue={() => enqueueIngredient(item)}
                                   onDelete={() => requestDelete(item)}>
-                                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={`${item.name} 편집`}
+                                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.editItem', { name: item.name })}
                                     accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
-                                    accessibilityHint={isQueued ? '이동 대기 중입니다. 눌러서 편집할 수 있습니다.' : '눌러서 편집하거나 왼쪽으로 밀어 이동목록 담기·삭제 버튼을 표시합니다.'}
-                                    accessibilityActions={[...(!isQueued ? [{ name: 'enqueue', label: '이동목록에 담기' }] : []), { name: 'delete', label: '재료 삭제' }]}
+                                    accessibilityHint={isQueued ? t('ingredient.queuedHint') : t('ingredient.actionsHint')}
+                                    accessibilityActions={[...(!isQueued ? [{ name: 'enqueue', label: t('queue.enqueue') }] : []), { name: 'delete', label: t('ingredient.delete') }]}
                                     onAccessibilityAction={({ nativeEvent }) => {
                                       if (nativeEvent.actionName === 'enqueue') enqueueIngredient(item);
                                       else if (nativeEvent.actionName === 'delete') requestDelete(item);
@@ -464,7 +468,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                                       }]}>{expiration.label}</Text>
                                     </View>
                                     {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
-                                    {isQueued ? <Text style={styles.queuedLabel}>이동 대기</Text> : null}
+                                    {isQueued ? <Text style={styles.queuedLabel}>{t('queue.pending')}</Text> : null}
                                   </FeedbackPressable>
                                 </IngredientSwipeRow>
                               );
@@ -483,7 +487,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
               disabled={isSaving || isChanging} onSelect={selectExpirationDate} onDismiss={dismissDatePicker} />
           ) : null}
           {moveNotice ? <View pointerEvents="none" style={styles.notice}>
-            <Toast key={moveNotice.message} message={moveNotice.message} icon="check-circle-outline"
+            <Toast key={moveNotice.count} message={t('queue.moved', { count: moveNotice.count })} icon="check-circle-outline"
               onDismiss={() => setMoveNotice(current => current === moveNotice ? null : current)} />
           </View> : null}
         </View>

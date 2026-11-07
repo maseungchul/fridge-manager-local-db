@@ -41,6 +41,8 @@ import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { colors, spacing } from '@/theme/tokens';
 import { HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
 import { FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
+import { useTranslation } from '@/i18n/LanguageProvider';
+import { AppError, getErrorMessage } from '@/i18n/errors';
 
 type RefrigeratorRegistrationScreenProps = NativeStackScreenProps<
   RootStackParamList,
@@ -56,16 +58,17 @@ export function RefrigeratorRegistrationScreen({
   navigation,
   route,
 }: RefrigeratorRegistrationScreenProps) {
+  const { t } = useTranslation();
   const refrigeratorId = route?.params?.refrigeratorId;
   const isEditing = refrigeratorId !== undefined;
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const [draft, setDraft] = useState(createRefrigeratorDraft);
+  const [draft, setDraft] = useState(() => createRefrigeratorDraft(undefined, t));
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [savedName, setSavedName] = useState('');
   const [isLoading, setIsLoading] = useState(isEditing);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ cause: unknown } | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const loadedRefrigeratorId = useRef<string | null>(null);
   const isUnavailable = isLoading || loadError !== null;
@@ -104,7 +107,7 @@ export function RefrigeratorRegistrationScreen({
   const selectedArea = selectedDoor ?? selectedBody;
   const maxSlotCount = selectedDoor ? MAX_DOOR_SLOTS : MAX_SLOTS;
   const selectedType = selectedDoor?.side ?? 'BODY';
-  const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id);
+  const location = getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), selectedArea.id, t);
   const adjacentBody = getAdjacentCompartment(selectedRow, selectedBody.id);
   const mergeIncludesDrawer = isDrawerBody || selectedRow.doors.some(door => door.kind === 'DRAWER' && adjacentBody?.doorIds.includes(door.id));
   const storageEnabled = !selectedDoor || selectedDoor.storageEnabled;
@@ -126,13 +129,13 @@ export function RefrigeratorRegistrationScreen({
     loadedRefrigeratorId.current = null;
     Promise.all([getRefrigerator(db), getIngredients(db)]).then(([refrigerator, storedIngredients]) => {
       if (!mounted) return;
-      if (!refrigerator || refrigerator.id !== refrigeratorId) throw new Error('수정할 냉장고를 찾을 수 없습니다.');
+      if (!refrigerator || refrigerator.id !== refrigeratorId) throw new AppError('errors.fridgeMissing');
       setDraft(createRefrigeratorDraft(refrigerator));
       setIngredients(storedIngredients);
       setSavedName(refrigerator.name);
       loadedRefrigeratorId.current = refrigerator.id;
     }).catch(error => {
-      if (mounted) setLoadError(error instanceof Error ? error.message : '냉장고 정보를 불러오지 못했습니다.');
+      if (mounted) setLoadError({ cause: error });
     }).finally(() => {
       if (mounted) setIsLoading(false);
     });
@@ -177,10 +180,10 @@ export function RefrigeratorRegistrationScreen({
       const name = await updateRefrigeratorName(db, refrigeratorId, draft.name);
       setDraft(current => ({ ...current, name }));
       setSavedName(name);
-      Alert.alert(alertTitles.info, fridgeMessages.nameChangeSuccess);
+      Alert.alert(t(alertTitles.info), t(fridgeMessages.nameChangeSuccess), [{ text: t('common.ok') }]);
     } catch (error) {
-      Alert.alert(alertTitles.error,
-        error instanceof Error ? error.message : fridgeMessages.nameChangeFailure);
+      Alert.alert(t(alertTitles.error),
+        getErrorMessage(error, t, t(fridgeMessages.nameChangeFailure)), [{ text: t('common.ok') }]);
     } finally {
       saving.current = false;
       setIsSaving(false);
@@ -200,13 +203,13 @@ export function RefrigeratorRegistrationScreen({
     } catch (error) {
       saving.current = false;
       setIsSaving(false);
-      Alert.alert(alertTitles.error,
-        error instanceof Error ? error.message : fridgeMessages.saveFailure);
+      Alert.alert(t(alertTitles.error),
+        getErrorMessage(error, t, t(fridgeMessages.saveFailure)), [{ text: t('common.ok') }]);
       return;
     }
     // 성공 알림을 확인할 때까지 저장 잠금을 유지해 중복 저장과 화면 이동을 막는다.
-    Alert.alert(alertTitles.info, isEditing ? fridgeMessages.updateSuccess : fridgeMessages.registrationSuccess,
-      [{ text: '확인', onPress: () => {
+    Alert.alert(t(alertTitles.info), t(isEditing ? fridgeMessages.updateSuccess : fridgeMessages.registrationSuccess),
+      [{ text: t('common.ok'), onPress: () => {
         leaveRequested.current = true;
         navigation.goBack();
       } }], { cancelable: false });
@@ -257,7 +260,7 @@ export function RefrigeratorRegistrationScreen({
   function updateStructure(nextDraft: RefrigeratorDraft) {
     if (saving.current || isUnavailable) return false;
     if (getDraftLayout(nextDraft, ingredients).ingredients.length !== ingredients.length) {
-      Alert.alert(alertTitles.info, fridgeMessages.ingredientLocationChangeBlocked);
+      Alert.alert(t(alertTitles.info), t(fridgeMessages.ingredientLocationChangeBlocked), [{ text: t('common.ok') }]);
       return false;
     }
     setDraft(nextDraft);
@@ -328,21 +331,21 @@ export function RefrigeratorRegistrationScreen({
       <View style={[styles.header, activeFocus && styles.focusHeader]}>
         {/* 큰 도면이 헤더에 닿아도 제목·여백은 바깥 닫기로 처리하고 기존 버튼은 위에 유지한다. */}
         {activeFocus ? <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button"
-          accessibilityLabel="제목 영역 눌러 냉장고 도면 닫기" onPress={closeFocusedArea}
+          accessibilityLabel={t('fridge.closeByTitle')} onPress={closeFocusedArea}
           disabled={isSaving || focusPhase !== 'open'} accessibilityState={{ disabled: isSaving || focusPhase !== 'open' }}
           pointerEvents={!isSaving && focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={isSaving || focusPhase !== 'open'}
           importantForAccessibility={!isSaving && focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
         <View style={[styles.headerNavigation, step === 'configuration' && styles.headerHomeNavigation]}>
           <FeedbackPressable accessibilityRole="button"
-            accessibilityLabel={step === 'basic' ? (isEditing ? '냉장고 편집 취소' : '냉장고 등록 취소') : '기본 정보로 돌아가기'}
+            accessibilityLabel={step === 'basic' ? (isEditing ? t('fridge.cancelEdit') : t('fridge.cancelRegistration')) : t('fridge.backToBasic')}
             accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
             disabled={isSaving || isStepChanging || isFocusMoving}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
             <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
           {step === 'configuration' ? (
-            <FeedbackPressable accessibilityRole="button" accessibilityLabel="홈으로 이동"
-              accessibilityHint="저장하지 않은 편집을 종료하고 홈으로 이동합니다."
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('fridge.goHome')}
+              accessibilityHint={t('fridge.goHomeHint')}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
               disabled={isSaving || isStepChanging || isFocusMoving} onPress={cancelRegistration}>
               <MaterialDesignIcons name="home" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
@@ -351,19 +354,19 @@ export function RefrigeratorRegistrationScreen({
         </View>
         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
           pointerEvents={activeFocus ? 'none' : 'auto'}
-          style={styles.title}>{isEditing ? '냉장고 편집' : '냉장고 등록'}</Text>
+          style={styles.title}>{isEditing ? t('fridge.edit') : t('fridge.register')}</Text>
         <View style={[styles.headerNavigation, step === 'configuration' && styles.headerHomeNavigation, styles.headerNextNavigation]}>
           {step === 'basic' ? (
-            <FeedbackPressable accessibilityRole="button" accessibilityLabel="내부 설정으로 이동"
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('fridge.goConfiguration')}
               accessibilityState={{ disabled: !draft.name.trim() || isSaving || isStepChanging || isUnavailable }} style={styles.headerIconButton}
               disabled={!draft.name.trim() || isSaving || isUnavailable} interactionBlocked={isStepChanging} onPress={() => changeStep('configuration')}>
               <MaterialDesignIcons name="arrow-right" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : (
-            <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? '냉장고 수정 저장' : '냉장고 등록'}
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? t('fridge.saveEdit') : t('fridge.register')}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving, busy: isSaving }}
               disabled={isSaving} interactionBlocked={isStepChanging || isFocusMoving} onPress={saveRegistration} style={styles.headerIconButton}>
-              {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 저장 중" />
+              {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={t('fridge.saving')} />
                 : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
             </FeedbackPressable>
           )}
@@ -371,9 +374,9 @@ export function RefrigeratorRegistrationScreen({
       </View>
       {isUnavailable ? (
         <View style={styles.feedback}>
-          {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel="냉장고 정보 불러오는 중" /> : <>
-            <Text accessibilityRole="alert">{loadError}</Text>
-            <PrimaryButton label="다시 불러오기" onPress={() => {
+          {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel={t('home.loading')} /> : <>
+              <Text accessibilityRole="alert">{getErrorMessage(loadError?.cause, t, t('home.loadError'))}</Text>
+            <PrimaryButton label={t('common.retry')} onPress={() => {
               setIsLoading(true);
               setLoadError(null);
               setLoadAttempt(attempt => attempt + 1);
@@ -415,7 +418,7 @@ export function RefrigeratorRegistrationScreen({
                     <View
                       accessible
                       accessibilityLiveRegion="polite"
-                      accessibilityLabel={pageStep === 'basic' ? '전체 2단계 중 1단계, 기본 정보 입력 중' : '기본 정보 완료, 전체 2단계 중 2단계, 내부 설정 중'}
+                      accessibilityLabel={pageStep === 'basic' ? t('fridge.basicStep') : t('fridge.configurationStep')}
                       style={styles.stepIndicator}
                     >
                       <View style={styles.stepItem}>
@@ -424,29 +427,29 @@ export function RefrigeratorRegistrationScreen({
                             {pageStep === 'basic' ? '1' : '✓'}
                           </Text>
                         </View>
-                        <Text style={[styles.stepLabel, pageStep === 'basic' ? styles.stepLabelActive : styles.stepLabelCompleted]}>기본 정보</Text>
+                        <Text style={[styles.stepLabel, pageStep === 'basic' ? styles.stepLabelActive : styles.stepLabelCompleted]}>{t('fridge.basic')}</Text>
                       </View>
                       <View style={[styles.stepConnector, pageStep === 'configuration' && styles.stepConnectorCompleted]} />
                       <View style={styles.stepItem}>
                         <View style={[styles.stepBadge, pageStep === 'configuration' && styles.stepBadgeActive]}>
                           <Text style={[styles.stepNumber, pageStep === 'configuration' && styles.stepNumberActive]}>2</Text>
                         </View>
-                        <Text style={[styles.stepLabel, pageStep === 'configuration' && styles.stepLabelActive]}>내부 설정</Text>
+                        <Text style={[styles.stepLabel, pageStep === 'configuration' && styles.stepLabelActive]}>{t('fridge.configuration')}</Text>
                       </View>
                     </View>
                   </View>
                   {pageStep === 'basic' ? (
                     <View style={styles.sections}>
-                      <FormTextInput label="냉장고 이름" accessibilityLabel="냉장고 이름" value={draft.name}
+                      <FormTextInput label={t('fridge.name')} accessibilityLabel={t('fridge.name')} value={draft.name}
                         onChangeText={name => { if (!saving.current) setDraft(current => ({ ...current, name })); }}
                         editable={!isSaving} maxLength={50} containerStyle={styles.nameField}
-                        trailingElement={isEditing ? <PrimaryButton label="변경" onPress={saveRefrigeratorName}
+                        trailingElement={isEditing ? <PrimaryButton label={t('common.change')} onPress={saveRefrigeratorName}
                           disabled={!draft.name.trim() || draft.name.trim() === savedName || isUnavailable}
                           interactionBlocked={isStepChanging} loading={isSaving} style={styles.nameSaveButton} /> : undefined} />
                       <View style={styles.section}>
                         <View style={styles.sectionHeader}>
-                          <Text style={styles.label}>냉장고 구조</Text>
-                          <Text style={styles.description}>단과 문의 개수를 설정해 주세요.</Text>
+                          <Text style={styles.label}>{t('fridge.structure')}</Text>
+                          <Text style={styles.description}>{t('fridge.structureHint')}</Text>
                         </View>
                         <View style={styles.structureDiagram}>
                           {/* 도면 테두리 안쪽과 같은 높이를 나눠 조절 버튼을 각 단의 중앙에 맞춘다. */}
@@ -456,10 +459,10 @@ export function RefrigeratorRegistrationScreen({
                             <View style={styles.structureControls}>
                               {draft.rows.map((row, index) => (
                                 <View key={row.id} style={styles.structureRow}>
-                                  <QuantityStepper value={row.doors.length} maximum={MAX_DOORS_PER_ROW} unit="도어"
-                                    accessibilityLabel={`${index + 1}단 문`}
+                                  <QuantityStepper value={row.doors.length} maximum={MAX_DOORS_PER_ROW} unit={t('fridge.doorUnit')}
+                                    accessibilityLabel={t('fridge.rowDoor', { row: index + 1 })}
                                     onChange={delta => { Keyboard.dismiss(); updateStructure(changeDraftDoorCount(draft, row.id, delta)); }} />
-                                  <FeedbackPressable feedback="danger" accessibilityRole="button" accessibilityLabel={`${index + 1}단 삭제`} disabled={draft.rows.length <= 1}
+                                  <FeedbackPressable feedback="danger" accessibilityRole="button" accessibilityLabel={t('fridge.removeRow', { row: index + 1 })} disabled={draft.rows.length <= 1}
                                     onPress={() => { Keyboard.dismiss(); updateStructure(removeDraftRow(draft, row.id)); }}
                                     style={styles.deleteRowButton}>
                                     <MaterialDesignIcons name="trash-can-outline" size={18} color={colors.error} accessible={false} style={styles.controlIcon} />
@@ -469,7 +472,7 @@ export function RefrigeratorRegistrationScreen({
                             </View>
                           </View>
                           <View style={styles.structureEditor}>
-                            <PrimaryButton label="단 추가" icon="plus" iconColor={colors.chilled} variant="secondary"
+                            <PrimaryButton label={t('fridge.addRow')} icon="plus" iconColor={colors.chilled} variant="secondary"
                               style={[styles.addRowButton, { width: structurePreviewWidth }]}
                               labelStyle={styles.addRowLabel}
                               disabled={draft.rows.length >= MAX_ROWS}
@@ -513,13 +516,13 @@ export function RefrigeratorRegistrationScreen({
                     showOpeningAction={!selectedDoor}
                     openingDisabled={isMergedBody}
                     openingDoors={openingDoors.map(door => ({ id: door.id,
-                      label: `${getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), door.id)} 문`,
+                      label: t('fridge.doorLabel', { location: getDraftAreaLocation(selectedRow, draft.rows.indexOf(selectedRow), door.id, t) }),
                       opening: door.kind === 'DRAWER' ? 'DRAWER' : door.side }))}
                     storageEnabled={selectedAreaId ? selectedDoor?.storageEnabled : false}
                     onStorageChange={updateDoorStorage} storageMode={selectedBody.storageMode}
                     onStorageModeChange={selectStorageMode} showSlots={!isDrawerBody}
                     slots={selectedArea.slots} maxSlotCount={maxSlotCount} selectedSlotIndex={selectedSlotIndex}
-                    location={`${location} ${areaNames[selectedType]}`}
+                    location={`${location} ${t(areaNames[selectedType])}`}
                     onSlotCountChange={changeSlotCount}
                     onSlotStructureChange={drawerCount => updateSlot(selectedSlotIndex, { drawerCount })}
                     onOpeningChange={selectDoorOpening}

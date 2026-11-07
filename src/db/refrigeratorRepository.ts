@@ -9,6 +9,7 @@ import { normalizeRefrigeratorName, prepareRefrigeratorRegistration } from '@/db
 import type { RefrigeratorRegistrationData } from '@/db/refrigeratorRegistration';
 import { getSlotName } from '@/features/fridge/model/fridgeLayout';
 import type { Refrigerator, RefrigeratorDraft, SlotConfiguration } from '@/features/fridge/model/fridgeLayout';
+import { AppError } from '@/i18n/errors';
 
 /** 홈이 표시될 때 등록 여부와 냉장고 이름을 확인한다. */
 export function getRefrigeratorSummary(db: SQLiteDatabase) {
@@ -51,13 +52,13 @@ async function readRefrigerator(db: SQLiteDatabase): Promise<Refrigerator | null
   function restoreSlots(compartmentId: string | null, doorId: string | null): SlotConfiguration[] {
     const ownedSlots = slots.filter(slot => slot.compartment_id === compartmentId && slot.door_id === doorId);
     if (!ownedSlots.length || ownedSlots.some((slot, index) => slot.sort_order !== index)) {
-      throw new Error('저장된 냉장고의 칸 정보를 확인할 수 없습니다.');
+      throw new AppError('errors.storedSlots');
     }
     return ownedSlots.map(slot => ({ id: slot.id, name: getSlotName(slot.sort_order), drawerCount: slot.drawer_count }));
   }
 
   if (!rows.length || rows.some((row, index) => row.sort_order !== index)) {
-    throw new Error('저장된 냉장고의 단 정보를 확인할 수 없습니다.');
+    throw new AppError('errors.storedRows');
   }
   return {
     ...refrigerator,
@@ -67,7 +68,7 @@ async function readRefrigerator(db: SQLiteDatabase): Promise<Refrigerator | null
       const bodyIds = [...new Set(rowDoors.map(door => door.compartment_id))];
       if (!rowDoors.length || rowDoors.some((door, index) => door.sort_order !== index)
         || bodyIds.length !== rowBodies.length || bodyIds.some(id => !rowBodies.some(body => body.id === id))) {
-        throw new Error('저장된 냉장고의 본체와 문 연결을 확인할 수 없습니다.');
+        throw new AppError('errors.storedConnections');
       }
       return {
         id: row.id,
@@ -84,7 +85,7 @@ async function readRefrigerator(db: SQLiteDatabase): Promise<Refrigerator | null
           const body = rowBodies.find(body => body.id === door.compartment_id)!;
           const connectedDoors = rowDoors.filter(candidate => candidate.compartment_id === body.id);
           if (body.kind === 'HINGED' && connectedDoors.length === 1 && body.side === null) {
-            throw new Error('저장된 냉장고의 여는 방식을 확인할 수 없습니다.');
+            throw new AppError('errors.storedOpening');
           }
           return {
             id: door.id, kind: body.kind, storageEnabled: door.storage_enabled === 1,
@@ -104,7 +105,7 @@ export async function registerRefrigerator(db: SQLiteDatabase, draft: Refrigerat
 
   await db.withExclusiveTransactionAsync(async transaction => {
     const existing = await transaction.getFirstAsync<{ id: string }>('SELECT id FROM refrigerators LIMIT 1;');
-    if (existing) throw new Error('이미 등록된 냉장고가 있습니다.');
+    if (existing) throw new AppError('errors.fridgeExists');
 
     await transaction.runAsync(
       'INSERT INTO refrigerators (id, name) VALUES (?, ?);',
@@ -121,7 +122,7 @@ export async function registerRefrigerator(db: SQLiteDatabase, draft: Refrigerat
 export async function updateRefrigeratorName(db: SQLiteDatabase, refrigeratorId: string, name: string): Promise<string> {
   const normalizedName = normalizeRefrigeratorName(name);
   const result = await db.runAsync('UPDATE refrigerators SET name = ? WHERE id = ?;', normalizedName, refrigeratorId);
-  if (result.changes !== 1) throw new Error('수정할 냉장고를 찾을 수 없습니다.');
+  if (result.changes !== 1) throw new AppError('errors.fridgeMissing');
   return normalizedName;
 }
 
@@ -129,7 +130,7 @@ export async function updateRefrigeratorName(db: SQLiteDatabase, refrigeratorId:
 export async function updateRefrigerator(db: SQLiteDatabase, refrigeratorId: string, draft: RefrigeratorDraft): Promise<string> {
   await db.withExclusiveTransactionAsync(async transaction => {
     const existing = await readRefrigerator(transaction);
-    if (!existing || existing.id !== refrigeratorId) throw new Error('수정할 냉장고를 찾을 수 없습니다.');
+    if (!existing || existing.id !== refrigeratorId) throw new AppError('errors.fridgeMissing');
     const data = prepareRefrigeratorRegistration(draft, uuid.v4, existing);
     const oldBodies = existing.rows.flatMap(row => row.compartments);
     const oldDoors = existing.rows.flatMap(row => row.doors);
@@ -214,5 +215,5 @@ async function deleteRemovedRecords(
 /** 전용 연결에는 초기화 연결의 외래 키 설정이 공유되지 않아 커밋 전에 직접 검사한다. */
 async function checkForeignKeys(transaction: SQLiteDatabase) {
   const violation = await transaction.getFirstAsync('PRAGMA foreign_key_check;');
-  if (violation) throw new Error('냉장고 구성의 연결 정보가 올바르지 않습니다.');
+  if (violation) throw new AppError('errors.fridgeConnections');
 }
