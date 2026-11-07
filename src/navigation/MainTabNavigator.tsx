@@ -13,6 +13,7 @@ import { HomeScreen } from '@/screens/HomeScreen';
 import { ShoppingScreen } from '@/screens/ShoppingScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { colors, spacing } from '@/theme/tokens';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 export type MainTabParamList = {
   Home: undefined;
@@ -24,6 +25,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function MainTabNavigator() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
 
   return (
@@ -54,7 +56,7 @@ export function MainTabNavigator() {
       ),
     }}>
       <Tab.Screen name="Home" options={{
-        title: '냉장고',
+        title: t('tabs.fridge'),
         tabBarIcon: ({ focused, color, size }) => (
           <MaterialDesignIcons name={focused ? 'fridge' : 'fridge-outline'} size={size} color={color} accessible={false} />
         ),
@@ -62,13 +64,13 @@ export function MainTabNavigator() {
         {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked} />}
       </Tab.Screen>
       <Tab.Screen name="Shopping" component={ShoppingScreen} options={{
-        title: '장보기',
+        title: t('tabs.shopping'),
         tabBarIcon: ({ focused, color, size }) => (
           <MaterialDesignIcons name={focused ? 'cart' : 'cart-outline'} size={size} color={color} accessible={false} />
         ),
       }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{
-        title: '설정',
+        title: t('tabs.settings'),
         tabBarIcon: ({ focused, color, size }) => (
           <MaterialDesignIcons name={focused ? 'cog' : 'cog-outline'} size={size} color={color} accessible={false} />
         ),

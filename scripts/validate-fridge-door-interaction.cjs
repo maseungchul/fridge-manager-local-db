@@ -1,18 +1,26 @@
 /**
  * @file
- * 실제 등록·홈 도면의 문 전환·선택·접근성 경계와 기본 탭 구성을 검사한다.
+ * 실제 등록·홈 도면의 문 전환·선택·접근성 경계와 탭·표시 언어 설정을 검사한다.
  * 훅과 애니메이션 완료 신호만 대체하며, 네이티브 화면의 움직임·터치 감각은 별도 확인한다.
  */
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
-const { test, beforeEach } = require('node:test');
+const { test, beforeEach, afterEach } = require('node:test');
 const ts = require('typescript');
 const model = require('../src/features/fridge/model/fridgeLayout.ts');
 const ingredientModel = require('../src/features/ingredient/model/ingredient.ts');
 const tokens = require('../src/theme/tokens.ts');
 const { alertTitles } = require('../src/constants/alertTitles.ts');
 const { fridgeMessages } = require('../src/features/fridge/constants/messages.ts');
+const { ko } = require('../src/i18n/locales/ko.ts');
+const { ja } = require('../src/i18n/locales/ja.ts');
+const languageStorage = {
+  async getItemAsync() { return null; },
+  async setItemAsync() {},
+};
+let translationModule;
+let languageModule;
 const database = {};
 const alerts = [];
 const backHandlers = new Set();
@@ -162,6 +170,10 @@ function loadComponent(path, overrides = {}) {
     '@/components/PrimaryButton': { PrimaryButton: 'PrimaryButton' },
     '@/components/Toast': { Toast: 'Toast' },
     '@/components/SelectionCheck': { SelectionCheck: 'SelectionCheck' },
+    '@/i18n/locales/ko': { ko }, '@/i18n/locales/ja': { ja },
+    '@/i18n/translations': translationModule,
+    '@/i18n/LanguageProvider': languageModule,
+    'expo-sqlite/kv-store': { __esModule: true, default: languageStorage },
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
     '@/components/QuantityStepper': quantityStepperModule,
@@ -220,6 +232,8 @@ function loadComponent(path, overrides = {}) {
     (...args) => { const timer = setTimeout(...args); timer.unref?.(); return timer; });
   return module.exports;
 }
+translationModule = loadComponent('src/i18n/translations.ts');
+languageModule = loadComponent('src/i18n/LanguageProvider.tsx');
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 iosHomeButtonModule = loadComponent('src/components/FloatingIconButton.ios.tsx');
 defaultHomeButtonModule = loadComponent('src/components/FloatingIconButton.tsx');
@@ -233,15 +247,28 @@ interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap
 structureModule = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
 moveQueueModule = loadComponent('src/features/ingredient/IngredientMoveQueueProvider.tsx');
 let queueProvider;
+let languageProvider;
+function refreshLanguage(provider = languageProvider) {
+  provider.render();
+  if (!provider.tree.props.value) return null;
+  provider.tree.type.value = provider.tree.props.value;
+  return provider.tree.props.value;
+}
 function refreshMoveQueue() {
   queueProvider.render();
   queueProvider.tree.type.value = queueProvider.tree.props.value;
   return queueProvider.tree.props.value;
 }
-beforeEach(() => {
+beforeEach(async () => {
+  languageStorage.getItemAsync = async () => null;
+  languageStorage.setItemAsync = async () => {};
+  languageProvider = mount(languageModule.LanguageProvider, { children: 'app-content' });
+  await new Promise(setImmediate);
+  refreshLanguage();
   queueProvider = mount(moveQueueModule.IngredientMoveQueueProvider, { children: null });
   refreshMoveQueue();
 });
+afterEach(() => languageProvider.unmount());
 const { FridgeInteriorMap, FridgeFocusView, getFridgeFocusGeometry } = interiorModule;
 menuModule = loadComponent('src/features/fridge/components/FridgeAreaMenu.tsx');
 const { FridgeAreaMenu, FRIDGE_MENU_RESERVED_SPACE } = menuModule;
@@ -1464,10 +1491,129 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
         const screen = mount(Component, {});
         t.after(() => screen.unmount());
         assert.deepEqual(screen.tree.props.edges, ['top', 'left', 'right']);
-        assert.deepEqual(findAll(screen.tree, node => node.type === 'Text').map(node => node.props.children), [title]);
+        assert.equal(find(screen.tree, node => node.type === 'Text' && node.props.accessibilityRole === 'header').props.children, title);
       }
     });
   }
+});
+
+test('저장된 언어를 복원한 뒤 화면을 열고 지원하지 않는 값·조회 실패는 한국어로 시작한다', async t => {
+  for (const [saved, expected] of [['ja', 'ja'], ['ko', 'ko'], [null, 'ko'], ['en', 'ko'], ['', 'ko']]) {
+    let resolveRead;
+    languageStorage.getItemAsync = key => {
+      assert.equal(key, 'settings.language');
+      return new Promise(resolve => { resolveRead = resolve; });
+    };
+    const provider = mount(languageModule.LanguageProvider, { children: 'restored-content' });
+    t.after(() => provider.unmount());
+    assert(find(provider.tree, node => node.type === 'ActivityIndicator'));
+    assert.equal(refreshLanguage(provider), null, '언어를 읽기 전에는 앱 화면을 열지 않는다');
+    resolveRead(saved);
+    await new Promise(setImmediate);
+    const context = refreshLanguage(provider);
+    assert.equal(context.language, expected);
+    assert.equal(provider.tree.props.children, 'restored-content');
+    assert.equal(context.t('tabs.settings'), expected === 'ja' ? '設定' : '설정');
+  }
+  languageStorage.getItemAsync = async () => { throw new Error('read failed'); };
+  const provider = mount(languageModule.LanguageProvider, { children: 'app-content' });
+  t.after(() => provider.unmount());
+  await new Promise(setImmediate);
+  assert.equal(refreshLanguage(provider).language, 'ko');
+});
+
+test('언어를 바꾸면 같은 탭·설정·장보기 화면에 즉시 반영하고 앱을 다시 열어도 유지한다', async t => {
+  let saved = null;
+  languageStorage.getItemAsync = async () => saved;
+  languageStorage.setItemAsync = async (key, value) => {
+    assert.equal(key, 'settings.language');
+    saved = value;
+  };
+  const { SettingsScreen } = loadComponent('src/screens/SettingsScreen.tsx');
+  const { ShoppingScreen } = loadComponent('src/screens/ShoppingScreen.tsx');
+  const { MainTabNavigator } = loadComponent('src/navigation/MainTabNavigator.tsx', {
+    '@react-navigation/bottom-tabs': { createBottomTabNavigator: () => ({ Navigator: 'Tabs', Screen: 'TabScreen' }) },
+    '@/screens/HomeScreen': { HomeScreen }, '@/screens/ShoppingScreen': { ShoppingScreen }, '@/screens/SettingsScreen': { SettingsScreen },
+  });
+  const settings = mount(SettingsScreen, {});
+  const shopping = mount(ShoppingScreen, {});
+  const tabs = mount(MainTabNavigator, {});
+  t.after(() => { settings.unmount(); shopping.unmount(); tabs.unmount(); });
+  const titles = () => children(tabs.tree).map(node => node.props.options.title);
+  const header = screen => find(screen.tree, node => node.type === 'Text' && node.props.accessibilityRole === 'header').props.children;
+  const option = label => find(settings.tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === label);
+  assert.deepEqual(titles(), ['냉장고', '장보기', '설정']);
+  assert.equal(option('한국어').props.accessibilityState.checked, true);
+  assert.equal(option('日本語').props.accessibilityLanguage, 'ja-JP');
+
+  for (const [selected, language, expectedTitles] of [
+    ['日本語', 'ja', ['冷蔵庫', '買い物', '設定']], ['한국어', 'ko', ['냉장고', '장보기', '설정']],
+  ]) {
+    await option(selected).props.onPress();
+    refreshLanguage(); settings.render(); shopping.render(); tabs.render();
+    assert.equal(saved, language);
+    assert.deepEqual(titles(), expectedTitles);
+    assert.equal(header(shopping), expectedTitles[1]);
+    assert.equal(header(settings), expectedTitles[2]);
+    assert.equal(option(selected).props.accessibilityState.checked, true);
+    const restarted = mount(languageModule.LanguageProvider, { children: null });
+    t.after(() => restarted.unmount());
+    await new Promise(setImmediate);
+    assert.equal(refreshLanguage(restarted).language, language);
+    refreshLanguage();
+  }
+});
+
+test('언어 저장 중에는 선택을 막고 연속 입력·실패 뒤 재시도에도 화면과 저장값을 일치시킨다', async t => {
+  const writes = [];
+  let resolveWrite;
+  languageStorage.setItemAsync = (key, value) => {
+    writes.push(value);
+    return new Promise(resolve => { resolveWrite = resolve; });
+  };
+  const { SettingsScreen } = loadComponent('src/screens/SettingsScreen.tsx');
+  const settings = mount(SettingsScreen, {});
+  t.after(() => settings.unmount());
+  const option = label => find(settings.tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === label);
+  const selecting = option('日本語').props.onPress();
+  await option('日本語').props.onPress();
+  refreshLanguage(); settings.render();
+  assert.deepEqual(writes, ['ja'], '재렌더링 전 연속 입력도 한 번만 저장한다');
+  assert.equal(languageModule.useTranslation().language, 'ko');
+  assert(findAll(settings.tree, node => node.props.accessibilityRole === 'radio').every(node => node.props.disabled
+    && node.props.accessibilityState.disabled));
+  resolveWrite();
+  await selecting;
+  refreshLanguage(); settings.render();
+  assert.equal(languageModule.useTranslation().language, 'ja');
+  assert.equal(option('한국어').props.disabled, false);
+  await option('日本語').props.onPress();
+  assert.deepEqual(writes, ['ja'], '이미 선택한 언어는 다시 저장하지 않는다');
+
+  languageStorage.setItemAsync = async () => { throw new Error('disk full'); };
+  const alertCount = alerts.length;
+  await option('한국어').props.onPress();
+  refreshLanguage(); settings.render();
+  assert.equal(languageModule.useTranslation().language, 'ja');
+  assert.equal(option('日本語').props.accessibilityState.checked, true);
+  assert.equal(option('한국어').props.disabled, false);
+  assert.deepEqual(alerts.slice(alertCount), [['エラー', ja['settings.languageSaveError'], [{ text: '確認' }]]]);
+  languageStorage.setItemAsync = async (key, value) => { writes.push(value); };
+  await option('한국어').props.onPress();
+  refreshLanguage(); settings.render();
+  assert.equal(languageModule.useTranslation().language, 'ko');
+  assert.deepEqual(writes, ['ja', 'ko']);
+});
+
+test('종료된 언어 복원 요청은 새로 열린 앱의 언어를 덮어쓰지 않는다', async () => {
+  let resolveRead;
+  languageStorage.getItemAsync = () => new Promise(resolve => { resolveRead = resolve; });
+  const closed = mount(languageModule.LanguageProvider, { children: null });
+  closed.unmount();
+  resolveRead('ja');
+  await new Promise(setImmediate);
+  assert.equal(refreshLanguage(closed), null);
+  assert.equal(refreshLanguage().language, 'ko');
 });
 
 test('홈은 조회가 끝난 뒤 미등록 상태에서만 등록 버튼을 표시한다', async t => {
