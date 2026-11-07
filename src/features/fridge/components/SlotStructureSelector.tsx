@@ -96,6 +96,7 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     flexShrink: 0,
+    fontWeight: '600',
     textAlign: 'center',
   },
 });
