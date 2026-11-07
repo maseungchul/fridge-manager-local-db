@@ -44,6 +44,8 @@ type HomeScreenProps = CompositeScreenProps<
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
 const HOME_MENU_SIZE = 40;
 const HOME_TOOLBAR_EDGE_SPACE = 8;
+const LOADING_DELAY_MS = 200;
+const MIN_LOADING_VISIBLE_MS = 300;
 
 export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeScreenProps) {
   const { t } = useTranslation();
@@ -52,6 +54,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLoading, setShowLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<'home.loadError' | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
@@ -94,7 +98,14 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
     setIsLegendOpen(false);
     setIsMoveQueueOpen(false);
     setIsLoading(true);
+    setShowLoading(false);
     setError(null);
+    let loadingShownAt: number | null = null;
+    const loadingTimer = setTimeout(() => {
+      if (request !== loadRequest.current) return;
+      loadingShownAt = Date.now();
+      setShowLoading(true);
+    }, LOADING_DELAY_MS);
     try {
       const result = await getRefrigerator(db);
       const storedIngredients = result ? await getIngredients(db) : [];
@@ -106,7 +117,16 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
     } catch {
       if (request === loadRequest.current) setError('home.loadError');
     } finally {
-      if (request === loadRequest.current) setIsLoading(false);
+      clearTimeout(loadingTimer);
+      if (loadingShownAt !== null) {
+        const remaining = MIN_LOADING_VISIBLE_MS - (Date.now() - loadingShownAt);
+        if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
+      }
+      if (request === loadRequest.current) {
+        setHasLoaded(true);
+        setIsLoading(false);
+        setShowLoading(false);
+      }
     }
   }, [db, resetFocus, retainMoveQueue]);
 
@@ -173,9 +193,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const layout = refrigerator ? getDraftLayout(refrigerator, [], t) : null;
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
-  const isToolbarAvailable = !!refrigerator && !isLoading && !error;
+  const isToolbarAvailable = !!refrigerator && (!isLoading || (hasLoaded && !showLoading)) && !error;
   const isToolbarHidden = isSheetOpen || isLegendOpen;
-  const isToolbarBlocked = focusPhase === 'opening' || focusPhase === 'closing' || isToolbarChanging;
+  const isToolbarBlocked = isLoading || focusPhase === 'opening' || focusPhase === 'closing' || isToolbarChanging;
   const canUseToolbar = isToolbarExpanded && !isToolbarBlocked && !isToolbarHidden;
 
   function toggleToolbar() {
@@ -198,11 +218,11 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
     <View style={styles.container}>
       <View style={styles.container}>
         <View style={styles.scene}>
-          <SafeAreaView style={[styles.container, (isLoading || error !== null) && styles.feedback]}
+          <SafeAreaView style={[styles.container, ((isLoading && (!hasLoaded || showLoading)) || error !== null) && styles.feedback]}
             edges={['top', 'left', 'right']}
-            pointerEvents={activeFocus || isToolbarHidden || isToolbarChanging ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isToolbarHidden || isToolbarChanging}
-            importantForAccessibility={activeFocus || isToolbarHidden || isToolbarChanging ? 'no-hide-descendants' : 'auto'}>
-            {isLoading ? <ActivityIndicator color={colors.text} accessibilityLabel={t('home.loading')} />
+            pointerEvents={activeFocus || isToolbarHidden || isToolbarChanging || isLoading ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isToolbarHidden || isToolbarChanging || (isLoading && !showLoading)}
+            importantForAccessibility={activeFocus || isToolbarHidden || isToolbarChanging || (isLoading && !showLoading) ? 'no-hide-descendants' : 'auto'}>
+            {isLoading && (!hasLoaded || showLoading) ? (showLoading ? <ActivityIndicator color={colors.text} accessibilityLabel={t('home.loading')} /> : null)
               : error ? <>
                 <Text accessibilityRole="alert">{t(error)}</Text>
                 <PrimaryButton label={t('common.retry')} onPress={loadRefrigerator} />

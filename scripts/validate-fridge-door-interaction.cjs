@@ -1740,12 +1740,39 @@ test('홈은 조회가 끝난 뒤 미등록 상태에서만 등록 버튼을 표
   let destination;
   const home = mount(HomeScreen, { navigation: { navigate(route) { destination = route; } } });
   t.after(() => home.unmount());
-  assert(find(home.tree, node => node.type === 'ActivityIndicator'));
+  assert.equal(find(home.tree, node => node.type === 'ActivityIndicator'), undefined);
   assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
   await new Promise(setImmediate);
   home.render();
   find(home.tree, node => node.props.label === '냉장고 등록하기').props.onPress();
   assert.equal(destination, 'RefrigeratorRegistration');
+});
+
+test('홈 재조회는 기존 도면을 유지하고 느린 조회에만 로딩을 표시한다', async t => {
+  const previous = repository.getRefrigerator;
+  t.after(() => { repository.getRefrigerator = previous; });
+  const pending = deferred();
+  let calls = 0;
+  repository.getRefrigerator = () => ++calls === 1 ? Promise.resolve(savedRefrigerator('냉장고')) : pending.promise;
+  const home = mount(HomeScreen, { navigation: { navigate() {} } });
+  t.after(() => home.unmount());
+  await new Promise(setImmediate);
+  home.render();
+  home.focus();
+  home.render();
+  assert(find(home.tree, named('FridgeInteriorMap')));
+  assert.equal(find(home.tree, node => node.type === 'ActivityIndicator'), undefined);
+  await new Promise(resolve => setTimeout(resolve, 250));
+  home.render();
+  assert(find(home.tree, node => node.type === 'ActivityIndicator'));
+  pending.resolve(savedRefrigerator('갱신된 냉장고'));
+  await new Promise(setImmediate);
+  home.render();
+  assert(find(home.tree, node => node.type === 'ActivityIndicator'));
+  await new Promise(resolve => setTimeout(resolve, 330));
+  home.render();
+  assert.equal(find(home.tree, node => node.type === 'ActivityIndicator'), undefined);
+  assert.equal(find(home.tree, named('FridgeInteriorMap')).props.draft.name, '갱신된 냉장고');
 });
 
 test('홈으로 돌아오면 전체 도면을 다시 조회하고 늦은 이전 조회 결과를 무시한다', async t => {
