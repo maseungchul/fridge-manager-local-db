@@ -5,7 +5,6 @@
  */
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
-import type { LayoutRectangle } from 'react-native';
 import { IngredientSheet as BottomSheet } from '@/features/ingredient/components/IngredientSheet';
 import type { IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -19,7 +18,6 @@ import { deleteIngredient, getIngredientsByPosition, moveIngredients, registerIn
 import type { FridgeLayout, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
-import { IngredientDateFieldAnchor } from '@/features/ingredient/components/IngredientDateFieldAnchor';
 import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
 import { IngredientSwipeRow } from '@/features/ingredient/components/IngredientSwipeRow';
 import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
@@ -44,7 +42,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   const sheetRef = useRef<IngredientSheetRef>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const memoInput = useRef<ComponentRef<typeof FormTextInput>>(null);
-  const datePicker = useRef<{ request: number; keyboardSubscription?: ReturnType<typeof Keyboard.addListener> }>({ request: 0 });
   const saving = useRef(false);
   const deleting = useRef(false);
   const moving = useRef(false);
@@ -70,9 +67,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   });
   // 편집을 마치거나 취소해도 목록으로 돌아오기 전 작성한 추가 초안을 복원한다.
   const addDraft = useRef(draft);
-  const [datePickerAnchor, setDatePickerAnchor] = useState<LayoutRectangle | null>(null);
-  const [datePickerMeasurement, setDatePickerMeasurement] = useState<number | null>(null);
-  const isDatePickerOpen = datePickerAnchor !== null;
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
   const [result, setResult] = useState<{ requestKey: string; ingredients: Ingredient[]; error: string | null } | null>(null);
   const { slotId } = position;
@@ -85,7 +80,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   const canMove = queuedIngredients.some(ingredient => ingredient.slotId !== slotId || ingredient.drawerNumber !== drawerNumber)
     && !isLoading && error === null;
   const canSave = !!draft.name.trim() && !!draft.quantity.trim()
-    && draft.name.trim().length <= 50 && draft.quantity.trim().length <= 50 && !isDatePickerOpen && datePickerMeasurement === null;
+    && draft.name.trim().length <= 50 && draft.quantity.trim().length <= 50 && !isDatePickerOpen;
 
   useEffect(() => {
     let active = true;
@@ -104,12 +99,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
 
   useEffect(() => {
     const currentTransition = transition.current;
-    const currentDatePicker = datePicker.current;
     return () => {
       currentTransition.active = false;
       currentTransition.animation?.stop();
-      currentDatePicker.request++;
-      currentDatePicker.keyboardSubscription?.remove();
     };
   }, []);
 
@@ -152,11 +144,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   }
 
   const dismissDatePicker = useCallback(() => {
-    datePicker.current.request++;
-    datePicker.current.keyboardSubscription?.remove();
-    datePicker.current.keyboardSubscription = undefined;
-    setDatePickerMeasurement(null);
-    setDatePickerAnchor(null);
+    setIsDatePickerOpen(false);
   }, []);
 
   function closeSheet() {
@@ -192,25 +180,12 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
 
   function toggleDatePicker() {
     if (saving.current || transition.current.active) return;
-    dismissDatePicker();
-    if (isDatePickerOpen) return;
-    const request = datePicker.current.request;
-    const measureAnchor = () => {
-      if (request !== datePicker.current.request || saving.current || transition.current.active) return;
-      datePicker.current.keyboardSubscription?.remove();
-      datePicker.current.keyboardSubscription = undefined;
-      setDatePickerMeasurement(request);
-    };
-    // 키보드가 사라진 뒤 네이티브 측정기를 새로 마운트해 최종 화면 위치를 받는다.
-    const keyboardVisible = Keyboard.isVisible();
-    if (keyboardVisible) datePicker.current.keyboardSubscription = Keyboard.addListener('keyboardDidHide', measureAnchor);
     Keyboard.dismiss();
-    if (!keyboardVisible) measureAnchor();
+    setIsDatePickerOpen(current => !current);
   }
 
   function selectExpirationDate(date: string) {
     if (saving.current || transition.current.active) return;
-    // 입력은 즉시 반영하고 팝업 제거는 달력의 페이드 완료 콜백에서 처리한다.
     setDraft(current => ({ ...current, expirationDate: date }));
   }
 
@@ -421,15 +396,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                               onChangeText={memo => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, memo })); }} />
                             <Text style={styles.fieldLabel}>유통기한 (선택)</Text>
                             <View style={styles.dateRow}>
-                              {datePickerMeasurement !== null ? (
-                                <IngredientDateFieldAnchor key={datePickerMeasurement} onMeasure={frame => {
-                                  if (datePickerMeasurement !== datePicker.current.request || saving.current || transition.current.active
-                                    || frame.width <= 0 || frame.height <= 0) return;
-                                  datePicker.current.request++;
-                                  setDatePickerMeasurement(null);
-                                  setDatePickerAnchor(frame);
-                                }} />
-                              ) : null}
                               <FeedbackPressable accessibilityRole="button" accessibilityLabel="유통기한 날짜 선택"
                                 accessibilityState={{ disabled: isSaving || isChanging, expanded: isDatePickerOpen }}
                                 disabled={isSaving} interactionBlocked={isChanging}
@@ -512,8 +478,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
               })}
             </Animated.View>
           </View>
-          {datePickerAnchor ? (
-            <IngredientExpirationCalendar value={draft.expirationDate} anchor={datePickerAnchor}
+          {isDatePickerOpen ? (
+            <IngredientExpirationCalendar value={draft.expirationDate}
               disabled={isSaving || isChanging} onSelect={selectExpirationDate} onDismiss={dismissDatePicker} />
           ) : null}
           {moveNotice ? <View pointerEvents="none" style={styles.notice}>
