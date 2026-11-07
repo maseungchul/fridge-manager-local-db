@@ -3539,7 +3539,7 @@ test('닫힌 홈 도면은 실측 영역에 맞춰 축소하지 않고 기존 �
   }
 });
 
-test('홈·등록·편집은 원래 도면 배치와 닫힘·열림 크기를 공유한다', async t => {
+test('홈·등록·편집은 닫힌 배치를 공유하고 홈 내부의 가로 배지는 너비만 추가 확보한다', async t => {
   const previousGet = repository.getRefrigerator;
   const previousWindow = native.useWindowDimensions;
   t.after(() => { repository.getRefrigerator = previousGet; native.useWindowDimensions = previousWindow; });
@@ -3612,15 +3612,27 @@ test('홈·등록·편집은 원래 도면 배치와 닫힘·열림 크기를 �
         const { width, height } = flattenStyle(moving(overlay).props.style);
         return { width, height };
       });
-      assert.deepEqual(renderedSizes[0], renderedSizes[1]);
-      assert.deepEqual(renderedSizes[0], renderedSizes[2]);
-      const geometries = focuses.map(({ props }) => getFridgeFocusGeometry(props.draft, props.target, props.viewport, props.sizeViewport));
-      for (const geometry of geometries.slice(1)) {
-        near(geometry.body.width, geometries[0].body.width);
-        near(geometry.height, geometries[0].height);
-        near(geometry.fitRatio, geometries[0].fitRatio);
-        assert.deepEqual(geometry.pockets.map(pocket => pocket.frame), geometries[0].pockets.map(pocket => pocket.frame));
-      }
+      assert.deepEqual(renderedSizes[1], renderedSizes[2]);
+      const geometries = focuses.map(({ props }) => getFridgeFocusGeometry(props.draft, props.target, props.viewport,
+        props.sizeViewport, props.flushVerticalEdges, !props.onSelectArea));
+      geometries.forEach((geometry, index) => {
+        assert.deepEqual(renderedSizes[index], { width: geometry.width, height: geometry.height });
+        assert.deepEqual(geometry.source, geometries[0].source);
+      });
+      near(geometries[1].body.width, geometries[2].body.width);
+      near(geometries[1].height, geometries[2].height);
+      assert(geometries[0].body.width >= geometries[1].body.width - 1e-8);
+      assert(geometries[0].height <= geometries[1].height + 1e-8, '가로 배지 때문에 도면 높이가 커지면 안 된다');
+      const homeOverlay = overlays[0];
+      const layout = model.getDraftLayout(saved);
+      homeOverlay.props.ingredients = layout.positions.flatMap(position =>
+        ['2026-11-07', '2026-11-06', '2026-11-03'].flatMap(expirationDate =>
+          Array.from({ length: 100 }, () => ({ positionId: position.id, expirationDate }))));
+      homeOverlay.props.now = new Date(2026, 10, 4);
+      homeOverlay.render();
+      const populated = flattenStyle(moving(homeOverlay).props.style);
+      assert.deepEqual({ width: populated.width, height: populated.height }, renderedSizes[0],
+        '빈 도면과 세 상태가 모두 99+인 도면의 크기가 같아야 한다');
       near(geometries[0].focusedTop + geometries[0].height / 2, height / 2);
     }
   }
@@ -6115,24 +6127,39 @@ test('재료 집계는 기한 미입력을 일반에 포함하고 일반·D-2·�
   assert.deepEqual(ingredientModel.getIngredientCounts([], new Date(2026, 10, 4)), { total: 0, normal: 0, warning: 0, expired: 0 });
 });
 
-test('일반 재료가 없어도 주의·경과 배지는 유지하고 0건인 배지만 숨긴다', () => {
+test('0건 상태를 제외한 배지는 홈 세로·내부 가로 묶음 안에서 양 끝만 둥글게 병합한다', () => {
   for (const [dates, expected] of [
     [['2026-11-07', null], [['normal', 2]]],
     [['2026-11-06'], [['warning', 1]]],
     [['2026-11-03'], [['expired', 1]]],
     [['2026-11-06', '2026-11-03'], [['warning', 1], ['expired', 1]]],
+    [['2026-11-07', '2026-11-03'], [['normal', 1], ['expired', 1]]],
+    [['2026-11-07', '2026-11-06', '2026-11-03'], [['normal', 1], ['warning', 1], ['expired', 1]]],
     [[], []],
   ]) {
     const counts = ingredientModel.getIngredientCounts(dates.map(expirationDate => ({ expirationDate })), new Date(2026, 10, 4));
     assert.equal(counts.normal, counts.total - counts.warning - counts.expired);
-    const tree = badgeModule.IngredientCountBadges({ counts });
-    assert.deepEqual(findAll(tree, named('IngredientCountBadge')).map(badge => [badge.props.kind, badge.props.count]), expected);
-    assert.equal(tree === null, dates.length === 0);
-    assert.equal(badgeModule.getIngredientBadgeHeight(counts), expected.length === 0 ? 0 : expected.length * 20 + (expected.length - 1) * 3 + 4);
+    for (const direction of ['vertical', 'horizontal']) {
+      const tree = badgeModule.IngredientCountBadges({ counts, direction });
+      const badges = findAll(tree, named('IngredientCountBadge'));
+      assert.deepEqual(badges.map(badge => [badge.props.kind, badge.props.count]), expected);
+      assert.equal(tree === null, dates.length === 0);
+      if (!tree) continue;
+      const group = flattenStyle(children(tree)[0].props.style);
+      assert.equal(group.flexDirection, direction === 'horizontal' ? 'row' : 'column');
+      assert.equal(group.borderRadius, 10);
+      assert.equal(group.overflow, 'hidden');
+      assert.equal(group.gap ?? 0, 0);
+      assert.equal(group.paddingHorizontal ?? 0, 0);
+      assert.equal(group.paddingVertical ?? 0, 0);
+      for (const badge of badges) {
+        assert.equal(flattenStyle(badge.type(badge.props).props.style).borderRadius, 0);
+      }
+    }
   }
 });
 
-test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 같은 간격·글자 크기를 사용한다', () => {
+test('내부 가로 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈 세로 배지와 같은 아이콘·글자 크기를 사용한다', () => {
   const draft = savedRefrigerator('기한 배지');
   draft.rows[0].compartments[0].slots[0].drawerCount = 2;
   const layout = model.getDraftLayout(draft);
@@ -6140,7 +6167,8 @@ test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 �
   const ingredients = [
     ...['2026-11-07', '2026-11-06', '2026-11-05', '2026-11-04', '2026-11-03', null].map(expirationDate => ({ positionId: left.id, expirationDate })),
     ...Array.from({ length: 100 }, () => ({ positionId: right.id, expirationDate: '2026-11-03' })),
-    { positionId: pocket.id, expirationDate: '2026-11-05' },
+    ...['2026-11-07', '2026-11-05', '2026-11-03'].flatMap(expirationDate =>
+      Array.from({ length: 100 }, () => ({ positionId: pocket.id, expirationDate }))),
   ];
   for (const storageMode of ['CHILLED', 'FROZEN']) {
     const map = mapModule.FridgeMap({ ...layout, ingredients, now: new Date(2026, 10, 4), storageMode, showAreaLabels: false });
@@ -6163,19 +6191,20 @@ test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 �
       const badge = find(position, named('IngredientCountBadges'));
       const center = badge.type(badge.props);
       assert.equal(badge.props.placement, 'top-left');
+      assert.equal(badge.props.direction, 'horizontal');
       assert.equal(flattenStyle(center.props.style).alignItems, 'flex-start');
       assert.equal(flattenStyle(center.props.style).justifyContent, 'flex-start');
       assert.equal(flattenStyle(center.props.style).top, 4);
       assert.equal(flattenStyle(center.props.style).left, 4);
       assert.equal(center.props.pointerEvents, 'none');
       const paper = flattenStyle(children(center)[0].props.style);
-      assert.equal(paper.flexDirection, 'column');
-      assert.equal(paper.backgroundColor, tokens.ingredientLabelColors.background);
+      assert.equal(paper.flexDirection, 'row');
       for (const item of findAll(badge, named('IngredientCountBadge'))) {
         const rendered = item.type(item.props);
         const matchingHomeItem = homeItems.find(homeItem => homeItem.props.kind === item.props.kind);
         const homeItem = matchingHomeItem.type(matchingHomeItem.props);
-        assert.deepEqual(rendered.props.style, homeItem.props.style);
+        assert.equal(flattenStyle(rendered.props.style).gap, flattenStyle(homeItem.props.style).gap);
+        assert.equal(children(rendered)[0].props.size, children(homeItem)[0].props.size);
         const label = find(rendered, node => node.type === 'Text');
         const homeLabel = find(homeItem, node => node.type === 'Text');
         assert.deepEqual(label.props.style, homeLabel.props.style);
@@ -6196,6 +6225,12 @@ test('내부 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈과 �
     assert(pocketBadge, '포켓 배지는 수납함 전면을 기준으로 배치해야 한다');
     assert.equal(children(pocketPosition).filter(named('IngredientCountBadges')).length, 0);
     assert.equal(pocketBadge.props.placement, 'top-left');
+    assert.equal(flattenStyle(front.props.style).height, '62%');
+    assert.equal(flattenStyle(front.props.style).minHeight, undefined);
+    assert.deepEqual(findAll(pocketBadge, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+', '99+']);
+    const maximumBadgeWidth = findAll(pocketBadge, named('IngredientCountBadge'))
+      .reduce((sum, badge) => sum + flattenStyle(badge.type(badge.props).props.style).maxWidth, 0);
+    assert.equal(maximumBadgeWidth, badgeModule.INGREDIENT_BADGES_MAX_WIDTH);
     overview.compartment.unmount();
     overview.map.unmount();
   }

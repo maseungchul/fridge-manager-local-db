@@ -355,7 +355,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, select
 
 /** 공통 기준으로 크기를 정하고, 중앙 배치와 스크롤은 실제 표시 영역에 맞춘다. */
 export function getFridgeFocusGeometry(draft: FridgeInteriorMapProps['draft'], focus: FridgeFocusTarget,
-  viewport: LayoutRectangle, sizeViewport: FridgeDiagramSize = viewport, flushVerticalEdges = false) {
+  viewport: LayoutRectangle, sizeViewport: FridgeDiagramSize = viewport, flushVerticalEdges = false, showIngredientCounts = false) {
   const rowIndex = draft.rows.findIndex(row => row.compartments.some(body => body.id === focus.areaId));
   if (rowIndex < 0) return null;
   const row = draft.rows[rowIndex];
@@ -374,9 +374,9 @@ export function getFridgeFocusGeometry(draft: FridgeInteriorMapProps['draft'], f
   const availableHeight = Math.max(1, viewport.height - (flushVerticalEdges ? 0 : FOCUS_PADDING * 2));
   const sizingWidth = Math.max(1, sizeViewport.width - FOCUS_PADDING * 2);
   const sizingHeight = Math.max(1, sizeViewport.height - FOCUS_PADDING * 2);
-  const bodyMinimum = getFridgeAreaEditSize(group.body.slots, true);
+  const bodyMinimum = getFridgeAreaEditSize(group.body.slots, true, showIngredientCounts);
   const pocketMinimums = [...leftDoors, ...rightDoors].map(({ door }) =>
-    getFridgeAreaEditSize(door.storageEnabled ? door.slots : [], false));
+    getFridgeAreaEditSize(door.storageEnabled ? door.slots : [], false, showIngredientCounts && door.storageEnabled));
   const minimumWidth = Math.max(bodyMinimum.width, ...pocketMinimums.map(size => size.width * group.doors.length));
   const minimumHeight = Math.max(bodyMinimum.height, ...pocketMinimums.map(size => size.height));
   function fitSize(indicatorHeight: number) {
@@ -525,7 +525,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0, y: 0 });
   const latestScrollPosition = useRef(scrollPosition);
   const previousVertical = useRef({ key: '', enabled: false });
-  const geometry = getFridgeFocusGeometry(draft, target, viewport, sizeViewport, flushVerticalEdges);
+  const geometry = getFridgeFocusGeometry(draft, target, viewport, sizeViewport, flushVerticalEdges, !onSelectArea);
   const layout = getDraftLayout(draft, ingredients);
   const open = phase === 'open';
   const scrollKey = `${target.areaId}:${geometry?.width}:${geometry?.height}:${viewport.width}`;
