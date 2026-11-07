@@ -6466,7 +6466,7 @@ test('닫힌 도면은 함께 열리는 본체·연결 포켓을 한 번씩 집�
   map.unmount();
 });
 
-test('홈 문 앞면 배지는 모드 아이콘 아래에서 세로·서랍 손잡이를 피하고 문과 함께 이동한다', () => {
+test('홈 문 앞면 배지는 모드 아이콘 아래 8 간격을 두고 손잡이를 피한다', () => {
   const { compartment, map } = fixture();
   const template = doors(compartment)[0];
   const counts = { total: 240, normal: 20, warning: 120, expired: 100 };
@@ -6484,7 +6484,7 @@ test('홈 문 앞면 배지는 모드 아이콘 아래에서 세로·서랍 손�
         assert.deepEqual(badge.props.counts, counts);
         const position = flattenStyle(badge.props.style);
         const artPosition = flattenStyle(mapModule.DoorModeArt(art.props).props.style);
-        near(position.top - artPosition.top - art.props.size, 6);
+        near(position.top - artPosition.top - art.props.size, 8);
         assert.equal(badge.props.placement, opening === 'RIGHT_DOOR' ? 'top-right' : 'top-left');
         const rendered = badge.type(badge.props);
         assert.equal(flattenStyle(rendered.props.style).justifyContent, 'flex-start');

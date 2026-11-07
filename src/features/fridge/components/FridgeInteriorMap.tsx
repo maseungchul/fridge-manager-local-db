@@ -285,7 +285,7 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
           ) : null}
           {ingredientCounts && ingredientCounts.total > 0 ? (
             <IngredientCountBadges counts={ingredientCounts} placement={handleOnLeft ? 'top-right' : 'top-left'}
-              style={{ top: DOOR_MODE_ART_INSET + artSize + 6, bottom: 4,
+              style={{ top: DOOR_MODE_ART_INSET + artSize + 8, bottom: 4,
                 // 세로 손잡이 쪽은 여백을 남기고, 서랍형은 가로 손잡이 아래 폭을 사용한다.
                 left: handleOnLeft ? 30 : DOOR_MODE_ART_INSET,
                 right: !drawer && !handleOnLeft ? 30 : DOOR_MODE_ART_INSET }} />
