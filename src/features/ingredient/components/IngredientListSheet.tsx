@@ -464,7 +464,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                                       <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
                                       <Text style={[styles.expirationDate, item.expirationDate !== null && {
                                         color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'normal'],
-                                        fontWeight: '700',
                                       }]}>{expiration.label}</Text>
                                     </View>
                                     {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
@@ -537,7 +536,7 @@ const styles = StyleSheet.create({
   itemName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600' },
   quantity: { fontSize: 17, fontWeight: '400' },
   memo: { color: colors.textMuted, fontSize: 15 },
-  expirationDate: { color: ingredientBadgeColors.unknown, fontSize: 14, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  expirationDate: { color: ingredientBadgeColors.unknown, fontSize: 14, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
   form: { padding: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
   positionName: { color: colors.text, fontSize: 16, flexShrink: 1 },

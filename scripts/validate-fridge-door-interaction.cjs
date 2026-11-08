@@ -2422,7 +2422,7 @@ test('재료 목록 D-day는 배지와 같은 신선·유통기한 주의·경�
   sheet.render();
   const list = find(sheet.tree, node => node.type === 'FlatList');
   assert.deepEqual(list.props.data, ingredients);
-  const expectedColors = { milk: tokens.ingredientBadgeColors.normal, eggs: tokens.colors.textMuted,
+  const expectedColors = { milk: tokens.ingredientBadgeColors.normal, eggs: tokens.ingredientBadgeColors.unknown,
     apple: tokens.ingredientBadgeColors.warning, carrot: tokens.ingredientBadgeColors.warning, tofu: tokens.ingredientBadgeColors.expired };
   for (const item of ingredients) {
     assert.equal(list.props.keyExtractor(item), item.id);
@@ -2435,6 +2435,7 @@ test('재료 목록 D-day는 배지와 같은 신선·유통기한 주의·경�
     const label = find(rendered, node => node.type === 'Text' && node.props.children === expiration.label);
     assert.equal(flattenStyle(label.props.style).textAlign, 'right');
     assert.equal(flattenStyle(label.props.style).color, expectedColors[item.id]);
+    assert.equal(flattenStyle(label.props.style).fontWeight, '700');
     assert.equal(flattenStyle(heading.props.style).flexDirection, 'row');
     assert.equal(flattenStyle(children(heading)[0].props.style).flex, 1);
   }
