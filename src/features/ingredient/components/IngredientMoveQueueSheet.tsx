@@ -40,6 +40,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
       <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={() => sheet.current?.close()}>
         <View style={styles.dragIndicator} pointerEvents="none" />
         <View style={styles.header}>
+          <View style={styles.clearButton} pointerEvents="none" />
           <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{t('queue.title', { count: ingredients.length })}</Text>
           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.clear')}
             disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
@@ -58,6 +59,6 @@ const styles = StyleSheet.create({
   dragIndicator: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
     marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4' },
   header: { ...headerStyles.header, justifyContent: 'space-between' },
-  title: { ...headerStyles.title, flexShrink: 1 },
+  title: { ...headerStyles.title, flex: 1, textAlign: 'center' },
   clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
 });
