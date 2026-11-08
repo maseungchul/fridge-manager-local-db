@@ -54,7 +54,7 @@ test('위치 이름만 일본어로 생성하고 사용자 이름·재료·위�
     korean.positions.map(({ id, slotId, drawerNumber }) => ({ id, slotId, drawerNumber })));
   assert.deepEqual(japanese.ingredients, korean.ingredients);
   assert.equal(japanese.areas[0].name, '庫内');
-  assert.equal(japanese.areas[0].compartment, '上から1段目・左から1番目');
+  assert.equal(japanese.areas[0].compartment, '1段目・1番目');
   const position = japanese.positions.find(position => position.slotId === 'stored-slot' && position.drawerNumber === 2);
   assert.equal(fridge.getPositionName(position, t), '上から1番目の区画 · 右');
   assert.equal(fridge.getStorageModeName('FROZEN', t), '冷凍室');

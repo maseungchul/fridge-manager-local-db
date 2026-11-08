@@ -1708,14 +1708,14 @@ test('일본어 도면·하위 설정·범례·이동 대기 목록은 위치와
   const compartment = mount(group.type, group.props);
   t.after(() => compartment.unmount());
   const door = doors(compartment)[0];
-  assert(door.props.label.includes('上から1段目'));
+  assert(door.props.label.includes('1段目'));
   assert(door.props.label.includes('食材1件'));
   assert(find(menu.tree, node => node.props.accessibilityLabel === '保存モード'));
   assert(find(menu.tree, node => node.props.accessibilityLabel === '上から1段目 庫内 冷蔵'));
   assert(find(legend.tree, node => node.props.children === '期限切れ'));
   const list = find(queue.tree, node => node.type === 'SectionList');
   const section = list.props.sections[0];
-  assert.equal(section.title, '上から1段目 → 庫内 → 1番目の区画');
+  assert.equal(section.title, '1段目 → 庫内 → 1番目の区画');
   const row = list.props.renderItem({ item: ingredient, section });
   assert(find(row, node => node.props.children === '賞味期限 2028/02/29'));
   assert(find(row, node => node.props.accessibilityLabel === '계란を移動待ちから外す'));
