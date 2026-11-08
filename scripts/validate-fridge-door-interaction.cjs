@@ -6337,11 +6337,16 @@ test('0건 상태를 제외한 배지는 홈 세로·내부 가로 묶음 안에
       assert.equal(group.flexDirection, direction === 'horizontal' ? 'row' : 'column');
       assert.equal(group.borderRadius, 10);
       assert.equal(group.overflow, 'hidden');
-      assert.equal(group.gap ?? 0, 0);
+      assert.equal(group.gap, 1);
+      assert.equal(group.backgroundColor, undefined, '배지 사이로 실제 도면 배경이 보인다');
       assert.equal(group.paddingHorizontal ?? 0, 0);
       assert.equal(group.paddingVertical ?? 0, 0);
       for (const badge of badges) {
-        assert.equal(flattenStyle(badge.type(badge.props).props.style).borderRadius, 0);
+        const badgeStyle = flattenStyle(badge.type(badge.props).props.style);
+        assert.equal(badgeStyle.borderRadius, 0);
+        assert.equal(badgeStyle.borderTopWidth ?? 0, 0);
+        assert.equal(badgeStyle.borderLeftWidth ?? 0, 0);
+        if (direction === 'horizontal') assert.equal(badgeStyle.flexShrink, 1);
       }
     }
   }

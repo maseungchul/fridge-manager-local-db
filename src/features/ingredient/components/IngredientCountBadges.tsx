@@ -61,10 +61,9 @@ export function IngredientCountBadges({ counts, placement = 'center', direction 
       style={[styles.center, upper && { alignItems: alignment, justifyContent: 'flex-start' }, style]}>
       {/* 바깥 묶음만 둥글게 잘라 0건 상태가 빠져도 양 끝 모양을 유지한다. */}
       <View style={[styles.badges, direction === 'horizontal' && styles.horizontalBadges]}>
-        {badgeKinds.filter(kind => counts[kind] > 0).map((kind, index) => (
+        {badgeKinds.filter(kind => counts[kind] > 0).map(kind => (
           <IngredientCountBadge key={kind} count={counts[kind]} kind={kind}
-            style={[styles.mergedBadge, direction === 'horizontal' && styles.horizontalBadge,
-              index > 0 && (direction === 'horizontal' ? styles.leftSeparator : styles.topSeparator)]} />
+            style={[styles.mergedBadge, direction === 'horizontal' && styles.horizontalBadge]} />
         ))}
       </View>
     </View>
@@ -75,13 +74,11 @@ const styles = StyleSheet.create({
   center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   badges: {
     maxWidth: '100%', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start',
-    borderRadius: BADGE_ROW_HEIGHT / 2, overflow: 'hidden',
+    borderRadius: BADGE_ROW_HEIGHT / 2, overflow: 'hidden', gap: 1,
   },
   horizontalBadges: { flexDirection: 'row' },
   mergedBadge: { borderRadius: 0 },
-  horizontalBadge: { maxWidth: BADGE_MAX_WIDTH },
-  topSeparator: { borderTopWidth: 1, borderTopColor: colors.buttonText },
-  leftSeparator: { borderLeftWidth: 1, borderLeftColor: colors.buttonText },
+  horizontalBadge: { maxWidth: BADGE_MAX_WIDTH, flexShrink: 1 },
   // 홈·내부 칸 모두 같은 간격으로 아이콘과 숫자의 왼쪽을 맞춘다.
   badge: { minWidth: 0, minHeight: BADGE_ROW_HEIGHT, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 3 },
   countBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: BADGE_ROW_HEIGHT / 2 },
