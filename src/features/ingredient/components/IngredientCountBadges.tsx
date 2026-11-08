@@ -1,6 +1,6 @@
 /**
  * @file
- * 도면·칸의 일반·기한주의·경과 재료 건수를 호출자가 정한 위치에 묶어 표시한다.
+ * 도면·칸의 기한 상태별 재료 건수를 호출자가 정한 위치에 묶어 표시한다.
  * 홈은 세로·내부는 가로로 상태색을 연결하고, 범례는 숫자 없이 큰 상태 아이콘을 사용한다.
  */
 import { StyleSheet, Text, View } from 'react-native';
@@ -14,10 +14,10 @@ import type { Translator } from '@/i18n/translations';
 export const INGREDIENT_BADGE_SIZE = 28;
 const BADGE_ROW_HEIGHT = 20;
 const BADGE_MAX_WIDTH = 52;
-const badgeKinds = ['normal', 'warning', 'expired'] as const;
-const badgeIcons = { normal: 'circle-slice-1', warning: 'circle-slice-6', expired: 'circle-slice-8' } as const;
+const badgeKinds = ['normal', 'warning', 'expired', 'unknown'] as const;
+const badgeIcons = { normal: 'circle-slice-1', warning: 'circle-slice-6', expired: 'circle-slice-8', unknown: 'help-circle-outline' } as const;
 
-// 세 상태가 모두 99+여도 칸 크기를 바꾸지 않도록 가로 배지의 최대 폭을 공유한다.
+// 모든 상태가 99+여도 칸 크기를 바꾸지 않도록 가로 배지의 최대 폭을 공유한다.
 export const INGREDIENT_BADGES_MAX_WIDTH = badgeKinds.length * BADGE_MAX_WIDTH;
 
 /** 색을 구별하지 못하는 경우에도 실제 건수와 기한 상태를 함께 안내한다. */
@@ -26,6 +26,7 @@ export function getIngredientCountLabel(counts: IngredientCounts, t: Translator 
     ...(counts.normal > 0 ? [t('counts.normal', { count: counts.normal })] : []),
     ...(counts.warning > 0 ? [t('counts.warning', { count: counts.warning })] : []),
     ...(counts.expired > 0 ? [t('counts.expired', { count: counts.expired })] : []),
+    ...(counts.unknown > 0 ? [t('counts.unknown', { count: counts.unknown })] : []),
   ].join(', ');
 }
 

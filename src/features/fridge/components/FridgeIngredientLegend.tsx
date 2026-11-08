@@ -17,6 +17,7 @@ const legendItems = [
   { kind: 'normal', title: 'legend.normal', description: 'legend.normalHint' },
   { kind: 'warning', title: 'legend.warning', description: 'legend.warningHint' },
   { kind: 'expired', title: 'legend.expired', description: 'legend.expiredHint' },
+  { kind: 'unknown', title: 'legend.unknown', description: 'legend.unknownHint' },
 ] as const;
 
 export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {

@@ -23,6 +23,7 @@ export interface IngredientCounts {
   normal: number;
   warning: number;
   expired: number;
+  unknown: number;
 }
 
 /** 시각·일광 절약 시간과 무관하게 현지 달력 날짜로 남은 일수를 계산한다. */
@@ -37,10 +38,11 @@ export function getIngredientExpirationStatus(expirationDate: string | null, now
   };
 }
 
-/** 일반·기한주의·경과를 중복 없이 집계하고, 날짜 미입력은 일반 건수에 포함한다. */
+/** 유통기한 상태와 미입력 재료를 중복 없이 집계한다. */
 export function getIngredientCounts(ingredients: readonly Pick<Ingredient, 'expirationDate'>[], now = new Date()): IngredientCounts {
-  const counts = { total: ingredients.length, normal: 0, warning: 0, expired: 0 };
+  const counts = { total: ingredients.length, normal: 0, warning: 0, expired: 0, unknown: 0 };
   for (const ingredient of ingredients) {
+    if (ingredient.expirationDate === null) { counts.unknown++; continue; }
     const status = getIngredientExpirationStatus(ingredient.expirationDate, now);
     if (status.isExpired) counts.expired++;
     else if (status.isUrgent) counts.warning++;
