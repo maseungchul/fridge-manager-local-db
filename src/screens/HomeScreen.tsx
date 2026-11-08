@@ -329,7 +329,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                     <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={HOME_TOOL_ICON_SIZE} color={colors.buttonText} accessible={false} />
                     {!isToolbarExpanded && hasQueuedIngredients ? (
                       <View style={[styles.queueDot, styles.queueDotOnToggle]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                        <View style={[styles.queueDotFill, styles.queueDotFillOnToggle]} />
+                        <View style={styles.queueDotFill} />
                       </View>
                     ) : null}
                   </View>
@@ -441,8 +441,7 @@ const styles = StyleSheet.create({
   queueDot: { position: 'absolute', top: -4, right: -3, width: 10, height: 10, borderRadius: 5,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   queueDotOnToggle: { top: -2, right: -2, backgroundColor: colors.chilled },
-  queueDotFill: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.chilled },
-  queueDotFillOnToggle: { backgroundColor: colors.sageLight },
+  queueDotFill: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.moveQueueBadge },
   floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
   toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
     borderRadius: HOME_MENU_SIZE / 2, backgroundColor: colors.chilled },

@@ -28,6 +28,7 @@ export const colors = {
   sage: '#A8B7A1',
   // 냉장고 위치와 하단 메뉴의 선택 상태를 표시하는 옅은 배경색이다.
   sageLight: '#DCE5D4',
+  moveQueueBadge: '#19C17B',
   rose: '#D4B3AD',
   // 버튼의 기본 배경, 누르는 동안의 배경, 글자·로딩 표시 색상을 구분한다.
   button: '#29322A',

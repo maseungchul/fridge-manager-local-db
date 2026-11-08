@@ -6669,7 +6669,7 @@ test('홈 이동 대기는 항상 표시하고 대기 중 점 배지는 펼친 �
     if (count > 0) {
       const dot = dots(toggle())[0];
       assert.equal(flattenStyle(dot.props.style).backgroundColor, tokens.colors.chilled);
-      assert.equal(flattenStyle(children(dot)[0].props.style).backgroundColor, tokens.colors.sageLight);
+      assert.equal(flattenStyle(children(dot)[0].props.style).backgroundColor, tokens.colors.moveQueueBadge);
       assert.equal(dot.props.pointerEvents, 'none');
       assert.equal(dot.props.accessibilityElementsHidden, true);
       assert.equal(find(dot, node => node.type === 'Text'), undefined, '점 배지에는 숫자를 표시하지 않는다');
