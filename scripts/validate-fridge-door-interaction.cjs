@@ -2466,7 +2466,7 @@ test('재료 목록 D-day는 배지와 같은 신선·유통기한 주의·경�
     const rendered = list.props.renderItem({ item }).props.children;
     const expiration = ingredientModel.getIngredientExpirationStatus(item.expirationDate, now);
     const heading = children(rendered)[0];
-    assert.equal(children(heading)[0].props.children[0], item.name);
+    assert(find(children(heading)[0], node => node.type === 'Text' && Array.isArray(node.props.children) && node.props.children[0] === item.name));
     assert(find(rendered, node => node.type === 'Text' && Array.isArray(node.props.children) && node.props.children.includes(item.quantity)));
     assert.equal(find(rendered, node => node.type === 'Text' && node.props.children === item.memo)?.props.children, item.memo ?? undefined);
     const label = find(rendered, node => node.type === 'Text' && node.props.children === expiration.label);

@@ -461,13 +461,15 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                                     accessibilityState={{ disabled: isBusy || isChanging }} disabled={isBusy} interactionBlocked={isChanging}
                                     onPress={() => { if (swipedIngredientId !== null) setSwipedIngredientId(null); else startEditing(item); }} style={styles.item}>
                                     <View style={styles.itemHeader}>
-                                      <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
+                                      <View style={styles.itemTitle}>
+                                        {isQueued ? <MaterialDesignIcons name="clipboard-check-outline" size={20} color={colors.chilled} accessible={false} /> : null}
+                                        <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
+                                      </View>
                                       <Text style={[styles.expirationDate, item.expirationDate !== null && {
                                         color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'normal'],
                                       }]}>{expiration.label}</Text>
                                     </View>
                                     {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
-                                    {isQueued ? <Text style={styles.queuedLabel}>{t('queue.pending')}</Text> : null}
                                   </FeedbackPressable>
                                 </IngredientSwipeRow>
                               );
@@ -520,7 +522,6 @@ const styles = StyleSheet.create({
   moveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
     minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 12, backgroundColor: colors.button },
   moveLabel: { color: colors.buttonText, fontSize: 15, fontWeight: '600' },
-  queuedLabel: { color: colors.chilled, fontSize: 13 },
   notice: { position: 'absolute', left: 0, right: 0, bottom: spacing.lg, alignItems: 'center' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
@@ -533,7 +534,8 @@ const styles = StyleSheet.create({
   item: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   itemHeader: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
-  itemName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600' },
+  itemTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  itemName: { flexShrink: 1, color: colors.text, fontSize: 17, fontWeight: '600' },
   quantity: { fontSize: 17, fontWeight: '400' },
   memo: { color: colors.textMuted, fontSize: 15 },
   expirationDate: { color: ingredientBadgeColors.unknown, fontSize: 14, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
