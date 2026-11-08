@@ -9,7 +9,8 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getPositionName } from '@/features/fridge/model/fridgeLayout';
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
-import { colors, spacing } from '@/theme/tokens';
+import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
+import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { formatDate } from '@/i18n/translations';
 
@@ -61,12 +62,16 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
           ))}
         </View>
       )}
-      renderItem={({ item, section }) => (
+      renderItem={({ item, section }) => {
+        const expiration = getIngredientExpirationStatus(item.expirationDate, undefined, t);
+        return (
         <View style={styles.item}>
           <View style={styles.labels}>
             <Text style={styles.name}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
-            <Text style={styles.detail}>{item.expirationDate ? t('ingredient.expirationLabel', { date: formatDate(item.expirationDate, t) }) : t('ingredient.noExpiration')}</Text>
             {item.memo ? <Text style={styles.detail}>{item.memo}</Text> : null}
+            <Text style={[styles.detail, item.expirationDate !== null && {
+              color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'normal'],
+            }]}>{item.expirationDate ? t('ingredient.expirationLabel', { date: formatDate(item.expirationDate, t) }) : t('ingredient.noExpiration')}</Text>
           </View>
           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.remove', { name: item.name })}
             accessibilityHint={`${section.title}, ${item.quantity}, ${item.expirationDate ? formatDate(item.expirationDate, t) : t('ingredient.noExpiration')}`}
@@ -74,7 +79,8 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
             <MaterialDesignIcons name="close" size={22} color={colors.textMuted} accessible={false} />
           </FeedbackPressable>
         </View>
-      )} />
+        );
+      }} />
   );
 }
 
