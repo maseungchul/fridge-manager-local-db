@@ -1116,7 +1116,8 @@ test('홈의 편집 아이콘으로 저장된 구성을 열고 수정 저장 후
   assert.equal(removed, 1);
   assert.equal(registrations, 0);
   assert.deepEqual(find(home.tree, named('FridgeInteriorMap')).props.draft, saved);
-  assert.equal(find(home.tree, node => node.props.accessibilityRole === 'header').props.children, saved.name);
+  assert.equal(find(home.tree, node => node.props.accessibilityRole === 'header').props.children, '냉장고');
+  assert(find(home.tree, node => node.type === 'Text' && node.props.children === saved.name));
 });
 
 test('이름 변경은 편집에서만 표시하고 구조 초안을 유지하며 저장 중 중복 요청·이동을 막는다', async t => {
@@ -1668,6 +1669,7 @@ test('홈의 오류·빈 화면과 등록 초안은 재조회·입력 초기화 
   assert.deepEqual(find(screen.tree, named('FridgeInteriorMap')).props.draft, before);
   repository.getRefrigerator = async () => null;
   await find(home.tree, node => node.props.label === '再読み込み').props.onPress(); home.render();
+  assert(find(home.tree, node => node.props.accessibilityRole === 'header' && node.props.children === '冷蔵庫'));
   assert(find(home.tree, node => node.props.children === 'わが家の冷蔵庫を登録しましょう'));
   assert(find(home.tree, node => node.props.label === '冷蔵庫を登録'));
 });
@@ -1775,6 +1777,8 @@ test('홈은 조회가 끝난 뒤 미등록 상태에서만 등록 버튼을 표
   assert.equal(find(home.tree, node => node.props.label === '냉장고 등록하기'), undefined);
   await new Promise(setImmediate);
   home.render();
+  assert(find(home.tree, node => node.props.accessibilityRole === 'header' && node.props.children === '냉장고'));
+  assert.equal(find(home.tree, node => node.props.accessibilityLabel === '냉장고 편집'), undefined);
   find(home.tree, node => node.props.label === '냉장고 등록하기').props.onPress();
   assert.equal(destination, 'RefrigeratorRegistration');
 });
@@ -1845,7 +1849,7 @@ test('홈 조회 실패 시 등록으로 오인하지 않고 오류 표시 후 �
   assert.equal(find(home.tree, node => node.props.accessibilityRole === 'alert'), undefined);
 });
 
-test('홈은 최상단 냉장고 이름과 등록 화면의 전체 도면을 표시하고 별도 경로·칸 목록을 추가하지 않는다', async t => {
+test('홈은 냉장고 제목·이름과 등록 화면의 전체 도면을 표시하고 별도 경로·칸 목록을 추가하지 않는다', async t => {
   const previous = repository.getRefrigerator;
   t.after(() => { repository.getRefrigerator = previous; });
   const snapshot = savedRefrigerator('복원된 냉장고');
@@ -1870,9 +1874,10 @@ test('홈은 최상단 냉장고 이름과 등록 화면의 전체 도면을 표
   assert.equal(find(home.tree, named('FridgeFocusView')), undefined);
   assert.equal(find(home.tree, node => node.type === 'FridgeAreaMenu'), undefined);
   const texts = findAll(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.includes('top')), node => node.type === 'Text');
-  assert.equal(texts.length, 1);
+  assert.equal(texts.length, 2);
   assert.equal(texts[0].props.accessibilityRole, 'header');
-  assert.equal(texts[0].props.children, snapshot.name);
+  assert.equal(texts[0].props.children, '냉장고');
+  assert.equal(texts[1].props.children, snapshot.name);
   assert.equal(find(home.tree, node => node.type === 'ScrollView'), undefined);
   assert.equal(find(home.tree, node => node.type === 'PrimaryButton'), undefined);
 });
@@ -1965,7 +1970,8 @@ test('홈도 같은 문 열림·중앙 보기·수납 없음·서랍형 표시�
       assert.equal(find(home.tree, node => node.type === 'SafeAreaView' && node.props.edges.includes('top')).props.accessibilityElementsHidden, false);
       assert.equal(reads, 1);
       assert.deepEqual(map().props.draft, before);
-      assert.deepEqual(findAll(home.tree, node => node.props.accessibilityRole === 'header').map(node => node.props.children), [snapshot.name]);
+      assert.deepEqual(findAll(home.tree, node => node.props.accessibilityRole === 'header').map(node => node.props.children), ['냉장고']);
+      assert(find(home.tree, node => node.type === 'Text' && node.props.children === snapshot.name));
     });
   }
 });

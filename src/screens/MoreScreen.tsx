@@ -58,7 +58,6 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   ...headerStyles,
-  title: { ...headerStyles.title, flex: 1, textAlign: 'center' },
   content: { paddingBottom: spacing.lg },
   section: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   sectionHeader: {

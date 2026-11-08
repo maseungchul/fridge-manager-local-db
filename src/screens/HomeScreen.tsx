@@ -228,35 +228,38 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
               : error ? <>
                 <Text accessibilityRole="alert">{t(error)}</Text>
                 <PrimaryButton label={t('common.retry')} onPress={loadRefrigerator} />
-              </> : refrigerator ? <>
+              </> : <>
                 <View style={styles.header}>
-                  <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{refrigerator.name}</Text>
-                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('fridge.edit')} style={styles.headerIconButton}
+                  <View style={styles.headerText}>
+                    <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.fridge')}</Text>
+                    {refrigerator && <Text numberOfLines={1} ellipsizeMode="tail" accessibilityLabel={refrigerator.name} style={styles.refrigeratorName}>{refrigerator.name}</Text>}
+                  </View>
+                  {refrigerator && <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('fridge.edit')} style={styles.headerIconButton}
                     onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
                     <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
-                  </FeedbackPressable>
+                  </FeedbackPressable>}
                 </View>
-                <View style={styles.diagram}>
+                {refrigerator ? <View style={styles.diagram}>
                   <View style={StyleSheet.absoluteFill}>
                     <FridgeInteriorMap draft={refrigerator} ingredients={ingredients} now={badgeDate} selectedAreaId={selectedAreaId ?? undefined}
                       onSelectArea={setSelectedAreaId} focus={activeFocus} onFocus={openFocusedArea} fitHeight layoutSize={diagramSizes.closed}
                       scrollVertically onCanvasOffsetChange={updateClosedScroll} />
                   </View>
-                </View>
-              </> : (
-                <ScrollView style={styles.emptyScroll} contentContainerStyle={styles.emptyContent}
-                  alwaysBounceVertical={false}>
-                  <View style={styles.emptyState}>
-                    <View style={styles.emptyIllustration} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none">
-                      <FridgeStructurePreview rows={EMPTY_PREVIEW_ROWS} style={styles.emptyPreview} />
+                </View> : (
+                  <ScrollView style={styles.emptyScroll} contentContainerStyle={styles.emptyContent}
+                    alwaysBounceVertical={false}>
+                    <View style={styles.emptyState}>
+                      <View style={styles.emptyIllustration} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none">
+                        <FridgeStructurePreview rows={EMPTY_PREVIEW_ROWS} style={styles.emptyPreview} />
+                      </View>
+                      <Text accessibilityRole="header" style={styles.emptyTitle}>{t('home.emptyTitle')}</Text>
+                      <Text style={styles.emptyDescription}>{t('home.emptyDescription')}</Text>
+                      <PrimaryButton label={t('home.register')} icon="plus" style={styles.emptyButton}
+                        onPress={() => navigation.navigate('RefrigeratorRegistration')} />
                     </View>
-                    <Text accessibilityRole="header" style={styles.emptyTitle}>{t('home.emptyTitle')}</Text>
-                    <Text style={styles.emptyDescription}>{t('home.emptyDescription')}</Text>
-                    <PrimaryButton label={t('home.register')} icon="plus" style={styles.emptyButton}
-                      onPress={() => navigation.navigate('RefrigeratorRegistration')} />
-                  </View>
-                </ScrollView>
-              )}
+                  </ScrollView>
+                )}
+              </>}
           </SafeAreaView>
           {/* 떠 있는 도구 버튼의 높이를 제외하지 않고 전체 도면 영역을 측정한다. */}
           <View ref={focusViewport} collapsable={false} pointerEvents={isToolbarHidden || isToolbarChanging ? 'none' : 'box-none'}
@@ -415,10 +418,9 @@ const styles = StyleSheet.create({
   header: {
     ...headerStyles.header,
   },
-  title: {
-    ...headerStyles.title,
-    flex: 1,
-  },
+  headerText: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
+  title: { ...headerStyles.title },
+  refrigeratorName: { flex: 1, color: colors.textMuted, fontSize: 14, lineHeight: 20, includeFontPadding: false },
   headerIconButton: {
     width: FRIDGE_HEADER_BUTTON_SIZE,
     height: FRIDGE_HEADER_BUTTON_SIZE,
