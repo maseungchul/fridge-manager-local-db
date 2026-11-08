@@ -15,7 +15,7 @@ export const INGREDIENT_BADGE_SIZE = 28;
 const BADGE_ROW_HEIGHT = 20;
 const BADGE_MAX_WIDTH = 52;
 const badgeKinds = ['normal', 'warning', 'expired'] as const;
-const badgeIcons = { normal: 'circle-outline', warning: 'clock-outline', expired: 'alert-circle-outline' } as const;
+const badgeIcons = { normal: 'circle-slice-1', warning: 'circle-slice-6', expired: 'circle-slice-8' } as const;
 
 // 세 상태가 모두 99+여도 칸 크기를 바꾸지 않도록 가로 배지의 최대 폭을 공유한다.
 export const INGREDIENT_BADGES_MAX_WIDTH = badgeKinds.length * BADGE_MAX_WIDTH;
