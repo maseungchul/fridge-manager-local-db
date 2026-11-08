@@ -671,7 +671,8 @@ test('모든 화면·재료 시트는 홈의 xs 상단 간격과 같은 헤더 �
   }
   for (const [path, name, title] of [
     ['src/screens/ShoppingScreen.tsx', 'ShoppingScreen', '장보기'],
-    ['src/screens/SettingsScreen.tsx', 'SettingsScreen', '설정'],
+    ['src/screens/MoreScreen.tsx', 'MoreScreen', '더보기'],
+    ['src/screens/SettingsScreen.tsx', 'SettingsScreen', '언어'],
   ]) {
     const screen = mount(loadComponent(path)[name], {});
     t.after(() => screen.unmount());
@@ -1429,14 +1430,22 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
       native.Platform.OS = platform;
       t.after(() => { native.Platform.OS = previousPlatform; });
       const { ShoppingScreen } = loadComponent('src/screens/ShoppingScreen.tsx');
+      const { MoreScreen } = loadComponent('src/screens/MoreScreen.tsx');
       const { SettingsScreen } = loadComponent('src/screens/SettingsScreen.tsx');
+      const { MoreStackNavigator } = loadComponent('src/navigation/MoreStackNavigator.tsx', {
+        '@react-navigation/native-stack': {
+          createNativeStackNavigator: () => ({ Navigator: 'Stack', Screen: 'StackScreen' }),
+        },
+        '@/screens/MoreScreen': { MoreScreen },
+        '@/screens/SettingsScreen': { SettingsScreen },
+      });
       const { MainTabNavigator } = loadComponent('src/navigation/MainTabNavigator.tsx', {
         '@react-navigation/bottom-tabs': {
           createBottomTabNavigator: () => ({ Navigator: 'Tabs', Screen: 'TabScreen' }),
         },
         '@/screens/HomeScreen': { HomeScreen },
         '@/screens/ShoppingScreen': { ShoppingScreen },
-        '@/screens/SettingsScreen': { SettingsScreen },
+        '@/navigation/MoreStackNavigator': { MoreStackNavigator },
       });
       const tabs = mount(MainTabNavigator, {});
       t.after(() => tabs.unmount());
@@ -1444,11 +1453,11 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
       assert.equal(navigator().props.initialRouteName, 'Home');
       assert.equal(navigator().props.screenOptions.headerShown, false);
       const routes = children(navigator());
-      assert.deepEqual(routes.map(route => route.props.name), ['Home', 'Shopping', 'Settings']);
-      assert.deepEqual(routes.map(route => route.props.options.title), ['냉장고', '장보기', '설정']);
+      assert.deepEqual(routes.map(route => route.props.name), ['Home', 'Shopping', 'More']);
+      assert.deepEqual(routes.map(route => route.props.options.title), ['냉장고', '장보기', '더보기']);
       const homeRoute = routes[0].props.children({ navigation: {}, route: { key: 'Home', name: 'Home' } });
       assert.strictEqual(homeRoute.type, HomeScreen);
-      assert.deepEqual(routes.slice(1).map(route => route.props.component), [ShoppingScreen, SettingsScreen]);
+      assert.deepEqual(routes.slice(1).map(route => route.props.component), [ShoppingScreen, MoreStackNavigator]);
       let presses = 0;
       const button = () => navigator().props.screenOptions.tabBarButton({ onPress() { presses++; }, 'aria-selected': true });
       assert.equal(button().props.disabled, false);
@@ -1473,7 +1482,7 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
         for (const focused of [false, true]) {
           const color = focused ? tokens.colors.chilled : tokens.colors.textMuted;
           const icon = route.props.options.tabBarIcon({ focused, color, size: 24 });
-          assert.equal(icon.props.name, ['fridge', 'cart', 'cog'][index] + (focused ? '' : '-outline'));
+          assert.equal(icon.props.name, ['fridge', 'cart', 'dots-horizontal-circle'][index] + (focused ? '' : '-outline'));
           assert.equal(icon.props.color, color);
           assert.equal(icon.props.size, 24);
         }
@@ -1492,7 +1501,14 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
       assert.strictEqual(stackRoutes[0].props.component, MainTabNavigator);
       assert.strictEqual(stackRoutes[1].props.component, RefrigeratorRegistrationScreen);
       assert.equal(stackRoutes[1].props.options.gestureEnabled, false);
-      for (const [Component, title] of [[ShoppingScreen, '장보기'], [SettingsScreen, '설정']]) {
+      const moreStack = mount(MoreStackNavigator, {});
+      t.after(() => moreStack.unmount());
+      assert.equal(moreStack.tree.props.initialRouteName, 'MoreHome');
+      assert.equal(moreStack.tree.props.screenOptions.headerShown, false);
+      assert.deepEqual(children(moreStack.tree).map(route => [route.props.name, route.props.component]), [
+        ['MoreHome', MoreScreen], ['Settings', SettingsScreen],
+      ]);
+      for (const [Component, title] of [[ShoppingScreen, '장보기'], [MoreScreen, '더보기'], [SettingsScreen, '언어']]) {
         const screen = mount(Component, {});
         t.after(() => screen.unmount());
         assert.deepEqual(screen.tree.props.edges, ['top', 'left', 'right']);
@@ -1518,7 +1534,7 @@ test('저장된 언어를 복원한 뒤 화면을 열고 지원하지 않는 값
     const context = refreshLanguage(provider);
     assert.equal(context.language, expected);
     assert.equal(provider.tree.props.children, 'restored-content');
-    assert.equal(context.t('tabs.settings'), expected === 'ja' ? '設定' : '설정');
+    assert.equal(context.t('tabs.more'), expected === 'ja' ? 'その他' : '더보기');
   }
   languageStorage.getItemAsync = async () => { throw new Error('read failed'); };
   const provider = mount(languageModule.LanguageProvider, { children: 'app-content' });
@@ -1527,7 +1543,7 @@ test('저장된 언어를 복원한 뒤 화면을 열고 지원하지 않는 값
   assert.equal(refreshLanguage(provider).language, 'ko');
 });
 
-test('언어를 바꾸면 같은 탭·설정·장보기 화면에 즉시 반영하고 앱을 다시 열어도 유지한다', async t => {
+test('더보기의 언어 메뉴에서 언어를 바꾸면 같은 화면에 즉시 반영하고 앱을 다시 열어도 유지한다', async t => {
   let saved = null;
   languageStorage.getItemAsync = async () => saved;
   languageStorage.setItemAsync = async (key, value) => {
@@ -1535,31 +1551,43 @@ test('언어를 바꾸면 같은 탭·설정·장보기 화면에 즉시 반영�
     saved = value;
   };
   const { SettingsScreen } = loadComponent('src/screens/SettingsScreen.tsx');
+  const { MoreScreen } = loadComponent('src/screens/MoreScreen.tsx');
   const { ShoppingScreen } = loadComponent('src/screens/ShoppingScreen.tsx');
   const { MainTabNavigator } = loadComponent('src/navigation/MainTabNavigator.tsx', {
     '@react-navigation/bottom-tabs': { createBottomTabNavigator: () => ({ Navigator: 'Tabs', Screen: 'TabScreen' }) },
-    '@/screens/HomeScreen': { HomeScreen }, '@/screens/ShoppingScreen': { ShoppingScreen }, '@/screens/SettingsScreen': { SettingsScreen },
+    '@/screens/HomeScreen': { HomeScreen }, '@/screens/ShoppingScreen': { ShoppingScreen },
+    '@/navigation/MoreStackNavigator': { MoreStackNavigator: 'MoreStackNavigator' },
   });
-  const settings = mount(SettingsScreen, {});
+  let destination = 'MoreHome';
+  const more = mount(MoreScreen, { navigation: { navigate(screen) { destination = screen; } } });
+  const settings = mount(SettingsScreen, { navigation: { goBack() { destination = 'MoreHome'; } } });
   const shopping = mount(ShoppingScreen, {});
   const tabs = mount(MainTabNavigator, {});
-  t.after(() => { settings.unmount(); shopping.unmount(); tabs.unmount(); });
+  t.after(() => { more.unmount(); settings.unmount(); shopping.unmount(); tabs.unmount(); });
   const titles = () => children(tabs.tree).map(node => node.props.options.title);
   const header = screen => find(screen.tree, node => node.type === 'Text' && node.props.accessibilityRole === 'header').props.children;
   const option = label => find(settings.tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel === label);
-  assert.deepEqual(titles(), ['냉장고', '장보기', '설정']);
+  assert.deepEqual(titles(), ['냉장고', '장보기', '더보기']);
+  find(more.tree, node => node.props.accessibilityLabel === '언어').props.onPress();
+  assert.equal(destination, 'Settings');
   assert.equal(option('한국어').props.accessibilityState.checked, true);
   assert.equal(option('日本語').props.accessibilityLanguage, 'ja-JP');
 
-  for (const [selected, language, expectedTitles] of [
-    ['日本語', 'ja', ['冷蔵庫', '買い物', '設定']], ['한국어', 'ko', ['냉장고', '장보기', '설정']],
+  for (const [selected, language, expectedTitles, languageTitle, backLabel] of [
+    ['日本語', 'ja', ['冷蔵庫', '買い物', 'その他'], '言語', 'その他に戻る'],
+    ['한국어', 'ko', ['냉장고', '장보기', '더보기'], '언어', '더보기로 돌아가기'],
   ]) {
     await option(selected).props.onPress();
-    refreshLanguage(); settings.render(); shopping.render(); tabs.render();
+    refreshLanguage(); more.render(); settings.render(); shopping.render(); tabs.render();
     assert.equal(saved, language);
     assert.deepEqual(titles(), expectedTitles);
     assert.equal(header(shopping), expectedTitles[1]);
-    assert.equal(header(settings), expectedTitles[2]);
+    assert.equal(header(more), expectedTitles[2]);
+    assert.equal(header(settings), languageTitle);
+    find(settings.tree, node => node.props.accessibilityLabel === backLabel).props.onPress();
+    assert.equal(destination, 'MoreHome');
+    find(more.tree, node => node.props.accessibilityLabel === languageTitle).props.onPress();
+    assert.equal(destination, 'Settings');
     assert.equal(option(selected).props.accessibilityState.checked, true);
     const restarted = mount(languageModule.LanguageProvider, { children: null });
     t.after(() => restarted.unmount());

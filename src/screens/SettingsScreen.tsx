@@ -5,17 +5,22 @@
  */
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { languageNames } from '@/i18n/translations';
 import type { AppLanguage } from '@/i18n/translations';
+import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
 import { colors, spacing } from '@/theme/tokens';
-import { headerStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
+
+type SettingsScreenProps = NativeStackScreenProps<MoreStackParamList, 'Settings'>;
 
 const languages = Object.keys(languageNames) as AppLanguage[];
 
-export function SettingsScreen() {
+export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { t, language, changeLanguage, isChangingLanguage } = useTranslation();
 
   async function selectLanguage(next: AppLanguage) {
@@ -29,11 +34,14 @@ export function SettingsScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.header}>
-        <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.settings')}</Text>
+        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('more.back')}
+          onPress={() => navigation.goBack()} style={styles.backButton}>
+          <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+        </FeedbackPressable>
+        <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('settings.language')}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.content} alwaysBounceVertical={false}>
         <View style={styles.section}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>{t('settings.language')}</Text>
           <Text style={styles.description}>{t('settings.languageDescription')}</Text>
           <View style={styles.options}>
             {languages.map(option => (
@@ -59,9 +67,10 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
   },
   ...headerStyles,
+  title: { ...headerStyles.title, flexShrink: 1 },
+  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   content: { padding: spacing.lg },
   section: { gap: spacing.sm },
-  sectionTitle: { color: colors.text, fontSize: 17, lineHeight: 24, fontWeight: '600' },
   description: { color: colors.textMuted, fontSize: 14, lineHeight: 22 },
   options: { gap: spacing.sm, marginTop: spacing.xs },
   option: {

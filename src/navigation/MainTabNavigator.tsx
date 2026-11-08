@@ -1,6 +1,6 @@
 /**
  * @file
- * 냉장고·장보기·설정을 크림·민트 색상의 공통 하단 탭으로 전환한다.
+ * 냉장고·장보기·더보기를 크림·민트 색상의 공통 하단 탭으로 전환한다.
  * 냉장고 등록은 상위 Stack에서 열어 등록 중에는 탭을 표시하지 않는다.
  * 탭바에서 하단 안전 영역을 확보하고, 재료 패널이 열린 동안 탭 입력을 막는다.
  */
@@ -11,14 +11,14 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ShoppingScreen } from '@/screens/ShoppingScreen';
-import { SettingsScreen } from '@/screens/SettingsScreen';
+import { MoreStackNavigator } from '@/navigation/MoreStackNavigator';
 import { colors, spacing } from '@/theme/tokens';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 export type MainTabParamList = {
   Home: undefined;
   Shopping: undefined;
-  Settings: undefined;
+  More: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -69,10 +69,10 @@ export function MainTabNavigator() {
           <MaterialDesignIcons name={focused ? 'cart' : 'cart-outline'} size={size} color={color} accessible={false} />
         ),
       }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{
-        title: t('tabs.settings'),
+      <Tab.Screen name="More" component={MoreStackNavigator} options={{
+        title: t('tabs.more'),
         tabBarIcon: ({ focused, color, size }) => (
-          <MaterialDesignIcons name={focused ? 'cog' : 'cog-outline'} size={size} color={color} accessible={false} />
+          <MaterialDesignIcons name={focused ? 'dots-horizontal-circle' : 'dots-horizontal-circle-outline'} size={size} color={color} accessible={false} />
         ),
       }} />
     </Tab.Navigator>
