@@ -435,6 +435,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                         ) : (
                           <FlatList data={ingredients} keyExtractor={item => item.id}
                             extraData={{ swipedIngredientId, queuedIds: moveQueue.ingredientIds }} onScrollBeginDrag={() => setSwipedIngredientId(null)}
+                            showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
+                            scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}
                             style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.emptyList : undefined}
                             ListEmptyComponent={
                               <View style={styles.emptyState}>
