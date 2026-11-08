@@ -3341,13 +3341,13 @@ test('임시목록 공통 상태는 화면 전환으로 제거되지 않게 앱�
 test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입하고 도면 상태를 유지한다', async t => {
   const { home, original, focus, sheet, blocked } = await ingredientHomeFixture(t);
   const button = () => find(home.tree, node => node.props.accessibilityLabel === '이동 대기 목록 열기');
-  assert.equal(button(), undefined);
+  assert(button());
   refreshMoveQueue().add(original.id); refreshMoveQueue(); home.render();
   sheet.props.onClose(); home.render();
   expandHomeToolbar(home);
   assert.equal(find(button(), node => node.type === 'Icon').props.name, 'clipboard-text-outline');
   const actionStyle = flattenStyle(button().props.style);
-  assert.equal(actionStyle.minHeight, 36);
+  assert.equal(actionStyle.minHeight, 40);
   assert.equal(actionStyle.flexDirection, 'row');
   assert.equal(actionStyle.backgroundColor, tokens.colors.surface);
   assert.deepEqual(actionStyle, flattenStyle(find(home.tree, node => node.props.accessibilityLabel === '재료 배지 범례').props.style));
@@ -3367,7 +3367,16 @@ test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입
   assert.deepEqual({ target: focus().props.target, viewport: focus().props.viewport }, before);
   assert.deepEqual(refreshMoveQueue().ingredientIds, [original.id]);
   refreshMoveQueue().clear(); refreshMoveQueue(); home.render();
-  assert.equal(button(), undefined);
+  assert(button());
+  button().props.onPress(); home.render();
+  const emptyPopup = find(home.tree, node => node.type === 'IngredientMoveQueueSheet');
+  assert.deepEqual(emptyPopup.props.ingredients, []);
+  const { IngredientMoveQueueList } = loadComponent('src/features/ingredient/components/IngredientMoveQueueList.tsx');
+  const emptyList = mount(IngredientMoveQueueList, { ingredients: [], layout: emptyPopup.props.layout, disabled: false, onRemove() {} });
+  t.after(() => emptyList.unmount());
+  assert.equal(emptyList.tree.props.sections.length, 0);
+  assert(find(emptyList.tree.props.ListEmptyComponent, node => node.props.children === '재료 목록에서 왼쪽으로 밀어 담을 수 있어요.'));
+  emptyPopup.props.onClose(); home.render();
 });
 
 test('홈 대기 시트는 같은 목록의 해제·전체 비우기를 지원하고 네이티브 종료 전까지 유지한다', t => {
@@ -6597,7 +6606,7 @@ test('홈 툴바는 좌우로 전환하고 완전히 접혀도 오른쪽 메뉴�
   assert.equal(animated().props.accessibilityElementsHidden, false);
   assert.equal(find(toggle(), node => node.type === 'Icon').props.name, 'menu-close');
   const legend = find(overlay(), node => node.props.accessibilityLabel === '재료 배지 범례');
-  assert.equal(flattenStyle(legend.props.style).minHeight, 36);
+  assert.equal(flattenStyle(legend.props.style).minHeight, 40);
   assert.equal(flattenStyle(legend.props.style).flexDirection, 'row');
   assert.equal(flattenStyle(legend.props.style).borderColor, tokens.colors.sage);
   assert.equal(flattenStyle(legend.props.style).borderRadius, 18);
@@ -6619,8 +6628,11 @@ test('홈 툴바는 좌우로 전환하고 완전히 접혀도 오른쪽 메뉴�
   pending.finish();
 });
 
-test('홈 메뉴는 대기 건수와 무관하게 배지 없이 중앙 아이콘만 표시한다', async t => {
+test('홈 이동 대기는 항상 표시하고 대기 중 점 배지는 펼친 버튼과 접힌 메뉴 사이에서 옮긴다', async t => {
   const { home, original, persisted } = await ingredientHomeFixture(t);
+  const dots = button => findAll(button, node => node.type === 'View' && flattenStyle(node.props.style).position === 'absolute');
+  const queueButton = () => find(home.tree, node => node.props.accessibilityLabel === '이동 대기 목록 열기');
+  const toggle = () => find(home.tree, node => node.props.accessibilityLabel === '도구 접기' || node.props.accessibilityLabel === '도구 펼치기');
   for (const count of [0, 1, 100]) {
     persisted.splice(0, persisted.length, ...Array.from({ length: count }, (_, index) => ({ ...original, id: `queued-${index}` })));
     home.focus(); await new Promise(setImmediate); home.render();
@@ -6628,7 +6640,10 @@ test('홈 메뉴는 대기 건수와 무관하게 배지 없이 중앙 아이콘
     queue.clear();
     for (const item of persisted) queue.add(item.id);
     refreshMoveQueue(); home.render();
-    const menu = find(home.tree, node => node.props.accessibilityLabel === '도구 접기');
+    expandHomeToolbar(home);
+    assert.equal(find(queueButton(), node => node.type === 'Text').props.children, '이동 대기');
+    assert.equal(dots(queueButton()).length, count > 0 ? 1 : 0);
+    const menu = toggle();
     const buttonStyle = flattenStyle(menu.props.style);
     assert.equal(buttonStyle.width, 40);
     assert.equal(buttonStyle.height, 40);
@@ -6638,16 +6653,34 @@ test('홈 메뉴는 대기 건수와 무관하게 배지 없이 중앙 아이콘
     const iconStyle = flattenStyle(find(menu, node => node.type === 'Icon').props.style);
     assert.equal(iconStyle.transform, undefined, '대기 건수에 따라 아이콘을 이동하지 않는다');
     assert.equal(buttonStyle.backgroundColor, tokens.colors.chilled);
-    assert.equal(buttonStyle.borderColor, tokens.colors.chilled);
-    assert(buttonStyle.borderWidth > 0);
+    assert.equal(buttonStyle.borderWidth ?? 0, 0);
     assert(buttonStyle.boxShadow.length > 0);
     assert(buttonStyle.width + menu.props.hitSlop * 2 >= 44);
     assert.equal(menu.props.accessibilityHint, undefined);
     const row = find(home.tree, node => children(node).includes(menu));
     const anchor = find(home.tree, node => children(node).includes(row));
     assert.equal(flattenStyle(anchor.props.style).paddingHorizontal, 8);
-    assert.deepEqual(children(menu).map(node => node.type), ['Icon']);
+    assert.deepEqual(children(children(menu)[0]).map(node => node.type), ['Icon']);
     assert.equal(flattenStyle(homeToolbarOverlay(home).props.style).position, 'absolute');
+    menu.props.onPress(); home.render(); animations.at(-1).finish(); home.render();
+    assert.equal(toggle().props.accessibilityLabel, '도구 펼치기');
+    assert.equal(dots(queueButton()).length, 0, '접힌 툴바 안에는 점을 중복 표시하지 않는다');
+    assert.equal(dots(toggle()).length, count > 0 ? 1 : 0);
+    if (count > 0) {
+      const dot = dots(toggle())[0];
+      assert.equal(flattenStyle(dot.props.style).backgroundColor, tokens.colors.chilled);
+      assert.equal(flattenStyle(children(dot)[0].props.style).backgroundColor, tokens.colors.sageLight);
+      assert.equal(dot.props.pointerEvents, 'none');
+      assert.equal(dot.props.accessibilityElementsHidden, true);
+      assert.equal(find(dot, node => node.type === 'Text'), undefined, '점 배지에는 숫자를 표시하지 않는다');
+      assert.equal(toggle().props.accessibilityHint, `이동 대기 중인 재료 ${count}개를 확인합니다.`);
+    }
+    toggle().props.onPress(); home.render(); animations.at(-1).finish(); home.render();
+    assert.equal(dots(toggle()).length, 0);
+    assert.equal(dots(queueButton()).length, count > 0 ? 1 : 0);
+    refreshMoveQueue().clear(); refreshMoveQueue(); home.render();
+    assert(queueButton());
+    assert.equal(dots(queueButton()).length, 0, '목록을 비워도 진입 버튼은 유지하고 점만 숨긴다');
   }
 });
 

@@ -43,6 +43,7 @@ type HomeScreenProps = CompositeScreenProps<
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
 const HOME_MENU_SIZE = 40;
+const HOME_TOOL_ICON_SIZE = 22;
 const HOME_TOOLBAR_EDGE_SPACE = 8;
 const LOADING_DELAY_MS = 200;
 const MIN_LOADING_VISIBLE_MS = 300;
@@ -70,6 +71,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const isFocusBlocked = useCallback(() => toolbarChanging.current, []);
   const isSheetOpen = isIngredientListOpen || isMoveQueueOpen;
   const queuedIngredients = queuedIds.flatMap(id => ingredients.find(ingredient => ingredient.id === id) ?? []);
+  const hasQueuedIngredients = queuedIngredients.length > 0;
   const [badgeDate, setBadgeDate] = useState(() => new Date());
   const loadRequest = useRef(0);
   const {
@@ -294,30 +296,43 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                     transform: [{ translateX: toolbarProgress.interpolate({ inputRange: [0, 1], outputRange: [toolbarWidth, 0] }) }] }]}
                     pointerEvents={canUseToolbar ? 'box-none' : 'none'} accessibilityElementsHidden={!canUseToolbar}
                     importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
-                    {queuedIngredients.length > 0 ? (
-                      <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.open')}
-                        accessibilityHint={t('queue.openHint', { count: queuedIngredients.length })}
-                        accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
-                        onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
-                        style={[styles.action, styles.homeAction]} hitSlop={4}>
-                        <MaterialDesignIcons name="clipboard-text-outline" size={16} color={colors.chilled} accessible={false} />
-                        <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('queue.title', { count: queuedIngredients.length })}</Text>
-                      </FeedbackPressable>
-                    ) : null}
+                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.open')}
+                      accessibilityHint={hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : t('queue.emptyDescription')}
+                      accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
+                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
+                      style={[styles.action, styles.homeAction]} hitSlop={4}>
+                      <View>
+                        <MaterialDesignIcons name="clipboard-text-outline" size={18} color={colors.chilled} accessible={false} />
+                        {hasQueuedIngredients && isToolbarExpanded ? (
+                          <View style={styles.queueDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                            <View style={styles.queueDotFill} />
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('queue.pending')}</Text>
+                    </FeedbackPressable>
                     <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('legend.open')}
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
                       style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <MaterialDesignIcons name="information-outline" size={16} color={colors.chilled} accessible={false} />
+                      <MaterialDesignIcons name="information-outline" size={18} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>{t('legend.label')}</Text>
                     </FeedbackPressable>
                   </Animated.View>
                 </View>
                 <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? t('home.collapseTools') : t('home.expandTools')}
+                  accessibilityHint={!isToolbarExpanded && hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : undefined}
                   accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
-                  disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} feedback="primary"
+                  disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} feedback="chilled"
                   style={[styles.toolbarToggle, styles.floatingButton]} hitSlop={4}>
-                  <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={22} color={colors.buttonText} accessible={false} />
+                  <View>
+                    <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={HOME_TOOL_ICON_SIZE} color={colors.buttonText} accessible={false} />
+                    {!isToolbarExpanded && hasQueuedIngredients ? (
+                      <View style={[styles.queueDot, styles.queueDotOnToggle]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                        <View style={[styles.queueDotFill, styles.queueDotFillOnToggle]} />
+                      </View>
+                    ) : null}
+                  </View>
                 </FeedbackPressable>
               </View>
             </View>
@@ -418,13 +433,19 @@ const styles = StyleSheet.create({
   // 슬라이드 영역 안쪽에 그림자 여유를 두고 버튼 밖의 터치는 도면으로 전달한다.
   toolbarToolsViewport: { flex: 1, minWidth: 0, overflow: 'hidden', paddingVertical: spacing.sm, paddingHorizontal: HOME_TOOLBAR_EDGE_SPACE },
   homeActions: { alignItems: 'center', justifyContent: 'flex-end' },
-  homeAction: { flex: 0, flexShrink: 1, maxWidth: 180, minHeight: 36, flexDirection: 'row', gap: spacing.xs,
-    paddingHorizontal: spacing.md, borderRadius: 18, borderColor: colors.sage,
+  homeAction: { flex: 0, flexShrink: 1, maxWidth: 180, minHeight: HOME_MENU_SIZE, flexDirection: 'row', gap: spacing.xs,
+    paddingHorizontal: spacing.sm, borderRadius: 18, borderColor: colors.sage,
     boxShadow: [{ offsetX: 0, offsetY: 1, blurRadius: 6, color: `${colors.button}14` }] },
-  homeLabel: { color: colors.chilled },
+  homeLabel: { color: colors.chilled, fontSize: 14 },
+  // 점 주변은 각 버튼 배경색으로 채워 아이콘과 구분한다.
+  queueDot: { position: 'absolute', top: -4, right: -3, width: 10, height: 10, borderRadius: 5,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  queueDotOnToggle: { top: -2, right: -2, backgroundColor: colors.chilled },
+  queueDotFill: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.chilled },
+  queueDotFillOnToggle: { backgroundColor: colors.sageLight },
   floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
   toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
-    borderRadius: HOME_MENU_SIZE / 2, borderWidth: 1.5, borderColor: colors.chilled, backgroundColor: colors.chilled },
+    borderRadius: HOME_MENU_SIZE / 2, backgroundColor: colors.chilled },
   hidden: { opacity: 0 },
   diagram: {
     flex: 1,

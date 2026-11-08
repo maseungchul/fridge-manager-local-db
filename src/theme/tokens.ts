@@ -18,6 +18,7 @@ export const colors = {
   textMuted: '#77776F',
   // 냉장고 경로의 실 이름과 아이콘을 등록·편집·홈에서 같은 색상으로 구분한다.
   chilled: '#487044',
+  chilledPressed: '#365735',
   frozen: '#2F6C9D',
   // 등록 도면의 보관 모드 배지와 선택 영역에 사용하는 옅은 배경색이다.
   chilledBackground: '#E4EDDE',

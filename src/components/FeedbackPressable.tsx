@@ -9,7 +9,7 @@ import type { PressableProps } from 'react-native';
 import { colors } from '@/theme/tokens';
 
 interface FeedbackPressableProps extends PressableProps {
-  feedback?: 'primary' | 'default' | 'danger';
+  feedback?: 'primary' | 'default' | 'danger' | 'chilled';
   // 일시적인 입력 차단은 비활성화 색상 없이 처리한다.
   interactionBlocked?: boolean;
 }
@@ -33,6 +33,7 @@ export function FeedbackPressable({ feedback = 'default', disabled, interactionB
 
 const styles = StyleSheet.create({
   primary: { backgroundColor: colors.buttonPressed },
+  chilled: { backgroundColor: colors.chilledPressed },
   default: { backgroundColor: colors.sageLight },
   danger: { backgroundColor: colors.rose },
   disabled: { opacity: 0.42 },
