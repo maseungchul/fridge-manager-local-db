@@ -22,7 +22,7 @@ interface IngredientMoveQueueListProps {
 
 export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemove }: IngredientMoveQueueListProps) {
   const { t } = useTranslation();
-  const sections: { key: string; title: string; data: Ingredient[] }[] = [];
+  const sections: { key: string; title: string; path: string[]; data: Ingredient[] }[] = [];
   for (const ingredient of ingredients) {
     const position = layout.positions.find(candidate => candidate.slotId === ingredient.slotId
       && (candidate.drawerNumber ?? 0) === ingredient.drawerNumber);
@@ -34,10 +34,10 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
       const slotIndex = layout.positions.filter(candidate => candidate.areaId === area?.id)
         .filter((candidate, index, positions) => positions.findIndex(other => other.slotId === candidate.slotId) === index)
         .findIndex(candidate => candidate.slotId === position?.slotId);
-      const title = position && area
-        ? `${area.compartment} → ${area.isBody ? t('fridge.body') : t('fridge.doorPocket')} → ${getPositionName({ ...position, name: t('fridge.shortSlotName', { index: slotIndex + 1 }) }, t)}`
-        : t('queue.locationMissing');
-      section = { key, title, data: [] };
+      const path = position && area
+        ? [area.compartment, area.isBody ? t('fridge.body') : t('fridge.doorPocket'), getPositionName({ ...position, name: t('fridge.shortSlotName', { index: slotIndex + 1 }) }, t)]
+        : [t('queue.locationMissing')];
+      section = { key, title: path.join(' → '), path, data: [] };
       sections.push(section);
     }
     section.data.push(ingredient);
@@ -51,7 +51,16 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
         <Text style={styles.emptyTitle}>{t('queue.emptyTitle')}</Text>
         <Text style={styles.guide}>{t('queue.emptyDescription')}</Text>
       </View>}
-      renderSectionHeader={({ section }) => <Text accessibilityRole="header" style={styles.location}>{section.title}</Text>}
+      renderSectionHeader={({ section }) => (
+        <View accessible accessibilityRole="header" accessibilityLabel={section.path.join(', ')} style={styles.location}>
+          {section.path.map((part, index) => (
+            <View key={index} style={styles.locationPart}>
+              {index > 0 ? <MaterialDesignIcons name="menu-right" size={16} color={colors.chilled} accessible={false} /> : null}
+              <Text style={styles.locationText}>{part}</Text>
+            </View>
+          ))}
+        </View>
+      )}
       renderItem={({ item, section }) => (
         <View style={styles.item}>
           <View style={styles.labels}>
@@ -72,8 +81,10 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
 const styles = StyleSheet.create({
   list: { flex: 1 },
   guide: { color: colors.textMuted, fontSize: 13, lineHeight: 20, padding: spacing.md },
-  location: { color: colors.chilled, fontSize: 14, lineHeight: 21, fontWeight: '600',
+  location: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.chilledBackground },
+  locationPart: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+  locationText: { color: colors.chilled, fontSize: 14, lineHeight: 21, fontWeight: '600', flexShrink: 1 },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingLeft: spacing.lg, paddingRight: spacing.md,
     paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   labels: { flex: 1, gap: spacing.xs },
