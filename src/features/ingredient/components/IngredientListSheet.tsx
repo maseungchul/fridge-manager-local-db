@@ -374,8 +374,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.moveHere')}
                             disabled={!canMove || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: !canMove || isBusy || isChanging, busy: isMoving }}
-                            onPress={moveQueuedIngredients} style={styles.moveButton} feedback="primary">
-                            {isMoving ? <ActivityIndicator color={colors.buttonText} accessibilityLabel={t('queue.moving')} /> : null}
+                            onPress={moveQueuedIngredients} style={styles.moveButton} feedback="chilled">
+                            {isMoving ? <ActivityIndicator color={colors.buttonText} accessibilityLabel={t('queue.moving')} />
+                              : <MaterialDesignIcons name="clipboard-arrow-down-outline" size={20} color={colors.buttonText} accessible={false} />}
                             <Text style={styles.moveLabel}>{t('queue.moveHereLabel')}</Text>
                           </FeedbackPressable>
                         </View>
@@ -517,10 +518,11 @@ const styles = StyleSheet.create({
   pageContent: { flex: 1 },
   moveToolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  queueButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44, flexGrow: 1, borderRadius: 10 },
-  queueLabel: { color: colors.chilled, fontSize: 15, flexShrink: 1 },
+  queueButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44, flexGrow: 1,
+    paddingHorizontal: spacing.md, borderRadius: 22, backgroundColor: colors.chilledBackground },
+  queueLabel: { color: colors.chilled, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   moveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-    minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 12, backgroundColor: colors.button },
+    minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 22, backgroundColor: colors.chilled },
   moveLabel: { color: colors.buttonText, fontSize: 15, fontWeight: '600' },
   notice: { position: 'absolute', left: 0, right: 0, bottom: spacing.lg, alignItems: 'center' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
