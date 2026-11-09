@@ -1787,7 +1787,7 @@ test('일본어 도면·하위 설정·범례·이동 대기 목록은 위치와
   assert.equal(sectionHeader.props.accessibilityLabel, '1段目, 庫内, 1番目の区画');
   assert.equal(findAll(sectionHeader, node => node.props.name === 'menu-right').length, 2);
   const row = list.props.renderItem({ item: ingredient, section });
-  assert(find(row, node => node.props.children === '賞味期限 2028/02/29'));
+  assert(find(row, node => node.props.children === '賞味期限：2028/02/29'));
   assert(find(row, node => node.props.accessibilityLabel === '계란を移動待ちから外す'));
 });
 
@@ -2584,7 +2584,7 @@ test('독립 재료 입력은 일반 입력·스크롤과 키보드 회피를 �
     assert.equal(save().props.disabled, true);
     const calendar = find(sheet.tree, node => node.type === 'IngredientExpirationCalendar');
     calendar.props.onSelect('2028-02-29'); calendar.props.onDismiss(); sheet.render();
-    assert(find(input('유통기한 날짜 선택'), node => node.props.children === '2028-02-29'));
+    assert(find(input('유통기한 날짜 선택'), node => node.props.children === '2028.02.29'));
     input('유통기한 선택 해제').props.onPress(); sheet.render();
     assert(find(input('유통기한 날짜 선택'), node => node.props.children === '날짜 선택'));
   }
@@ -2756,7 +2756,7 @@ test('커스텀 달력에서 고른 날짜는 입력에 즉시 반영되고 다�
   today.props.onPress(); sheet.render();
   assert.equal(find(sheet.tree, node => node.type === 'IngredientExpirationCalendar'), undefined);
   const label = find(input('유통기한 날짜 선택'), node => node.type === 'Text').props.children;
-  assert.match(label, /^\d{4}-\d{2}-\d{2}$/);
+  assert.match(label, /^\d{4}\.\d{2}\.\d{2}$/);
   assert.equal(save().props.disabled, false);
   openCalendar();
   const reopened = mount(IngredientExpirationCalendar, find(sheet.tree, node => node.type === 'IngredientExpirationCalendar').props);
@@ -3224,7 +3224,7 @@ test('소비 완료 목록은 조회 실패를 재시도하고 원래 위치 복
   await find(screen.tree, node => node.type === 'PrimaryButton').props.onPress(); screen.render();
   const list = () => find(screen.tree, node => node.type === 'FlatList');
   const row = () => list().props.renderItem({ item: record });
-  assert(find(row(), node => node.props.children === '소비완료일: 2026-11-09'));
+  assert(find(row(), node => node.props.children === '소비완료일: 2026.11.09'));
   assert(find(row(), node => node.props.children === '개봉함'));
   const restore = find(row(), node => node.props.accessibilityLabel === '우유 복구').props.onPress;
   const saving = restore(); await restore(); screen.render();
@@ -3498,7 +3498,7 @@ test('임시목록은 출발 칸·좌우·포켓별로 묶고 같은 이름의 �
   assert.match(sections[2].title, /도어포켓/);
   for (const section of sections) for (const item of section.data) {
     const rendered = panel.tree.props.renderItem({ item, section });
-    assert(find(rendered, node => node.props.children === `유통기한 ${item.expirationDate}`));
+    assert(find(rendered, node => node.props.children === `유통기한: ${item.expirationDate.replaceAll('-', '.')}`));
     const remove = find(rendered, node => node.props.accessibilityLabel === '우유 이동 대기 해제');
     assert.match(remove.props.accessibilityHint, new RegExp(section.title));
     remove.props.onPress();

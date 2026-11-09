@@ -203,7 +203,7 @@ export const ja: Record<keyof typeof ko, string> = {
   'ingredient.memoLabel': '食材のメモ',
   'ingredient.memoPlaceholder': '例：開封後は密閉して保存',
   'ingredient.expiration': '賞味期限（任意）',
-  'ingredient.expirationLabel': '賞味期限 {date}',
+  'ingredient.expirationLabel': '賞味期限：{date}',
   'ingredient.noExpiration': '賞味期限未入力',
   'ingredient.remaining': 'D-{days}',
   'ingredient.today': 'D-DAY',

@@ -71,7 +71,7 @@ test('유통기한은 공통 D-day 표기·긴급 상태를 유지하고 날짜 
   }
   for (const date of ['0001-01-01', '2028-02-29', '9999-12-31']) {
     assert.equal(formatDate(date, t), date.replaceAll('-', '/'));
-    assert.equal(formatDate(date, (key, ...args) => translate('ko', key, ...args)), date);
+    assert.equal(formatDate(date, (key, ...args) => translate('ko', key, ...args)), date.replaceAll('-', '.'));
   }
 });
 
