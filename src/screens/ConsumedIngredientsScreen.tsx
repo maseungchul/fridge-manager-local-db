@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   ...headerStyles,
   title: { ...headerStyles.title, flexShrink: 1 },
-  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   list: { flex: 1 },
   listContent: { paddingBottom: spacing.lg },
   empty: { flexGrow: 1 },

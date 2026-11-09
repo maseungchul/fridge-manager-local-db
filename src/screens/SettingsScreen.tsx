@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   },
   ...headerStyles,
   title: { ...headerStyles.title, flexShrink: 1 },
-  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   content: { padding: spacing.lg },
   section: { gap: spacing.sm },
   description: { color: colors.textMuted, fontSize: 14, lineHeight: 22 },
