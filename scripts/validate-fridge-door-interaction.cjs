@@ -2317,6 +2317,7 @@ test('반높이 시트도 본문을 보이는 높이로 제한해 마지막 항�
   t.after(() => sheet.unmount());
   t.after(() => body.unmount());
   const visibleHeight = body.tree.props.style[1];
+  assert.equal(flattenStyle(body.tree.props.style).paddingBottom ?? 0, 0, '목록 바깥에 고정된 하단 여백을 두지 않는다');
   assert.equal(visibleHeight().maxHeight, 328);
   position.value = 0;
   assert.equal(visibleHeight().maxHeight, 728);
@@ -2433,6 +2434,7 @@ test('재료 시트는 스와이프 닫기와 빈 목록·조회 중을 구분�
   assert.deepEqual(requests, [{ slotId: 'slot', drawerNumber: 1 }]);
   const list = find(sheet.tree, node => node.type === 'FlatList');
   assert.deepEqual(list.props.data, []);
+  assert.equal(flattenStyle(list.props.contentContainerStyle).paddingBottom, 34, '안전 영역을 목록과 함께 스크롤한다');
   assert(find(list.props.ListEmptyComponent, node => node.props.children === '아직 보관 중인 재료가 없어요'));
   assert.equal(find(sheet.tree, node => node.props.accessibilityRole === 'alert'), undefined);
   assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.disabled, false);
@@ -2647,6 +2649,7 @@ test('추가도 같은 시트를 사용하고 날짜 선택·해제와 목록 �
   t.after(() => Object.assign(ingredientRepository, previous));
   ingredientRepository.getIngredientsByPosition = async () => [];
   const { sheet, input, save, openCalendar } = await ingredientFormFixture(t);
+  assert.equal(flattenStyle(find(sheet.tree, node => node.type === 'ScrollView').props.contentContainerStyle).paddingBottom, 34 + tokens.spacing.lg);
   assert.equal(sheet.tree.type, 'BottomSheet');
   assert.equal(input('재료 시트 닫기'), undefined);
   assert.equal(find(sheet.tree, node => node.type === 'Modal'), undefined);
@@ -3447,6 +3450,7 @@ test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입
   const emptyList = mount(IngredientMoveQueueList, { ingredients: [], layout: emptyPopup.props.layout, disabled: false, onRemove() {} });
   t.after(() => emptyList.unmount());
   assert.equal(emptyList.tree.props.sections.length, 0);
+  assert.equal(flattenStyle(emptyList.tree.props.contentContainerStyle).paddingBottom, 34);
   assert(find(emptyList.tree.props.ListEmptyComponent, node => node.props.children === '재료 목록에서 왼쪽으로 밀어 담을 수 있어요.'));
   emptyPopup.props.onClose(); home.render();
 });
@@ -6779,7 +6783,7 @@ test('홈 이동 대기는 항상 표시하고 대기 중 점 배지는 펼친 �
   }
 });
 
-test('홈 범례·재료 시트는 떠 있는 도구를 숨기고 종료 후 이전 펼침 상태를 복원한다', async t => {
+test('홈 범례·재료 시트는 도구 표시를 유지하고 입력·접근성을 차단한 뒤 복원한다', async t => {
   const { home, focus, sheet } = await ingredientHomeFixture(t);
   sheet.props.onClose(); home.render();
   expandHomeToolbar(home);
@@ -6787,7 +6791,7 @@ test('홈 범례·재료 시트는 떠 있는 도구를 숨기고 종료 후 이
   const before = focus().props.target;
   legend().props.onPress(); home.render();
   assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'none');
-  assert.equal(flattenStyle(homeToolbarOverlay(home).props.style).opacity, 0);
+  assert.notEqual(flattenStyle(homeToolbarOverlay(home).props.style).opacity, 0);
   assert.equal(homeToolbarOverlay(home).props.accessibilityElementsHidden, true);
   const popup = find(home.tree, named('FridgeIngredientLegend'));
   popup.props.onClose(); home.render();
@@ -6798,6 +6802,8 @@ test('홈 범례·재료 시트는 떠 있는 도구를 숨기고 종료 후 이
   const position = model.getDraftLayout(focus().props.draft).positions[0];
   focus().props.onSelectSlot(position.areaId, 0, position.id); home.render();
   assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'none');
+  assert.notEqual(flattenStyle(homeToolbarOverlay(home).props.style).opacity, 0);
+  assert.equal(homeToolbarOverlay(home).props.accessibilityElementsHidden, true);
   find(home.tree, node => node.type === 'IngredientListSheet').props.onClose(); home.render();
   assert.equal(homeToolbarOverlay(home).props.pointerEvents, 'box-none');
   assert(find(home.tree, node => node.props.accessibilityLabel === '도구 접기'));

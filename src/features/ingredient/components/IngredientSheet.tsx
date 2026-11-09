@@ -35,11 +35,10 @@ function SheetContainer({ children }: PropsWithChildren) {
   return <View style={StyleSheet.absoluteFill} pointerEvents="box-none" accessibilityViewIsModal>{children}</View>;
 }
 
-function SheetContent({ children, expanded, transitioning, restoreIndex, bottomInset, onClose }: PropsWithChildren<{
+function SheetContent({ children, expanded, transitioning, restoreIndex, onClose }: PropsWithChildren<{
   expanded: boolean;
   transitioning: boolean;
   restoreIndex: number;
-  bottomInset: number;
   onClose: () => void;
 }>) {
   const { snapToIndex } = useBottomSheet();
@@ -60,8 +59,9 @@ function SheetContent({ children, expanded, transitioning, restoreIndex, bottomI
     },
     [expanded, transitioning, restoreIndex, snapToIndex],
   );
+  // 하단 안전 영역은 각 목록·폼의 스크롤 콘텐츠에 포함해 고정된 빈 띠가 생기지 않게 한다.
   return (
-    <Animated.View style={[styles.content, contentStyle, { paddingBottom: bottomInset }]} onAccessibilityEscape={onClose}>
+    <Animated.View style={[styles.content, contentStyle]} onAccessibilityEscape={onClose}>
       {children}
     </Animated.View>
   );
@@ -112,7 +112,7 @@ export function IngredientSheet({ ref, children, header, disabled, expanded = fa
         onClose();
       }}>
       <SheetContent expanded={expanded} transitioning={transitioning} restoreIndex={listIndex}
-        bottomInset={insets.bottom} onClose={close}>
+        onClose={close}>
         {children}
       </SheetContent>
     </BottomSheetModal>

@@ -5,6 +5,7 @@
  */
 import { StyleSheet, Text, View } from 'react-native';
 import { BottomSheetSectionList } from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getPositionName } from '@/features/fridge/model/fridgeLayout';
@@ -24,6 +25,7 @@ interface IngredientMoveQueueListProps {
 
 export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemove }: IngredientMoveQueueListProps) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const sections: { key: string; title: string; path: string[]; data: Ingredient[] }[] = [];
   for (const ingredient of ingredients) {
     const position = layout.positions.find(candidate => candidate.slotId === ingredient.slotId
@@ -48,8 +50,8 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
   return (
     <BottomSheetSectionList sections={sections} keyExtractor={item => item.id} stickySectionHeadersEnabled={false}
       showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
-      scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}
-      style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.empty : undefined}
+      scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
+      style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.empty : undefined, { paddingBottom: insets.bottom }]}
       ListEmptyComponent={<View style={styles.emptyContent}>
         <MaterialDesignIcons name="clipboard-outline" size={40} color={colors.textMuted} accessible={false} />
         <Text style={styles.emptyTitle}>{t('queue.emptyTitle')}</Text>

@@ -6,6 +6,7 @@
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, BackHandler, Keyboard, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
 import { BottomSheetFlatList as FlatList, BottomSheetScrollView as ScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IngredientSheet as BottomSheet } from '@/features/ingredient/components/IngredientSheet';
 import type { IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -44,6 +45,7 @@ interface IngredientListSheetProps {
 
 export function IngredientListSheet({ position, layout, allIngredients = [], onClose, onSaved, onDeleted, onMoved }: IngredientListSheetProps) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const db = useSQLiteContext();
   const moveQueue = useIngredientMoveQueue();
   const queuedIngredients = moveQueue.ingredientIds.flatMap(id => allIngredients.find(ingredient => ingredient.id === id) ?? []);
@@ -411,7 +413,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           <IngredientMoveQueueList ingredients={queuedIngredients} layout={layout} disabled={isBusy || isChanging}
                             onRemove={moveQueue.remove} />
                         ) : formPage ? (
-                          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="always"
+                          <ScrollView contentContainerStyle={[styles.form, { paddingBottom: spacing.lg + insets.bottom }]} keyboardShouldPersistTaps="always"
                             keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false} scrollsChildToFocus={false}>
                             <FormTextInput inputComponent={SheetTextInput} label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')}
                               value={draft.name} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="next"
@@ -461,8 +463,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           <FlatList data={ingredients} keyExtractor={item => item.id}
                             extraData={{ swipedIngredientId, queuedIds: moveQueue.ingredientIds }} onScrollBeginDrag={() => setSwipedIngredientId(null)}
                             showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
-                            scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}
-                            style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.emptyList : undefined}
+                            scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
+                            style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.emptyList : undefined, { paddingBottom: insets.bottom }]}
                             ListEmptyComponent={
                               <View style={styles.emptyState}>
                                 <MaterialDesignIcons name="tray-plus" size={40} color={colors.textMuted} accessible={false} />

@@ -196,12 +196,12 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const selectedPosition = layout?.positions.find(position => position.id === selectedSlot?.positionId
     && position.areaId === selectedAreaId);
   const isToolbarAvailable = !!refrigerator && (!isLoading || (hasLoaded && !showLoading)) && !error;
-  const isToolbarHidden = isSheetOpen || isLegendOpen;
+  const isOverlayOpen = isSheetOpen || isLegendOpen;
   const isToolbarBlocked = isLoading || focusPhase === 'opening' || focusPhase === 'closing' || isToolbarChanging;
-  const canUseToolbar = isToolbarExpanded && !isToolbarBlocked && !isToolbarHidden;
+  const canUseToolbar = isToolbarExpanded && !isToolbarBlocked && !isOverlayOpen;
 
   function toggleToolbar() {
-    if (toolbarChanging.current || isToolbarHidden || isToolbarBlocked || toolbarWidth <= 0) return;
+    if (toolbarChanging.current || isOverlayOpen || isToolbarBlocked || toolbarWidth <= 0) return;
     toolbarChanging.current = true;
     setIsToolbarChanging(true);
     setIsToolbarExpanded(current => !current);
@@ -222,8 +222,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
         <View style={styles.scene}>
           <SafeAreaView style={[styles.container, ((isLoading && (!hasLoaded || showLoading)) || error !== null) && styles.feedback]}
             edges={['top', 'left', 'right']}
-            pointerEvents={activeFocus || isToolbarHidden || isToolbarChanging || isLoading ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isToolbarHidden || isToolbarChanging || (isLoading && !showLoading)}
-            importantForAccessibility={activeFocus || isToolbarHidden || isToolbarChanging || (isLoading && !showLoading) ? 'no-hide-descendants' : 'auto'}>
+            pointerEvents={activeFocus || isOverlayOpen || isToolbarChanging || isLoading ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus || isOverlayOpen || isToolbarChanging || (isLoading && !showLoading)}
+            importantForAccessibility={activeFocus || isOverlayOpen || isToolbarChanging || (isLoading && !showLoading) ? 'no-hide-descendants' : 'auto'}>
             {isLoading && (!hasLoaded || showLoading) ? (showLoading ? <ActivityIndicator color={colors.text} accessibilityLabel={t('home.loading')} /> : null)
               : error ? <>
                 <Text accessibilityRole="alert">{t(error)}</Text>
@@ -262,9 +262,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
               </>}
           </SafeAreaView>
           {/* 떠 있는 도구 버튼의 높이를 제외하지 않고 전체 도면 영역을 측정한다. */}
-          <View ref={focusViewport} collapsable={false} pointerEvents={isToolbarHidden || isToolbarChanging ? 'none' : 'box-none'}
-            accessibilityElementsHidden={isToolbarHidden || isToolbarChanging}
-            importantForAccessibility={isToolbarHidden || isToolbarChanging ? 'no-hide-descendants' : 'auto'}
+          <View ref={focusViewport} collapsable={false} pointerEvents={isOverlayOpen || isToolbarChanging ? 'none' : 'box-none'}
+            accessibilityElementsHidden={isOverlayOpen || isToolbarChanging}
+            importantForAccessibility={isOverlayOpen || isToolbarChanging ? 'no-hide-descendants' : 'auto'}
             style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
             {refrigerator && activeFocus && focusBounds ? (
               <FridgeFocusView draft={refrigerator} ingredients={ingredients} now={badgeDate} target={activeFocus} viewport={focusBounds} phase={focusPhase}
@@ -272,9 +272,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                 selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
                 selectedSlotIndex={selectedSlot?.index}
                 selectedPositionId={selectedSlot?.positionId}
-                scrollHintBlocked={isToolbarHidden || isToolbarChanging}
+                scrollHintBlocked={isOverlayOpen || isToolbarChanging}
                 onSelectSlot={(areaId, index, positionId) => {
-                  if (focusPhase !== 'open' || isToolbarHidden || toolbarChanging.current) return;
+                  if (focusPhase !== 'open' || isOverlayOpen || toolbarChanging.current) return;
                   setSelectedAreaId(areaId);
                   setSelectedSlot({ index, positionId });
                   setIsIngredientListOpen(!!layout?.positions.some(position => position.id === positionId && position.areaId === areaId));
@@ -286,9 +286,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
         </View>
         {isToolbarAvailable ? (
           <SafeAreaView edges={['left', 'right']}
-            pointerEvents={isToolbarHidden || isToolbarBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isToolbarHidden || isToolbarBlocked}
-            importantForAccessibility={isToolbarHidden || isToolbarBlocked ? 'no-hide-descendants' : 'auto'}
-            style={[styles.toolbarOverlay, isToolbarHidden && styles.hidden]}>
+            pointerEvents={isOverlayOpen || isToolbarBlocked ? 'none' : 'box-none'} accessibilityElementsHidden={isOverlayOpen || isToolbarBlocked}
+            importantForAccessibility={isOverlayOpen || isToolbarBlocked ? 'no-hide-descendants' : 'auto'}
+            style={styles.toolbarOverlay}>
             <View pointerEvents="box-none" style={styles.toolbarAnchor}>
               <View pointerEvents="box-none" style={styles.toolbarRow}>
                 <View style={styles.toolbarToolsViewport}
@@ -447,7 +447,6 @@ const styles = StyleSheet.create({
   floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
   toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
     borderRadius: HOME_MENU_SIZE / 2, backgroundColor: colors.chilled },
-  hidden: { opacity: 0 },
   diagram: {
     flex: 1,
   },
