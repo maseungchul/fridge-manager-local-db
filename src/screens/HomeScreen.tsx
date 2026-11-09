@@ -181,7 +181,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   useEffect(() => {
     if (!activeFocus && !isMoveQueueOpen) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      // 대기 목록은 네이티브 시트의 종료 신호에서만 정리한다.
+      // 대기 목록은 시트의 닫기 애니메이션 완료 신호에서만 정리한다.
       if (isMoveQueueOpen) return true;
       if (toolbarChanging.current) return true;
       if (isLegendOpen) setIsLegendOpen(false);

@@ -1,10 +1,10 @@
 /**
  * @file
- * 홈에서 임시이동목록을 확인·정리하는 네이티브 시트를 표시한다.
+ * 홈에서 임시이동목록을 확인·정리하는 공통 바텀 시트를 표시한다.
  * 기존 대기 목록을 재사용하고, 종료 후 홈 도면의 상태는 호출자가 유지한다.
  */
-import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { BackHandler, StyleSheet, Text, View } from 'react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { IngredientSheet } from '@/features/ingredient/components/IngredientSheet';
@@ -13,7 +13,7 @@ import { IngredientMoveQueueList } from '@/features/ingredient/components/Ingred
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
-import { colors, spacing } from '@/theme/tokens';
+import { colors } from '@/theme/tokens';
 import { HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
@@ -26,7 +26,6 @@ interface IngredientMoveQueueSheetProps {
 export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: IngredientMoveQueueSheetProps) {
   const { t } = useTranslation();
   const sheet = useRef<IngredientSheetRef>(null);
-  const [isListExpanded, setIsListExpanded] = useState(false);
   const { remove, clear } = useIngredientMoveQueue();
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -37,9 +36,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
   }, []);
 
   return (
-    <IngredientSheet ref={sheet} disabled={false} onListExpandedChange={setIsListExpanded} onClose={onClose}>
-      <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={() => sheet.current?.close()}>
-        <View style={styles.dragIndicator} pointerEvents="none" />
+    <IngredientSheet ref={sheet} disabled={false} onClose={onClose} header={
         <View style={styles.header}>
           <View style={styles.clearButton} pointerEvents="none" />
           <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{t('queue.title', { count: ingredients.length })}</Text>
@@ -49,8 +46,9 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
             <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
         </View>
-        <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false}
-          scrollEnabled={Platform.OS !== 'ios' || isListExpanded} onRemove={remove} />
+    }>
+      <View style={styles.panel} onAccessibilityEscape={() => sheet.current?.close()}>
+        <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false} onRemove={remove} />
       </View>
     </IngredientSheet>
   );
@@ -58,8 +56,6 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
 
 const styles = StyleSheet.create({
   panel: { flex: 1, backgroundColor: colors.surface },
-  dragIndicator: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
-    marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4' },
   header: { ...headerStyles.header, justifyContent: 'space-between' },
   title: { ...headerStyles.title, flex: 1, textAlign: 'center' },
   clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },

@@ -1,13 +1,16 @@
 /**
  * @file
- * 재료 패널의 네이티브 시트를 표시하고 추가 화면에서만 최대화 높이를 유지한다.
- * Android·웹은 기존 시트를 사용하며, iOS의 네이티브 표시 상태는 전용 구현에서 받는다.
+ * Gorhom 시트로 재료 패널을 표시하고 본문 스크롤과 제목 드래그를 구분한다.
+ * 목록 높이를 기억해 폼 최대화 후 복원하고, 닫기 애니메이션이 끝난 뒤 호출자에게 알린다.
  */
-import { BottomSheet } from '@expo/ui/community/bottom-sheet';
-import { useEffect, useImperativeHandle, useRef } from 'react';
-import type { ReactNode, Ref } from 'react';
-import { View } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { BottomSheetBackdrop, BottomSheetModal, useBottomSheet, useBottomSheetInternal } from '@gorhom/bottom-sheet';
+import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import type { PropsWithChildren, ReactNode, Ref } from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, spacing } from '@/theme/tokens';
 
 export interface IngredientSheetRef {
   close: () => void;
@@ -16,47 +19,108 @@ export interface IngredientSheetRef {
 export interface IngredientSheetProps {
   ref?: Ref<IngredientSheetRef>;
   children: ReactNode;
+  header?: ReactNode;
   disabled: boolean;
   expanded?: boolean;
   transitioning?: boolean;
-  onListExpandedChange?: (expanded: boolean) => void;
   onClose: () => void;
 }
 
 const SNAP_POINTS = ['50%', '100%'];
 const EXPANDED_SNAP_POINTS = ['100%'];
+const TRANSITION_ANIMATION = { duration: 240 };
 
-export function IngredientSheet({ ref, children, disabled, expanded = false, transitioning = false, onClose }: IngredientSheetProps) {
-  const sheetRef = useRef<BottomSheet>(null);
-  const closing = useRef(false);
-  const previousExpanded = useRef(expanded);
-  const listIndex = useRef(0);
-  const heights = useRef({ list: 0, expanded: 0 });
-  useEffect(() => {
-    if (previousExpanded.current === expanded) return;
-    previousExpanded.current = expanded;
-    // Android의 사용자 드래그는 onChange를 전달하지 않아 실제 콘텐츠 높이도 함께 기억한다.
-    if (!expanded && heights.current.list > 0 && heights.current.expanded > 0) {
-      listIndex.current = heights.current.list < heights.current.expanded - 1 ? 0 : 1;
-    }
-    sheetRef.current?.snapToIndex(expanded ? 1 : listIndex.current);
-  }, [expanded]);
-  useImperativeHandle(ref, () => ({ close() {
-    if (disabled || closing.current) return;
-    closing.current = true;
-    sheetRef.current?.close();
-  } }));
+function SheetBackdrop(props: BottomSheetBackdropProps) {
+  return <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1}
+    pressBehavior="none" opacity={0} accessible={false} />;
+}
+
+// 포털에 표시되는 제목과 본문을 하나의 모달 접근성 경계로 묶는다.
+function SheetContainer({ children }: PropsWithChildren) {
+  return <View style={StyleSheet.absoluteFill} pointerEvents="box-none" accessibilityViewIsModal>{children}</View>;
+}
+
+function SheetContent({ children, expanded, transitioning, restoreIndex, bottomInset, onClose }: PropsWithChildren<{
+  expanded: boolean;
+  transitioning: boolean;
+  restoreIndex: number;
+  bottomInset: number;
+  onClose: () => void;
+}>) {
+  const { snapToIndex } = useBottomSheet();
+  const { animatedLayoutState, animatedPosition, animatedDetentsState } = useBottomSheetInternal();
+  // Gorhom의 본문은 최대 높이를 기준으로 배치되므로 반높이에서도 마지막 항목까지 스크롤되게 제한한다.
+  const contentStyle = useAnimatedStyle(() => {
+    const { containerHeight, handleHeight } = animatedLayoutState.value;
+    return { maxHeight: Math.max(0, containerHeight - animatedPosition.value - handleHeight) };
+  });
+  // 포털과 UI 스레드에 단계 변경이 반영된 뒤 이동해 폼 복귀 시 인덱스 범위를 벗어나지 않게 한다.
+  useAnimatedReaction(
+    () => ({ count: animatedDetentsState.value.detents?.length ?? 0, expanded, transitioning }),
+    (next, previous) => {
+      const expectedCount = next.expanded && !next.transitioning ? 1 : 2;
+      if (next.count !== expectedCount) return;
+      if (next.count === previous?.count && next.expanded === previous.expanded && next.transitioning === previous.transitioning) return;
+      runOnJS(snapToIndex)(next.expanded ? next.count - 1 : restoreIndex, TRANSITION_ANIMATION);
+    },
+    [expanded, transitioning, restoreIndex, snapToIndex],
+  );
   return (
-    <BottomSheet ref={sheetRef} index={0} snapPoints={expanded && !transitioning ? EXPANDED_SNAP_POINTS : SNAP_POINTS} handleComponent={null}
-      enableDynamicSizing={false} enablePanDownToClose={!disabled} backgroundStyle={{ backgroundColor: colors.surface }}
-      onChange={index => { if (!expanded && !transitioning && index >= 0) listIndex.current = index; }}
-      onClose={() => { if (!disabled) onClose(); }}>
-      <View style={{ flex: 1 }} onLayout={({ nativeEvent: { layout } }) => {
-        if (expanded) heights.current.expanded = Math.max(heights.current.expanded, layout.height);
-        else if (!transitioning) heights.current.list = layout.height;
-      }}>
-        {children}
-      </View>
-    </BottomSheet>
+    <Animated.View style={[styles.content, contentStyle, { paddingBottom: bottomInset }]} onAccessibilityEscape={onClose}>
+      {children}
+    </Animated.View>
   );
 }
+
+export function IngredientSheet({ ref, children, header, disabled, expanded = false, transitioning = false, onClose }: IngredientSheetProps) {
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const phase = useRef<'open' | 'closing' | 'closed'>('open');
+  const [listIndex, setListIndex] = useState(0);
+  const insets = useSafeAreaInsets();
+  useEffect(() => {
+    sheetRef.current?.present();
+  }, []);
+  const close = useCallback(() => {
+    if (disabled || phase.current !== 'open') return;
+    phase.current = 'closing';
+    sheetRef.current?.dismiss();
+  }, [disabled]);
+  useImperativeHandle(ref, () => ({ close }), [close]);
+  // 제목과 고정 드래그 바만 손잡이로 사용해 목록 최상단의 아래 스와이프도 스크롤로 처리한다.
+  const renderHandle = useCallback(() => (
+    <View onAccessibilityEscape={close}>
+      <View style={styles.dragIndicator} pointerEvents="none" accessible={false} />
+      {header}
+    </View>
+  ), [header, close]);
+  return (
+    <BottomSheetModal ref={sheetRef} index={0}
+      snapPoints={expanded && !transitioning ? EXPANDED_SNAP_POINTS : SNAP_POINTS}
+      topInset={insets.top} handleComponent={renderHandle} backdropComponent={SheetBackdrop}
+      containerComponent={SheetContainer}
+      enableDynamicSizing={false} enableOverDrag={false} enableContentPanningGesture={false}
+      enableHandlePanningGesture={!disabled} enablePanDownToClose={!disabled}
+      keyboardBehavior="extend" keyboardBlurBehavior="none" android_keyboardInputMode="adjustResize"
+      backgroundStyle={styles.background}
+      onChange={index => {
+        if (phase.current === 'open' && !expanded && !transitioning && index >= 0) setListIndex(index);
+      }}
+      onDismiss={() => {
+        if (phase.current === 'closed') return;
+        phase.current = 'closed';
+        onClose();
+      }}>
+      <SheetContent expanded={expanded} transitioning={transitioning} restoreIndex={listIndex}
+        bottomInset={insets.bottom} onClose={close}>
+        {children}
+      </SheetContent>
+    </BottomSheetModal>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { flex: 1 },
+  background: { backgroundColor: colors.surface, borderRadius: 24 },
+  dragIndicator: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
+    marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4' },
+});

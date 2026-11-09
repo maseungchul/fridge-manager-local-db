@@ -1,16 +1,17 @@
 /**
  * @file
- * 선택한 위치의 재료 목록·등록·편집 폼과 임시이동목록을 네이티브 시트에 표시한다.
+ * 선택한 위치의 재료 목록·등록·편집 폼과 임시이동목록을 공통 바텀 시트에 표시한다.
  * 현재 칸으로 일괄 이동하고, 변경 결과와 홈 도면의 배지 반영은 호출자가 관리한다.
  */
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, Keyboard, Platform, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, Keyboard, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
+import { BottomSheetFlatList as FlatList, BottomSheetScrollView as ScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { IngredientSheet as BottomSheet } from '@/features/ingredient/components/IngredientSheet';
 import type { IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { FormTextInput } from '@/components/FormTextInput';
+import { FormTextInput, type FormTextInputProps } from '@/components/FormTextInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Toast } from '@/components/Toast';
 import { alertTitles } from '@/constants/alertTitles';
@@ -27,6 +28,9 @@ import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/h
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
+
+// Gesture Handler의 입력 ref 선언을 공통 입력이 사용하는 React Native 인스턴스 타입에 맞춘다.
+const SheetTextInput = BottomSheetTextInput as unknown as NonNullable<FormTextInputProps['inputComponent']>;
 
 interface IngredientListSheetProps {
   position: SlotPosition;
@@ -53,9 +57,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   const panelProgress = useAnimatedValue(0);
   const { width: windowWidth } = useWindowDimensions();
   const [pageWidth, setPageWidth] = useState(windowWidth);
-  const [isListExpanded, setIsListExpanded] = useState(false);
-  // iOS 반높이에서는 본문 드래그를 시트 확대에 맡기고, 최대화 후 목록을 스크롤한다.
-  const canScrollList = Platform.OS !== 'ios' || isListExpanded;
   const [isChanging, setIsChanging] = useState(false);
   const [isSecondaryOpen, setIsSecondaryOpen] = useState(false);
   const [secondaryPage, setSecondaryPage] = useState<'form' | 'queue'>('form');
@@ -299,21 +300,77 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
     }
   }
 
+  // 항목·작업 버튼이 먼저 처리하는 버블 단계만 확인하고, 터치는 가로채지 않는다.
+  function dismissSwipeActions() {
+    if (!saving.current && !deleting.current && !moving.current && !transition.current.active) setSwipedIngredientId(null);
+    return false;
+  }
+
   return (
     <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} expanded={isFormOpen} transitioning={isChanging}
-      onListExpandedChange={setIsListExpanded}
+      header={
+        <View style={styles.headerViewport} onStartShouldSetResponder={dismissSwipeActions}>
+          <Animated.View style={[styles.headerTrack, { width: pageWidth * 2, transform: [{
+            translateX: panelProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -pageWidth] }),
+          }] }]}>
+            {([false, true] as const).map(secondary => {
+              const formPage = secondary && secondaryPage === 'form';
+              const queuePage = secondary && secondaryPage === 'queue';
+              return (
+                <View key={secondary ? 'detail' : 'list'} style={{ width: pageWidth }}
+                  pointerEvents={secondary === isSecondaryOpen && !isChanging && !isBusy ? 'auto' : 'none'}
+                  accessibilityElementsHidden={secondary !== isSecondaryOpen || isChanging}
+                  importantForAccessibility={secondary === isSecondaryOpen && !isChanging ? 'auto' : 'no-hide-descendants'}>
+                  {secondary === isSecondaryOpen || isChanging ? (
+                    <View style={styles.header}>
+                      {secondary ? (
+                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
+                          disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
+                          onPress={returnToList} style={styles.headerIconButton}>
+                          <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                        </FeedbackPressable>
+                      ) : <View style={styles.headerIconButton} pointerEvents="none" />}
+                      <View style={styles.heading}>
+                        <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
+                          style={styles.title}>{formPage ? isEditing ? t('ingredient.edit') : t('ingredient.add') : queuePage ? t('queue.title', { count: queuedIngredients.length }) : t('ingredient.list')}</Text>
+                      </View>
+                      {formPage ? (
+                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? t('ingredient.saveEdit') : t('ingredient.register')}
+                          accessibilityState={{ disabled: !canSave || isSaving || isChanging, busy: isSaving }}
+                          disabled={!canSave || isSaving} interactionBlocked={isChanging}
+                          onPress={saveIngredient} style={styles.headerIconButton}>
+                          {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
+                            : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                        </FeedbackPressable>
+                      ) : queuePage ? (
+                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.clear')}
+                          disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
+                          accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
+                          onPress={() => { if (!saving.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
+                          style={styles.headerIconButton}>
+                          <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                        </FeedbackPressable>
+                      ) : (
+                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
+                          accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
+                          interactionBlocked={isChanging} onPress={startAdding} style={styles.headerIconButton}>
+                          <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                        </FeedbackPressable>
+                      )}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </Animated.View>
+        </View>
+      }
       onClose={() => {
         if (saving.current || deleting.current || moving.current || transition.current.active) return;
         onClose();
       }}>
-        <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={closeSheet}
-          onStartShouldSetResponder={() => {
-            if (!saving.current && !deleting.current && !moving.current && !transition.current.active) setSwipedIngredientId(null);
-            // 항목·삭제 버튼이 먼저 처리하는 버블 단계만 확인하고, 터치는 가로채지 않는다.
-            return false;
-          }}>
-          {/* 시스템 표시기의 가변 색상 대신 고정색으로 표시하고, 드래그는 네이티브 시트에 맡긴다. */}
-          <View style={styles.dragIndicator} pointerEvents="none" accessible={false} />
+        <View style={styles.panel} onAccessibilityEscape={closeSheet}
+          onStartShouldSetResponder={dismissSwipeActions}>
           <View style={styles.content} onLayout={({ nativeEvent }) => {
             if (nativeEvent.layout.width > 0) setPageWidth(nativeEvent.layout.width);
           }}>
@@ -330,42 +387,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                   importantForAccessibility={secondary === isSecondaryOpen && !isChanging ? 'auto' : 'no-hide-descendants'}>
                   {secondary === isSecondaryOpen || isChanging ? (
                     <>
-                      <View style={styles.header}>
-                        {secondary ? (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
-                            disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
-                            onPress={returnToList} style={styles.headerIconButton}>
-                            <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-                          </FeedbackPressable>
-                        ) : <View style={styles.headerIconButton} pointerEvents="none" />}
-                        <View style={styles.heading}>
-                          <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
-                            style={styles.title}>{formPage ? isEditing ? t('ingredient.edit') : t('ingredient.add') : queuePage ? t('queue.title', { count: queuedIngredients.length }) : t('ingredient.list')}</Text>
-                        </View>
-                        {formPage ? (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={isEditing ? t('ingredient.saveEdit') : t('ingredient.register')}
-                            accessibilityState={{ disabled: !canSave || isSaving || isChanging, busy: isSaving }}
-                            disabled={!canSave || isSaving} interactionBlocked={isChanging}
-                            onPress={saveIngredient} style={styles.headerIconButton}>
-                            {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
-                              : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
-                          </FeedbackPressable>
-                        ) : queuePage ? (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.clear')}
-                            disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
-                            accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
-                            onPress={() => { if (!saving.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
-                            style={styles.headerIconButton}>
-                            <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-                          </FeedbackPressable>
-                        ) : (
-                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
-                            accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
-                            interactionBlocked={isChanging} onPress={startAdding} style={styles.headerIconButton}>
-                            <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-                          </FeedbackPressable>
-                        )}
-                      </View>
                       {!secondary && queuedIngredients.length > 0 ? (
                         <View style={styles.moveToolbar}>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.check', { count: queuedIngredients.length })}
@@ -388,20 +409,19 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                       <View style={styles.pageContent}>
                         {queuePage ? (
                           <IngredientMoveQueueList ingredients={queuedIngredients} layout={layout} disabled={isBusy || isChanging}
-                            scrollEnabled={canScrollList}
                             onRemove={moveQueue.remove} />
                         ) : formPage ? (
                           <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="always"
                             keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false} scrollsChildToFocus={false}>
-                            <FormTextInput label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')}
+                            <FormTextInput inputComponent={SheetTextInput} label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')}
                               value={draft.name} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="next"
                               onSubmitEditing={() => quantityInput.current?.focus()}
                               onChangeText={name => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, name })); }} />
-                            <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} accessibilityLabel={t('ingredient.quantityLabel')} placeholder={t('ingredient.quantityPlaceholder')}
+                            <FormTextInput inputComponent={SheetTextInput} ref={quantityInput} label={t('ingredient.quantity')} accessibilityLabel={t('ingredient.quantityLabel')} placeholder={t('ingredient.quantityPlaceholder')}
                               value={draft.quantity} maxLength={50} editable={!isSaving && !isChanging} returnKeyType="next"
                               onSubmitEditing={() => memoInput.current?.focus()}
                               onChangeText={quantity => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, quantity })); }} />
-                            <FormTextInput ref={memoInput} label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
+                            <FormTextInput inputComponent={SheetTextInput} ref={memoInput} label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
                               value={draft.memo ?? ''} editable={!isSaving && !isChanging} returnKeyType="done"
                               onChangeText={memo => { if (!saving.current && !transition.current.active) setDraft(current => ({ ...current, memo })); }} />
                             <Text style={styles.fieldLabel}>{t('ingredient.expiration')}</Text>
@@ -439,7 +459,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           </View>
                         ) : (
                           <FlatList data={ingredients} keyExtractor={item => item.id}
-                            scrollEnabled={canScrollList}
                             extraData={{ swipedIngredientId, queuedIds: moveQueue.ingredientIds }} onScrollBeginDrag={() => setSwipedIngredientId(null)}
                             showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
                             scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}
@@ -510,10 +529,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surface,
   },
-  dragIndicator: {
-    alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
-    marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4',
-  },
+  headerViewport: { overflow: 'hidden' },
+  headerTrack: { flexDirection: 'row' },
   header: {
     ...headerStyles.header,
   },

@@ -4,7 +4,7 @@
  * 오른쪽에 버튼 등의 요소를 추가할 수 있으며, 입력값과 검증 결과는 호출하는 화면에서 관리한다.
  * forwardRef로 내부 TextInput을 연결해 부모가 focus() 등의 기능을 사용할 수 있게 한다.
  */
-import { forwardRef, type ComponentRef, type ReactNode } from 'react';
+import { forwardRef, type ComponentRef, type ComponentType, type ReactNode, type RefAttributes } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import type { StyleProp, TextInputProps, TextStyle, ViewStyle } from 'react-native';
 import { colors, spacing } from '@/theme/tokens';
@@ -19,6 +19,8 @@ export interface FormTextInputProps extends Omit<TextInputProps, 'style'> {
   containerStyle?: StyleProp<ViewStyle>;
   // 비밀번호 보기 버튼처럼 입력란 오른쪽에 배치할 요소다.
   trailingElement?: ReactNode;
+  // 시트 입력은 키보드와 연동되는 입력 컴포넌트를 사용하고 공통 라벨·스타일은 유지한다.
+  inputComponent?: ComponentType<TextInputProps & RefAttributes<ComponentRef<typeof TextInput>>>;
 }
 
 // 첫 번째 타입은 ref로 노출할 대상, 두 번째 타입은 전달받을 props다.
@@ -31,6 +33,7 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
       containerStyle,
       placeholderTextColor = colors.textMuted,
       trailingElement,
+      inputComponent: Input = TextInput,
       // value, onChangeText, 키보드 설정 등 나머지 속성은 내부 TextInput에 전달한다.
       ...inputProps
     },
@@ -42,7 +45,7 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
         {/* 오른쪽 요소가 있으면 입력란과 함께 감싸고, 없으면 TextInput만 표시한다. */}
         {trailingElement ? (
           <View style={[styles.inputContainer, errorMessage ? styles.inputError : undefined]}>
-            <TextInput
+            <Input
               {...inputProps}
               placeholderTextColor={placeholderTextColor}
               ref={ref}
@@ -51,7 +54,7 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
             {trailingElement}
           </View>
         ) : (
-          <TextInput
+          <Input
             {...inputProps}
             placeholderTextColor={placeholderTextColor}
             ref={ref}

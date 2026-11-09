@@ -3,7 +3,8 @@
  * 임시이동목록의 재료를 출발 위치별로 묶어 수량·유통기한과 함께 표시한다.
  * 목록 해제는 호출자에게 전달하고, 재료 정보나 실제 보관 위치는 변경하지 않는다.
  */
-import { SectionList, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { BottomSheetSectionList } from '@gorhom/bottom-sheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getPositionName } from '@/features/fridge/model/fridgeLayout';
@@ -18,11 +19,10 @@ interface IngredientMoveQueueListProps {
   ingredients: Ingredient[];
   layout: FridgeLayout;
   disabled: boolean;
-  scrollEnabled?: boolean;
   onRemove: (id: string) => void;
 }
 
-export function IngredientMoveQueueList({ ingredients, layout, disabled, scrollEnabled = true, onRemove }: IngredientMoveQueueListProps) {
+export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemove }: IngredientMoveQueueListProps) {
   const { t } = useTranslation();
   const sections: { key: string; title: string; path: string[]; data: Ingredient[] }[] = [];
   for (const ingredient of ingredients) {
@@ -46,8 +46,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, scrollE
   }
 
   return (
-    <SectionList sections={sections} keyExtractor={item => item.id} stickySectionHeadersEnabled={false}
-      scrollEnabled={scrollEnabled}
+    <BottomSheetSectionList sections={sections} keyExtractor={item => item.id} stickySectionHeadersEnabled={false}
       showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
       scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}
       style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.empty : undefined}
