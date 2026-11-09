@@ -26,7 +26,8 @@ import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
 import { IngredientListSheet } from '@/features/ingredient/components/IngredientListSheet';
 import { IngredientMoveQueueSheet } from '@/features/ingredient/components/IngredientMoveQueueSheet';
-import type { Ingredient } from '@/features/ingredient/model/ingredient';
+import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
+import type { IngredientFormResult } from '@/screens/IngredientFormScreen';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
@@ -39,6 +40,7 @@ type HomeScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 > & {
   onTabInteractionBlockedChange?: (blocked: boolean) => void;
+  takeIngredientFormResult: () => IngredientFormResult | null;
 };
 
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
@@ -47,8 +49,9 @@ const HOME_TOOL_ICON_SIZE = 22;
 const HOME_TOOLBAR_EDGE_SPACE = 8;
 const LOADING_DELAY_MS = 200;
 const MIN_LOADING_VISIBLE_MS = 300;
+const EMPTY_INGREDIENT_DRAFT: IngredientDraft = { name: '', quantity: '', memo: '', expirationDate: null };
 
-export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeScreenProps) {
+export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngredientFormResult }: HomeScreenProps) {
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const { ingredientIds: queuedIds, retain: retainMoveQueue } = useIngredientMoveQueue();
@@ -60,6 +63,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   const [error, setError] = useState<'home.loadError' | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
+  const ingredientFormPending = useRef(false);
+  const [ingredientListIndex, setIngredientListIndex] = useState(0);
+  const addIngredientDraft = useRef(EMPTY_INGREDIENT_DRAFT);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
   const [isToolbarExpanded, setIsToolbarExpanded] = useState(true);
@@ -86,6 +92,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   // 시트 종료 후 패널과 선택 상태를 함께 비운다.
   const closeIngredientList = useCallback(() => {
     setIsIngredientListOpen(false);
+    setIngredientListIndex(0);
+    addIngredientDraft.current = EMPTY_INGREDIENT_DRAFT;
     setSelectedSlot(null);
     setSelectedAreaId(null);
   }, [setSelectedAreaId]);
@@ -133,13 +141,30 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   }, [db, resetFocus, retainMoveQueue]);
 
   useFocusEffect(useCallback(() => {
-    void loadRefrigerator();
+    if (ingredientFormPending.current) {
+      ingredientFormPending.current = false;
+      const result = takeIngredientFormResult();
+      if (result) {
+        if (!result.isEditing) addIngredientDraft.current = result.savedIngredient ? EMPTY_INGREDIENT_DRAFT : result.draft;
+        const savedIngredient = result.savedIngredient;
+        if (savedIngredient) setIngredients(current => current.some(item => item.id === savedIngredient.id)
+          ? current.map(item => item.id === savedIngredient.id ? savedIngredient : item) : [...current, savedIngredient]);
+      }
+      setIsIngredientListOpen(true);
+    } else {
+      void loadRefrigerator();
+    }
     return () => {
-      loadRequest.current++; resetFocus();
+      loadRequest.current++;
+      // 재료 입력 화면을 다녀올 때는 도면·선택·목록 높이와 추가 초안을 유지한다.
+      if (ingredientFormPending.current) return;
+      setIngredientListIndex(0);
+      addIngredientDraft.current = EMPTY_INGREDIENT_DRAFT;
+      resetFocus();
       setSelectedSlot(null); setIsIngredientListOpen(false); setIsLegendOpen(false);
       setIsMoveQueueOpen(false);
     };
-  }, [loadRefrigerator, resetFocus]));
+  }, [loadRefrigerator, resetFocus, takeIngredientFormResult]));
 
   // 자정과 앱 복귀 때 날짜를 갱신해 도면을 다시 열지 않아도 배지의 기한 분류를 맞춘다.
   useEffect(() => {
@@ -181,6 +206,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
   useEffect(() => {
     if (!activeFocus && !isMoveQueueOpen) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (ingredientFormPending.current) return false;
       // 대기 목록은 시트의 닫기 애니메이션 완료 신호에서만 정리한다.
       if (isMoveQueueOpen) return true;
       if (toolbarChanging.current) return true;
@@ -346,8 +372,18 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
           onClose={() => setIsMoveQueueOpen(false)} /> : null}
         {isIngredientListOpen && focusPhase === 'open' && selectedPosition && layout ? (
           <IngredientListSheet key={selectedPosition.id} position={selectedPosition} layout={layout} allIngredients={ingredients}
-            onSaved={ingredient => setIngredients(current => current.some(item => item.id === ingredient.id)
-              ? current.map(item => item.id === ingredient.id ? ingredient : item) : [...current, ingredient])}
+            initialIndex={ingredientListIndex} onIndexChange={setIngredientListIndex}
+            onOpenForm={ingredient => {
+              if (ingredientFormPending.current) return;
+              ingredientFormPending.current = true;
+              setIsIngredientListOpen(false);
+              navigation.navigate('IngredientForm', {
+                position: { slotId: selectedPosition.slotId, drawerNumber: selectedPosition.drawerNumber ?? 0 },
+                ingredient,
+                draft: ingredient ? { name: ingredient.name, quantity: ingredient.quantity,
+                  memo: ingredient.memo, expirationDate: ingredient.expirationDate } : addIngredientDraft.current,
+              });
+            }}
             onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
             onMoved={moved => setIngredients(current => current.map(item => moved.find(ingredient => ingredient.id === item.id) ?? item))}
             onClose={closeIngredientList} />

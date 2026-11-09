@@ -10,6 +10,8 @@
 export const colors = {
   // background는 화면 전체 배경, surface는 폼 카드 등 콘텐츠 영역의 배경이다.
   background: '#F4F0E8',
+  // 하단 탭 영역을 화면 배경과 구분한다.
+  navigationBackground: '#EAE5DB',
   surface: '#FFFCF7',
   // 하단 편집 도구와 안전 영역을 같은 배경으로 연결한다.
   toolbar: '#F9F6F0',

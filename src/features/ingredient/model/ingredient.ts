@@ -18,6 +18,8 @@ export interface Ingredient {
   drawerNumber: 0 | 1 | 2;
 }
 
+export type IngredientDraft = Pick<Ingredient, 'name' | 'quantity' | 'memo' | 'expirationDate'>;
+
 export interface IngredientCounts {
   total: number;
   normal: number;

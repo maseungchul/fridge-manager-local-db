@@ -1,7 +1,7 @@
 /**
  * @file
  * 냉장고·장보기·더보기를 크림·민트 색상의 공통 하단 탭으로 전환한다.
- * 냉장고 등록은 상위 Stack에서 열어 등록 중에는 탭을 표시하지 않는다.
+ * 냉장고·재료 입력은 상위 Stack에서 열어 입력 중에는 탭을 표시하지 않는다.
  * 탭바에서 하단 안전 영역을 확보하고, 재료 패널이 열린 동안 탭 입력을 막는다.
  */
 import { useState } from 'react';
@@ -14,6 +14,7 @@ import { ShoppingScreen } from '@/screens/ShoppingScreen';
 import { MoreStackNavigator } from '@/navigation/MoreStackNavigator';
 import { colors, spacing } from '@/theme/tokens';
 import { useTranslation } from '@/i18n/LanguageProvider';
+import type { IngredientFormResult } from '@/screens/IngredientFormScreen';
 
 export type MainTabParamList = {
   Home: undefined;
@@ -23,7 +24,9 @@ export type MainTabParamList = {
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-export function MainTabNavigator() {
+export function MainTabNavigator({ takeIngredientFormResult }: {
+  takeIngredientFormResult: () => IngredientFormResult | null;
+}) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
@@ -61,7 +64,8 @@ export function MainTabNavigator() {
           <MaterialDesignIcons name={focused ? 'fridge' : 'fridge-outline'} size={size} color={color} accessible={false} />
         ),
       }}>
-        {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked} />}
+        {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked}
+          takeIngredientFormResult={takeIngredientFormResult} />}
       </Tab.Screen>
       <Tab.Screen name="Shopping" component={ShoppingScreen} options={{
         title: t('tabs.shopping'),
@@ -82,7 +86,7 @@ export function MainTabNavigator() {
 const styles = StyleSheet.create({
   scene: { backgroundColor: colors.background },
   tabBar: {
-    backgroundColor: colors.toolbar, paddingTop: 0,
+    backgroundColor: colors.navigationBackground, paddingTop: 0,
     borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth,
     elevation: 0, shadowOpacity: 0,
   },
