@@ -10,7 +10,7 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { colors } from '@/theme/tokens';
 import type { IngredientSheetProps } from './IngredientSheet';
 
-export function IngredientSheet({ ref, children, disabled, expanded = false, transitioning = false, onClose }: IngredientSheetProps) {
+export function IngredientSheet({ ref, children, disabled, expanded = false, transitioning = false, onListExpandedChange, onClose }: IngredientSheetProps) {
   const { width } = useWindowDimensions();
   const [isPresented, setIsPresented] = useState(true);
   const [listDetent, setListDetent] = useState<'medium' | 'large'>('medium');
@@ -34,7 +34,10 @@ export function IngredientSheet({ ref, children, disabled, expanded = false, tra
           presentationDetents(expanded && !transitioning ? ['large'] : ['medium', 'large'], {
             selection: expanded ? 'large' : listDetent,
             onSelectionChange: detent => {
-              if (!expanded && !transitioning && (detent === 'medium' || detent === 'large')) setListDetent(detent);
+              if (!expanded && !transitioning && (detent === 'medium' || detent === 'large')) {
+                setListDetent(detent);
+                onListExpandedChange?.(detent === 'large');
+              }
             },
           }),
           presentationDragIndicator('hidden'),

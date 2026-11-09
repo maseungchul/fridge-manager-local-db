@@ -18,10 +18,11 @@ interface IngredientMoveQueueListProps {
   ingredients: Ingredient[];
   layout: FridgeLayout;
   disabled: boolean;
+  scrollEnabled?: boolean;
   onRemove: (id: string) => void;
 }
 
-export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemove }: IngredientMoveQueueListProps) {
+export function IngredientMoveQueueList({ ingredients, layout, disabled, scrollEnabled = true, onRemove }: IngredientMoveQueueListProps) {
   const { t } = useTranslation();
   const sections: { key: string; title: string; path: string[]; data: Ingredient[] }[] = [];
   for (const ingredient of ingredients) {
@@ -46,6 +47,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
 
   return (
     <SectionList sections={sections} keyExtractor={item => item.id} stickySectionHeadersEnabled={false}
+      scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
       scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}
       style={styles.list} contentContainerStyle={ingredients.length === 0 ? styles.empty : undefined}

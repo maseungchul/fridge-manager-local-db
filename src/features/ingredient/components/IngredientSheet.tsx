@@ -19,6 +19,7 @@ export interface IngredientSheetProps {
   disabled: boolean;
   expanded?: boolean;
   transitioning?: boolean;
+  onListExpandedChange?: (expanded: boolean) => void;
   onClose: () => void;
 }
 

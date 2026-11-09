@@ -4,7 +4,7 @@
  * 현재 칸으로 일괄 이동하고, 변경 결과와 홈 도면의 배지 반영은 호출자가 관리한다.
  */
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, FlatList, Keyboard, Platform, ScrollView, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
 import { IngredientSheet as BottomSheet } from '@/features/ingredient/components/IngredientSheet';
 import type { IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -53,6 +53,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   const panelProgress = useAnimatedValue(0);
   const { width: windowWidth } = useWindowDimensions();
   const [pageWidth, setPageWidth] = useState(windowWidth);
+  const [isListExpanded, setIsListExpanded] = useState(false);
+  // iOS 반높이에서는 본문 드래그를 시트 확대에 맡기고, 최대화 후 목록을 스크롤한다.
+  const canScrollList = Platform.OS !== 'ios' || isListExpanded;
   const [isChanging, setIsChanging] = useState(false);
   const [isSecondaryOpen, setIsSecondaryOpen] = useState(false);
   const [secondaryPage, setSecondaryPage] = useState<'form' | 'queue'>('form');
@@ -298,6 +301,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
 
   return (
     <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} expanded={isFormOpen} transitioning={isChanging}
+      onListExpandedChange={setIsListExpanded}
       onClose={() => {
         if (saving.current || deleting.current || moving.current || transition.current.active) return;
         onClose();
@@ -384,6 +388,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                       <View style={styles.pageContent}>
                         {queuePage ? (
                           <IngredientMoveQueueList ingredients={queuedIngredients} layout={layout} disabled={isBusy || isChanging}
+                            scrollEnabled={canScrollList}
                             onRemove={moveQueue.remove} />
                         ) : formPage ? (
                           <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="always"
@@ -434,6 +439,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
                           </View>
                         ) : (
                           <FlatList data={ingredients} keyExtractor={item => item.id}
+                            scrollEnabled={canScrollList}
                             extraData={{ swipedIngredientId, queuedIds: moveQueue.ingredientIds }} onScrollBeginDrag={() => setSwipedIngredientId(null)}
                             showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
                             scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}

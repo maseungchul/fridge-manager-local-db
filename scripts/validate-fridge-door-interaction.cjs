@@ -2295,7 +2295,9 @@ test('iOS 재료 시트는 배경 닫기를 없애고 스와이프 종료에서 
 test('iOS 추가 전환은 기존 높이에서 애니메이션하고 목록 복귀 시 사용자가 선택했던 높이를 복원한다', t => {
   const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.ios.tsx');
   for (const previousDetent of ['medium', 'large']) {
-    const sheet = mount(IngredientSheet, { children: null, disabled: false, onClose() {} });
+    const expansions = [];
+    const sheet = mount(IngredientSheet, { children: null, disabled: false,
+      onListExpandedChange: expanded => expansions.push(expanded), onClose() {} });
     t.after(() => sheet.unmount());
     const modifier = type => find(sheet.tree, node => node.type === 'SwiftUIGroup').props.modifiers
       .find(modifier => modifier.type === type);
@@ -2322,6 +2324,7 @@ test('iOS 추가 전환은 기존 높이에서 애니메이션하고 목록 복�
     sheet.props = { ...sheet.props, transitioning: false };
     sheet.render();
     assert.equal(modifier('presentationDetents').options.selection, previousDetent);
+    assert.deepEqual(expansions, [previousDetent === 'large'], '폼 확대·복귀 신호로 목록의 스크롤 상태를 바꾸지 않는다');
   }
 });
 
@@ -3438,6 +3441,24 @@ test('홈 대기 시트는 같은 목록의 해제·전체 비우기를 지원�
   assert.equal(dismissed, 1);
 });
 
+test('이동 대기 본문은 iOS 최대화 후 스크롤하고 Android·웹에서는 기존 스크롤을 유지한다', t => {
+  const previousPlatform = native.Platform.OS;
+  t.after(() => { native.Platform.OS = previousPlatform; });
+  const { IngredientMoveQueueSheet } = loadComponent('src/features/ingredient/components/IngredientMoveQueueSheet.tsx');
+  for (const platform of ['ios', 'android', 'web']) {
+    native.Platform.OS = platform;
+    const sheet = mount(IngredientMoveQueueSheet, { ingredients: [], layout: { areas: [], positions: [] }, onClose() {} });
+    t.after(() => sheet.unmount());
+    const list = () => find(sheet.tree, node => node.type === 'IngredientMoveQueueList');
+    assert.equal(list().props.scrollEnabled, platform !== 'ios');
+    for (const expanded of [true, false, true]) {
+      sheet.tree.props.onListExpandedChange(expanded);
+      sheet.render();
+      assert.equal(list().props.scrollEnabled, platform !== 'ios' || expanded);
+    }
+  }
+});
+
 test('앱 공통 임시목록은 ID 중복을 막고 개별 해제·전체 비우기·프로세스 초기화를 지원한다', () => {
   const queue = refreshMoveQueue();
   queue.add('milk-a'); queue.add('milk-a'); queue.add('milk-b');
@@ -3519,6 +3540,7 @@ test('임시목록은 출발 칸·좌우·포켓별로 묶고 같은 이름의 �
 test('임시목록은 같은 시트 높이에서 전환하고 해제·전체 비우기 후 빈 화면과 기존 추가 초안을 유지한다', async t => {
   const { stored, open, render, row } = await ingredientQueueFixture(t);
   const sheet = await open(stored[0]);
+  assert.equal(find(sheet.tree, node => node.type === 'FlatList').props.scrollEnabled, false);
   find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress(); animations.at(-1).finish(); sheet.render();
   find(sheet.tree, node => node.props.accessibilityLabel === '재료명').props.onChangeText('작성 중인 초안'); sheet.render();
   find(sheet.tree, node => node.props.accessibilityLabel === '재료 목록으로 돌아가기').props.onPress(); animations.at(-1).finish(); sheet.render();
@@ -3530,6 +3552,11 @@ test('임시목록은 같은 시트 높이에서 전환하고 해제·전체 비
   animations.at(-1).finish(); sheet.render();
   const queueList = () => find(sheet.tree, node => node.type === 'IngredientMoveQueueList');
   assert.equal(sheet.tree.props.expanded, false);
+  assert.equal(queueList().props.scrollEnabled, false);
+  for (const expanded of [true, false, true]) {
+    sheet.tree.props.onListExpandedChange(expanded); sheet.render();
+    assert.equal(queueList().props.scrollEnabled, expanded);
+  }
   assert.equal(find(sheet.tree, node => node.type === 'FlatList'), undefined);
   queueList().props.onRemove(stored[0].id); render(sheet);
   assert.deepEqual(queueList().props.ingredients, [stored[1]]);
@@ -3538,6 +3565,7 @@ test('임시목록은 같은 시트 높이에서 전환하고 해제·전체 비
   assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '이동 대기 목록 전체 비우기').props.disabled, true);
   assert.equal([...backHandlers].at(-1)(), true); animations.at(-1).finish(); sheet.render();
   assert.equal(queueList(), undefined);
+  assert.equal(find(sheet.tree, node => node.type === 'FlatList').props.scrollEnabled, true);
   find(sheet.tree, node => node.props.accessibilityLabel === '재료 추가').props.onPress(); animations.at(-1).finish(); sheet.render();
   assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '재료명').props.value, '작성 중인 초안');
 });

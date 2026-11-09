@@ -3,8 +3,8 @@
  * 홈에서 임시이동목록을 확인·정리하는 네이티브 시트를 표시한다.
  * 기존 대기 목록을 재사용하고, 종료 후 홈 도면의 상태는 호출자가 유지한다.
  */
-import { useEffect, useRef } from 'react';
-import { BackHandler, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { IngredientSheet } from '@/features/ingredient/components/IngredientSheet';
@@ -26,6 +26,7 @@ interface IngredientMoveQueueSheetProps {
 export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: IngredientMoveQueueSheetProps) {
   const { t } = useTranslation();
   const sheet = useRef<IngredientSheetRef>(null);
+  const [isListExpanded, setIsListExpanded] = useState(false);
   const { remove, clear } = useIngredientMoveQueue();
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -36,7 +37,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
   }, []);
 
   return (
-    <IngredientSheet ref={sheet} disabled={false} onClose={onClose}>
+    <IngredientSheet ref={sheet} disabled={false} onListExpandedChange={setIsListExpanded} onClose={onClose}>
       <View style={styles.panel} accessibilityViewIsModal onAccessibilityEscape={() => sheet.current?.close()}>
         <View style={styles.dragIndicator} pointerEvents="none" />
         <View style={styles.header}>
@@ -48,7 +49,8 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
             <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
         </View>
-        <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false} onRemove={remove} />
+        <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false}
+          scrollEnabled={Platform.OS !== 'ios' || isListExpanded} onRemove={remove} />
       </View>
     </IngredientSheet>
   );
