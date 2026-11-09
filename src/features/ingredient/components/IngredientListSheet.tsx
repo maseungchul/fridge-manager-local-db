@@ -309,7 +309,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], onC
   }
 
   return (
-    <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} expanded={isFormOpen} transitioning={isChanging}
+    <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} expanded={false}
+      halfHeightForm={isFormOpen} transitioning={isChanging}
       header={
         <View style={styles.headerViewport} onStartShouldSetResponder={dismissSwipeActions}>
           <Animated.View style={[styles.headerTrack, { width: pageWidth * 2, transform: [{

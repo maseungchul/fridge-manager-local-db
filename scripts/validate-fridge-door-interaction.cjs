@@ -2390,6 +2390,16 @@ test('공통 재료 시트는 폼 최대화 후 마지막 목록 높이를 복�
     sheet.props = { ...sheet.props, expanded: true, transitioning: true }; render();
     sheet.props = { ...sheet.props, expanded: false }; render();
     assert.equal(resized.at(-1).index, previousIndex);
+
+    sheet.props = { ...sheet.props, transitioning: false }; render();
+    sheet.props = { ...sheet.props, halfHeightForm: true, transitioning: true }; render();
+    assert.deepEqual(sheet.tree.props.snapPoints, ['50%', '100%']);
+    assert.equal(resized.at(-1).index, 0, '추가·편집 화면은 이전 목록 높이와 무관하게 반높이로 연다');
+    sheet.props = { ...sheet.props, transitioning: false }; render();
+    sheet.tree.props.onChange(1);
+    sheet.render();
+    sheet.props = { ...sheet.props, halfHeightForm: false, transitioning: true }; render();
+    assert.equal(resized.at(-1).index, previousIndex, '폼에서 높이를 바꿔도 이전 목록 높이를 복원한다');
   }
 });
 
@@ -2602,7 +2612,8 @@ test('재료 패널은 실제 너비로 양방향 전환하고 전환 중 연속
     assert.equal(page.props.importantForAccessibility, 'no-hide-descendants');
   }
   assert.equal(sheet.tree.props.disabled, true);
-  assert.equal(sheet.tree.props.expanded, true);
+  assert.equal(sheet.tree.props.expanded, false);
+  assert.equal(sheet.tree.props.halfHeightForm, true);
   assert.equal(sheet.tree.props.transitioning, true);
   input('재료명').props.onChangeText('전환 중 변경 금지');
   input('유통기한 날짜 선택').props.onPress();
@@ -3067,6 +3078,8 @@ test('재료 편집은 공통 폼에 기존 값을 표시하고 취소하면 추
     sheet.render(); animations.at(-1).finish(); sheet.render();
   };
   back(); edit(original);
+  assert.equal(sheet.tree.props.expanded, false);
+  assert.equal(sheet.tree.props.halfHeightForm, true, '재료 편집도 반높이로 연다');
   assert.equal(input('재료명').props.value, original.name);
   assert.equal(input('재료 수량').props.value, original.quantity);
   assert.equal(input('재료 메모').props.value, original.memo);

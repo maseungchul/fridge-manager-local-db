@@ -1,7 +1,7 @@
 /**
  * @file
  * Gorhom 시트로 재료 패널을 표시하고 본문 스크롤과 제목 드래그를 구분한다.
- * 목록 높이를 기억해 폼 최대화 후 복원하고, 닫기 애니메이션이 끝난 뒤 호출자에게 알린다.
+ * 목록 높이를 기억해 추가·편집 후 복원하고, 닫기 애니메이션이 끝난 뒤 호출자에게 알린다.
  */
 import { BottomSheetBackdrop, BottomSheetModal, useBottomSheet, useBottomSheetInternal } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
@@ -22,6 +22,7 @@ export interface IngredientSheetProps {
   header?: ReactNode;
   disabled: boolean;
   expanded?: boolean;
+  halfHeightForm?: boolean;
   transitioning?: boolean;
   onClose: () => void;
 }
@@ -36,8 +37,9 @@ function SheetContainer({ children }: PropsWithChildren) {
   return <View style={StyleSheet.absoluteFill} pointerEvents="box-none" accessibilityViewIsModal>{children}</View>;
 }
 
-function SheetContent({ children, expanded, transitioning, restoreIndex, onClose }: PropsWithChildren<{
+function SheetContent({ children, expanded, halfHeightForm, transitioning, restoreIndex, onClose }: PropsWithChildren<{
   expanded: boolean;
+  halfHeightForm: boolean;
   transitioning: boolean;
   restoreIndex: number;
   onClose: () => void;
@@ -51,14 +53,15 @@ function SheetContent({ children, expanded, transitioning, restoreIndex, onClose
   });
   // 포털과 UI 스레드에 단계 변경이 반영된 뒤 이동해 폼 복귀 시 인덱스 범위를 벗어나지 않게 한다.
   useAnimatedReaction(
-    () => ({ count: animatedDetentsState.value.detents?.length ?? 0, expanded, transitioning }),
+    () => ({ count: animatedDetentsState.value.detents?.length ?? 0, expanded, halfHeightForm, transitioning }),
     (next, previous) => {
       const expectedCount = next.expanded && !next.transitioning ? 1 : 2;
       if (next.count !== expectedCount) return;
-      if (next.count === previous?.count && next.expanded === previous.expanded && next.transitioning === previous.transitioning) return;
-      runOnJS(snapToIndex)(next.expanded ? next.count - 1 : restoreIndex, TRANSITION_ANIMATION);
+      if (next.count === previous?.count && next.expanded === previous.expanded
+        && next.halfHeightForm === previous.halfHeightForm && next.transitioning === previous.transitioning) return;
+      runOnJS(snapToIndex)(next.expanded ? next.count - 1 : next.halfHeightForm ? 0 : restoreIndex, TRANSITION_ANIMATION);
     },
-    [expanded, transitioning, restoreIndex, snapToIndex],
+    [expanded, halfHeightForm, transitioning, restoreIndex, snapToIndex],
   );
   // 하단 안전 영역은 각 목록·폼의 스크롤 콘텐츠에 포함해 고정된 빈 띠가 생기지 않게 한다.
   return (
@@ -68,7 +71,7 @@ function SheetContent({ children, expanded, transitioning, restoreIndex, onClose
   );
 }
 
-export function IngredientSheet({ ref, children, header, disabled, expanded = false, transitioning = false, onClose }: IngredientSheetProps) {
+export function IngredientSheet({ ref, children, header, disabled, expanded = false, halfHeightForm = false, transitioning = false, onClose }: IngredientSheetProps) {
   const sheetRef = useRef<BottomSheetModal>(null);
   const phase = useRef<'open' | 'closing' | 'closed'>('open');
   const [listIndex, setListIndex] = useState(0);
@@ -106,14 +109,14 @@ export function IngredientSheet({ ref, children, header, disabled, expanded = fa
       keyboardBehavior="extend" keyboardBlurBehavior="none" android_keyboardInputMode="adjustResize"
       backgroundStyle={styles.background}
       onChange={index => {
-        if (phase.current === 'open' && !expanded && !transitioning && index >= 0) setListIndex(index);
+        if (phase.current === 'open' && !expanded && !halfHeightForm && !transitioning && index >= 0) setListIndex(index);
       }}
       onDismiss={() => {
         if (phase.current === 'closed') return;
         phase.current = 'closed';
         onClose();
       }}>
-      <SheetContent expanded={expanded} transitioning={transitioning} restoreIndex={listIndex}
+      <SheetContent expanded={expanded} halfHeightForm={halfHeightForm} transitioning={transitioning} restoreIndex={listIndex}
         onClose={close}>
         {children}
       </SheetContent>
