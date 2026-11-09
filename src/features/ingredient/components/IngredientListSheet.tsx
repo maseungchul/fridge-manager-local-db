@@ -1,7 +1,7 @@
 /**
  * @file
  * 선택한 위치의 재료와 임시이동목록을 공통 바텀 시트에 표시한다.
- * 추가·편집은 시트 종료 후 호출자에게 전달하고, 삭제·일괄 이동 결과로 홈 배지를 갱신한다.
+ * 추가·편집은 시트 종료 후 전달하고, 삭제·소비 완료·일괄 이동 결과로 홈 배지를 갱신한다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, BackHandler, Keyboard, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
@@ -15,7 +15,7 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Toast } from '@/components/Toast';
 import { alertTitles } from '@/constants/alertTitles';
-import { deleteIngredient, getIngredientsByPosition, moveIngredients } from '@/db/ingredientRepository';
+import { consumeIngredient, deleteIngredient, getIngredientsByPosition, moveIngredients } from '@/db/ingredientRepository';
 import type { FridgeLayout, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
@@ -25,6 +25,7 @@ import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueu
 import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
 import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
+import { getErrorMessage } from '@/i18n/errors';
 
 interface IngredientListSheetProps {
   position: SlotPosition;
@@ -57,7 +58,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const [isOpeningForm, setIsOpeningForm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
-  const [moveNotice, setMoveNotice] = useState<{ count: number } | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'move'; count: number } | { kind: 'consume'; id: string } | null>(null);
   const [swipedIngredientId, setSwipedIngredientId] = useState<string | null>(null);
   const isBusy = isOpeningForm || isDeleting || isMoving;
   const [reloadCount, setReloadCount] = useState(0);
@@ -146,7 +147,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     return () => subscription.remove();
   }, [isSecondaryOpen, returnToList]);
 
-  function requestDelete(ingredient: Ingredient) {
+  function requestRemoval(ingredient: Ingredient, kind: 'delete' | 'consume') {
     if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isLoading || error !== null) return;
     deleting.current = true;
     setIsDeleting(true);
@@ -155,20 +156,22 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
       deleting.current = false;
       setIsDeleting(false);
     }
-    Alert.alert(t(alertTitles.warning), t('ingredient.deleteConfirm', { name: ingredient.name }), [
+    Alert.alert(t(kind === 'consume' ? alertTitles.info : alertTitles.warning),
+      t(kind === 'consume' ? 'ingredient.consumeConfirm' : 'ingredient.deleteConfirm', { name: ingredient.name }), [
       { text: t('common.cancel'), style: 'cancel', onPress: () => {
         if (handled) return;
         handled = true;
         unlock();
       } },
-      { text: t('common.delete'), style: 'destructive', onPress: async () => {
+      { text: t(kind === 'consume' ? 'ingredient.consume' : 'common.delete'), style: kind === 'consume' ? 'default' : 'destructive', onPress: async () => {
         if (handled) return;
         handled = true;
         try {
-          await deleteIngredient(db, ingredient);
-        } catch {
+          if (kind === 'consume') await consumeIngredient(db, ingredient);
+          else await deleteIngredient(db, ingredient);
+        } catch (error) {
           unlock();
-          Alert.alert(t(alertTitles.error), t('ingredient.deleteError'), [{ text: t('common.ok') }]);
+          Alert.alert(t(alertTitles.error), getErrorMessage(error, t, t(kind === 'consume' ? 'ingredient.consumeError' : 'ingredient.deleteError')), [{ text: t('common.ok') }]);
           return;
         }
         setResult(current => current?.requestKey === requestKey
@@ -176,6 +179,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         setSwipedIngredientId(null);
         moveQueue.remove(ingredient.id);
         onDeleted?.(ingredient.id);
+        if (kind === 'consume') setNotice({ kind: 'consume', id: ingredient.id });
         unlock();
       } },
     ], { cancelable: false });
@@ -186,13 +190,13 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
       || isLoading || error !== null || moveQueue.ingredientIds.includes(ingredient.id)) return;
     moveQueue.add(ingredient.id);
     setSwipedIngredientId(null);
-    setMoveNotice(null);
+    setNotice(null);
   }
 
   function openMoveQueue() {
     if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen) return;
     setSwipedIngredientId(null);
-    setMoveNotice(null);
+    setNotice(null);
     changePanel('queue');
   }
 
@@ -201,13 +205,13 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     moving.current = true;
     setIsMoving(true);
     setSwipedIngredientId(null);
-    setMoveNotice(null);
+    setNotice(null);
     try {
       const moved = await moveIngredients(db, queuedIngredients, { slotId, drawerNumber });
       onMoved?.(moved);
       moveQueue.clear();
       setReloadCount(count => count + 1);
-      setMoveNotice({ count: moved.length });
+      setNotice({ kind: 'move', count: moved.length });
     } catch {
       Alert.alert(t(alertTitles.error), t('queue.moveError'), [{ text: t('common.ok') }]);
     } finally {
@@ -345,14 +349,16 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                                 <IngredientSwipeRow name={item.name} width={pageWidth} isOpen={swipedIngredientId === item.id} disabled={isBusy || isChanging} isQueued={isQueued}
                                   onOpen={() => setSwipedIngredientId(item.id)} onClose={() => setSwipedIngredientId(null)}
                                   onEnqueue={() => enqueueIngredient(item)}
-                                  onDelete={() => requestDelete(item)}>
+                                  onConsume={() => requestRemoval(item, 'consume')}
+                                  onDelete={() => requestRemoval(item, 'delete')}>
                                   <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.editItem', { name: item.name })}
                                     accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
                                     accessibilityHint={isQueued ? t('ingredient.queuedHint') : t('ingredient.actionsHint')}
-                                    accessibilityActions={[...(!isQueued ? [{ name: 'enqueue', label: t('queue.enqueue') }] : []), { name: 'delete', label: t('ingredient.delete') }]}
+                                    accessibilityActions={[{ name: 'consume', label: t('ingredient.consume') }, ...(!isQueued ? [{ name: 'enqueue', label: t('queue.enqueue') }] : []), { name: 'delete', label: t('ingredient.delete') }]}
                                     onAccessibilityAction={({ nativeEvent }) => {
                                       if (nativeEvent.actionName === 'enqueue') enqueueIngredient(item);
-                                      else if (nativeEvent.actionName === 'delete') requestDelete(item);
+                                      else if (nativeEvent.actionName === 'consume') requestRemoval(item, 'consume');
+                                      else if (nativeEvent.actionName === 'delete') requestRemoval(item, 'delete');
                                     }}
                                     accessibilityState={{ disabled: isBusy || isChanging }} disabled={isBusy} interactionBlocked={isChanging}
                                     onPress={() => { if (swipedIngredientId !== null) setSwipedIngredientId(null); else openForm(item); }} style={styles.item}>
@@ -379,9 +385,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
               })}
             </Animated.View>
           </View>
-          {moveNotice ? <View pointerEvents="none" style={styles.notice}>
-            <Toast key={moveNotice.count} message={t('queue.moved', { count: moveNotice.count })} icon="check-circle-outline"
-              onDismiss={() => setMoveNotice(current => current === moveNotice ? null : current)} />
+          {notice ? <View pointerEvents="none" style={styles.notice}>
+            <Toast key={notice.kind === 'move' ? `move:${notice.count}` : notice.id}
+              message={notice.kind === 'move' ? t('queue.moved', { count: notice.count }) : t('ingredient.consumed')} icon="check-circle-outline"
+              onDismiss={() => setNotice(current => current === notice ? null : current)} />
           </View> : null}
         </View>
     </BottomSheet>

@@ -54,8 +54,21 @@ erDiagram
         INTEGER drawer_number "분할 없음 0 / 왼쪽 1 / 오른쪽 2"
         TEXT memo "선택 입력, NULL 허용"
     }
+
+    consumed_ingredients {
+        TEXT id PK "기존 재료 UUID"
+        TEXT name
+        TEXT quantity
+        TEXT expiration_date "YYYY-MM-DD, NULL 허용"
+        TEXT slot_id "소비 당시 칸 UUID, FK 없음"
+        INTEGER drawer_number "소비 당시 좌우 번호"
+        TEXT memo "선택 입력, NULL 허용"
+        TEXT consumed_at "UTC ISO 8601"
+    }
 ```
 
 칸은 본체와 문 중 하나만 참조하며 도어포켓의 `drawer_count`는 `0`이다. 복합 키와 상세 제약은 [DB 테이블 구조](database-schema.md)를 따른다.
 
 재료는 칸과 좌우 번호를 함께 참조한다. 재료가 있는 칸의 삭제·분할 변경과 포켓 숨김은 재료를 이동·삭제한 뒤 허용한다.
+
+소비 완료하면 기존 UUID와 정보를 `consumed_ingredients`로 옮긴다. 완료 기록은 칸을 외래 키로 참조하지 않아 구조 삭제 후에도 남으며, 복구 성공 시 `ingredients`로 다시 옮긴다.

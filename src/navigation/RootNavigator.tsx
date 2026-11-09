@@ -1,13 +1,14 @@
 /**
  * @file
  * RootNavigator는 앱에서 사용할 화면과 화면 전환 방식을 구성한다.
- * 기본 하단 탭을 시작 화면으로 표시하고 냉장고·재료 등록·편집을 별도 화면으로 연다.
+ * 기본 하단 탭을 시작 화면으로 표시하고 냉장고·재료 입력과 복구 위치 선택을 별도 화면으로 연다.
  */
 import { useCallback, useRef } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MainTabNavigator } from '@/navigation/MainTabNavigator';
 import { RefrigeratorRegistrationScreen } from '@/screens/RefrigeratorRegistrationScreen';
 import { IngredientFormScreen, type IngredientFormResult } from '@/screens/IngredientFormScreen';
+import { IngredientRestoreScreen } from '@/screens/IngredientRestoreScreen';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
 
 // 냉장고 ID가 있으면 저장된 구성을 편집하고, 매개변수가 없으면 신규 등록한다.
@@ -19,6 +20,7 @@ export type RootStackParamList = {
     ingredient?: Ingredient;
     draft: IngredientDraft;
   };
+  IngredientRestore: { id: string; consumedAt: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -54,6 +56,7 @@ export function RootNavigator() {
       <Stack.Screen name="IngredientForm">
         {props => <IngredientFormScreen {...props} onResultChange={updateIngredientFormResult} />}
       </Stack.Screen>
+      <Stack.Screen name="IngredientRestore" component={IngredientRestoreScreen} />
     </Stack.Navigator>
   );
 }

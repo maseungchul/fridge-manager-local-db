@@ -1,6 +1,6 @@
 /**
  * @file
- * 재료의 기본 정보·보관 위치 타입과 유통기한 표시 규칙을 정의한다.
+ * 재료의 기본 정보·보관 위치·소비 기록 타입과 유통기한 표시 규칙을 정의한다.
  * 도면용 위치 ID 대신 칸 UUID와 좌우 번호를 사용하며, 화면 입력과 DB 처리는 호출자가 관리한다.
  */
 import { defaultTranslate } from '@/i18n/translations';
@@ -19,6 +19,11 @@ export interface Ingredient {
 }
 
 export type IngredientDraft = Pick<Ingredient, 'name' | 'quantity' | 'memo' | 'expirationDate'>;
+
+/** 소비 당시 정보와 원래 위치를 보존하며, 복구가 끝날 때까지 목록에 남긴다. */
+export interface ConsumedIngredient extends Ingredient {
+  consumedAt: string;
+}
 
 export interface IngredientCounts {
   total: number;

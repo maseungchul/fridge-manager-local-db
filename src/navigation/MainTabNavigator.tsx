@@ -2,7 +2,7 @@
  * @file
  * 냉장고·장보기·더보기를 크림·민트 색상의 공통 하단 탭으로 전환한다.
  * 냉장고·재료 입력은 상위 Stack에서 열어 입력 중에는 탭을 표시하지 않는다.
- * 탭바에서 하단 안전 영역을 확보하고, 재료 패널이 열린 동안 탭 입력을 막는다.
+ * 탭바에서 하단 안전 영역을 확보하고, 재료 패널·소비 기록 처리 중에는 탭 입력을 막는다.
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
@@ -73,12 +73,14 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
           <MaterialDesignIcons name={focused ? 'cart' : 'cart-outline'} size={size} color={color} accessible={false} />
         ),
       }} />
-      <Tab.Screen name="More" component={MoreStackNavigator} options={{
+      <Tab.Screen name="More" options={{
         title: t('tabs.more'),
         tabBarIcon: ({ focused, color, size }) => (
           <MaterialDesignIcons name={focused ? 'dots-horizontal-circle' : 'dots-horizontal-circle-outline'} size={size} color={color} accessible={false} />
         ),
-      }} />
+      }}>
+        {() => <MoreStackNavigator onInteractionBlockedChange={setIsTabInteractionBlocked} />}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 }

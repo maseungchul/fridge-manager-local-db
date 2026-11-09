@@ -6,16 +6,18 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MoreScreen } from '@/screens/MoreScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
+import { ConsumedIngredientsScreen } from '@/screens/ConsumedIngredientsScreen';
 import { colors } from '@/theme/tokens';
 
 export type MoreStackParamList = {
   MoreHome: undefined;
   Settings: undefined;
+  ConsumedIngredients: undefined;
 };
 
 const Stack = createNativeStackNavigator<MoreStackParamList>();
 
-export function MoreStackNavigator() {
+export function MoreStackNavigator({ onInteractionBlockedChange }: { onInteractionBlockedChange: (blocked: boolean) => void }) {
   return (
     <Stack.Navigator initialRouteName="MoreHome" screenOptions={{
       headerShown: false,
@@ -24,6 +26,9 @@ export function MoreStackNavigator() {
     }}>
       <Stack.Screen name="MoreHome" component={MoreScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="ConsumedIngredients">
+        {props => <ConsumedIngredientsScreen {...props} onInteractionBlockedChange={onInteractionBlockedChange} />}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 }

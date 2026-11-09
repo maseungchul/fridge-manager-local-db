@@ -1,6 +1,6 @@
 /**
  * @file
- * 실제 등록·홈 도면의 문 전환·선택·접근성 경계와 탭·표시 언어 설정을 검사한다.
+ * 등록·홈 도면의 전환·접근성과 탭·언어 설정·재료 소비 완료·복구를 검사한다.
  * 훅과 애니메이션 완료 신호만 대체하며, 네이티브 화면의 움직임·터치 감각은 별도 확인한다.
  */
 const assert = require('node:assert/strict');
@@ -42,6 +42,11 @@ const ingredientRepository = {
   async updateIngredient() { throw new Error('재료 수정 동작을 지정하지 않았습니다.'); },
   async deleteIngredient() { throw new Error('재료 삭제 동작을 지정하지 않았습니다.'); },
   async moveIngredients() { throw new Error('재료 이동 동작을 지정하지 않았습니다.'); },
+  async consumeIngredient() { throw new Error('소비 완료 동작을 지정하지 않았습니다.'); },
+  async getConsumedIngredients() { return []; },
+  async getConsumedIngredient() { return null; },
+  async restoreConsumedIngredient() { throw new Error('복구 동작을 지정하지 않았습니다.'); },
+  async deleteConsumedIngredient() { throw new Error('완료 기록 삭제 동작을 지정하지 않았습니다.'); },
 };
 
 let current;
@@ -172,6 +177,8 @@ function loadComponent(path, overrides = {}) {
     react: hooks, 'react-native': native,
     '@react-native-vector-icons/material-design-icons': { MaterialDesignIcons: 'Icon' },
     '@/screens/IngredientFormScreen': { IngredientFormScreen: 'IngredientFormScreen' },
+    '@/screens/IngredientRestoreScreen': { IngredientRestoreScreen: 'IngredientRestoreScreen' },
+    '@/screens/ConsumedIngredientsScreen': { ConsumedIngredientsScreen: 'ConsumedIngredientsScreen' },
     '@/components/PrimaryButton': { PrimaryButton: 'PrimaryButton' },
     '@/components/Toast': { Toast: 'Toast' },
     '@/components/SelectionCheck': { SelectionCheck: 'SelectionCheck' },
@@ -296,6 +303,8 @@ const { HomeScreen } = loadComponent('src/screens/HomeScreen.tsx');
 const { Toast } = loadComponent('src/components/Toast.tsx');
 const { IngredientListSheet } = loadComponent('src/features/ingredient/components/IngredientListSheet.tsx');
 const { IngredientFormScreen } = loadComponent('src/screens/IngredientFormScreen.tsx');
+const { ConsumedIngredientsScreen } = loadComponent('src/screens/ConsumedIngredientsScreen.tsx');
+const { IngredientRestoreScreen } = loadComponent('src/screens/IngredientRestoreScreen.tsx');
 const { IngredientSwipeRow } = loadComponent('src/features/ingredient/components/IngredientSwipeRow.tsx');
 const { IngredientExpirationCalendar } = loadComponent('src/features/ingredient/components/IngredientExpirationCalendar.tsx');
 const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FloatingIconButton'
@@ -1477,7 +1486,8 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
       assert.deepEqual(routes.map(route => route.props.options.title), ['냉장고', '장보기', '더보기']);
       const homeRoute = routes[0].props.children({ navigation: {}, route: { key: 'Home', name: 'Home' } });
       assert.strictEqual(homeRoute.type, HomeScreen);
-      assert.deepEqual(routes.slice(1).map(route => route.props.component), [ShoppingScreen, MoreStackNavigator]);
+      assert.strictEqual(routes[1].props.component, ShoppingScreen);
+      assert.strictEqual(routes[2].props.children().type, MoreStackNavigator);
       let presses = 0;
       const button = () => navigator().props.screenOptions.tabBarButton({ onPress() { presses++; }, 'aria-selected': true });
       assert.equal(button().props.disabled, false);
@@ -1518,7 +1528,7 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
       const root = mount(RootNavigator, {});
       t.after(() => root.unmount());
       const stackRoutes = children(root.tree);
-      assert.deepEqual(stackRoutes.map(route => route.props.name), ['MainTabs', 'RefrigeratorRegistration', 'IngredientForm']);
+      assert.deepEqual(stackRoutes.map(route => route.props.name), ['MainTabs', 'RefrigeratorRegistration', 'IngredientForm', 'IngredientRestore']);
       assert.strictEqual(stackRoutes[0].props.children({}).type, MainTabNavigator);
       const formRoute = stackRoutes[2].props.children({});
       assert.strictEqual(formRoute.type, IngredientFormScreen);
@@ -1533,9 +1543,8 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
       t.after(() => moreStack.unmount());
       assert.equal(moreStack.tree.props.initialRouteName, 'MoreHome');
       assert.equal(moreStack.tree.props.screenOptions.headerShown, false);
-      assert.deepEqual(children(moreStack.tree).map(route => [route.props.name, route.props.component]), [
-        ['MoreHome', MoreScreen], ['Settings', SettingsScreen],
-      ]);
+      assert.deepEqual(children(moreStack.tree).map(route => route.props.name), ['MoreHome', 'Settings', 'ConsumedIngredients']);
+      assert.deepEqual(children(moreStack.tree).slice(0, 2).map(route => route.props.component), [MoreScreen, SettingsScreen]);
       for (const [Component, title] of [[ShoppingScreen, '장보기'], [MoreScreen, '더보기'], [SettingsScreen, '언어']]) {
         const screen = mount(Component, {});
         t.after(() => screen.unmount());
@@ -2943,13 +2952,13 @@ test('재료 행은 네이티브 방향 고정·스냅으로 가로 이동하고
   assert.equal(row.tree.props.nestedScrollEnabled, true);
   assert.equal(row.tree.props.bounces, false);
   assert.equal(row.tree.props.alwaysBounceVertical, false);
-  assert.deepEqual(row.tree.props.snapToOffsets, [0, 144]);
+  assert.deepEqual(row.tree.props.snapToOffsets, [0, 208]);
   assert.equal(flattenStyle(children(row.tree)[0].props.style).width, 375);
   assert.equal(find(row.tree, node => node.props.onResponderTerminate || node.props.onMoveShouldSetResponderCapture), undefined);
   assert.equal(action().props.accessibilityElementsHidden, true);
   row.tree.props.onScrollBeginDrag(); row.render();
   assert.deepEqual(scrolled, [], '손가락 이동 중 열림 상태가 바뀌어도 강제로 스크롤하지 않는다');
-  row.tree.props.onScrollEndDrag(event(25, 144)); row.render();
+  row.tree.props.onScrollEndDrag(event(25, 208)); row.render();
   assert.equal(row.props.isOpen, true, '대각선 이동·짧은 플릭도 네이티브가 결정한 열림 목적지를 따른다');
   assert.equal(action().props.pointerEvents, 'auto');
   assert.equal(action().props.accessibilityElementsHidden, false);
@@ -2980,7 +2989,7 @@ test('재료 행은 Android의 관성 이동 완료를 기다리고 다른 항�
   row.tree.props.onScrollBeginDrag(); row.render();
   row.tree.props.onScrollEndDrag(event(20, 1)); row.render();
   assert.equal(closed, 0);
-  row.tree.props.onMomentumScrollEnd(event(144)); row.render();
+  row.tree.props.onMomentumScrollEnd(event(208)); row.render();
   assert.equal(row.props.isOpen, true);
   row.tree.props.onScrollBeginDrag(); row.render();
   row.tree.props.onScrollEndDrag(event(20)); row.render();
@@ -2990,7 +2999,7 @@ test('재료 행은 Android의 관성 이동 완료를 기다리고 다른 항�
   row.tree.props.onScrollEndDrag(event(30, 1));
   row.props = { ...row.props, isOpen: false }; row.render();
   assert.deepEqual(scrolled.at(-1), { x: 0, animated: true });
-  row.tree.props.onMomentumScrollEnd(event(144)); row.render();
+  row.tree.props.onMomentumScrollEnd(event(208)); row.render();
   assert.equal(row.props.isOpen, false, '다른 행을 열어 닫힌 항목은 늦은 완료 신호로 다시 열지 않는다');
 });
 
@@ -3146,6 +3155,178 @@ async function ingredientQueueFixture(t) {
   const move = sheet => find(sheet.tree, node => node.props.accessibilityLabel === '대기 재료를 여기로 이동');
   return { stored, original, layout, open, render, row, list, move };
 }
+
+test('소비 완료는 취소·실패 시 목록을 보존하고 확인·저장 중 중복·종료를 막으며 성공 시 홈과 대기를 갱신한다', async t => {
+  const f = await ingredientHomeFixture(t);
+  ingredientRepository.getIngredientsByPosition = async () => [...f.persisted];
+  refreshMoveQueue().add(f.original.id); refreshMoveQueue(); f.home.render();
+  const sheet = mount(IngredientListSheet, find(f.home.tree, node => node.type === 'IngredientListSheet').props);
+  t.after(() => sheet.unmount());
+  await new Promise(setImmediate); sheet.render();
+  const list = () => find(sheet.tree, node => node.type === 'FlatList');
+  const row = () => list().props.renderItem({ item: f.original });
+  let calls = 0;
+  ingredientRepository.consumeIngredient = async () => { calls++; throw new Error('저장 실패'); };
+  const consume = row().props.onConsume;
+  consume(); sheet.render();
+  const cancel = alerts.at(-1);
+  assert.match(cancel[1], /소비 완료 목록에서 복구/);
+  assert.equal(sheet.tree.props.disabled, true);
+  cancel[2].find(button => button.text === '취소').onPress(); sheet.render();
+  assert.equal(calls, 0);
+  assert.equal(list().props.data.length, 2);
+  consume(); sheet.render();
+  await alerts.at(-1)[2].find(button => button.text === '소비 완료').onPress(); sheet.render();
+  assert.equal(calls, 1);
+  assert.equal(list().props.data.length, 2);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [f.original.id]);
+  assert.match(alerts.at(-1)[1], /소비 완료 처리하지 못했습니다/);
+  const pending = deferred();
+  ingredientRepository.consumeIngredient = (db, item) => {
+    assert.strictEqual(db, database);
+    assert.deepEqual(item, f.original);
+    calls++;
+    return pending.promise.then(() => f.persisted.splice(f.persisted.findIndex(item => item.id === f.original.id), 1));
+  };
+  consume(); sheet.render();
+  const confirm = alerts.at(-1)[2].find(button => button.text === '소비 완료').onPress;
+  const saving = confirm(); await confirm(); consume(); sheet.render();
+  assert.equal(calls, 2);
+  assert.equal(sheet.tree.props.disabled, true);
+  assert.equal([...backHandlers].at(-1)(), true);
+  sheet.tree.props.onClose(); f.home.render();
+  assert(find(f.home.tree, node => node.type === 'IngredientListSheet'));
+  pending.resolve(); await saving; refreshMoveQueue(); sheet.render(); f.home.render();
+  assert.equal(list().props.data.length, 1);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+  assert.equal(find(f.home.tree, node => node.type === 'IngredientListSheet').props.allIngredients.length, 1);
+  assert.equal(f.focus().props.phase, 'open');
+  assert.equal(sheet.tree.props.disabled, false);
+  assert.match(find(sheet.tree, node => node.type === 'Toast').props.message, /더보기의 소비 완료 목록/);
+});
+
+test('소비 완료 목록은 조회 실패를 재시도하고 원래 위치 복구 중 탭·뒤로가기를 막은 뒤 목록을 갱신한다', async t => {
+  const previous = { ...ingredientRepository };
+  t.after(() => Object.assign(ingredientRepository, previous));
+  const record = { id: 'milk', name: '우유', quantity: '1팩', memo: '개봉함', expirationDate: null,
+    slotId: 'slot', drawerNumber: 0, consumedAt: '2026-11-09T01:00:00.000Z' };
+  let reads = 0;
+  ingredientRepository.getConsumedIngredients = async () => { if (++reads === 1) throw new Error('조회 실패'); return [record]; };
+  const pending = deferred();
+  let calls = 0;
+  ingredientRepository.restoreConsumedIngredient = (db, item) => { assert.strictEqual(db, database); assert.deepEqual(item, record); calls++; return pending.promise; };
+  const blocked = [];
+  let returned = 0;
+  const screen = mount(ConsumedIngredientsScreen, { navigation: { goBack() { returned++; } }, onInteractionBlockedChange: value => blocked.push(value) });
+  t.after(() => screen.unmount());
+  await new Promise(setImmediate); screen.render();
+  assert(find(screen.tree, node => node.props.children === '소비 완료 목록을 불러오지 못했습니다.'));
+  await find(screen.tree, node => node.type === 'PrimaryButton').props.onPress(); screen.render();
+  const list = () => find(screen.tree, node => node.type === 'FlatList');
+  const row = () => list().props.renderItem({ item: record });
+  assert(find(row(), node => node.props.children === '소비완료일: 2026-11-09'));
+  assert(find(row(), node => node.props.children === '개봉함'));
+  const restore = find(row(), node => node.props.accessibilityLabel === '우유 복구').props.onPress;
+  const saving = restore(); await restore(); screen.render();
+  assert.equal(calls, 1);
+  assert.equal(blocked.at(-1), true);
+  assert.equal(screen.preventRemove.enabled, true);
+  find(screen.tree, node => node.props.accessibilityLabel === '더보기로 돌아가기').props.onPress();
+  assert.equal(returned, 0);
+  pending.resolve(record); await saving; screen.render();
+  assert.equal(blocked.at(-1), false);
+  assert.equal(screen.preventRemove.enabled, false);
+  assert.deepEqual(list().props.data, []);
+  assert.equal(find(screen.tree, node => node.type === 'Toast').props.message, '재료를 냉장고로 복구했습니다.');
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+});
+
+test('원래 위치가 없는 기록은 도면 선택으로 전달하고 취소·실패·중복 복구와 영구 삭제를 구분한다', async t => {
+  const previous = { ...ingredientRepository };
+  t.after(() => Object.assign(ingredientRepository, previous));
+  const record = { id: 'milk', name: '우유', quantity: '1팩', memo: null, expirationDate: '2026-11-30',
+    slotId: 'missing', drawerNumber: 0, consumedAt: '2026-11-09T01:00:00.000Z' };
+  ingredientRepository.getConsumedIngredients = async () => [record];
+  let attempts = 0;
+  ingredientRepository.restoreConsumedIngredient = async () => { if (++attempts === 1) throw new Error('복구 실패'); return null; };
+  const destinations = [];
+  const screen = mount(ConsumedIngredientsScreen, { navigation: { navigate: (...args) => destinations.push(args) }, onInteractionBlockedChange() {} });
+  t.after(() => screen.unmount());
+  await new Promise(setImmediate); screen.render();
+  const list = () => find(screen.tree, node => node.type === 'FlatList');
+  const row = () => list().props.renderItem({ item: record });
+  const restore = () => find(row(), node => node.props.accessibilityLabel === '우유 복구').props.onPress();
+  await restore(); screen.render();
+  assert.match(alerts.at(-1)[1], /복구하지 못했습니다/);
+  assert.deepEqual(list().props.data, [record]);
+  await restore(); screen.render();
+  assert.deepEqual(destinations, [['IngredientRestore', { id: record.id, consumedAt: record.consumedAt }]]);
+  assert.deepEqual(list().props.data, [record]);
+  let deletes = 0;
+  ingredientRepository.deleteConsumedIngredient = async () => { if (++deletes === 1) throw new Error('삭제 실패'); };
+  const remove = () => find(row(), node => node.props.accessibilityLabel === '우유 영구 삭제').props.onPress();
+  remove(); screen.render(); alerts.at(-1)[2].find(button => button.text === '취소').onPress(); screen.render();
+  assert.equal(deletes, 0);
+  remove(); screen.render(); await alerts.at(-1)[2].find(button => button.text === '영구 삭제').onPress(); screen.render();
+  assert.deepEqual(list().props.data, [record]);
+  assert.match(alerts.at(-1)[1], /기록을 삭제하지 못했습니다/);
+  remove(); screen.render(); const confirm = alerts.at(-1)[2].find(button => button.text === '영구 삭제').onPress;
+  await confirm(); await confirm(); screen.render();
+  assert.equal(deletes, 2);
+  assert.deepEqual(list().props.data, []);
+});
+
+test('도면 복구는 칸을 선택한 뒤 저장하고 실패 시 선택을 보존하며 성공 확인 후 목록으로 돌아간다', async t => {
+  const previous = { ...ingredientRepository };
+  const previousGet = repository.getRefrigerator;
+  t.after(() => { Object.assign(ingredientRepository, previous); repository.getRefrigerator = previousGet; });
+  const refrigerator = savedRefrigerator('복구 냉장고');
+  const record = { id: 'milk', name: '우유', quantity: '1팩', memo: null, expirationDate: null,
+    slotId: 'missing', drawerNumber: 0, consumedAt: '2026-11-09T01:00:00.000Z' };
+  ingredientRepository.getConsumedIngredient = async () => record;
+  repository.getRefrigerator = async () => refrigerator;
+  ingredientRepository.getIngredients = async () => [];
+  let returned = 0;
+  const screen = mount(IngredientRestoreScreen, { navigation: { goBack() { returned++; }, dispatch() {} }, route: { params: record } });
+  t.after(() => screen.unmount());
+  await new Promise(setImmediate); screen.render();
+  const restore = () => find(screen.tree, node => node.type === 'PrimaryButton' && node.props.label === '여기로 복구');
+  assert.equal(restore().props.disabled, true);
+  const viewport = find(screen.tree, node => node.props.ref && node.props.onLayout);
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 120, 375, 600) };
+  viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 600 } } }); screen.render();
+  const body = refrigerator.rows[0].compartments[0];
+  find(screen.tree, named('FridgeInteriorMap')).props.onFocus({ areaId: body.id, returnAreaId: refrigerator.rows[0].doors[0].id,
+    canvas: { x: 52.5, y: 150, width: 270, height: 540 } }); screen.render();
+  const focus = () => find(screen.tree, named('FridgeFocusView'));
+  focus().props.onPhaseChange('open'); screen.render();
+  focus().props.onSelectSlot(body.id, 0, body.slots[0].id); screen.render();
+  assert.equal(restore().props.disabled, false);
+  let attempts = 0;
+  const pending = deferred();
+  ingredientRepository.restoreConsumedIngredient = (db, item, destination) => {
+    assert.deepEqual(item, record);
+    assert.deepEqual(destination, { slotId: body.slots[0].id, drawerNumber: 0 });
+    if (++attempts === 1) return Promise.reject(new Error('저장 실패'));
+    return pending.promise;
+  };
+  await restore().props.onPress(); screen.render();
+  assert.equal(focus().props.selectedPositionId, body.slots[0].id);
+  assert.equal(returned, 0);
+  const save = restore().props.onPress;
+  const saving = save(); await save(); screen.render();
+  assert.equal(attempts, 2);
+  assert.equal(screen.preventRemove.enabled, true);
+  assert.equal(restore().props.loading, true);
+  find(screen.tree, node => node.props.accessibilityLabel === '소비 완료 목록으로 돌아가기').props.onPress();
+  assert.equal(returned, 0);
+  pending.resolve(record); await saving; screen.render();
+  assert.equal(screen.preventRemove.enabled, true);
+  assert.equal(returned, 0);
+  alerts.at(-1)[2][0].onPress(); alerts.at(-1)[2][0].onPress();
+  assert.equal(returned, 1);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+});
 
 test('임시목록 공통 상태는 화면 전환으로 제거되지 않게 앱의 전체 경로를 감싼다', t => {
   const { default: App } = loadComponent('App.tsx', {

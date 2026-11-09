@@ -6,7 +6,8 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { AppError } from '@/i18n/errors';
 
-const DATABASE_VERSION = 5;
+// 철회된 임시 버전 6과 구분해 소비 완료 기록은 버전 7부터 저장한다.
+const DATABASE_VERSION = 7;
 
 const INGREDIENT_TABLE_SQL = `CREATE TABLE IF NOT EXISTS ingredients (
   id TEXT PRIMARY KEY NOT NULL,
@@ -33,7 +34,7 @@ export async function initializeDatabase(db: SQLiteDatabase) {
   const version = row?.user_version ?? 0;
 
   if (version === 6) {
-    await db.withTransactionAsync(() => restoreVersion5(db));
+    await db.withTransactionAsync(() => recoverTemporaryVersion6(db));
     return;
   }
 
@@ -56,6 +57,7 @@ export async function initializeDatabase(db: SQLiteDatabase) {
       if (version === 4) await db.execAsync('ALTER TABLE ingredients ADD COLUMN memo TEXT;');
       else if (version === 2) await migrateVersion2(db);
       else await createTables(db);
+      await createConsumedIngredientsTable(db);
       const violation = await db.getFirstAsync('PRAGMA foreign_key_check;');
       if (violation) throw new AppError('errors.databaseConnections');
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION};`);
@@ -65,8 +67,8 @@ export async function initializeDatabase(db: SQLiteDatabase) {
   }
 }
 
-/** 철회한 임시 버전 6만 식별하고, 모든 재료를 보존할 수 있을 때 버전 5 제약으로 복구한다. */
-async function restoreVersion5(db: SQLiteDatabase) {
+/** 철회한 임시 버전 6만 식별하고, 위치 제약을 복구한 뒤 현재 버전으로 전환한다. */
+async function recoverTemporaryVersion6(db: SQLiteDatabase) {
   const table = await db.getFirstAsync<{ sql: string }>(
     "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ingredients';",
   );
@@ -91,6 +93,7 @@ async function restoreVersion5(db: SQLiteDatabase) {
     ALTER TABLE ingredients RENAME TO recovery_v6_ingredients;
   `);
   await createTables(db);
+  await createConsumedIngredientsTable(db);
   await db.execAsync(`
     INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number, memo)
       SELECT id, name, quantity, expiration_date, slot_id, drawer_number, memo FROM recovery_v6_ingredients;
@@ -99,6 +102,28 @@ async function restoreVersion5(db: SQLiteDatabase) {
   const violation = await db.getFirstAsync('PRAGMA foreign_key_check;');
   if (violation) throw new AppError('errors.databaseConnections');
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION};`);
+}
+
+/** 원래 칸이 삭제돼도 소비 기록이 남도록 위치 UUID는 외래 키 없이 보관한다. */
+async function createConsumedIngredientsTable(db: SQLiteDatabase) {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS consumed_ingredients (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50 AND length(trim(name)) > 0),
+      quantity TEXT NOT NULL CHECK (length(quantity) BETWEEN 1 AND 50 AND length(trim(quantity)) > 0),
+      expiration_date TEXT CHECK (
+        expiration_date IS NULL OR (
+          expiration_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+          AND date(expiration_date, '+0 days') IS expiration_date
+        )
+      ),
+      slot_id TEXT NOT NULL,
+      drawer_number INTEGER NOT NULL CHECK (drawer_number IN (0, 1, 2)),
+      memo TEXT,
+      consumed_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_consumed_ingredients_date ON consumed_ingredients (consumed_at DESC, id);
+  `);
 }
 
 /** 문 배치 정보가 없는 버전 1의 개발용 데이터와 테이블을 새 구조로 교체한다. */

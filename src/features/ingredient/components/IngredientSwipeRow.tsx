@@ -1,6 +1,6 @@
 /**
  * @file
- * 네이티브 가로 스크롤로 이동목록 담기·삭제 버튼을 표시하고, 세로 이동은 목록 스크롤에 맡긴다.
+ * 네이티브 가로 스크롤로 소비 완료·이동목록 담기·삭제 버튼을 표시하고, 세로 이동은 목록 스크롤에 맡긴다.
  * 열린 행과 재료 변경 요청은 호출자가 관리하며, 이 컴포넌트는 스크롤·버튼 표시만 처리한다.
  */
 import { useEffect, useRef } from 'react';
@@ -21,13 +21,14 @@ interface IngredientSwipeRowProps {
   onOpen: () => void;
   onClose: () => void;
   onEnqueue: () => void;
+  onConsume: () => void;
   onDelete: () => void;
 }
 
-const ACTIONS_WIDTH = 144;
+const ACTIONS_WIDTH = 208;
 const SNAP_OFFSETS = [0, ACTIONS_WIDTH];
 
-export function IngredientSwipeRow({ children, name, width, isOpen, disabled, isQueued, onOpen, onClose, onEnqueue, onDelete }: IngredientSwipeRowProps) {
+export function IngredientSwipeRow({ children, name, width, isOpen, disabled, isQueued, onOpen, onClose, onEnqueue, onConsume, onDelete }: IngredientSwipeRowProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const swipe = useRef({ dragging: false, pending: false });
@@ -65,6 +66,10 @@ export function IngredientSwipeRow({ children, name, width, isOpen, disabled, is
       <View style={[styles.content, { width }]}>{children}</View>
       <View style={styles.action} pointerEvents={isOpen && !disabled ? 'auto' : 'none'}
         accessibilityElementsHidden={!isOpen} importantForAccessibility={isOpen ? 'auto' : 'no-hide-descendants'}>
+        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.consumeItem', { name })}
+          accessibilityState={{ disabled }} disabled={disabled} onPress={onConsume} style={[styles.actionButton, styles.moveButton]}>
+          <MaterialDesignIcons name="check-circle-outline" size={24} color={colors.chilled} accessible={false} />
+        </FeedbackPressable>
         <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.enqueueItem', { name, action: t(isQueued ? 'queue.enqueued' : 'queue.enqueue') })}
           accessibilityState={{ disabled: disabled || isQueued }} disabled={disabled || isQueued}
           onPress={() => { if (!disabled && !isQueued) onEnqueue(); }} style={[styles.actionButton, styles.moveButton]}>

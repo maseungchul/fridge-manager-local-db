@@ -18,6 +18,12 @@ type MoreScreenProps = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
 
 const menuSections = [
   {
+    title: 'consumed.section',
+    items: [
+      { screen: 'ConsumedIngredients', label: 'consumed.title', icon: 'check-circle-outline' },
+    ],
+  },
+  {
     title: 'settings.title',
     items: [
       { screen: 'Settings', label: 'settings.language', icon: 'translate' },
