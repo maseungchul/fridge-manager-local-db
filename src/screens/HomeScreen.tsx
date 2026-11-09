@@ -299,6 +299,13 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                     transform: [{ translateX: toolbarProgress.interpolate({ inputRange: [0, 1], outputRange: [toolbarWidth, 0] }) }] }]}
                     pointerEvents={canUseToolbar ? 'box-none' : 'none'} accessibilityElementsHidden={!canUseToolbar}
                     importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
+                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('legend.open')}
+                      accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
+                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
+                      style={[styles.action, styles.homeAction]} hitSlop={4}>
+                      <MaterialDesignIcons name="information-outline" size={18} color={colors.chilled} accessible={false} />
+                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>{t('legend.label')}</Text>
+                    </FeedbackPressable>
                     <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.open')}
                       accessibilityHint={hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : t('queue.emptyDescription')}
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
@@ -313,13 +320,6 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange }: HomeSc
                         ) : null}
                       </View>
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('queue.pending')}</Text>
-                    </FeedbackPressable>
-                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('legend.open')}
-                      accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
-                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
-                      style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <MaterialDesignIcons name="information-outline" size={18} color={colors.chilled} accessible={false} />
-                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>{t('legend.label')}</Text>
                     </FeedbackPressable>
                   </Animated.View>
                 </View>
