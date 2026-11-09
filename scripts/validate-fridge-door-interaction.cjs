@@ -2284,8 +2284,11 @@ test('공통 재료 시트는 본문 스크롤과 제목 드래그를 구분하�
     assert.equal(sheet.tree.props.topInset, 44);
     assert(find(sheet.tree.props.handleComponent(), node => node === header));
     assert.equal(find(sheet.tree, node => node === header), undefined, '제목은 본문이 아닌 손잡이에 배치한다');
-    assert.equal(sheet.tree.props.backdropComponent({}).props.pressBehavior, 'none');
-    assert.equal(sheet.tree.props.backdropComponent({}).props.opacity, 0);
+    const backdrop = sheet.tree.props.backdropComponent({ style: native.StyleSheet.absoluteFill });
+    assert.equal(backdrop.props.pressBehavior, 'close');
+    assert.equal(backdrop.props.opacity, 1, 'iOS 터치 판정에서 제외되지 않도록 뷰의 불투명도를 유지한다');
+    assert.equal(flattenStyle(backdrop.props.style).backgroundColor, 'transparent', '배경색만 투명하게 유지한다');
+    assert.equal(flattenStyle(backdrop.props.style).position, 'absolute');
     assert.equal(sheet.tree.props.containerComponent({ children: content }).props.accessibilityViewIsModal, true);
     if (trigger === 'ref') ref.current.close();
     else if (trigger === 'escape') children(sheet.tree)[0].props.onClose();
@@ -2365,10 +2368,12 @@ test('공통 재료 시트는 폼 최대화 후 마지막 목록 높이를 복�
     assert.deepEqual(resized, [{ index: 1, config: { duration: 240 } }]);
     assert.equal(sheet.tree.props.enableHandlePanningGesture, false);
     assert.equal(sheet.tree.props.enablePanDownToClose, false);
+    assert.equal(sheet.tree.props.backdropComponent({}).props.pressBehavior, 'none', '처리·전환 중에는 배경을 눌러도 닫지 않는다');
     ref.current.close();
     sheet.tree.props.onChange(1);
     sheet.props = { ...sheet.props, transitioning: false, disabled: false }; render();
     assert.deepEqual(sheet.tree.props.snapPoints, ['100%']);
+    assert.equal(sheet.tree.props.backdropComponent({}).props.pressBehavior, 'close');
     assert.equal(resized.length, 1, '단계 변경이 UI 스레드에 반영될 때까지 기다린다');
     count = 1; flush();
     assert.equal(resized.at(-1).index, 0);

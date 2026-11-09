@@ -30,11 +30,6 @@ const SNAP_POINTS = ['50%', '100%'];
 const EXPANDED_SNAP_POINTS = ['100%'];
 const TRANSITION_ANIMATION = { duration: 240 };
 
-function SheetBackdrop(props: BottomSheetBackdropProps) {
-  return <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1}
-    pressBehavior="none" opacity={0} accessible={false} />;
-}
-
 // 포털에 표시되는 제목과 본문을 하나의 모달 접근성 경계로 묶는다.
 function SheetContainer({ children }: PropsWithChildren) {
   return <View style={StyleSheet.absoluteFill} pointerEvents="box-none" accessibilityViewIsModal>{children}</View>;
@@ -86,6 +81,12 @@ export function IngredientSheet({ ref, children, header, disabled, expanded = fa
     sheetRef.current?.dismiss();
   }, [disabled]);
   useImperativeHandle(ref, () => ({ close }), [close]);
+  // iOS는 opacity 0인 뷰를 터치 대상에서 제외하므로 배경색만 투명하게 처리한다.
+  const renderBackdrop = useCallback((props: BottomSheetBackdropProps) => (
+    <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1}
+      pressBehavior={disabled ? 'none' : 'close'} opacity={1} accessible={false}
+      style={[props.style, styles.backdrop]} />
+  ), [disabled]);
   // 제목과 고정 드래그 바만 손잡이로 사용해 목록 최상단의 아래 스와이프도 스크롤로 처리한다.
   const renderHandle = useCallback(() => (
     <View onAccessibilityEscape={close}>
@@ -96,7 +97,7 @@ export function IngredientSheet({ ref, children, header, disabled, expanded = fa
   return (
     <BottomSheetModal ref={sheetRef} index={0}
       snapPoints={expanded && !transitioning ? EXPANDED_SNAP_POINTS : SNAP_POINTS}
-      topInset={insets.top} handleComponent={renderHandle} backdropComponent={SheetBackdrop}
+      topInset={insets.top} handleComponent={renderHandle} backdropComponent={renderBackdrop}
       containerComponent={SheetContainer}
       enableDynamicSizing={false} enableOverDrag={false} enableContentPanningGesture={false}
       enableHandlePanningGesture={!disabled} enablePanDownToClose={!disabled}
@@ -120,6 +121,7 @@ export function IngredientSheet({ ref, children, header, disabled, expanded = fa
 
 const styles = StyleSheet.create({
   content: { flex: 1 },
+  backdrop: { backgroundColor: 'transparent' },
   background: { backgroundColor: colors.surface, borderRadius: 24 },
   dragIndicator: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
     marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4' },
