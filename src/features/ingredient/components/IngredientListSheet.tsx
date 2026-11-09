@@ -15,11 +15,10 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Toast } from '@/components/Toast';
 import { alertTitles } from '@/constants/alertTitles';
-import { consumeIngredient, deleteIngredient, getIngredientsByPosition, moveIngredients } from '@/db/ingredientRepository';
+import { consumeIngredients, deleteIngredients, getIngredientsByPosition, moveIngredients } from '@/db/ingredientRepository';
 import type { FridgeLayout, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
-import { IngredientSwipeRow } from '@/features/ingredient/components/IngredientSwipeRow';
 import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
@@ -59,7 +58,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'move'; count: number } | { kind: 'consume'; id: string } | null>(null);
-  const [swipedIngredientId, setSwipedIngredientId] = useState<string | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const isBusy = isOpeningForm || isDeleting || isMoving;
   const [reloadCount, setReloadCount] = useState(0);
   const [result, setResult] = useState<{ requestKey: string; ingredients: Ingredient[]; error: 'ingredient.loadError' | null } | null>(null);
@@ -70,6 +70,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const ingredients = currentResult?.ingredients ?? [];
   const error = currentResult?.error ?? null;
   const isLoading = currentResult === null;
+  const selectedIngredients = ingredients.filter(item => selectedIds.includes(item.id));
+  const allSelected = ingredients.length > 0 && selectedIngredients.length === ingredients.length;
   const canMove = queuedIngredients.some(ingredient => ingredient.slotId !== slotId || ingredient.drawerNumber !== drawerNumber)
     && !isLoading && error === null;
 
@@ -116,8 +118,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   }, [isSecondaryOpen, panelProgress]);
 
   function openForm(ingredient?: Ingredient) {
-    if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isLoading || error !== null) return;
-    setSwipedIngredientId(null);
+    if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isSelecting || isLoading || error !== null) return;
     formRequest.current = { ingredient };
     setIsOpeningForm(true);
     // 포털의 시트가 다음 화면을 덮지 않도록 종료 완료를 기다린 뒤 전환한다.
@@ -140,15 +141,18 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     // 저장·전환 중에는 홈의 종료 동작을 막고, 하위 화면에서는 먼저 목록으로 돌아간다.
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (formRequest.current || deleting.current || moving.current || transition.current.active) return true;
+      if (isSelecting) { setIsSelecting(false); setSelectedIds([]); return true; }
       if (!isSecondaryOpen) return false;
       returnToList();
       return true;
     });
     return () => subscription.remove();
-  }, [isSecondaryOpen, returnToList]);
+  }, [isSelecting, isSecondaryOpen, returnToList]);
 
-  function requestRemoval(ingredient: Ingredient, kind: 'delete' | 'consume') {
-    if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isLoading || error !== null) return;
+  function requestRemoval(kind: 'delete' | 'consume') {
+    if (!canChangeSelection() || !isSelecting || selectedIngredients.length === 0) return;
+    // 처리 대상을 확인창에 표시한 선택 목록으로 고정한다.
+    const targets = selectedIngredients;
     deleting.current = true;
     setIsDeleting(true);
     let handled = false;
@@ -157,7 +161,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
       setIsDeleting(false);
     }
     Alert.alert(t(kind === 'consume' ? alertTitles.info : alertTitles.warning),
-      t(kind === 'consume' ? 'ingredient.consumeConfirm' : 'ingredient.deleteConfirm', { name: ingredient.name }), [
+      t(kind === 'consume' ? 'ingredient.consumeSelectedConfirm' : 'ingredient.deleteSelectedConfirm', { count: targets.length }), [
       { text: t('common.cancel'), style: 'cancel', onPress: () => {
         if (handled) return;
         handled = true;
@@ -167,44 +171,62 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         if (handled) return;
         handled = true;
         try {
-          if (kind === 'consume') await consumeIngredient(db, ingredient);
-          else await deleteIngredient(db, ingredient);
+          if (kind === 'consume') await consumeIngredients(db, targets);
+          else await deleteIngredients(db, targets);
         } catch (error) {
           unlock();
           Alert.alert(t(alertTitles.error), getErrorMessage(error, t, t(kind === 'consume' ? 'ingredient.consumeError' : 'ingredient.deleteError')), [{ text: t('common.ok') }]);
           return;
         }
         setResult(current => current?.requestKey === requestKey
-          ? { ...current, ingredients: current.ingredients.filter(item => item.id !== ingredient.id) } : current);
-        setSwipedIngredientId(null);
-        moveQueue.remove(ingredient.id);
-        onDeleted?.(ingredient.id);
-        if (kind === 'consume') setNotice({ kind: 'consume', id: ingredient.id });
+          ? { ...current, ingredients: current.ingredients.filter(item => !targets.some(target => target.id === item.id)) } : current);
+        for (const ingredient of targets) {
+          moveQueue.remove(ingredient.id);
+          onDeleted?.(ingredient.id);
+        }
+        setIsSelecting(false);
+        setSelectedIds([]);
+        if (kind === 'consume') setNotice({ kind: 'consume', id: targets.map(item => item.id).join(':') });
         unlock();
       } },
     ], { cancelable: false });
   }
 
-  function enqueueIngredient(ingredient: Ingredient) {
-    if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen
-      || isLoading || error !== null || moveQueue.ingredientIds.includes(ingredient.id)) return;
-    moveQueue.add(ingredient.id);
-    setSwipedIngredientId(null);
+  function canChangeSelection() {
+    return !formRequest.current && !deleting.current && !moving.current && !transition.current.active
+      && !isSecondaryOpen && !isLoading && error === null;
+  }
+
+  function toggleSelectionMode() {
+    if (!canChangeSelection()) return;
+    setIsSelecting(current => !current);
+    setSelectedIds([]);
+    setNotice(null);
+  }
+
+  function toggleIngredient(id: string) {
+    if (!canChangeSelection() || !isSelecting) return;
+    setSelectedIds(current => current.includes(id) ? current.filter(candidate => candidate !== id) : [...current, id]);
+  }
+
+  function enqueueSelectedIngredients() {
+    if (!canChangeSelection() || !isSelecting || selectedIngredients.length === 0) return;
+    for (const ingredient of selectedIngredients) moveQueue.add(ingredient.id);
+    setIsSelecting(false);
+    setSelectedIds([]);
     setNotice(null);
   }
 
   function openMoveQueue() {
-    if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen) return;
-    setSwipedIngredientId(null);
+    if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isSelecting) return;
     setNotice(null);
     changePanel('queue');
   }
 
   async function moveQueuedIngredients() {
-    if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || !canMove) return;
+    if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isSelecting || !canMove) return;
     moving.current = true;
     setIsMoving(true);
-    setSwipedIngredientId(null);
     setNotice(null);
     try {
       const moved = await moveIngredients(db, queuedIngredients, { slotId, drawerNumber });
@@ -220,16 +242,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     }
   }
 
-  // 항목·작업 버튼이 먼저 처리하는 버블 단계만 확인하고, 터치는 가로채지 않는다.
-  function dismissSwipeActions() {
-    if (!formRequest.current && !deleting.current && !moving.current && !transition.current.active) setSwipedIngredientId(null);
-    return false;
-  }
-
   return (
     <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} initialIndex={initialIndex} onIndexChange={onIndexChange}
       header={
-        <View style={styles.headerViewport} onStartShouldSetResponder={dismissSwipeActions}>
+        <View style={styles.headerViewport}>
           <Animated.View style={[styles.headerTrack, { width: pageWidth * 2, transform: [{
             translateX: panelProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -pageWidth] }),
           }] }]}>
@@ -247,7 +263,17 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           onPress={returnToList} style={styles.headerIconButton}>
                           <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
-                      ) : <View style={styles.headerIconButton} pointerEvents="none" />}
+                      ) : (
+                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t(isSelecting ? allSelected ? 'ingredient.deselectAll' : 'ingredient.selectAll' : 'ingredient.select')}
+                          disabled={isBusy || isLoading || error !== null || ingredients.length === 0} interactionBlocked={isChanging}
+                          onPress={() => {
+                            if (!canChangeSelection()) return;
+                            if (!isSelecting) toggleSelectionMode();
+                            else setSelectedIds(allSelected ? [] : ingredients.map(item => item.id));
+                          }} style={styles.selectionHeaderButton}>
+                          <Text numberOfLines={1} adjustsFontSizeToFit style={styles.selectionLabel}>{t(isSelecting ? allSelected ? 'ingredient.deselectAll' : 'ingredient.selectAll' : 'ingredient.select')}</Text>
+                        </FeedbackPressable>
+                      )}
                       <View style={styles.heading}>
                         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
                           style={styles.title}>{secondary ? t('queue.title', { count: queuedIngredients.length }) : t('ingredient.list')}</Text>
@@ -260,10 +286,15 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           style={styles.headerIconButton}>
                           <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
+                      ) : isSelecting ? (
+                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
+                          disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={styles.selectionHeaderButton}>
+                          <Text style={styles.selectionLabel}>{t('common.cancel')}</Text>
+                        </FeedbackPressable>
                       ) : (
                         <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
                           accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
-                          interactionBlocked={isChanging} onPress={() => openForm()} style={styles.headerIconButton}>
+                          interactionBlocked={isChanging} onPress={() => openForm()} style={[styles.headerIconButton, styles.selectionHeaderButton]}>
                           <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       )}
@@ -280,8 +311,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         if (formRequest.current) onOpenForm(formRequest.current.ingredient);
         else onClose();
       }}>
-        <View style={styles.panel} onAccessibilityEscape={closeSheet}
-          onStartShouldSetResponder={dismissSwipeActions}>
+        <View style={styles.panel} onAccessibilityEscape={() => { if (isSelecting) toggleSelectionMode(); else closeSheet(); }}>
           <View style={styles.content} onLayout={({ nativeEvent }) => {
             if (nativeEvent.layout.width > 0) setPageWidth(nativeEvent.layout.width);
           }}>
@@ -296,7 +326,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                   importantForAccessibility={secondary === isSecondaryOpen && !isChanging ? 'auto' : 'no-hide-descendants'}>
                   {secondary === isSecondaryOpen || isChanging ? (
                     <>
-                      {!secondary && queuedIngredients.length > 0 ? (
+                      {!secondary && !isSelecting && queuedIngredients.length > 0 ? (
                         <View style={styles.moveToolbar}>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.check', { count: queuedIngredients.length })}
                             disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
@@ -331,10 +361,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           </View>
                         ) : (
                           <FlatList data={ingredients} keyExtractor={item => item.id}
-                            extraData={{ swipedIngredientId, queuedIds: moveQueue.ingredientIds }} onScrollBeginDrag={() => setSwipedIngredientId(null)}
+                            extraData={{ isSelecting, selectedIds, queuedIds: moveQueue.ingredientIds }}
                             showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
-                            scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
-                            style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.emptyList : undefined, { paddingBottom: insets.bottom }]}
+                            scrollIndicatorInsets={{ top: 0, bottom: spacing.md + (isSelecting ? 0 : insets.bottom), left: 0, right: spacing.xs }}
+                            style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.emptyList : undefined, { paddingBottom: isSelecting ? 0 : insets.bottom }]}
                             ListEmptyComponent={
                               <View style={styles.emptyState}>
                                 <MaterialDesignIcons name="tray-plus" size={40} color={colors.textMuted} accessible={false} />
@@ -346,22 +376,17 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                               const expiration = getIngredientExpirationStatus(item.expirationDate, undefined, t);
                               const isQueued = moveQueue.ingredientIds.includes(item.id);
                               return (
-                                <IngredientSwipeRow name={item.name} width={pageWidth} isOpen={swipedIngredientId === item.id} disabled={isBusy || isChanging} isQueued={isQueued}
-                                  onOpen={() => setSwipedIngredientId(item.id)} onClose={() => setSwipedIngredientId(null)}
-                                  onEnqueue={() => enqueueIngredient(item)}
-                                  onConsume={() => requestRemoval(item, 'consume')}
-                                  onDelete={() => requestRemoval(item, 'delete')}>
-                                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.editItem', { name: item.name })}
-                                    accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
-                                    accessibilityHint={isQueued ? t('ingredient.queuedHint') : t('ingredient.actionsHint')}
-                                    accessibilityActions={[{ name: 'consume', label: t('ingredient.consume') }, ...(!isQueued ? [{ name: 'enqueue', label: t('queue.enqueue') }] : []), { name: 'delete', label: t('ingredient.delete') }]}
-                                    onAccessibilityAction={({ nativeEvent }) => {
-                                      if (nativeEvent.actionName === 'enqueue') enqueueIngredient(item);
-                                      else if (nativeEvent.actionName === 'consume') requestRemoval(item, 'consume');
-                                      else if (nativeEvent.actionName === 'delete') requestRemoval(item, 'delete');
-                                    }}
-                                    accessibilityState={{ disabled: isBusy || isChanging }} disabled={isBusy} interactionBlocked={isChanging}
-                                    onPress={() => { if (swipedIngredientId !== null) setSwipedIngredientId(null); else openForm(item); }} style={styles.item}>
+                                <FeedbackPressable accessibilityRole={isSelecting ? 'checkbox' : 'button'}
+                                  accessibilityLabel={t(isSelecting ? 'ingredient.selectItem' : 'ingredient.editItem', { name: item.name })}
+                                  accessibilityValue={{ text: `${item.quantity}, ${expiration.label}${item.memo ? `, ${item.memo}` : ''}` }}
+                                  accessibilityHint={isSelecting ? t('ingredient.selectionHint') : isQueued ? t('ingredient.queuedHint') : t('ingredient.actionsHint')}
+                                  accessibilityState={{ disabled: isBusy || isChanging, ...(isSelecting ? { checked: selectedIds.includes(item.id) } : {}) }}
+                                  disabled={isBusy} interactionBlocked={isChanging}
+                                  onPress={() => { if (isSelecting) toggleIngredient(item.id); else openForm(item); }}
+                                  style={[styles.item, isSelecting && styles.selectableItem, isSelecting && selectedIds.includes(item.id) && styles.selectedItem]}>
+                                  {isSelecting ? <MaterialDesignIcons name={selectedIds.includes(item.id) ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                                    size={24} color={selectedIds.includes(item.id) ? colors.chilled : colors.textMuted} accessible={false} /> : null}
+                                  <View style={styles.itemDetails}>
                                     <View style={styles.itemHeader}>
                                       <View style={styles.itemTitle}>
                                         {isQueued ? <MaterialDesignIcons name="clipboard-check-outline" size={20} color={colors.chilled} accessible={false} /> : null}
@@ -372,12 +397,37 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                                       }]}>{expiration.label}</Text>
                                     </View>
                                     {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
-                                  </FeedbackPressable>
-                                </IngredientSwipeRow>
+                                  </View>
+                                </FeedbackPressable>
                               );
                             }} />
                         )}
                       </View>
+                      {!secondary && isSelecting ? (
+                        <View style={[styles.selectionToolbar, { paddingBottom: spacing.sm + insets.bottom }]}>
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.enqueueSelected')}
+                            disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
+                            accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
+                            feedback="default" onPress={enqueueSelectedIngredients} style={styles.selectionAction}>
+                            <MaterialDesignIcons name="clipboard-plus-outline" size={22} color={colors.chilled} accessible={false} />
+                            <Text style={styles.selectionActionLabel}>{t('ingredient.enqueueLabel')}</Text>
+                          </FeedbackPressable>
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.consumeSelected')}
+                            disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
+                            accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
+                            feedback="default" onPress={() => requestRemoval('consume')} style={styles.selectionAction}>
+                            <MaterialDesignIcons name="silverware-fork-knife" size={22} color={colors.chilled} accessible={false} />
+                            <Text style={styles.selectionActionLabel}>{t('ingredient.consume')}</Text>
+                          </FeedbackPressable>
+                          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.deleteSelected')}
+                            disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
+                            accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
+                            feedback="danger" onPress={() => requestRemoval('delete')} style={styles.selectionAction}>
+                            <MaterialDesignIcons name="trash-can-outline" size={22} color={colors.error} accessible={false} />
+                            <Text style={[styles.selectionActionLabel, styles.deleteLabel]}>{t('common.delete')}</Text>
+                          </FeedbackPressable>
+                        </View>
+                      ) : null}
                     </>
                   ) : null}
                 </View>
@@ -408,6 +458,16 @@ const styles = StyleSheet.create({
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
   title: { ...headerStyles.title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  selectionHeaderButton: { width: 72, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  selectionLabel: { color: colors.chilled, fontSize: 14, fontWeight: '600' },
+  selectionToolbar: { flexDirection: 'row', flexShrink: 0, paddingTop: spacing.sm, paddingHorizontal: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface },
+  selectionAction: { flex: 1, minHeight: 52, padding: spacing.xs, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
+  selectionActionLabel: { color: colors.chilled, fontSize: 13, textAlign: 'center', fontWeight: '600' },
+  deleteLabel: { color: colors.error },
+  selectableItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  selectedItem: { backgroundColor: colors.chilledBackground },
+  itemDetails: { flex: 1, gap: spacing.xs },
   content: { flex: 1, overflow: 'hidden' },
   pageTrack: { flex: 1, flexDirection: 'row' },
   page: { height: '100%' },

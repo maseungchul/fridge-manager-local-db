@@ -62,14 +62,33 @@ export async function deleteIngredient(db: SQLiteDatabase, ingredient: Pick<Ingr
 
 /** 최신 재료 정보를 완료 기록에 보관하고, 냉장고에서 제거하는 작업을 함께 확정한다. */
 export async function consumeIngredient(db: SQLiteDatabase, ingredient: Pick<Ingredient, 'id' | 'slotId' | 'drawerNumber'>): Promise<void> {
+  await consumeIngredients(db, [ingredient]);
+}
+
+/** 선택한 재료 중 한 건이라도 달라지거나 저장에 실패하면 전체 소비 완료를 취소한다. */
+export async function consumeIngredients(db: SQLiteDatabase, ingredients: readonly Pick<Ingredient, 'id' | 'slotId' | 'drawerNumber'>[]): Promise<void> {
+  if (ingredients.length === 0) return;
+  const consumedAt = new Date().toISOString();
   await db.withExclusiveTransactionAsync(async transaction => {
-    const result = await transaction.runAsync(`
-      INSERT INTO consumed_ingredients (id, name, quantity, memo, expiration_date, slot_id, drawer_number, consumed_at)
-      SELECT id, name, quantity, memo, expiration_date, slot_id, drawer_number, ? FROM ingredients
-      WHERE id = ? AND slot_id = ? AND drawer_number = ?;
-    `, new Date().toISOString(), ingredient.id, ingredient.slotId, ingredient.drawerNumber);
-    if (result.changes !== 1) throw new AppError('errors.ingredientConsumeMissing');
-    await deleteIngredient(transaction, ingredient);
+    for (const ingredient of new Map(ingredients.map(item => [item.id, item])).values()) {
+      const result = await transaction.runAsync(`
+        INSERT INTO consumed_ingredients (id, name, quantity, memo, expiration_date, slot_id, drawer_number, consumed_at)
+        SELECT id, name, quantity, memo, expiration_date, slot_id, drawer_number, ? FROM ingredients
+        WHERE id = ? AND slot_id = ? AND drawer_number = ?;
+      `, consumedAt, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
+      if (result.changes !== 1) throw new AppError('errors.ingredientConsumeMissing');
+      await deleteIngredient(transaction, ingredient);
+    }
+  });
+}
+
+/** 선택한 ID·출발 위치를 한 트랜잭션에서 삭제하고 일부만 삭제되는 상황을 막는다. */
+export async function deleteIngredients(db: SQLiteDatabase, ingredients: readonly Pick<Ingredient, 'id' | 'slotId' | 'drawerNumber'>[]): Promise<void> {
+  if (ingredients.length === 0) return;
+  await db.withExclusiveTransactionAsync(async transaction => {
+    for (const ingredient of new Map(ingredients.map(item => [item.id, item])).values()) {
+      await deleteIngredient(transaction, ingredient);
+    }
   });
 }
 

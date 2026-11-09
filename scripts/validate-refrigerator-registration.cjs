@@ -38,7 +38,7 @@ const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRef
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 const ingredientRegistration = loadSource('src/db/ingredientRegistration.ts');
 const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient, deleteIngredient, moveIngredients,
-  consumeIngredient, getConsumedIngredients, getConsumedIngredient, restoreConsumedIngredient, deleteConsumedIngredient } = loadModule('src/db/ingredientRepository.ts', {
+  consumeIngredient, consumeIngredients, deleteIngredients, getConsumedIngredients, getConsumedIngredient, restoreConsumedIngredient, deleteConsumedIngredient } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
 });
 
@@ -494,6 +494,52 @@ async function createConsumableIngredient(t) {
     expirationDate: '2026-11-30', slotId: refrigerator.rows[0].compartments[0].slots[0].id, drawerNumber: 1 });
   const destination = { slotId: refrigerator.rows[1].compartments[0].slots[0].id, drawerNumber: 0 };
   return { ...fixture, refrigerator, ingredient, destination };
+}
+
+for (const kind of ['delete', 'consume']) {
+  test(`다중 ${kind}는 ID가 같은 선택을 중복 처리하지 않고 같은 이름의 각 재료를 유지한다`, async t => {
+    const { adapter, ingredient } = await createConsumableIngredient(t);
+    const other = await registerIngredient(adapter, { ...ingredient, quantity: '2팩' });
+    const untouched = await registerIngredient(adapter, { ...ingredient, quantity: '3팩' });
+    const action = kind === 'delete' ? deleteIngredients : consumeIngredients;
+    await action(adapter, []);
+    await action(adapter, [ingredient, other, ingredient]);
+    assert.deepEqual((await getIngredients(adapter)).map(item => item.id), [untouched.id]);
+    const records = await getConsumedIngredients(adapter);
+    if (kind === 'consume') {
+      assert.deepEqual(records.map(item => item.id).sort(), [ingredient.id, other.id].sort());
+      assert.equal(records[0].consumedAt, records[1].consumedAt);
+      assert.deepEqual(records.map(item => item.quantity).sort(), ['1팩', '2팩']);
+    } else assert.deepEqual(records, []);
+  });
+
+  test(`다중 ${kind}의 두 번째 대상이 없거나 위치가 달라지면 앞선 처리도 롤백한다`, async t => {
+    const { adapter, ingredient, destination } = await createConsumableIngredient(t);
+    const other = await registerIngredient(adapter, { ...ingredient });
+    const before = await getIngredients(adapter);
+    const action = kind === 'delete' ? deleteIngredients : consumeIngredients;
+    for (const stale of [{ ...other, id: 'missing' }, { ...other, ...destination }]) {
+      await assert.rejects(action(adapter, [ingredient, stale]));
+      assert.deepEqual(await getIngredients(adapter), before);
+      assert.deepEqual(await getConsumedIngredients(adapter), []);
+    }
+  });
+
+  test(`다중 ${kind}의 두 번째 저장 실패는 전체를 보존하고 같은 선택으로 재시도한다`, async t => {
+    const { db, adapter, ingredient } = await createConsumableIngredient(t);
+    const other = await registerIngredient(adapter, { ...ingredient });
+    const before = await getIngredients(adapter);
+    const action = kind === 'delete' ? deleteIngredients : consumeIngredients;
+    db.exec(`CREATE TRIGGER fail_second_selection BEFORE DELETE ON ingredients WHEN OLD.id = '${other.id}'
+      BEGIN SELECT RAISE(ABORT, '두 번째 선택 처리 실패'); END;`);
+    await assert.rejects(action(adapter, [ingredient, other]), /두 번째 선택 처리 실패/);
+    assert.deepEqual(await getIngredients(adapter), before);
+    assert.deepEqual(await getConsumedIngredients(adapter), []);
+    db.exec('DROP TRIGGER fail_second_selection');
+    await action(adapter, [ingredient, other]);
+    assert.deepEqual(await getIngredients(adapter), []);
+    assert.equal((await getConsumedIngredients(adapter)).length, kind === 'consume' ? 2 : 0);
+  });
 }
 
 test('소비 완료는 최신 정보·ID·원래 위치를 보존하고 활성 재료·배지에서 제외하며 재실행해도 남는다', async t => {
