@@ -28,6 +28,7 @@ export interface IngredientSheetProps {
 
 const SNAP_POINTS = ['50%', '100%'];
 const EXPANDED_SNAP_POINTS = ['100%'];
+// 시트 닫기 완료가 기본 스프링의 정착 시간에 늦춰지지 않도록 전환 시간을 고정한다.
 const TRANSITION_ANIMATION = { duration: 240 };
 
 // 포털에 표시되는 제목과 본문을 하나의 모달 접근성 경계로 묶는다.
@@ -97,6 +98,7 @@ export function IngredientSheet({ ref, children, header, disabled, expanded = fa
   return (
     <BottomSheetModal ref={sheetRef} index={0}
       snapPoints={expanded && !transitioning ? EXPANDED_SNAP_POINTS : SNAP_POINTS}
+      animationConfigs={TRANSITION_ANIMATION}
       topInset={insets.top} handleComponent={renderHandle} backdropComponent={renderBackdrop}
       containerComponent={SheetContainer}
       enableDynamicSizing={false} enableOverDrag={false} enableContentPanningGesture={false}

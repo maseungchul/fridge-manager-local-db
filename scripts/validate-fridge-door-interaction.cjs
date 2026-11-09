@@ -2276,6 +2276,7 @@ test('공통 재료 시트는 본문 스크롤과 제목 드래그를 구분하�
     t.after(() => sheet.unmount());
     assert.deepEqual(events, ['present']);
     assert.equal(sheet.tree.type, 'BottomSheetModal');
+    assert.deepEqual(sheet.tree.props.animationConfigs, { duration: 240 }, '닫기와 스냅 이동에 시간 기반 애니메이션을 사용한다');
     assert.equal(sheet.tree.props.enableContentPanningGesture, false);
     assert.equal(sheet.tree.props.enableHandlePanningGesture, true);
     assert.equal(sheet.tree.props.enablePanDownToClose, true);
