@@ -8,11 +8,13 @@ import { forwardRef, type ComponentRef, type ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import type { StyleProp, TextInputProps, TextStyle, ViewStyle } from 'react-native';
 import { colors, spacing } from '@/theme/tokens';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 // TextInput의 속성을 재사용하되 style은 제외해 입력란의 공통 스타일을 유지한다.
 export interface FormTextInputProps extends Omit<TextInputProps, 'style'> {
   errorMessage?: string;
   label: string;
+  required?: boolean;
   // 화면의 제목 위계에 맞춰 라벨만 조정하고 입력란의 공통 스타일은 유지한다.
   labelStyle?: StyleProp<TextStyle>;
   // 입력 묶음 사이의 여백을 화면 배치에 맞게 조정한다.
@@ -27,6 +29,7 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
     {
       errorMessage,
       label,
+      required = false,
       labelStyle,
       containerStyle,
       placeholderTextColor = colors.textMuted,
@@ -36,14 +39,21 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
     },
     ref,
   ) {
+    const { t } = useTranslation();
+    const accessibilityLabel = required
+      ? `${inputProps.accessibilityLabel ?? label}, ${t('common.required')}`
+      : inputProps.accessibilityLabel;
     return (
       <View style={[styles.field, containerStyle]}>
-        <Text style={[styles.label, labelStyle]}>{label}</Text>
+        <Text style={[styles.label, labelStyle]} accessibilityLabel={required ? `${label}, ${t('common.required')}` : label}>
+          {label}{required ? <Text style={styles.required}> *</Text> : null}
+        </Text>
         {/* 오른쪽 요소가 있으면 입력란과 함께 감싸고, 없으면 TextInput만 표시한다. */}
         {trailingElement ? (
           <View style={[styles.inputContainer, errorMessage ? styles.inputError : undefined]}>
             <TextInput
               {...inputProps}
+              accessibilityLabel={accessibilityLabel}
               placeholderTextColor={placeholderTextColor}
               ref={ref}
               style={styles.inputWithTrailingElement}
@@ -53,6 +63,7 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
         ) : (
           <TextInput
             {...inputProps}
+            accessibilityLabel={accessibilityLabel}
             placeholderTextColor={placeholderTextColor}
             ref={ref}
             style={[styles.input, inputProps.multiline && styles.multilineInput, errorMessage ? styles.inputError : undefined]}
@@ -79,6 +90,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  required: { color: colors.error },
   input: {
     height: 52,
     backgroundColor: '#FFFFFF',

@@ -129,11 +129,11 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
             </Pressable>
           </View>
           <Pressable style={[styles.form, { paddingBottom: spacing.lg + insets.bottom }]} onPress={Keyboard.dismiss} accessible={false}>
-            <FormTextInput label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')}
+            <FormTextInput label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')} required
               value={draft.name} maxLength={Math.max(20, editingIngredient?.name.length ?? 0)} editable={!isSaving} returnKeyType="next"
               onSubmitEditing={() => { if (!saving.current && !leaving.current) quantityInput.current?.focus(); }}
               onChangeText={name => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, name })); }} />
-            <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} accessibilityLabel={t('ingredient.quantityLabel')} placeholder={t('ingredient.quantityPlaceholder')}
+            <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} accessibilityLabel={t('ingredient.quantityLabel')} placeholder={t('ingredient.quantityPlaceholder')} required
               value={draft.quantity} maxLength={Math.max(10, editingIngredient?.quantity.length ?? 0)} editable={!isSaving} returnKeyType="next"
               onSubmitEditing={() => { if (!saving.current && !leaving.current) memoInput.current?.focus(); }}
               onChangeText={quantity => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, quantity })); }} />

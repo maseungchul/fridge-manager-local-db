@@ -440,7 +440,7 @@ export function RefrigeratorRegistrationScreen({
                   </View>
                   {pageStep === 'basic' ? (
                     <View style={styles.sections}>
-                      <FormTextInput label={t('fridge.name')} accessibilityLabel={t('fridge.name')} value={draft.name}
+                      <FormTextInput label={t('fridge.name')} accessibilityLabel={t('fridge.name')} value={draft.name} required
                         onChangeText={name => { if (!saving.current) setDraft(current => ({ ...current, name })); }}
                         editable={!isSaving} maxLength={50} containerStyle={styles.nameField}
                         trailingElement={isEditing ? <PrimaryButton label={t('common.change')} onPress={saveRefrigeratorName}
