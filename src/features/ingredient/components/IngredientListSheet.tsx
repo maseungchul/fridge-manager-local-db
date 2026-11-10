@@ -264,7 +264,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
-                        <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t(isSelecting ? allSelected ? 'ingredient.deselectAll' : 'ingredient.selectAll' : 'ingredient.select')}
+                        <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
                           disabled={isBusy || isLoading || error !== null || ingredients.length === 0} interactionBlocked={isChanging}
                           onPress={() => {
                             if (!canChangeSelection()) return;
