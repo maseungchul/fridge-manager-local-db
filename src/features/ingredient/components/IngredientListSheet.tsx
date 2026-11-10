@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   itemHeader: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
   itemTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   itemName: { flexShrink: 1, color: colors.text, fontSize: 17, fontWeight: '600' },
-  queuedBadge: { color: colors.chilled, backgroundColor: colors.chilledBackground, fontSize: 12, overflow: 'hidden',
+  queuedBadge: { alignSelf: 'flex-start', color: colors.chilled, backgroundColor: colors.chilledBackground, fontSize: 12, overflow: 'hidden',
     paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: 6 },
   quantity: { fontSize: 17, fontWeight: '400' },
   memo: { color: colors.textMuted, fontSize: 15 },
