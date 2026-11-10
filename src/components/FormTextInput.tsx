@@ -55,7 +55,7 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
             {...inputProps}
             placeholderTextColor={placeholderTextColor}
             ref={ref}
-            style={[styles.input, errorMessage ? styles.inputError : undefined]}
+            style={[styles.input, inputProps.multiline && styles.multilineInput, errorMessage ? styles.inputError : undefined]}
           />
         )}
         {/* 오류 문구를 표시하고, 지원되는 접근성 환경에서 변경 내용을 안내한다. */}
@@ -99,6 +99,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     // 높이 44인 버튼의 상하 여백과 오른쪽 테두리 안쪽 여백을 맞춘다.
     paddingRight: 3,
+  },
+  multilineInput: {
+    height: 96,
+    paddingVertical: spacing.md,
+    textAlignVertical: 'top',
   },
   inputWithTrailingElement: {
     flex: 1,

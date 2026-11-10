@@ -138,7 +138,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
               onSubmitEditing={() => { if (!saving.current && !leaving.current) memoInput.current?.focus(); }}
               onChangeText={quantity => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, quantity })); }} />
             <FormTextInput ref={memoInput} label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
-              value={draft.memo ?? ''} maxLength={Math.max(100, editingIngredient?.memo?.length ?? 0)} editable={!isSaving} returnKeyType="done"
+              value={draft.memo ?? ''} maxLength={Math.max(100, editingIngredient?.memo?.length ?? 0)} editable={!isSaving} multiline
               onChangeText={memo => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, memo })); }} />
             <Text style={styles.fieldLabel}>{t('ingredient.expiration')}</Text>
             <View style={styles.dateRow}>
