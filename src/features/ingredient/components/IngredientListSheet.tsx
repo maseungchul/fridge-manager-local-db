@@ -390,8 +390,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                                   <View style={styles.itemDetails}>
                                     <View style={styles.itemHeader}>
                                       <View style={styles.itemTitle}>
-                                        {isQueued ? <MaterialDesignIcons name="clipboard-check-outline" size={20} color={colors.chilled} accessible={false} /> : null}
                                         <Text style={styles.itemName}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
+                                        {isQueued ? <Text style={styles.queuedBadge} accessible={false}>{t('queue.pending')}</Text> : null}
                                       </View>
                                       <Text style={[styles.expirationDate, item.expirationDate !== null && {
                                         color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'normal'],
@@ -496,6 +496,8 @@ const styles = StyleSheet.create({
   itemHeader: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.md },
   itemTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   itemName: { flexShrink: 1, color: colors.text, fontSize: 17, fontWeight: '600' },
+  queuedBadge: { color: colors.chilled, backgroundColor: colors.chilledBackground, fontSize: 12, overflow: 'hidden',
+    paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: 6 },
   quantity: { fontSize: 17, fontWeight: '400' },
   memo: { color: colors.textMuted, fontSize: 15 },
   expirationDate: { color: ingredientBadgeColors.unknown, fontSize: 14, textAlign: 'right', fontVariant: ['tabular-nums'] },
