@@ -6,7 +6,7 @@
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -111,7 +111,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
           keyboardShouldPersistTaps="always" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false}>
           {/* 고정 헤더는 직접 자식의 스타일을 옮기므로 가로 배치는 내부 View에 둔다. */}
           <View>
-            <View style={styles.header}>
+            <Pressable style={styles.header} onPress={Keyboard.dismiss} accessible={false}>
               <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
                 disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={styles.headerIconButton}>
                 <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
@@ -126,9 +126,9 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                 {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
                   : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
               </FeedbackPressable>
-            </View>
+            </Pressable>
           </View>
-          <View style={[styles.form, { paddingBottom: spacing.lg + insets.bottom }]}>
+          <Pressable style={[styles.form, { paddingBottom: spacing.lg + insets.bottom }]} onPress={Keyboard.dismiss} accessible={false}>
             <FormTextInput label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')}
               value={draft.name} maxLength={Math.max(20, editingIngredient?.name.length ?? 0)} editable={!isSaving} returnKeyType="next"
               onSubmitEditing={() => { if (!saving.current && !leaving.current) quantityInput.current?.focus(); }}
@@ -153,6 +153,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                   disabled={isSaving} accessibilityState={{ disabled: isSaving }} style={styles.clearDateButton}
                   onPress={() => {
                     if (saving.current || leaving.current) return;
+                    Keyboard.dismiss();
                     setDraft(current => ({ ...current, expirationDate: null }));
                     setIsDatePickerOpen(false);
                   }}>
@@ -161,7 +162,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
               ) : null}
             </View>
             {saveError ? <Text accessibilityRole="alert" style={styles.error}>{getErrorMessage(saveError.cause, t, t('ingredient.saveError'))}</Text> : null}
-          </View>
+          </Pressable>
         </ScrollView>
         {isDatePickerOpen ? (
           <IngredientExpirationCalendar value={draft.expirationDate} disabled={isSaving}
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
   title: { ...headerStyles.title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  form: { padding: spacing.lg },
+  form: { flexGrow: 1, padding: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
   date: { color: colors.text, fontSize: 16, flexShrink: 1 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
