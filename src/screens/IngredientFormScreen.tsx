@@ -157,7 +157,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                     setDraft(current => ({ ...current, expirationDate: null }));
                     setIsDatePickerOpen(false);
                   }}>
-                  <Text style={styles.clearDate}>{t('ingredient.clearDateLabel')}</Text>
+                  <MaterialDesignIcons name="calendar-remove-outline" size={24} color={colors.text} accessible={false} />
                 </FeedbackPressable>
               ) : null}
             </View>
@@ -188,7 +188,6 @@ const styles = StyleSheet.create({
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
   dateButton: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 52, padding: spacing.md,
     gap: spacing.sm, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
-  clearDateButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm, borderRadius: 10 },
-  clearDate: { color: colors.textMuted, fontSize: 14 },
+  clearDateButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   error: { color: colors.error, fontSize: 16, textAlign: 'center', marginTop: spacing.md },
 });
