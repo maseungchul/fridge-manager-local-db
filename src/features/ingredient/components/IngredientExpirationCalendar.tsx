@@ -94,21 +94,21 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                 accessibilityLabel={view === 'days' ? t('calendar.previousMonth') : view === 'months' ? t('calendar.previousYear') : t('calendar.previousYears')}
                 accessibilityState={{ disabled: previousDisabled }} disabled={previousDisabled}
                 onPress={() => changePeriod(-1)} style={styles.iconButton}>
-                <MaterialDesignIcons name="chevron-left" size={24} color={colors.chilled} accessible={false} />
+                <MaterialDesignIcons name="chevron-left" size={24} color={colors.text} accessible={false} />
               </FeedbackPressable>
               {view === 'years' ? <Text accessibilityRole="header" style={styles.period}>{period}</Text> : (
                 <FeedbackPressable accessibilityRole="button" accessibilityLabel={view === 'days' ? t('calendar.selectYearMonth') : t('calendar.selectYear')}
                   accessibilityValue={{ text: period }} disabled={disabled} accessibilityState={{ disabled }}
                   onPress={() => { if (!disabled && !closed.current) setView(view === 'days' ? 'months' : 'years'); }} style={styles.periodButton}>
                   <Text style={styles.periodText} maxFontSizeMultiplier={1.2}>{period}</Text>
-                  <MaterialDesignIcons name="chevron-down" size={18} color={colors.chilled} accessible={false} />
+                  <MaterialDesignIcons name="chevron-down" size={18} color={colors.text} accessible={false} />
                 </FeedbackPressable>
               )}
               <FeedbackPressable accessibilityRole="button"
                 accessibilityLabel={view === 'days' ? t('calendar.nextMonth') : view === 'months' ? t('calendar.nextYear') : t('calendar.nextYears')}
                 accessibilityState={{ disabled: nextDisabled }} disabled={nextDisabled}
                 onPress={() => changePeriod(1)} style={styles.iconButton}>
-                <MaterialDesignIcons name="chevron-right" size={24} color={colors.chilled} accessible={false} />
+                <MaterialDesignIcons name="chevron-right" size={24} color={colors.text} accessible={false} />
               </FeedbackPressable>
             </View>
             {view === 'days' ? (
@@ -120,20 +120,29 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                 <View style={styles.grid}>
                   {Array.from({ length: calendarCellCount }, (_, index) => {
                     const day = index - firstWeekday + 1;
-                    if (day < 1 || day > dayCount) return <View key={index} style={styles.dayCell} />;
-                    const date = formatCalendarDate(month.year, month.month, day);
+                    if (day < 1 || (day > dayCount && month.year === MAX_YEAR && month.month === 11)) {
+                      return <View key={index} style={styles.dayCell} />;
+                    }
+                    const nextMonth = day > dayCount;
+                    const cellDate = nextMonth ? getCalendarDate(month.year, month.month, day) : null;
+                    const year = cellDate?.getFullYear() ?? month.year;
+                    const monthIndex = cellDate?.getMonth() ?? month.month;
+                    const dayOfMonth = cellDate?.getDate() ?? day;
+                    const date = formatCalendarDate(year, monthIndex, dayOfMonth);
                     const selected = value === date;
                     const isToday = todayDate === date;
                     return (
-                      <FeedbackPressable key={index} accessibilityRole="button"
-                        accessibilityLabel={`${t('date.full', { year: month.year, month: month.month + 1, day })}${isToday ? t('calendar.today') : ''}`}
-                        accessibilityState={{ selected, disabled }} disabled={disabled} style={styles.dayCell}
-                        onPress={() => closeCalendar(date)}>
-                        <View style={[styles.dayNumber, isToday && styles.today, selected && styles.selected]}>
-                          <Text maxFontSizeMultiplier={1.3} style={[styles.dayText, index % 7 === 0 && styles.sunday,
-                            index % 7 === 6 && styles.saturday, selected && styles.selectedText]}>{day}</Text>
-                        </View>
-                      </FeedbackPressable>
+                      <View key={index} style={styles.dayCell}>
+                        <FeedbackPressable accessibilityRole="button"
+                          accessibilityLabel={`${t('date.full', { year, month: monthIndex + 1, day: dayOfMonth })}${isToday ? t('calendar.today') : ''}`}
+                          accessibilityState={{ selected, disabled }} disabled={disabled} style={styles.dayButton}
+                          onPress={() => closeCalendar(date)}>
+                          <View style={[styles.dayNumber, isToday && styles.today, selected && styles.selected]}>
+                            <Text maxFontSizeMultiplier={1.3} style={[styles.dayText, index % 7 === 0 && styles.sunday,
+                              index % 7 === 6 && styles.saturday, nextMonth && styles.adjacentMonth, selected && styles.selectedText]}>{dayOfMonth}</Text>
+                          </View>
+                        </FeedbackPressable>
+                      </View>
                     );
                   })}
                 </View>
@@ -189,15 +198,16 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   periodButton: { flex: 1, minHeight: 44, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  period: { flex: 1, color: colors.chilled, fontSize: 17, fontWeight: '600', textAlign: 'center' },
-  periodText: { color: colors.chilled, fontSize: 17, fontWeight: '600' },
+  period: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
+  periodText: { color: colors.text, fontSize: 17, fontWeight: '600' },
   todayButton: { minHeight: 44, paddingHorizontal: spacing.md, alignSelf: 'center',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: 22 },
   todayButtonLabel: { color: colors.chilled, fontSize: 14, fontWeight: '600' },
-  weekdays: { flexDirection: 'row', height: 24, alignItems: 'center' },
+  weekdays: { flexDirection: 'row', height: 24, marginTop: spacing.sm, alignItems: 'center' },
   weekday: { width: `${100 / 7}%`, color: colors.textMuted, fontSize: 12, textAlign: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  dayCell: { width: `${100 / 7}%`, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  dayCell: { width: `${100 / 7}%`, height: 44, alignItems: 'center', justifyContent: 'center' },
+  dayButton: { width: '100%', maxWidth: 44, aspectRatio: 1, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   dayNumber: { width: '100%', maxWidth: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   dayText: { color: colors.text, fontSize: 16, fontVariant: ['tabular-nums'] },
   today: { borderWidth: 1, borderColor: colors.chilled },
@@ -205,6 +215,7 @@ const styles = StyleSheet.create({
   selectedText: { color: colors.buttonText, fontWeight: '600' },
   sunday: { color: colors.error },
   saturday: { color: colors.frozen },
+  adjacentMonth: { color: colors.textMuted },
   periodCell: { width: `${100 / 3}%`, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   periodNumber: { minHeight: 40, paddingHorizontal: spacing.sm, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 });
