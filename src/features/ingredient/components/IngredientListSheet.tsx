@@ -13,7 +13,6 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { Toast } from '@/components/Toast';
 import { useToast } from '@/components/ToastProvider';
 import { alertTitles } from '@/constants/alertTitles';
 import { consumeIngredients, deleteIngredients, getIngredientsByPosition, moveIngredients } from '@/db/ingredientRepository';
@@ -59,7 +58,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const [isOpeningForm, setIsOpeningForm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
-  const [notice, setNotice] = useState<{ kind: 'consume'; id: string } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const isBusy = isOpeningForm || isDeleting || isMoving;
@@ -188,7 +186,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         }
         setIsSelecting(false);
         setSelectedIds([]);
-        if (kind === 'consume') setNotice({ kind: 'consume', id: targets.map(item => item.id).join(':') });
+        if (kind === 'consume') showToast(t('ingredient.consumed'));
         unlock();
       } },
     ], { cancelable: false });
@@ -203,7 +201,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     if (!canChangeSelection()) return;
     setIsSelecting(current => !current);
     setSelectedIds([]);
-    setNotice(null);
+
   }
 
   function toggleIngredient(id: string) {
@@ -216,12 +214,12 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     for (const ingredient of selectedIngredients) moveQueue.add(ingredient.id);
     setIsSelecting(false);
     setSelectedIds([]);
-    setNotice(null);
+
   }
 
   function openMoveQueue() {
     if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isSelecting) return;
-    setNotice(null);
+
     changePanel('queue');
   }
 
@@ -229,7 +227,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isSelecting || !canMove) return;
     moving.current = true;
     setIsMoving(true);
-    setNotice(null);
+
     try {
       const moved = await moveIngredients(db, queuedIngredients, { slotId, drawerNumber });
       onMoved?.(moved);
@@ -439,11 +437,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
               })}
             </Animated.View>
           </View>
-          {notice ? <View pointerEvents="none" style={styles.notice}>
-            <Toast key={notice.id}
-              message={t('ingredient.consumed')} icon="check-circle-outline"
-              onDismiss={() => setNotice(current => current === notice ? null : current)} />
-          </View> : null}
         </View>
     </BottomSheet>
   );
@@ -484,7 +477,6 @@ const styles = StyleSheet.create({
   moveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
     minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 22, backgroundColor: colors.chilled },
   moveLabel: { color: colors.buttonText, fontSize: 15, fontWeight: '600' },
-  notice: { position: 'absolute', left: 0, right: 0, bottom: spacing.lg, alignItems: 'center' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
   retryButton: { alignSelf: 'stretch' },

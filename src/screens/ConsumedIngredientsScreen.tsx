@@ -13,7 +13,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastProvider';
 import { deleteConsumedIngredient, getConsumedIngredients, restoreConsumedIngredient } from '@/db/ingredientRepository';
 import type { ConsumedIngredient } from '@/features/ingredient/model/ingredient';
 import { useTranslation } from '@/i18n/LanguageProvider';
@@ -31,12 +31,12 @@ type ConsumedIngredientsScreenProps = CompositeScreenProps<
 
 export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChange }: ConsumedIngredientsScreenProps) {
   const { t } = useTranslation();
+  const showToast = useToast();
   const db = useSQLiteContext();
   const [records, setRecords] = useState<ConsumedIngredient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
-  const [notice, setNotice] = useState<{ id: string } | null>(null);
   const busy = useRef(false);
   const loadRequest = useRef(0);
 
@@ -44,7 +44,7 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
     const request = ++loadRequest.current;
     setIsLoading(true);
     setHasError(false);
-    setNotice(null);
+
     try {
       const result = await getConsumedIngredients(db);
       if (request === loadRequest.current) setRecords(result);
@@ -74,12 +74,12 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
     if (busy.current || isLoading || hasError) return;
     busy.current = true;
     setIsBusy(true);
-    setNotice(null);
+
     try {
       const restored = await restoreConsumedIngredient(db, record);
       if (restored) {
         setRecords(current => current.filter(item => item.id !== record.id));
-        setNotice({ id: record.id });
+        showToast(t('consumed.restored'));
       } else {
         navigation.navigate('IngredientRestore', { id: record.id, consumedAt: record.consumedAt });
       }
@@ -162,10 +162,6 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
               );
             }} />
         )}
-      {notice ? <View pointerEvents="none" style={styles.notice}>
-        <Toast key={notice.id} message={t('consumed.restored')} icon="check-circle-outline"
-          onDismiss={() => setNotice(current => current === notice ? null : current)} />
-      </View> : null}
     </SafeAreaView>
   );
 }
@@ -191,5 +187,4 @@ const styles = StyleSheet.create({
   deleteButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, borderRadius: 22 },
   restoreLabel: { color: colors.chilled, fontSize: 15, fontWeight: '600' },
   deleteLabel: { color: colors.error, fontSize: 15 },
-  notice: { position: 'absolute', left: 0, right: 0, bottom: spacing.lg, alignItems: 'center' },
 });
