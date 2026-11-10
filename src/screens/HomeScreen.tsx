@@ -65,7 +65,6 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
   const ingredientFormPending = useRef(false);
   const [ingredientListIndex, setIngredientListIndex] = useState(0);
-  const addIngredientDraft = useRef(EMPTY_INGREDIENT_DRAFT);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
   const [isToolbarExpanded, setIsToolbarExpanded] = useState(true);
@@ -93,7 +92,6 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const closeIngredientList = useCallback(() => {
     setIsIngredientListOpen(false);
     setIngredientListIndex(0);
-    addIngredientDraft.current = EMPTY_INGREDIENT_DRAFT;
     setSelectedSlot(null);
     setSelectedAreaId(null);
   }, [setSelectedAreaId]);
@@ -145,7 +143,6 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
       ingredientFormPending.current = false;
       const result = takeIngredientFormResult();
       if (result) {
-        if (!result.isEditing) addIngredientDraft.current = result.savedIngredient ? EMPTY_INGREDIENT_DRAFT : result.draft;
         const savedIngredient = result.savedIngredient;
         if (savedIngredient) setIngredients(current => current.some(item => item.id === savedIngredient.id)
           ? current.map(item => item.id === savedIngredient.id ? savedIngredient : item) : [...current, savedIngredient]);
@@ -156,10 +153,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
     }
     return () => {
       loadRequest.current++;
-      // 재료 입력 화면을 다녀올 때는 도면·선택·목록 높이와 추가 초안을 유지한다.
+      // 재료 입력 화면을 다녀올 때는 도면·선택·목록 높이를 유지한다.
       if (ingredientFormPending.current) return;
       setIngredientListIndex(0);
-      addIngredientDraft.current = EMPTY_INGREDIENT_DRAFT;
       resetFocus();
       setSelectedSlot(null); setIsIngredientListOpen(false); setIsLegendOpen(false);
       setIsMoveQueueOpen(false);
@@ -381,7 +377,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                 position: { slotId: selectedPosition.slotId, drawerNumber: selectedPosition.drawerNumber ?? 0 },
                 ingredient,
                 draft: ingredient ? { name: ingredient.name, quantity: ingredient.quantity,
-                  memo: ingredient.memo, expirationDate: ingredient.expirationDate } : addIngredientDraft.current,
+                  memo: ingredient.memo, expirationDate: ingredient.expirationDate } : EMPTY_INGREDIENT_DRAFT,
               });
             }}
             onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
