@@ -498,5 +498,5 @@ const styles = StyleSheet.create({
   itemName: { flexShrink: 1, color: colors.text, fontSize: 17, fontWeight: '600' },
   quantity: { fontSize: 17, fontWeight: '400' },
   memo: { color: colors.textMuted, fontSize: 15 },
-  expirationDate: { color: ingredientBadgeColors.unknown, fontSize: 14, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
+  expirationDate: { color: ingredientBadgeColors.unknown, fontSize: 14, textAlign: 'right', fontVariant: ['tabular-nums'] },
 });
