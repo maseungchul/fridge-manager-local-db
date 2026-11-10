@@ -517,7 +517,7 @@ function FridgeScrollHint({ enabled, viewport, onSeen }: {
 /** 연결된 문은 함께 펼치고, 홈은 칸 선택·등록과 편집은 영역 선택을 호출자에게 전달한다. */
 export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId,
   scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea,
-  selectedSlotIndex, selectedPositionId, onSelectSlot, sizeViewport, ingredients, now, flushVerticalEdges = false, doorGaps }: {
+  selectedSlotIndex, selectedPositionId, onSelectSlot, sizeViewport, ingredients, now, flushVerticalEdges = false, doorGaps = true }: {
   draft: FridgeInteriorMapProps['draft']; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
   ingredients?: Ingredient[];
   now?: Date;
@@ -731,7 +731,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
 
 /** 닫힌 도면은 공통 크기 기준으로 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
 export function FridgeInteriorMap({ draft, ingredients, now, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false, layoutSize,
-  scrollVertically = false, onCanvasOffsetChange, doorGaps }: FridgeInteriorMapProps) {
+  scrollVertically = false, onCanvasOffsetChange, doorGaps = true }: FridgeInteriorMapProps) {
   const { t } = useTranslation();
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const size = layoutSize ?? viewportSize;

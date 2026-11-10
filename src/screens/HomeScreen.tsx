@@ -265,7 +265,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                   <View style={StyleSheet.absoluteFill}>
                     <FridgeInteriorMap draft={refrigerator} ingredients={ingredients} now={badgeDate} selectedAreaId={selectedAreaId ?? undefined}
                       onSelectArea={setSelectedAreaId} focus={activeFocus} onFocus={openFocusedArea} fitHeight layoutSize={diagramSizes.closed}
-                      scrollVertically onCanvasOffsetChange={updateClosedScroll} doorGaps />
+                      scrollVertically onCanvasOffsetChange={updateClosedScroll} />
                   </View>
                 </View> : (
                   <ScrollView style={styles.emptyScroll} contentContainerStyle={styles.emptyContent}
@@ -290,7 +290,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
             style={StyleSheet.absoluteFill} onLayout={layoutFocusViewport}>
             {refrigerator && activeFocus && focusBounds ? (
               <FridgeFocusView draft={refrigerator} ingredients={ingredients} now={badgeDate} target={activeFocus} viewport={focusBounds} phase={focusPhase}
-                sizeViewport={diagramSizes.opened} flushVerticalEdges doorGaps
+                sizeViewport={diagramSizes.opened} flushVerticalEdges
                 selectedAreaId={selectedAreaId ?? undefined} scrollHintEnabled={!hasSeenScrollHint}
                 selectedSlotIndex={selectedSlot?.index}
                 selectedPositionId={selectedSlot?.positionId}
