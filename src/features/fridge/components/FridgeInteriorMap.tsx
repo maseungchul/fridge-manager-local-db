@@ -32,6 +32,7 @@ interface FridgeInteriorMapProps {
   onCanvasOffsetChange?: (y: number) => void;
   ingredients?: Ingredient[];
   now?: Date;
+  doorGaps?: boolean;
 }
 
 /** 스크롤 위치를 포함한 원래 도면 좌표를 보관해 중앙 보기와 복귀에 함께 사용한다. */
@@ -130,6 +131,9 @@ function getGridCorners(edges: GridEdges, mirrored = false): ViewStyle {
 
 const HINGE_LENGTH = 14;
 const HINGE_HEIGHT = 18;
+const HOME_DOOR_CORNERS: ViewStyle = {
+  borderTopLeftRadius: 8, borderTopRightRadius: 8, borderBottomLeftRadius: 8, borderBottomRightRadius: 8,
+};
 const MAP_HEIGHT = 540;
 const MAP_PADDING = 10;
 const FOCUS_PADDING = 24;
@@ -233,13 +237,14 @@ function InteriorArea({ area, layout, now, compact, selected, storageMode, corne
 }
 
 /** 문 앞·뒷면을 같은 경첩으로 회전하고, 포켓 내부는 전환 중에도 유지하되 조작은 열림 완료 후 허용한다. */
-function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, sourceSize, gridEdges, ingredientCounts, modeArt, children }: {
+function FridgeDoor({ door, label, phase, progress, selected, storageMode, style, onSelect, unfoldOffset = 0, bodyWidth, sourceSize, gridEdges, ingredientCounts, modeArt, doorGaps, children }: {
   door: DraftDoor; label: string; phase: FridgeFocusPhase; progress: Animated.Value; selected: boolean; storageMode: StorageMode | null;
   style: AreaFrame; onSelect: () => void; unfoldOffset?: number; children?: ReactNode;
   bodyWidth?: number;
   sourceSize?: { width: number; height: number };
   gridEdges?: GridEdges;
   ingredientCounts?: IngredientCounts;
+  doorGaps?: boolean;
   // 합친 본체는 첫 문에만 왼쪽 아이콘을 두고, 지정하지 않으면 손잡이 위치를 따른다.
   modeArt?: 'left' | 'hidden';
 }) {
@@ -255,12 +260,12 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   const handleOnLeft = !drawer && !leftHinge;
   const modeStyle = getFridgeSurfaceStyle(storageMode, 'exterior');
   const contactColor = '#c0c9cf';
-  const gridCorners = gridEdges ? getGridCorners(gridEdges) : undefined;
-  const backCorners = gridEdges ? getGridCorners(gridEdges, true) : undefined;
+  const gridCorners = doorGaps ? HOME_DOOR_CORNERS : gridEdges ? getGridCorners(gridEdges) : undefined;
+  const backCorners = doorGaps ? HOME_DOOR_CORNERS : gridEdges ? getGridCorners(gridEdges, true) : undefined;
   const gridStyle: ViewStyle | undefined = gridEdges ? {
     ...gridCorners, borderWidth: 0,
-    ...(gridEdges.right && { borderRightWidth: 4, borderRightColor: contactColor }),
-    ...(gridEdges.bottom && { borderBottomWidth: 4, borderBottomColor: contactColor }),
+    ...(gridEdges.right && (doorGaps ? { marginRight: 4 } : { borderRightWidth: 4, borderRightColor: contactColor })),
+    ...(gridEdges.bottom && (doorGaps ? { marginBottom: 4 } : { borderBottomWidth: 4, borderBottomColor: contactColor })),
   } : undefined;
 
   return (
@@ -315,12 +320,13 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
 }
 
 /** 같은 본체의 닫힌 문을 함께 선택 표시하고, 본체 전체의 화면 좌표를 측정해 중앙 보기를 연다. */
-function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, selectedAreaId, focus, width, top, height, canvasHeight, onSelectArea, onFocus }: {
+function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, selectedAreaId, focus, width, top, height, canvasHeight, onSelectArea, onFocus, doorGaps }: {
   group: BodyGeometry; row: RefrigeratorDraft['rows'][number]; rowIndex: number; rowCount: number;
   layout?: FridgeLayout; now?: Date;
   selectedAreaId?: string; width: number; top: number; height: number; canvasHeight: number;
   onSelectArea: FridgeInteriorMapProps['onSelectArea'];
   focus: FridgeInteriorMapProps['focus']; onFocus: FridgeInteriorMapProps['onFocus'];
+  doorGaps?: boolean;
 }) {
   const { t } = useTranslation();
   const frameRef = useRef<ComponentRef<typeof View>>(null);
@@ -345,7 +351,7 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, select
       width: group.width * width, height, opacity: focus?.areaId === body.id ? 0 : 1 }, (selectedBody || selectedDoor) && styles.selectedArea]}>
       {group.doors.map(({ door, left, width: doorWidth }) => (
         <FridgeDoor key={door.id} door={door} phase="closed" progress={progress} selected={selectedBody || selectedDoor}
-          storageMode={body.storageMode}
+          storageMode={body.storageMode} doorGaps={doorGaps}
           modeArt={body.doorIds.length > 1 ? door.id === group.doors[0].door.id ? 'left' : 'hidden' : undefined}
           ingredientCounts={door.id === group.doors[0].door.id ? counts : undefined}
           gridEdges={getGridEdges(row, rowIndex, rowCount, [door.id])}
@@ -511,13 +517,14 @@ function FridgeScrollHint({ enabled, viewport, onSeen }: {
 /** 연결된 문은 함께 펼치고, 홈은 칸 선택·등록과 편집은 영역 선택을 호출자에게 전달한다. */
 export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase, selectedAreaId,
   scrollHintEnabled = false, scrollHintBlocked = false, onScrollHintSeen, onPhaseChange, onClose, onSelectArea,
-  selectedSlotIndex, selectedPositionId, onSelectSlot, sizeViewport, ingredients, now, flushVerticalEdges = false }: {
+  selectedSlotIndex, selectedPositionId, onSelectSlot, sizeViewport, ingredients, now, flushVerticalEdges = false, doorGaps }: {
   draft: FridgeInteriorMapProps['draft']; target: FridgeFocusTarget; viewport: LayoutRectangle; phase: FridgeFocusPhase;
   ingredients?: Ingredient[];
   now?: Date;
   overlayHeight?: number;
   sizeViewport?: FridgeDiagramSize;
   flushVerticalEdges?: boolean;
+  doorGaps?: boolean;
   selectedAreaId?: string; onPhaseChange: (phase: FridgeFocusPhase) => void; onClose: () => void;
   scrollHintEnabled?: boolean; scrollHintBlocked?: boolean; onScrollHintSeen?: () => void;
   onSelectArea?: FridgeInteriorMapProps['onSelectArea'];
@@ -577,7 +584,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
 
   if (!geometry) return null;
   const { row, rowIndex, group, body, pockets, doors } = geometry;
-  const bodyCorners = getGridCorners(getGridEdges(row, rowIndex, draft.rows.length, group.body.doorIds));
+  const bodyCorners = doorGaps ? HOME_DOOR_CORNERS : getGridCorners(getGridEdges(row, rowIndex, draft.rows.length, group.body.doorIds));
   const horizontalScrolling = open && geometry.scrollable;
   const verticalScrolling = open && geometry.verticalScrollable;
   const scrolling = horizontalScrolling || verticalScrolling;
@@ -632,27 +639,32 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         ))}
       </Animated.View>
       <Animated.View style={[styles.compartment, panelStyle(body)]}>
-        <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-          style={[StyleSheet.absoluteFill, styles.bodyFrame,
-            getFridgeSurfaceStyle(group.body.storageMode), bodyCorners]}>
-          <View style={[styles.bodyCavity, {
-            backgroundColor: group.body.storageMode ? fridgeDoorColors[group.body.storageMode].frame : fridgeSurfaces.frame,
-          }]} />
-        </View>
-        <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
-          importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={StyleSheet.absoluteFill}>
-          <InteriorArea area={area} layout={layout} now={now} selected={selectedAreaId === area.id} storageMode={group.body.storageMode}
-            selectedPositionId={selectedAreaId === area.id ? selectedPositionId : undefined}
-            selectedSlotIndex={selectedAreaId === area.id ? selectedSlotIndex : undefined} disabled={!onSelectArea && !open}
-            onSelectSlot={onSelectSlot && (!onSelectArea || open && selectedSlotIndex !== undefined)
-              ? (index, positionId) => { if (open) onSelectSlot(area.id, index, positionId); } : undefined}
-            cornerStyle={bodyCorners} compact={body.width < 120} onSelectArea={onSelectArea} />
-        </View>
+        {/* 문 사이 여백에 내부가 먼저 보이지 않도록 열리는 동안 함께 나타낸다. */}
+        <Animated.View style={[StyleSheet.absoluteFill, doorGaps && {
+          opacity: progress.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }),
+        }]}>
+          <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+            style={[StyleSheet.absoluteFill, styles.bodyFrame,
+              getFridgeSurfaceStyle(group.body.storageMode), bodyCorners]}>
+            <View style={[styles.bodyCavity, {
+              backgroundColor: group.body.storageMode ? fridgeDoorColors[group.body.storageMode].frame : fridgeSurfaces.frame,
+            }]} />
+          </View>
+          <View pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
+            importantForAccessibility={open ? 'auto' : 'no-hide-descendants'} style={StyleSheet.absoluteFill}>
+            <InteriorArea area={area} layout={layout} now={now} selected={selectedAreaId === area.id} storageMode={group.body.storageMode}
+              selectedPositionId={selectedAreaId === area.id ? selectedPositionId : undefined}
+              selectedSlotIndex={selectedAreaId === area.id ? selectedSlotIndex : undefined} disabled={!onSelectArea && !open}
+              onSelectSlot={onSelectSlot && (!onSelectArea || open && selectedSlotIndex !== undefined)
+                ? (index, positionId) => { if (open) onSelectSlot(area.id, index, positionId); } : undefined}
+              cornerStyle={bodyCorners} compact={body.width < 120} onSelectArea={onSelectArea} />
+          </View>
+        </Animated.View>
         {doors.map(({ door, frame, pocket, unfoldOffset }) => {
           const gridEdges = getGridEdges(row, rowIndex, draft.rows.length, [door.id]);
           return (
             <FridgeDoor key={door.id} door={door} label={`${getDraftAreaLocation(row, rowIndex, door.id, t)} ${t(areaNames[door.side])}`}
-              phase={phase} progress={progress} bodyWidth={body.width} gridEdges={gridEdges}
+              phase={phase} progress={progress} bodyWidth={body.width} gridEdges={gridEdges} doorGaps={doorGaps}
               sourceSize={{ width: body.fromWidth * frame.width / body.width, height: body.fromHeight }}
               selected={target.returnAreaId === group.body.id || group.body.doorIds.includes(target.returnAreaId)}
               storageMode={group.body.storageMode}
@@ -665,7 +677,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
                 selected={selectedAreaId === door.id} storageMode={group.body.storageMode} compact={pocket.frame.width < 120}
                 selectedSlotIndex={!onSelectArea && selectedAreaId === door.id ? selectedSlotIndex : undefined} disabled={!onSelectArea && !open}
                 onSelectSlot={!onSelectArea && onSelectSlot ? (index, positionId) => { if (open) onSelectSlot(door.id, index, positionId); } : undefined}
-                cornerStyle={getGridCorners(gridEdges, true)} onSelectArea={onSelectArea} /> : null}
+                cornerStyle={doorGaps ? HOME_DOOR_CORNERS : getGridCorners(gridEdges, true)} onSelectArea={onSelectArea} /> : null}
             </FridgeDoor>
           );
         })}
@@ -719,7 +731,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
 
 /** 닫힌 도면은 공통 크기 기준으로 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
 export function FridgeInteriorMap({ draft, ingredients, now, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false, layoutSize,
-  scrollVertically = false, onCanvasOffsetChange }: FridgeInteriorMapProps) {
+  scrollVertically = false, onCanvasOffsetChange, doorGaps }: FridgeInteriorMapProps) {
   const { t } = useTranslation();
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const size = layoutSize ?? viewportSize;
@@ -736,7 +748,7 @@ export function FridgeInteriorMap({ draft, ingredients, now, selectedAreaId, onS
         return rowGeometry.groups.map(group => (
           <FridgeCompartment key={group.body.id} group={group} row={draft.rows[rowIndex]} rowIndex={rowIndex} rowCount={draft.rows.length} layout={layout} now={now}
             selectedAreaId={selectedAreaId} focus={focus} onFocus={onFocus} width={mapWidth} top={bounds.top} height={bounds.height} canvasHeight={mapHeight}
-            onSelectArea={onSelectArea} />
+            onSelectArea={onSelectArea} doorGaps={doorGaps} />
         ));
       }) : null}
     </View>
