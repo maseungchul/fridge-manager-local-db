@@ -49,7 +49,7 @@ export function Toast({ message, icon, duration = FADE_IN_DURATION + HOLD_DURATI
   return (
     <Animated.View pointerEvents="none" accessibilityElementsHidden={accessibilityHidden}
       importantForAccessibility={accessibilityHidden ? 'no-hide-descendants' : 'auto'} style={[styles.toast, { opacity }]}>
-      <MaterialDesignIcons name={icon} size={20} color={colors.buttonText} accessible={false} />
+      <MaterialDesignIcons name={icon} size={icon === 'check-circle-outline' ? 16 : 20} color={colors.buttonText} accessible={false} />
       <Text style={styles.message} accessibilityRole={accessibilityHidden ? undefined : 'alert'}
         accessibilityLiveRegion={accessibilityHidden ? 'none' : 'polite'}>{message}</Text>
     </Animated.View>
@@ -61,3 +61,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(34, 35, 31, 0.86)' },
   message: { flexShrink: 1, color: colors.buttonText, fontSize: 13, lineHeight: 18 },
 });
+
