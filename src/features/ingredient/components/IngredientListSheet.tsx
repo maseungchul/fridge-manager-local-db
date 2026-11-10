@@ -418,7 +418,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="default" onPress={() => requestRemoval('consume')} style={styles.selectionAction}>
-                            <MaterialDesignIcons name="silverware-fork-knife" size={24} color={colors.text} accessible={false} />
+                            <MaterialDesignIcons name="check-circle-outline" size={24} color={colors.text} accessible={false} />
                             <Text style={styles.selectionActionLabel}>{t('ingredient.consume')}</Text>
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.deleteSelected')}
