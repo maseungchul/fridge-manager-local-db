@@ -348,7 +348,7 @@ export function RefrigeratorRegistrationScreen({
               accessibilityHint={t('fridge.goHomeHint')}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
               disabled={isSaving || isStepChanging || isFocusMoving} onPress={cancelRegistration}>
-              <MaterialDesignIcons name="home" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+              <MaterialDesignIcons name="home-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : null}
         </View>
