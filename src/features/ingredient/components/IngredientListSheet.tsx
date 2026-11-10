@@ -14,6 +14,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Toast } from '@/components/Toast';
+import { useToast } from '@/components/ToastProvider';
 import { alertTitles } from '@/constants/alertTitles';
 import { consumeIngredients, deleteIngredients, getIngredientsByPosition, moveIngredients } from '@/db/ingredientRepository';
 import type { FridgeLayout, SlotPosition } from '@/features/fridge/model/fridgeLayout';
@@ -40,6 +41,7 @@ interface IngredientListSheetProps {
 
 export function IngredientListSheet({ position, layout, allIngredients = [], initialIndex, onIndexChange, onClose, onOpenForm, onDeleted, onMoved }: IngredientListSheetProps) {
   const { t } = useTranslation();
+  const showToast = useToast();
   const insets = useSafeAreaInsets();
   const db = useSQLiteContext();
   const moveQueue = useIngredientMoveQueue();
@@ -57,7 +59,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const [isOpeningForm, setIsOpeningForm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
-  const [notice, setNotice] = useState<{ kind: 'move'; count: number } | { kind: 'consume'; id: string } | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'consume'; id: string } | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const isBusy = isOpeningForm || isDeleting || isMoving;
@@ -233,7 +235,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
       onMoved?.(moved);
       moveQueue.clear();
       setReloadCount(count => count + 1);
-      setNotice({ kind: 'move', count: moved.length });
+      showToast(t('queue.moved', { count: moved.length }));
     } catch {
       Alert.alert(t(alertTitles.error), t('queue.moveError'), [{ text: t('common.ok') }]);
     } finally {
@@ -438,8 +440,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
             </Animated.View>
           </View>
           {notice ? <View pointerEvents="none" style={styles.notice}>
-            <Toast key={notice.kind === 'move' ? `move:${notice.count}` : notice.id}
-              message={notice.kind === 'move' ? t('queue.moved', { count: notice.count }) : t('ingredient.consumed')} icon="check-circle-outline"
+            <Toast key={notice.id}
+              message={t('ingredient.consumed')} icon="check-circle-outline"
               onDismiss={() => setNotice(current => current === notice ? null : current)} />
           </View> : null}
         </View>
