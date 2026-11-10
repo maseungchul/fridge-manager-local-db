@@ -7,6 +7,7 @@ export const ko = {
   'common.loading': '불러오는 중',
   'common.error': '오류',
   'common.ok': '확인',
+  'common.close': '닫기',
   'common.required': '필수',
   'tabs.fridge': '냉장고',
   'tabs.shopping': '장보기',

@@ -9,6 +9,7 @@ export const ja: Record<keyof typeof ko, string> = {
   'common.loading': '読み込み中',
   'common.error': 'エラー',
   'common.ok': '確認',
+  'common.close': '閉じる',
   'common.required': '必須',
   'tabs.fridge': '冷蔵庫',
   'tabs.shopping': '買い物',

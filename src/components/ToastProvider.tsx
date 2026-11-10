@@ -7,12 +7,14 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Toast } from '@/components/Toast';
+import { useTranslation } from '@/i18n/LanguageProvider';
 
 const ToastContext = createContext<(message: string) => void>(() => {});
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const showToast = useCallback((message: string) => {
     setNotice(previous => ({ id: (previous?.id ?? 0) + 1, message }));
   }, []);
@@ -20,8 +22,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={showToast}>
       {children}
-      {notice && <View pointerEvents="none" style={[styles.overlay, { top: insets.top + 12 }]}>
-        <Toast key={notice.id} message={notice.message} icon="check-circle-outline" onDismiss={() => setNotice(null)} />
+      {notice && <View pointerEvents="box-none" style={[styles.overlay, { top: insets.top + 12 }]}>
+        <Toast key={notice.id} message={notice.message} icon="check-circle-outline" variant="success" duration={5400} closeLabel={t('common.close')} onDismiss={() => setNotice(null)} />
       </View>}
     </ToastContext.Provider>
   );
