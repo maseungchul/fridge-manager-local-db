@@ -78,7 +78,7 @@ function TooltipBubble({ anchor, label, gap = 8, onDismiss }: ButtonTooltipProps
   const bottomEdge = Math.min(height - insets.bottom, Keyboard.metrics()?.screenY ?? height) - 8;
   const above = anchor.y - topEdge;
   const below = bottomEdge - anchor.y - anchor.height;
-  const showBelow = below >= size.height + gap || below >= above;
+  const showBelow = above < size.height + gap && (below >= size.height + gap || below > above);
   const center = anchor.x + anchor.width / 2;
   const left = Math.max(insets.left + 8, Math.min(center - size.width / 2, width - insets.right - size.width - 8));
   const top = Math.max(topEdge, Math.min(showBelow ? anchor.y + anchor.height + gap : anchor.y - size.height - gap,
