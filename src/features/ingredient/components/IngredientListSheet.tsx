@@ -258,13 +258,13 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                   {secondary === isSecondaryOpen || isChanging ? (
                     <View style={styles.header}>
                       {secondary ? (
-                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
+                        <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
                           disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
                           onPress={returnToList} style={styles.headerIconButton}>
                           <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
-                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t(isSelecting ? allSelected ? 'ingredient.deselectAll' : 'ingredient.selectAll' : 'ingredient.select')}
+                        <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t(isSelecting ? allSelected ? 'ingredient.deselectAll' : 'ingredient.selectAll' : 'ingredient.select')}
                           disabled={isBusy || isLoading || error !== null || ingredients.length === 0} interactionBlocked={isChanging}
                           onPress={() => {
                             if (!canChangeSelection()) return;
@@ -279,7 +279,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           style={styles.title}>{secondary ? t('queue.title', { count: queuedIngredients.length }) : t('ingredient.list')}</Text>
                       </View>
                       {secondary ? (
-                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.clear')}
+                        <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('queue.clear')}
                           disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                           accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
                           onPress={() => { if (!formRequest.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
@@ -287,12 +287,12 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : isSelecting ? (
-                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
+                        <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
                           disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={styles.headerIconButton}>
                           <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
-                        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
+                        <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
                           accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
                           interactionBlocked={isChanging} onPress={() => openForm()} style={styles.headerIconButton}>
                           <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />

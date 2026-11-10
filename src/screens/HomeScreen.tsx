@@ -256,7 +256,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                     <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.fridge')}</Text>
                     {refrigerator && <Text numberOfLines={1} ellipsizeMode="tail" accessibilityLabel={refrigerator.name} style={styles.refrigeratorName}>{refrigerator.name}</Text>}
                   </View>
-                  {refrigerator && <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('fridge.edit')} style={styles.headerIconButton}
+                  {refrigerator && <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('fridge.edit')} style={styles.headerIconButton}
                     onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
                     <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
                   </FeedbackPressable>}
@@ -321,14 +321,14 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                     transform: [{ translateX: toolbarProgress.interpolate({ inputRange: [0, 1], outputRange: [toolbarWidth, 0] }) }] }]}
                     pointerEvents={canUseToolbar ? 'box-none' : 'none'} accessibilityElementsHidden={!canUseToolbar}
                     importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
-                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('legend.open')}
+                    <FeedbackPressable tooltip tooltipGap={14} accessibilityRole="button" accessibilityLabel={t('legend.open')}
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
                       style={[styles.action, styles.homeAction]} hitSlop={4}>
                       <MaterialDesignIcons name="information-outline" size={18} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>{t('legend.label')}</Text>
                     </FeedbackPressable>
-                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.open')}
+                    <FeedbackPressable tooltip tooltipGap={14} accessibilityRole="button" accessibilityLabel={t('queue.open')}
                       accessibilityHint={hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : t('queue.emptyDescription')}
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
