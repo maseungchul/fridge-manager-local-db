@@ -20,7 +20,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={showToast}>
       {children}
-      {notice && <View pointerEvents="none" style={[styles.overlay, { bottom: insets.bottom + 24 }]}>
+      {notice && <View pointerEvents="none" style={[styles.overlay, { top: insets.top + 12 }]}>
         <Toast key={notice.id} message={notice.message} icon="check-circle-outline" onDismiss={() => setNotice(null)} />
       </View>}
     </ToastContext.Provider>
@@ -34,3 +34,4 @@ export function useToast() {
 const styles = StyleSheet.create({
   overlay: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 1000 },
 });
+
