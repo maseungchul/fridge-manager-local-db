@@ -19,8 +19,6 @@ interface ToastProps {
   onDismiss: () => void;
 }
 
-const SUCCESS_BACKGROUND = '#173522';
-const SUCCESS_FOREGROUND = '#45EF85';
 const FADE_IN_DURATION = 200;
 const HOLD_DURATION = 2500;
 const FADE_OUT_DURATION = 200;
@@ -53,11 +51,11 @@ export function Toast({ message, icon, duration = FADE_IN_DURATION + HOLD_DURATI
   return (
     <Animated.View pointerEvents={closeLabel ? "box-none" : "none"} accessibilityElementsHidden={accessibilityHidden}
       importantForAccessibility={accessibilityHidden ? 'no-hide-descendants' : 'auto'} style={[styles.toast, variant === 'success' && styles.successToast, { opacity }]}>
-      <MaterialDesignIcons name={icon} size={icon === 'check-circle-outline' ? 16 : 20} color={variant === 'success' ? SUCCESS_FOREGROUND : colors.buttonText} accessible={false} />
+      <MaterialDesignIcons name={icon} size={icon === 'check-circle-outline' ? 16 : 20} color={variant === 'success' ? colors.noticeForeground : colors.buttonText} accessible={false} />
       <Text style={[styles.message, variant === 'success' && styles.successMessage]} accessibilityRole={accessibilityHidden ? undefined : 'alert'}
         accessibilityLiveRegion={accessibilityHidden ? 'none' : 'polite'}>{message}</Text>
       {closeLabel && <Pressable accessibilityRole="button" accessibilityLabel={closeLabel} onPress={onDismiss} hitSlop={8}>
-        <MaterialDesignIcons name="close" size={16} color={SUCCESS_FOREGROUND} accessible={false} />
+        <MaterialDesignIcons name="close" size={16} color={colors.noticeForeground} accessible={false} />
       </Pressable>}
     </Animated.View>
   );
@@ -66,8 +64,8 @@ export function Toast({ message, icon, duration = FADE_IN_DURATION + HOLD_DURATI
 const styles = StyleSheet.create({
   toast: { maxWidth: '90%', flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(34, 35, 31, 0.86)' },
-  successToast: { backgroundColor: SUCCESS_BACKGROUND, borderWidth: 1, borderColor: SUCCESS_FOREGROUND },
-  successMessage: { color: SUCCESS_FOREGROUND, fontWeight: '600' },
+  successToast: { backgroundColor: colors.noticeBackground, borderWidth: 1, borderColor: colors.noticeForeground },
+  successMessage: { color: colors.noticeForeground, fontWeight: '600' },
   message: { flexShrink: 1, color: colors.buttonText, fontSize: 13, lineHeight: 18 },
 });
 
