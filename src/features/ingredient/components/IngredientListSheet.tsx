@@ -405,26 +405,27 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                         )}
                       </View>
                       {!secondary && isSelecting ? (
-                        <View style={[styles.selectionToolbar, { paddingBottom: spacing.sm + insets.bottom }]}>
+                        <View style={[styles.selectionToolbar, { height: 50 + insets.bottom, paddingBottom: insets.bottom,
+                          paddingLeft: spacing.sm + insets.left, paddingRight: spacing.sm + insets.right }]}>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.enqueueSelected')}
                             disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="default" onPress={enqueueSelectedIngredients} style={styles.selectionAction}>
-                            <MaterialDesignIcons name="clipboard-plus-outline" size={22} color={colors.chilled} accessible={false} />
+                            <MaterialDesignIcons name="clipboard-plus-outline" size={24} color={colors.text} accessible={false} />
                             <Text style={styles.selectionActionLabel}>{t('ingredient.enqueueLabel')}</Text>
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.consumeSelected')}
                             disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="default" onPress={() => requestRemoval('consume')} style={styles.selectionAction}>
-                            <MaterialDesignIcons name="silverware-fork-knife" size={22} color={colors.chilled} accessible={false} />
+                            <MaterialDesignIcons name="silverware-fork-knife" size={24} color={colors.text} accessible={false} />
                             <Text style={styles.selectionActionLabel}>{t('ingredient.consume')}</Text>
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.deleteSelected')}
                             disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="danger" onPress={() => requestRemoval('delete')} style={styles.selectionAction}>
-                            <MaterialDesignIcons name="trash-can-outline" size={22} color={colors.error} accessible={false} />
+                            <MaterialDesignIcons name="trash-can-outline" size={24} color={colors.error} accessible={false} />
                             <Text style={[styles.selectionActionLabel, styles.deleteLabel]}>{t('common.delete')}</Text>
                           </FeedbackPressable>
                         </View>
@@ -461,10 +462,10 @@ const styles = StyleSheet.create({
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
-  selectionToolbar: { flexDirection: 'row', flexShrink: 0, paddingTop: spacing.sm, paddingHorizontal: spacing.sm,
+  selectionToolbar: { flexDirection: 'row', flexShrink: 0,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface },
-  selectionAction: { flex: 1, minHeight: 52, padding: spacing.xs, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
-  selectionActionLabel: { color: colors.chilled, fontSize: 13, textAlign: 'center', fontWeight: '600' },
+  selectionAction: { flex: 1, minHeight: 48, marginHorizontal: spacing.xs, paddingTop: spacing.xs, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  selectionActionLabel: { color: colors.text, fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: '600' },
   deleteLabel: { color: colors.error },
   selectableItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   selectedItem: { backgroundColor: colors.chilledBackground },
