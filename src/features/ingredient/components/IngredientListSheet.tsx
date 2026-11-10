@@ -270,8 +270,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             if (!canChangeSelection()) return;
                             if (!isSelecting) toggleSelectionMode();
                             else setSelectedIds(allSelected ? [] : ingredients.map(item => item.id));
-                          }} style={styles.selectionHeaderButton}>
-                          <Text numberOfLines={1} adjustsFontSizeToFit style={styles.selectionLabel}>{t(isSelecting ? allSelected ? 'ingredient.deselectAll' : 'ingredient.selectAll' : 'ingredient.select')}</Text>
+                          }} style={styles.headerIconButton}>
+                          <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       )}
                       <View style={styles.heading}>
@@ -288,13 +288,13 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                         </FeedbackPressable>
                       ) : isSelecting ? (
                         <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
-                          disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={styles.selectionHeaderButton}>
-                          <Text style={styles.selectionLabel}>{t('common.cancel')}</Text>
+                          disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={styles.headerIconButton}>
+                          <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
                         <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
                           accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
-                          interactionBlocked={isChanging} onPress={() => openForm()} style={[styles.headerIconButton, styles.selectionHeaderButton]}>
+                          interactionBlocked={isChanging} onPress={() => openForm()} style={styles.headerIconButton}>
                           <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       )}
@@ -384,8 +384,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                                   disabled={isBusy} interactionBlocked={isChanging}
                                   onPress={() => { if (isSelecting) toggleIngredient(item.id); else openForm(item); }}
                                   style={[styles.item, isSelecting && styles.selectableItem, isSelecting && selectedIds.includes(item.id) && styles.selectedItem]}>
-                                  {isSelecting ? <MaterialDesignIcons name={selectedIds.includes(item.id) ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
-                                    size={24} color={selectedIds.includes(item.id) ? colors.chilled : colors.textMuted} accessible={false} /> : null}
+                                  {isSelecting ? selectedIds.includes(item.id) ? (
+                                    <MaterialDesignIcons name="checkbox-marked-circle" size={24} color={colors.chilled} accessible={false} />
+                                  ) : <View style={styles.selectionCircleContainer}><View style={styles.selectionCircle} /></View> : null}
                                   <View style={styles.itemDetails}>
                                     <View style={styles.itemHeader}>
                                       <View style={styles.itemTitle}>
@@ -458,8 +459,8 @@ const styles = StyleSheet.create({
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
   title: { ...headerStyles.title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  selectionHeaderButton: { width: 72, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  selectionLabel: { color: colors.chilled, fontSize: 14, fontWeight: '600' },
+  selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
   selectionToolbar: { flexDirection: 'row', flexShrink: 0, paddingTop: spacing.sm, paddingHorizontal: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface },
   selectionAction: { flex: 1, minHeight: 52, padding: spacing.xs, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
