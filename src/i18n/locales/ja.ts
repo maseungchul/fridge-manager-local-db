@@ -241,6 +241,7 @@ export const ja: Record<keyof typeof ko, string> = {
   'calendar.selectYearLabel': '{year}年を選択',
   'calendar.selectMonthLabel': '{year}年{month}月を選択',
   'calendar.today': '、今日',
+  'calendar.selectToday': '今日の日付を選択',
   'date.yearMonth': '{year}年{month}月',
   'date.year': '{year}年',
   'date.month': '{month}月',

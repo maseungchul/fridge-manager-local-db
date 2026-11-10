@@ -145,7 +145,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
               <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.selectDate')}
                 accessibilityState={{ disabled: isSaving, expanded: isDatePickerOpen }} disabled={isSaving}
                 onPress={toggleDatePicker} style={styles.dateButton}>
-                <MaterialDesignIcons name="calendar-outline" size={22} color={colors.text} accessible={false} />
+                <MaterialDesignIcons name="calendar-month" size={22} color={colors.text} accessible={false} />
                 <Text style={styles.date}>{draft.expirationDate ? formatDate(draft.expirationDate, t) : t('ingredient.datePlaceholder')}</Text>
               </FeedbackPressable>
               {draft.expirationDate ? (
@@ -157,7 +157,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                     setDraft(current => ({ ...current, expirationDate: null }));
                     setIsDatePickerOpen(false);
                   }}>
-                  <MaterialDesignIcons name="calendar-remove-outline" size={24} color={colors.text} accessible={false} />
+                  <MaterialDesignIcons name="calendar-remove" size={24} color={colors.text} accessible={false} />
                 </FeedbackPressable>
               ) : null}
             </View>

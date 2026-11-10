@@ -239,6 +239,7 @@ export const ko = {
   'calendar.selectYearLabel': '{year}년 선택',
   'calendar.selectMonthLabel': '{year}년 {month}월 선택',
   'calendar.today': ', 오늘',
+  'calendar.selectToday': '오늘 날짜 선택',
   'date.yearMonth': '{year}년 {month}월',
   'date.year': '{year}년',
   'date.month': '{month}월',

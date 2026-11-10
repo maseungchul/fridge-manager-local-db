@@ -49,6 +49,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
   const yearStart = Math.floor((month.year - 1) / 12) * 12 + 1;
   const firstWeekday = getCalendarDate(month.year, month.month, 1).getDay();
   const dayCount = getCalendarDate(month.year, month.month + 1, 0).getDate();
+  const calendarCellCount = Math.ceil((firstWeekday + dayCount) / 7) * 7;
   const previousDisabled = disabled || (view === 'days' ? month.year === MIN_YEAR && month.month === 0
     : view === 'months' ? month.year === MIN_YEAR : yearStart === MIN_YEAR);
   const nextDisabled = disabled || (view === 'days' ? month.year === MAX_YEAR && month.month === 11
@@ -89,13 +90,6 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
         <View style={styles.popup}>
           <ScrollView style={styles.scroll} contentContainerStyle={styles.content} bounces={false} keyboardShouldPersistTaps="handled">
             <View style={styles.header}>
-              <Text accessibilityRole="header" style={styles.title}>{t('calendar.title')}</Text>
-              <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('calendar.closeButton')}
-                onPress={() => closeCalendar()} style={styles.iconButton}>
-                <MaterialDesignIcons name="close" size={22} color={colors.textMuted} accessible={false} />
-              </FeedbackPressable>
-            </View>
-            <View style={styles.header}>
               <FeedbackPressable accessibilityRole="button"
                 accessibilityLabel={view === 'days' ? t('calendar.previousMonth') : view === 'months' ? t('calendar.previousYear') : t('calendar.previousYears')}
                 accessibilityState={{ disabled: previousDisabled }} disabled={previousDisabled}
@@ -123,9 +117,8 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                   {weekdays.map((day, index) => <Text key={day} style={[styles.weekday,
                     index === 0 && styles.sunday, index === 6 && styles.saturday]} maxFontSizeMultiplier={1.2}>{day}</Text>)}
                 </View>
-                {/* 여섯 주를 유지해 월을 바꿔도 달력 높이와 버튼 위치가 움직이지 않게 한다. */}
                 <View style={styles.grid}>
-                  {Array.from({ length: 42 }, (_, index) => {
+                  {Array.from({ length: calendarCellCount }, (_, index) => {
                     const day = index - firstWeekday + 1;
                     if (day < 1 || day > dayCount) return <View key={index} style={styles.dayCell} />;
                     const date = formatCalendarDate(month.year, month.month, day);
@@ -172,6 +165,15 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                 })}
               </View>
             )}
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('calendar.selectToday')}
+              accessibilityState={{ disabled }} disabled={disabled} style={styles.todayButton}
+              onPress={() => {
+                const date = new Date();
+                closeCalendar(formatCalendarDate(date.getFullYear(), date.getMonth(), date.getDate()));
+              }}>
+              <MaterialDesignIcons name="calendar-today" size={18} color={colors.chilled} accessible={false} />
+              <Text style={styles.todayButtonLabel}>{t('calendar.selectToday')}</Text>
+            </FeedbackPressable>
           </ScrollView>
         </View>
       </View>
@@ -185,11 +187,13 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 0, flexShrink: 1 },
   content: { padding: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
-  title: { flex: 1, color: colors.text, fontSize: 18, fontWeight: '700' },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   periodButton: { flex: 1, minHeight: 44, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   period: { flex: 1, color: colors.chilled, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   periodText: { color: colors.chilled, fontSize: 17, fontWeight: '600' },
+  todayButton: { minHeight: 44, paddingHorizontal: spacing.md, alignSelf: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: 22 },
+  todayButtonLabel: { color: colors.chilled, fontSize: 14, fontWeight: '600' },
   weekdays: { flexDirection: 'row', height: 24, alignItems: 'center' },
   weekday: { width: `${100 / 7}%`, color: colors.textMuted, fontSize: 12, textAlign: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
