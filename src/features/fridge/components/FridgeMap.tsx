@@ -402,9 +402,9 @@ const styles = StyleSheet.create({
   },
   doorHandle: {
     position: 'absolute',
-    width: 8,
+    width: 6,
     height: fridgeSurfaces.handleLength,
-    borderRadius: 4,
+    borderRadius: 3,
   },
   horizontalHandle: {
     left: 0,
@@ -430,9 +430,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
-    width: 8,
+    width: 6,
     height: fridgeSurfaces.handleLength,
-    borderRadius: 4,
+    borderRadius: 3,
     backgroundColor: fridgeSurfaces.handle,
   },
   compactPosition: {
