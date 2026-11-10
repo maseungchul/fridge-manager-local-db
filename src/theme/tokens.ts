@@ -79,14 +79,14 @@ export const fridgeSurfaces = {
 // 선택 배경은 본체 바탕에 ink를 20% 합성한 고정색으로 두어 포켓에서도 같은 색을 표시한다.
 export const fridgeDoorColors = {
   CHILLED: {
-    background: '#D4E6DB', border: '#BED8CB', ink: '#416B57', motif: '#648F7A',
-    frame: '#CEDFD5', shelf: '#92B5A2', pocket: '#F1FAF4CC', handle: '#B4CBC0',
-    selection: '#B2C8BC',
+    background: '#DDE3DF', border: '#CBD6CF', ink: '#50685C', motif: '#7A9084',
+    frame: '#D6DED9', shelf: '#A4B7AC', pocket: '#F6FAF7CC', handle: '#C0CDC5',
+    selection: '#BBC6C0',
   },
   FROZEN: {
-    background: '#D3E4F1', border: '#BDD7E8', ink: '#396B90', motif: '#648FAF',
-    frame: '#CEDFEC', shelf: '#94B8D2', pocket: '#F1F9FFCC', handle: '#B5CBD9',
-    selection: '#B0C8DA',
+    background: '#DDE3E7', border: '#CBD5DB', ink: '#506979', motif: '#7B909D',
+    frame: '#D6DEE4', shelf: '#A4B6C2', pocket: '#F6F9FBCC', handle: '#C0CDD4',
+    selection: '#BBC6CF',
   },
 } as const;
 
