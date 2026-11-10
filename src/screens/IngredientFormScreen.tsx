@@ -1,6 +1,6 @@
 /**
  * @file
- * 재료 추가·편집을 독립 화면에서 처리하고 키보드에 맞춰 입력 영역만 스크롤한다.
+ * 재료 등록·편집을 독립 화면에서 처리하고 키보드에 맞춰 입력 영역만 스크롤한다.
  * 입력 초안·저장 결과는 홈 복귀에 사용하며, 성공 알림을 확인할 때까지 저장 잠금을 유지한다.
  */
 import { usePreventRemove } from '@react-navigation/native';
@@ -112,7 +112,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
           {/* 고정 헤더는 직접 자식의 스타일을 옮기므로 가로 배치는 내부 View에 둔다. */}
           <View>
             <Pressable style={styles.header} onPress={Keyboard.dismiss} accessible={false}>
-              <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.formBack')}
+              <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
                 disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={styles.headerIconButton}>
                 <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
               </FeedbackPressable>

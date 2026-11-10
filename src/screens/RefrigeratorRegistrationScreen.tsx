@@ -341,7 +341,7 @@ export function RefrigeratorRegistrationScreen({
             accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
             disabled={isSaving || isStepChanging || isFocusMoving}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
-            <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+            <MaterialDesignIcons name={step === 'basic' && isEditing ? 'close' : 'arrow-left'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
           {step === 'configuration' ? (
             <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('fridge.goHome')}
@@ -363,7 +363,7 @@ export function RefrigeratorRegistrationScreen({
               <MaterialDesignIcons name="arrow-right" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : (
-            <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={isEditing ? t('common.save') : t('common.register')}
+            <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={isEditing ? t('fridge.saveEdit') : t('fridge.register')}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving, busy: isSaving }}
               disabled={isSaving} interactionBlocked={isStepChanging || isFocusMoving} onPress={saveRegistration} style={styles.headerIconButton}>
               {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={t('fridge.saving')} />
