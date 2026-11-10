@@ -11,6 +11,7 @@ import { DatabaseProvider } from '@/db/DatabaseProvider';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { IngredientMoveQueueProvider } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { LanguageProvider } from '@/i18n/LanguageProvider';
+import { ToastProvider } from '@/components/ToastProvider';
 import { ButtonTooltipProvider } from '@/components/ButtonTooltip';
 
 export default function App() {
@@ -19,15 +20,17 @@ export default function App() {
       <SafeAreaProvider>
         <LanguageProvider>
           <DatabaseProvider>
-            <NavigationContainer>
-              <IngredientMoveQueueProvider>
-                <ButtonTooltipProvider>
-                  <BottomSheetModalProvider>
-                    <RootNavigator />
-                  </BottomSheetModalProvider>
-                </ButtonTooltipProvider>
-              </IngredientMoveQueueProvider>
-            </NavigationContainer>
+            <ToastProvider>
+              <NavigationContainer>
+                <IngredientMoveQueueProvider>
+                  <ButtonTooltipProvider>
+                    <BottomSheetModalProvider>
+                      <RootNavigator />
+                    </BottomSheetModalProvider>
+                  </ButtonTooltipProvider>
+                </IngredientMoveQueueProvider>
+              </NavigationContainer>
+            </ToastProvider>
           </DatabaseProvider>
         </LanguageProvider>
         <StatusBar style="dark" />

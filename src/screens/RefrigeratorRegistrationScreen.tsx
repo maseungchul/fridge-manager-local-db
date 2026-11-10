@@ -4,7 +4,7 @@
  * 단별 문 개수로 배치를 만들고 문 수납·본체 연결·내부 칸 설정을 제공한다.
  * 여는 방식·보관 모드·칸·본체 연결을 하단 카테고리에서 편집하고 초안에 즉시 반영한다.
  * 단계 이동·등록은 상단 헤더에, 편집 툴바는 화면 하단에 고정한다.
- * 편집은 저장된 구성을 불러오며, 전체 저장 실패 시 입력을 유지하고 성공 알림 확인 후 홈으로 돌아간다.
+ * 편집은 저장된 구성을 불러오며, 전체 저장 실패 시 입력을 유지하고 성공 안내를 표시하고 홈으로 돌아간다.
  * 편집 화면의 이름 변경은 구조 초안을 유지한 채 별도로 저장한다.
  * 재료의 보관 위치를 없애거나 숨기는 변경은 초안에 반영하기 전에 안내한다.
  * 내부 설정의 홈 아이콘은 상단 뒤로가기 오른쪽에 배치하고 저장하지 않은 초안을 종료한다.
@@ -17,6 +17,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { ActivityIndicator, Alert, Animated, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useToast } from '@/components/ToastProvider';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
@@ -59,6 +60,7 @@ export function RefrigeratorRegistrationScreen({
   route,
 }: RefrigeratorRegistrationScreenProps) {
   const { t } = useTranslation();
+  const showToast = useToast();
   const refrigeratorId = route?.params?.refrigeratorId;
   const isEditing = refrigeratorId !== undefined;
   const db = useSQLiteContext();
@@ -180,7 +182,7 @@ export function RefrigeratorRegistrationScreen({
       const name = await updateRefrigeratorName(db, refrigeratorId, draft.name);
       setDraft(current => ({ ...current, name }));
       setSavedName(name);
-      Alert.alert(t(alertTitles.info), t(fridgeMessages.nameChangeSuccess), [{ text: t('common.ok') }]);
+      showToast(t(fridgeMessages.nameChangeSuccess));
     } catch (error) {
       Alert.alert(t(alertTitles.error),
         getErrorMessage(error, t, t(fridgeMessages.nameChangeFailure)), [{ text: t('common.ok') }]);
@@ -207,12 +209,9 @@ export function RefrigeratorRegistrationScreen({
         getErrorMessage(error, t, t(fridgeMessages.saveFailure)), [{ text: t('common.ok') }]);
       return;
     }
-    // 성공 알림을 확인할 때까지 저장 잠금을 유지해 중복 저장과 화면 이동을 막는다.
-    Alert.alert(t(alertTitles.info), t(isEditing ? fridgeMessages.updateSuccess : fridgeMessages.registrationSuccess),
-      [{ text: t('common.ok'), onPress: () => {
-        leaveRequested.current = true;
-        navigation.goBack();
-      } }], { cancelable: false });
+    leaveRequested.current = true;
+    navigation.goBack();
+    showToast(t(isEditing ? fridgeMessages.updateSuccess : fridgeMessages.registrationSuccess));
   }
 
   // 두 단계의 초안을 공유하며, 들어올 단계의 스크롤만 초기화하고 본문을 좌우로 이동한다.

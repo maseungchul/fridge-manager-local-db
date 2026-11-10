@@ -1,18 +1,18 @@
 /**
  * @file
  * 재료 등록·편집을 독립 화면에서 처리하고 키보드에 맞춰 입력 영역만 스크롤한다.
- * 입력 초안·저장 결과는 홈 복귀에 사용하며, 성공 알림을 확인할 때까지 저장 잠금을 유지한다.
+ * 입력 초안·저장 결과는 홈 복귀에 사용하며, 저장 성공 시 안내를 표시하고 이전 화면으로 돌아간다.
  */
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
-import { alertTitles } from '@/constants/alertTitles';
+import { useToast } from '@/components/ToastProvider';
 import { registerIngredient, updateIngredient } from '@/db/ingredientRepository';
 import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
@@ -35,6 +35,7 @@ type IngredientFormScreenProps = NativeStackScreenProps<RootStackParamList, 'Ing
 
 export function IngredientFormScreen({ navigation, route, onResultChange }: IngredientFormScreenProps) {
   const { t } = useTranslation();
+  const showToast = useToast();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const { position, ingredient: editingIngredient } = route.params;
@@ -95,11 +96,9 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
     }
     savedIngredient.current = ingredient;
     onResultChange({ draft, isEditing, savedIngredient: ingredient });
-    Alert.alert(t(alertTitles.info), isEditing ? t('ingredient.updated') : t('ingredient.registered'), [{ text: t('common.ok'), onPress: () => {
-      if (!saving.current || leaving.current) return;
-      leaving.current = true;
-      navigation.goBack();
-    } }], { cancelable: false });
+    leaving.current = true;
+    navigation.goBack();
+    showToast(isEditing ? t('ingredient.updated') : t('ingredient.registered'));
   }
 
   return (
