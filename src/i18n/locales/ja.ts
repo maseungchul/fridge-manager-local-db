@@ -16,7 +16,7 @@ export const ja: Record<keyof typeof ko, string> = {
   'tabs.more': 'その他',
   'more.back': 'その他に戻る',
   'settings.title': '設定',
-  'settings.theme': '画面テーマ',
+  'settings.theme': 'テーマ',
   'settings.themeLight': 'ライト',
   'settings.themeDark': 'ダーク',
   'settings.themeSaveError': '画面テーマを保存できませんでした。もう一度お試しください。',

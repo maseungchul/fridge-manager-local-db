@@ -14,7 +14,7 @@ export const ko = {
   'tabs.more': '더보기',
   'more.back': '더보기로 돌아가기',
   'settings.title': '설정',
-  'settings.theme': '화면 테마',
+  'settings.theme': '테마',
   'settings.themeLight': '라이트',
   'settings.themeDark': '다크',
   'settings.themeSaveError': '화면 테마를 저장하지 못했습니다. 다시 시도해 주세요.',
