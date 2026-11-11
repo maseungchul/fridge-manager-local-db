@@ -15,7 +15,7 @@ import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface IngredientMoveQueueSheetProps {
@@ -41,11 +41,11 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
   return (
     <IngredientSheet ref={sheet} disabled={false} onClose={onClose} header={
         <View style={styles.header}>
-          <View style={styles.clearButton} pointerEvents="none" />
+          <View style={[styles.clearButton, styles.leftSpacer]} pointerEvents="none" />
           <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{t('queue.title', { count: ingredients.length })}</Text>
           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
             disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
-            onPress={clear} style={styles.clearButton}>
+            onPress={clear} style={[styles.clearButton, styles.rightButton]}>
             <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
         </View>
@@ -62,4 +62,6 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   header: { ...getHeaderStyles(mode).header, justifyContent: 'space-between' },
   title: { ...getHeaderStyles(mode).title, flex: 1, textAlign: 'center' },
   clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  leftSpacer: { marginLeft: -HEADER_ICON_INSET },
+  rightButton: { marginRight: -HEADER_ICON_INSET },
 }));

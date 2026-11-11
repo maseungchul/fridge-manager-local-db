@@ -41,7 +41,7 @@ import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { AppError, getErrorMessage } from '@/i18n/errors';
@@ -337,7 +337,7 @@ export function RefrigeratorRegistrationScreen({
           disabled={isSaving || focusPhase !== 'open'} accessibilityState={{ disabled: isSaving || focusPhase !== 'open' }}
           pointerEvents={!isSaving && focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={isSaving || focusPhase !== 'open'}
           importantForAccessibility={!isSaving && focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
-        <View style={[styles.headerNavigation, step === 'configuration' && styles.headerHomeNavigation]}>
+        <View style={[styles.headerNavigation, styles.headerPreviousNavigation, step === 'configuration' && styles.headerHomeNavigation]}>
           <FeedbackPressable iconFeedback tooltip accessibilityRole="button"
             accessibilityLabel={step === 'basic' ? (isEditing ? t('fridge.cancelEdit') : t('fridge.cancelRegistration')) : t('fridge.backToBasic')}
             accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
@@ -615,8 +615,12 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   headerHomeNavigation: {
     width: FRIDGE_HEADER_BUTTON_SIZE * 2,
   },
+  headerPreviousNavigation: {
+    marginLeft: -HEADER_ICON_INSET,
+  },
   headerNextNavigation: {
     justifyContent: 'flex-end',
+    marginRight: -HEADER_ICON_INSET,
   },
   headerIconButton: {
     width: FRIDGE_HEADER_BUTTON_SIZE,

@@ -460,6 +460,7 @@ const getStyles = createThemedStyles(({ colors, fridgeDoorColors }, mode) => Sty
   headerIconButton: {
     width: FRIDGE_HEADER_BUTTON_SIZE,
     height: FRIDGE_HEADER_BUTTON_SIZE,
+    marginRight: -(FRIDGE_HEADER_BUTTON_SIZE - 24) / 2,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 24,

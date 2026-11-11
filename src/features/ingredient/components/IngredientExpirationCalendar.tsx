@@ -96,7 +96,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
               <FeedbackPressable iconFeedback accessibilityRole="button"
                 accessibilityLabel={view === 'days' ? t('calendar.previousMonth') : view === 'months' ? t('calendar.previousYear') : t('calendar.previousYears')}
                 accessibilityState={{ disabled: previousDisabled }} disabled={previousDisabled}
-                onPress={() => changePeriod(-1)} style={styles.iconButton}>
+                onPress={() => changePeriod(-1)} style={[styles.iconButton, styles.previousButton]}>
                 <MaterialDesignIcons name="chevron-left" size={24} color={colors.text} accessible={false} />
               </FeedbackPressable>
               {view === 'years' ? <Text accessibilityRole="header" style={styles.period}>{period}</Text> : (
@@ -110,7 +110,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
               <FeedbackPressable iconFeedback accessibilityRole="button"
                 accessibilityLabel={view === 'days' ? t('calendar.nextMonth') : view === 'months' ? t('calendar.nextYear') : t('calendar.nextYears')}
                 accessibilityState={{ disabled: nextDisabled }} disabled={nextDisabled}
-                onPress={() => changePeriod(1)} style={styles.iconButton}>
+                onPress={() => changePeriod(1)} style={[styles.iconButton, styles.nextButton]}>
                 <MaterialDesignIcons name="chevron-right" size={24} color={colors.text} accessible={false} />
               </FeedbackPressable>
             </View>
@@ -200,6 +200,8 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   content: { padding: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
   iconButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  previousButton: { marginLeft: -10 },
+  nextButton: { marginRight: -10 },
   periodButton: { flex: 1, minHeight: 44, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   period: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   periodText: { color: colors.text, fontSize: 17, fontWeight: '600' },

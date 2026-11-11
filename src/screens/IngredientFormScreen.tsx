@@ -20,7 +20,7 @@ import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
@@ -115,7 +115,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
           <View>
             <Pressable style={styles.header} onPress={Keyboard.dismiss} accessible={false}>
               <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
-                disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={styles.headerIconButton}>
+                disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
                 <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
               </FeedbackPressable>
               <View style={styles.heading}>
@@ -124,7 +124,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
               </View>
               <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={isEditing ? t('ingredient.saveEdit') : t('ingredient.register')}
                 accessibilityState={{ disabled: !canSave || isSaving, busy: isSaving }} disabled={!canSave || isSaving}
-                onPress={saveIngredient} style={styles.headerIconButton}>
+                onPress={saveIngredient} style={[styles.headerIconButton, styles.headerRightButton]}>
                 {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
                   : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
               </FeedbackPressable>
@@ -184,6 +184,8 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
   title: { ...getHeaderStyles(mode).title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  headerLeftButton: { marginLeft: -HEADER_ICON_INSET },
+  headerRightButton: { marginRight: -HEADER_ICON_INSET },
   form: { flexGrow: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
   date: { color: colors.text, fontSize: 16, flexShrink: 1 },

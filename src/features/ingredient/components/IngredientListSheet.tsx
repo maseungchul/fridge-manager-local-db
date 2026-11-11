@@ -23,7 +23,7 @@ import { IngredientMoveQueueList } from '@/features/ingredient/components/Ingred
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 
@@ -263,7 +263,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                       {secondary ? (
                         <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
                           disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
-                          onPress={returnToList} style={styles.headerIconButton}>
+                          onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
                           <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
@@ -273,7 +273,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             if (!canChangeSelection()) return;
                             if (!isSelecting) toggleSelectionMode();
                             else setSelectedIds(allSelected ? [] : ingredients.map(item => item.id));
-                          }} style={styles.headerIconButton}>
+                          }} style={[styles.headerIconButton, styles.headerLeftButton]}>
                           <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       )}
@@ -286,18 +286,18 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                           accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
                           onPress={() => { if (!formRequest.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
-                          style={styles.headerIconButton}>
+                          style={[styles.headerIconButton, styles.headerRightButton]}>
                           <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : isSelecting ? (
                         <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
-                          disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={styles.headerIconButton}>
+                          disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={[styles.headerIconButton, styles.headerRightButton]}>
                           <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
                         <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
                           accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
-                          interactionBlocked={isChanging} onPress={() => openForm()} style={styles.headerIconButton}>
+                          interactionBlocked={isChanging} onPress={() => openForm()} style={[styles.headerIconButton, styles.headerRightButton]}>
                           <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       )}
@@ -464,6 +464,8 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
   title: { ...getHeaderStyles(mode).title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  headerLeftButton: { marginLeft: -HEADER_ICON_INSET },
+  headerRightButton: { marginRight: -HEADER_ICON_INSET },
   selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
   selectionToolbar: { flexDirection: 'row', flexShrink: 0,

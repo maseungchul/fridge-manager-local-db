@@ -9,6 +9,7 @@ import { createThemedStyles, spacing } from '@/theme/tokens';
 export const HEADER_CONTENT_HEIGHT = 48;
 export const HEADER_HEIGHT = HEADER_CONTENT_HEIGHT + spacing.xs * 2 + StyleSheet.hairlineWidth;
 export const HEADER_ICON_SIZE = 28;
+export const HEADER_ICON_INSET = (HEADER_CONTENT_HEIGHT - HEADER_ICON_SIZE) / 2;
 
 export const getHeaderStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   header: {

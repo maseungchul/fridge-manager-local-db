@@ -105,7 +105,7 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   name: { color: colors.text, fontSize: 17, fontWeight: '600' },
   quantity: { fontWeight: '400' },
   detail: { color: colors.textMuted, fontSize: 15, lineHeight: 21 },
-  remove: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  remove: { width: 44, height: 44, marginRight: -11, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   empty: { flexGrow: 1, justifyContent: 'center' },
   emptyContent: { alignItems: 'center', padding: spacing.lg },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center', marginTop: spacing.sm },
