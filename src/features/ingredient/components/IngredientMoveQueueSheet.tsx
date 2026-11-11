@@ -43,10 +43,11 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
         <View style={styles.header}>
           <View style={[styles.clearButton, styles.leftSpacer]} pointerEvents="none" />
           <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{t('queue.title', { count: ingredients.length })}</Text>
-          <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
+          <FeedbackPressable feedback="none" accessibilityRole="button" accessibilityLabel={t('queue.clear')}
             disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
             onPress={clear} style={[styles.clearButton, styles.rightButton]}>
-            <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+            {({ pressed }) => <MaterialDesignIcons name={pressed ? 'clipboard-remove' : 'clipboard-remove-outline'}
+              size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
           </FeedbackPressable>
         </View>
     }>

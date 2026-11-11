@@ -282,12 +282,13 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           style={styles.title}>{secondary ? t('queue.title', { count: queuedIngredients.length }) : t('ingredient.list')}</Text>
                       </View>
                       {secondary ? (
-                        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
+                        <FeedbackPressable feedback="none" accessibilityRole="button" accessibilityLabel={t('queue.clear')}
                           disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                           accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
                           onPress={() => { if (!formRequest.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
                           style={[styles.headerIconButton, styles.headerRightButton]}>
-                          <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                          {({ pressed }) => <MaterialDesignIcons name={pressed ? 'clipboard-remove' : 'clipboard-remove-outline'}
+                            size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
                         </FeedbackPressable>
                       ) : isSelecting ? (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
