@@ -5,6 +5,7 @@
  */
 import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 // 기본정보 도식의 비율은 내부 설정 도면과 별도로 관리한다.
 export const STRUCTURE_PREVIEW_ASPECT_RATIO = 1 / 2;
@@ -37,10 +38,10 @@ const styles = StyleSheet.create({
     aspectRatio: STRUCTURE_PREVIEW_ASPECT_RATIO,
     alignSelf: 'center',
     borderWidth: 1,
-    borderColor: '#C7D1CA',
+    borderColor: colors.border,
     borderRadius: 0,
     overflow: 'hidden',
-    backgroundColor: '#F6F8F5',
+    backgroundColor: colors.surface,
   },
   row: {
     flex: 1,
@@ -48,11 +49,11 @@ const styles = StyleSheet.create({
   },
   rowBorder: {
     borderTopWidth: 1,
-    borderTopColor: '#C7D1CA',
+    borderTopColor: colors.border,
   },
   door: {
     flex: 1,
-    backgroundColor: '#F6F8F5',
+    backgroundColor: colors.surface,
   },
   handle: {
     position: 'absolute',
@@ -61,7 +62,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 44,
     borderRadius: 2,
-    backgroundColor: '#B3BDB8',
+    backgroundColor: '#B1B1B1',
   },
   handleRight: {
     right: 8,
@@ -71,6 +72,6 @@ const styles = StyleSheet.create({
   },
   doorBorder: {
     borderLeftWidth: 1,
-    borderLeftColor: '#C7D1CA',
+    borderLeftColor: colors.border,
   },
 });

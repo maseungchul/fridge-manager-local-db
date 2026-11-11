@@ -10,6 +10,7 @@ import { RefrigeratorRegistrationScreen } from '@/screens/RefrigeratorRegistrati
 import { IngredientFormScreen, type IngredientFormResult } from '@/screens/IngredientFormScreen';
 import { IngredientRestoreScreen } from '@/screens/IngredientRestoreScreen';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
+import { colors } from '@/theme/tokens';
 
 // 냉장고 ID가 있으면 저장된 구성을 편집하고, 매개변수가 없으면 신규 등록한다.
 export type RootStackParamList = {
@@ -43,6 +44,7 @@ export function RootNavigator() {
       screenOptions={{
         animation: 'slide_from_right',
         headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
       }}
     >
       <Stack.Screen name="MainTabs">

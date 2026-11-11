@@ -75,7 +75,7 @@ export function Toast({ message, icon, duration = FADE_IN_DURATION + HOLD_DURATI
 
 const styles = StyleSheet.create({
   toast: { maxWidth: '90%', flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(34, 35, 31, 0.86)' },
+    paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.toastBackground },
   successToast: { backgroundColor: colors.noticeBackground, borderWidth: 1, borderColor: colors.noticeForeground },
   successMessage: { color: colors.noticeForeground, fontWeight: '600' },
   message: { flexShrink: 1, color: colors.buttonText, fontSize: 13, lineHeight: 18 },

@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   required: { color: colors.error },
   input: {
     height: 52,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: 10,
     borderWidth: 1,
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     height: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: 10,
     borderWidth: 1,

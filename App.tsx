@@ -13,10 +13,11 @@ import { IngredientMoveQueueProvider } from '@/features/ingredient/IngredientMov
 import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { ToastProvider } from '@/components/ToastProvider';
 import { ButtonTooltipProvider } from '@/components/ButtonTooltip';
+import { colors } from '@/theme/tokens';
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaProvider>
         <LanguageProvider>
           <DatabaseProvider>
