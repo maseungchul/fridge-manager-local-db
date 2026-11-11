@@ -49,7 +49,7 @@ export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.header}>
-        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('more.back')}
+        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('more.back')}
           onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
@@ -93,8 +93,9 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     paddingBottom: spacing.lg,
   },
   ...getHeaderStyles(mode),
+  header: { ...getHeaderStyles(mode).header, gap: 0 },
   title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
-  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   content: { paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.lg },
   section: { gap: spacing.sm },
   description: { color: colors.textMuted, fontSize: 14, lineHeight: 22 },

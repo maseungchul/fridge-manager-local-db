@@ -1,13 +1,14 @@
 /**
  * @file
  * FeedbackPressable은 버튼·선택 영역의 호버·누름·비활성화 효과를 공통으로 처리한다.
- * 배치와 선택 상태는 호출자가 정하고, 역할에 따른 배경색만 여기서 적용한다.
+ * 배치와 선택 상태는 호출자가 정하고, 버튼 종류에 따라 배경 또는 아이콘 색상을 적용한다.
  * 설명을 요청한 아이콘 버튼에는 길게 누를 때 공통 말풍선을 표시한다.
  */
-import { useCallback, useRef, useState } from 'react';
-import type { ComponentRef } from 'react';
+import { Children, cloneElement, isValidElement, useCallback, useRef, useState } from 'react';
+import type { ComponentProps, ComponentRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import type { PressableProps } from 'react-native';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { ButtonTooltip } from '@/components/ButtonTooltip';
@@ -15,6 +16,8 @@ import type { TooltipAnchor } from '@/components/ButtonTooltip';
 
 interface FeedbackPressableProps extends PressableProps {
   feedback?: 'primary' | 'default' | 'danger' | 'chilled' | 'none';
+  // 아이콘 전용 버튼은 배경 대신 아이콘 색상으로 누름 상태를 표시한다.
+  iconFeedback?: boolean;
   // 일시적인 입력 차단은 비활성화 색상 없이 처리한다.
   interactionBlocked?: boolean;
   // 아이콘 버튼에서만 요청하며, true이면 기존 접근성 이름을 설명으로 사용한다.
@@ -23,9 +26,9 @@ interface FeedbackPressableProps extends PressableProps {
 }
 
 /** 마우스 호버와 터치 누름에 같은 색상을 적용하며, 비활성화 중에는 효과를 막는다. */
-export function FeedbackPressable({ feedback = 'default', disabled, interactionBlocked = false, tooltip, tooltipGap, style, onHoverIn, onHoverOut,
+export function FeedbackPressable({ feedback = 'default', iconFeedback = false, children, disabled, interactionBlocked = false, tooltip, tooltipGap, style, onHoverIn, onHoverOut,
   onLongPress, onPress, onPressIn, ...props }: FeedbackPressableProps) {
-  const { mode } = useAppTheme();
+  const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const [hovered, setHovered] = useState(false);
   const button = useRef<ComponentRef<typeof Pressable>>(null);
@@ -54,8 +57,19 @@ export function FeedbackPressable({ feedback = 'default', disabled, interactionB
         style={state => [
           typeof style === 'function' ? style(state) : style,
           disabled && styles.disabled,
-          !isDisabled && (state.pressed || hovered) && styles[feedback],
-        ]} />
+          !iconFeedback && !isDisabled && (state.pressed || hovered) && styles[feedback],
+        ]}>
+        {iconFeedback ? state => {
+          const content = typeof children === 'function' ? children(state) : children;
+          return Children.map(content, child =>
+            isValidElement<ComponentProps<typeof MaterialDesignIcons>>(child) && child.type === MaterialDesignIcons
+              ? cloneElement(child, {
+                pointerEvents: 'none',
+                color: !isDisabled && (state.pressed || hovered) ? colors.chilled : child.props.color,
+              })
+              : child);
+        } : children}
+      </Pressable>
       {anchor && tooltipLabel && !isDisabled ? <ButtonTooltip anchor={anchor} label={tooltipLabel} gap={tooltipGap} onDismiss={dismissTooltip} /> : null}
     </>
   );

@@ -259,7 +259,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                     <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.fridge')}</Text>
                     {refrigerator && <Text numberOfLines={1} ellipsizeMode="tail" accessibilityLabel={refrigerator.name} style={styles.refrigeratorName}>{refrigerator.name}</Text>}
                   </View>
-                  {refrigerator && <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('fridge.edit')} style={styles.headerIconButton}
+                  {refrigerator && <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('fridge.edit')} style={styles.headerIconButton}
                     onPress={() => navigation.navigate('RefrigeratorRegistration', { refrigeratorId: refrigerator.id })}>
                     <MaterialDesignIcons name="pencil" size={24} color={colors.text} accessible={false} />
                   </FeedbackPressable>}
@@ -351,16 +351,17 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                 <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? t('home.collapseTools') : t('home.expandTools')}
                   accessibilityHint={!isToolbarExpanded && hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : undefined}
                   accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
-                  disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} feedback="chilled"
+                  disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} feedback="none"
                   style={[styles.toolbarToggle, styles.floatingButton]} hitSlop={4}>
-                  <View>
-                    <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={HOME_TOOL_ICON_SIZE} color={colors.buttonText} accessible={false} />
+                  {({ pressed }) => <View>
+                    <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={HOME_TOOL_ICON_SIZE}
+                      color={pressed ? colors.noticeForeground : colors.buttonText} accessible={false} />
                     {!isToolbarExpanded && hasQueuedIngredients ? (
                       <View style={[styles.queueDot, styles.queueDotOnToggle]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                         <View style={styles.queueDotFill} />
                       </View>
                     ) : null}
-                  </View>
+                  </View>}
                 </FeedbackPressable>
               </View>
             </View>

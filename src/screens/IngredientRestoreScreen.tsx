@@ -122,7 +122,7 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
   return (
     <SafeAreaView style={styles.container} onAccessibilityEscape={goBack}>
       <View style={styles.header}>
-        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.back')}
+        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('consumed.back')}
           disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={goBack} style={styles.backButton}>
           <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
@@ -170,8 +170,9 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   ...getHeaderStyles(mode),
+  header: { ...getHeaderStyles(mode).header, gap: 0 },
   title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
-  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   scene: { flex: 1, minHeight: 0, overflow: 'hidden' },
   guide: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.textMuted, fontSize: 14, lineHeight: 22 },
   footer: { padding: spacing.md, gap: spacing.sm },

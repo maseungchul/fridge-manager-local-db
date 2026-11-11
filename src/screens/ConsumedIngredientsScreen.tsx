@@ -122,7 +122,7 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.header}>
-        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('more.back')}
+        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('more.back')}
           disabled={isBusy} accessibilityState={{ disabled: isBusy }} onPress={() => { if (!busy.current) navigation.goBack(); }} style={styles.backButton}>
           <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
@@ -172,8 +172,9 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   ...getHeaderStyles(mode),
+  header: { ...getHeaderStyles(mode).header, gap: 0 },
   title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
-  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   list: { flex: 1 },
   listContent: { paddingBottom: spacing.lg },
   empty: { flexGrow: 1 },

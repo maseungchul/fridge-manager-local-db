@@ -81,7 +81,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
               color: ingredientBadgeColors[expiration.isExpired ? 'expired' : expiration.isUrgent ? 'warning' : 'normal'],
             }]}>{item.expirationDate ? t('ingredient.expirationLabel', { date: formatDate(item.expirationDate, t) }) : t('ingredient.noExpiration')}</Text>
           </View>
-          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.remove', { name: item.name })}
+          <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.remove', { name: item.name })}
             accessibilityHint={`${section.title}, ${item.quantity}, ${item.expirationDate ? formatDate(item.expirationDate, t) : t('ingredient.noExpiration')}`}
             disabled={disabled} accessibilityState={{ disabled }} onPress={() => { if (!disabled) onRemove(item.id); }} style={styles.remove}>
             <MaterialDesignIcons name="close" size={22} color={colors.textMuted} accessible={false} />

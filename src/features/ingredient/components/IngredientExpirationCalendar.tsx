@@ -93,7 +93,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
         <View style={styles.popup}>
           <ScrollView style={styles.scroll} contentContainerStyle={styles.content} bounces={false} keyboardShouldPersistTaps="handled">
             <View style={styles.header}>
-              <FeedbackPressable accessibilityRole="button"
+              <FeedbackPressable iconFeedback accessibilityRole="button"
                 accessibilityLabel={view === 'days' ? t('calendar.previousMonth') : view === 'months' ? t('calendar.previousYear') : t('calendar.previousYears')}
                 accessibilityState={{ disabled: previousDisabled }} disabled={previousDisabled}
                 onPress={() => changePeriod(-1)} style={styles.iconButton}>
@@ -107,7 +107,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
                   <MaterialDesignIcons name="chevron-down" size={18} color={colors.text} accessible={false} />
                 </FeedbackPressable>
               )}
-              <FeedbackPressable accessibilityRole="button"
+              <FeedbackPressable iconFeedback accessibilityRole="button"
                 accessibilityLabel={view === 'days' ? t('calendar.nextMonth') : view === 'months' ? t('calendar.nextYear') : t('calendar.nextYears')}
                 accessibilityState={{ disabled: nextDisabled }} disabled={nextDisabled}
                 onPress={() => changePeriod(1)} style={styles.iconButton}>

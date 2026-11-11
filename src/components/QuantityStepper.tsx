@@ -28,12 +28,12 @@ export function QuantityStepper({ value, maximum, unit, accessibilityLabel, disa
   const { t } = useTranslation();
   return (
     <View style={styles.counter}>
-      <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('common.decrease', { label: accessibilityLabel })}
+      <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('common.decrease', { label: accessibilityLabel })}
         disabled={disabled || value <= 1} onPress={() => onChange(-1)} style={styles.button}>
         <MaterialDesignIcons name="minus" size={20} color={colors.text} accessible={false} />
       </FeedbackPressable>
       <Text numberOfLines={1} accessibilityLiveRegion="polite" style={styles.count}>{value}{unit}</Text>
-      <FeedbackPressable tooltip accessibilityRole="button" accessibilityLabel={t('common.increase', { label: accessibilityLabel })}
+      <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('common.increase', { label: accessibilityLabel })}
         disabled={disabled || value >= maximum} onPress={() => onChange(1)} style={styles.button}>
         <MaterialDesignIcons name="plus" size={20} color={colors.text} accessible={false} />
       </FeedbackPressable>
