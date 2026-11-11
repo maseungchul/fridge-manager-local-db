@@ -6,8 +6,8 @@
 import { usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
@@ -105,74 +105,78 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
   }
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <SafeAreaView style={styles.content} edges={['top', 'left', 'right']} onAccessibilityEscape={returnToList}>
-        {/* 헤더와 입력 영역 모두 첫 터치를 전달하고, 키보드는 각 버튼의 동작에서 닫는다. */}
-        <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} stickyHeaderIndices={[0]}
-          bounces={false} overScrollMode="never"
-          keyboardShouldPersistTaps="always" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false}>
-          {/* 고정 헤더는 직접 자식의 스타일을 옮기므로 가로 배치는 내부 View에 둔다. */}
-          <View>
-            <Pressable style={styles.header} onPress={Keyboard.dismiss} accessible={false}>
-              <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
-                disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
-                <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-              </FeedbackPressable>
-              <View style={styles.heading}>
-                <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
-                  style={styles.title}>{isEditing ? t('ingredient.edit') : t('ingredient.add')}</Text>
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={returnToList} statusBarTranslucent navigationBarTranslucent>
+      <SafeAreaProvider>
+        <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <SafeAreaView style={styles.content} edges={['top', 'left', 'right']} onAccessibilityEscape={returnToList}>
+            {/* 헤더와 입력 영역 모두 첫 터치를 전달하고, 키보드는 각 버튼의 동작에서 닫는다. */}
+            <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} stickyHeaderIndices={[0]}
+              bounces={false} overScrollMode="never"
+              keyboardShouldPersistTaps="always" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false}>
+              {/* 고정 헤더는 직접 자식의 스타일을 옮기므로 가로 배치는 내부 View에 둔다. */}
+              <View>
+                <Pressable style={styles.header} onPress={Keyboard.dismiss} accessible={false}>
+                <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('common.cancel')}
+                    disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
+                  <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                  </FeedbackPressable>
+                  <View style={styles.heading}>
+                    <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
+                      style={styles.title}>{isEditing ? t('ingredient.edit') : t('ingredient.add')}</Text>
+                  </View>
+                  <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={isEditing ? t('ingredient.saveEdit') : t('ingredient.register')}
+                    accessibilityState={{ disabled: !canSave || isSaving, busy: isSaving }} disabled={!canSave || isSaving}
+                    onPress={saveIngredient} style={[styles.headerIconButton, styles.headerRightButton]}>
+                    {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
+                      : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                  </FeedbackPressable>
+                </Pressable>
               </View>
-              <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={isEditing ? t('ingredient.saveEdit') : t('ingredient.register')}
-                accessibilityState={{ disabled: !canSave || isSaving, busy: isSaving }} disabled={!canSave || isSaving}
-                onPress={saveIngredient} style={[styles.headerIconButton, styles.headerRightButton]}>
-                {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
-                  : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
-              </FeedbackPressable>
-            </Pressable>
-          </View>
-          <Pressable style={[styles.form, { paddingBottom: spacing.lg + insets.bottom }]} onPress={Keyboard.dismiss} accessible={false}>
-            <FormTextInput label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')} required
-              value={draft.name} maxLength={Math.max(20, editingIngredient?.name.length ?? 0)} editable={!isSaving} returnKeyType="next"
-              onSubmitEditing={() => { if (!saving.current && !leaving.current) quantityInput.current?.focus(); }}
-              onChangeText={name => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, name })); }} />
-            <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} accessibilityLabel={t('ingredient.quantityLabel')} placeholder={t('ingredient.quantityPlaceholder')} required
-              value={draft.quantity} maxLength={Math.max(10, editingIngredient?.quantity.length ?? 0)} editable={!isSaving} returnKeyType="next"
-              onSubmitEditing={() => { if (!saving.current && !leaving.current) memoInput.current?.focus(); }}
-              onChangeText={quantity => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, quantity })); }} />
-            <FormTextInput ref={memoInput} label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
-              value={draft.memo ?? ''} maxLength={Math.max(100, editingIngredient?.memo?.length ?? 0)} editable={!isSaving} multiline
-              onChangeText={memo => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, memo })); }} />
-            <Text style={styles.fieldLabel}>{t('ingredient.expiration')}</Text>
-            <View style={styles.dateRow}>
-              <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.selectDate')}
-                accessibilityState={{ disabled: isSaving, expanded: isDatePickerOpen }} disabled={isSaving}
-                onPress={toggleDatePicker} style={styles.dateButton}>
-                <MaterialDesignIcons name="calendar-month" size={22} color={colors.text} accessible={false} />
-                <Text style={styles.date}>{draft.expirationDate ? formatDate(draft.expirationDate, t) : t('ingredient.datePlaceholder')}</Text>
-              </FeedbackPressable>
-              {draft.expirationDate ? (
-                <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.clearDate')}
-                  disabled={isSaving} accessibilityState={{ disabled: isSaving }} style={styles.clearDateButton}
-                  onPress={() => {
-                    if (saving.current || leaving.current) return;
-                    Keyboard.dismiss();
-                    setDraft(current => ({ ...current, expirationDate: null }));
-                    setIsDatePickerOpen(false);
-                  }}>
-                  <MaterialDesignIcons name="calendar-remove" size={24} color={colors.text} accessible={false} />
-                </FeedbackPressable>
-              ) : null}
-            </View>
-            {saveError ? <Text accessibilityRole="alert" style={styles.error}>{getErrorMessage(saveError.cause, t, t('ingredient.saveError'))}</Text> : null}
-          </Pressable>
-        </ScrollView>
-        {isDatePickerOpen ? (
-          <IngredientExpirationCalendar value={draft.expirationDate} disabled={isSaving}
-            onSelect={expirationDate => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, expirationDate })); }}
-            onDismiss={() => setIsDatePickerOpen(false)} />
-        ) : null}
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+              <Pressable style={[styles.form, { paddingBottom: spacing.lg + insets.bottom }]} onPress={Keyboard.dismiss} accessible={false}>
+                <FormTextInput label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')} required
+                  value={draft.name} maxLength={Math.max(20, editingIngredient?.name.length ?? 0)} editable={!isSaving} returnKeyType="next"
+                  onSubmitEditing={() => { if (!saving.current && !leaving.current) quantityInput.current?.focus(); }}
+                  onChangeText={name => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, name })); }} />
+                <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} accessibilityLabel={t('ingredient.quantityLabel')} placeholder={t('ingredient.quantityPlaceholder')} required
+                  value={draft.quantity} maxLength={Math.max(10, editingIngredient?.quantity.length ?? 0)} editable={!isSaving} returnKeyType="next"
+                  onSubmitEditing={() => { if (!saving.current && !leaving.current) memoInput.current?.focus(); }}
+                  onChangeText={quantity => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, quantity })); }} />
+                <FormTextInput ref={memoInput} label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
+                  value={draft.memo ?? ''} maxLength={Math.max(100, editingIngredient?.memo?.length ?? 0)} editable={!isSaving} multiline
+                  onChangeText={memo => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, memo })); }} />
+                <Text style={styles.fieldLabel}>{t('ingredient.expiration')}</Text>
+                <View style={styles.dateRow}>
+                  <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.selectDate')}
+                    accessibilityState={{ disabled: isSaving, expanded: isDatePickerOpen }} disabled={isSaving}
+                    onPress={toggleDatePicker} style={styles.dateButton}>
+                    <MaterialDesignIcons name="calendar-month" size={22} color={colors.text} accessible={false} />
+                    <Text style={styles.date}>{draft.expirationDate ? formatDate(draft.expirationDate, t) : t('ingredient.datePlaceholder')}</Text>
+                  </FeedbackPressable>
+                  {draft.expirationDate ? (
+                    <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.clearDate')}
+                      disabled={isSaving} accessibilityState={{ disabled: isSaving }} style={styles.clearDateButton}
+                      onPress={() => {
+                        if (saving.current || leaving.current) return;
+                        Keyboard.dismiss();
+                        setDraft(current => ({ ...current, expirationDate: null }));
+                        setIsDatePickerOpen(false);
+                      }}>
+                      <MaterialDesignIcons name="calendar-remove" size={24} color={colors.text} accessible={false} />
+                    </FeedbackPressable>
+                  ) : null}
+                </View>
+                {saveError ? <Text accessibilityRole="alert" style={styles.error}>{getErrorMessage(saveError.cause, t, t('ingredient.saveError'))}</Text> : null}
+              </Pressable>
+            </ScrollView>
+            {isDatePickerOpen ? (
+              <IngredientExpirationCalendar value={draft.expirationDate} disabled={isSaving}
+                onSelect={expirationDate => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, expirationDate })); }}
+                onDismiss={() => setIsDatePickerOpen(false)} />
+            ) : null}
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </SafeAreaProvider>
+    </Modal>
   );
 }
 

@@ -56,7 +56,10 @@ export function RootNavigator() {
         name="RefrigeratorRegistration"
         options={{ gestureEnabled: false }}
       />
-      <Stack.Screen name="IngredientForm">
+      <Stack.Screen name="IngredientForm" options={{
+        presentation: 'transparentModal', animation: 'none', gestureEnabled: false,
+        contentStyle: { backgroundColor: 'transparent' },
+      }}>
         {props => <IngredientFormScreen {...props} onResultChange={updateIngredientFormResult} />}
       </Stack.Screen>
       <Stack.Screen name="IngredientRestore" component={IngredientRestoreScreen} />

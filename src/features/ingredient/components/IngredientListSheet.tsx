@@ -35,11 +35,13 @@ interface IngredientListSheetProps {
   initialIndex?: number;
   onIndexChange?: (index: number) => void;
   onOpenForm: (ingredient?: Ingredient) => void;
+  isFormOpen: boolean;
+  formResultVersion: number;
   onDeleted?: (ingredientId: string) => void;
   onMoved?: (ingredients: Ingredient[]) => void;
 }
 
-export function IngredientListSheet({ position, layout, allIngredients = [], initialIndex, onIndexChange, onClose, onOpenForm, onDeleted, onMoved }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, layout, allIngredients = [], initialIndex, onIndexChange, onClose, onOpenForm, isFormOpen, formResultVersion, onDeleted, onMoved }: IngredientListSheetProps) {
   const { mode, colors, ingredientBadgeColors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
@@ -58,17 +60,16 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const [pageWidth, setPageWidth] = useState(windowWidth);
   const [isChanging, setIsChanging] = useState(false);
   const [isSecondaryOpen, setIsSecondaryOpen] = useState(false);
-  const [isOpeningForm, setIsOpeningForm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const isBusy = isOpeningForm || isDeleting || isMoving;
+  const isBusy = isFormOpen || isDeleting || isMoving;
   const [reloadCount, setReloadCount] = useState(0);
   const [result, setResult] = useState<{ requestKey: string; ingredients: Ingredient[]; error: 'ingredient.loadError' | null } | null>(null);
   const { slotId } = position;
   const drawerNumber = position.drawerNumber ?? 0;
-  const requestKey = `${slotId}:${drawerNumber}:${reloadCount}`;
+  const requestKey = `${slotId}:${drawerNumber}:${reloadCount}:${formResultVersion}`;
   const currentResult = result?.requestKey === requestKey ? result : null;
   const ingredients = currentResult?.ingredients ?? [];
   const error = currentResult?.error ?? null;
@@ -92,6 +93,11 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     // 닫기·위치 변경 전에 시작한 조회가 늦게 끝나도 이전 목록을 반영하지 않는다.
     return () => { active = false; };
   }, [db, slotId, drawerNumber, requestKey]);
+
+  useEffect(() => {
+    if (isFormOpen || !formRequest.current) return;
+    formRequest.current = null;
+  }, [isFormOpen]);
 
   useEffect(() => {
     const currentTransition = transition.current;
@@ -123,9 +129,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   function openForm(ingredient?: Ingredient) {
     if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isSelecting || isLoading || error !== null) return;
     formRequest.current = { ingredient };
-    setIsOpeningForm(true);
-    // 포털의 시트가 다음 화면을 덮지 않도록 종료 완료를 기다린 뒤 전환한다.
-    sheetRef.current?.close();
+    onOpenForm(ingredient);
   }
 
   function closeSheet() {
@@ -312,8 +316,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
       }
       onClose={() => {
         if (deleting.current || moving.current || transition.current.active) return;
-        if (formRequest.current) onOpenForm(formRequest.current.ingredient);
-        else onClose();
+        if (!formRequest.current) onClose();
       }}>
         <View style={styles.panel} onAccessibilityEscape={() => { if (isSelecting) toggleSelectionMode(); else closeSheet(); }}>
           <View style={styles.content} onLayout={({ nativeEvent }) => {

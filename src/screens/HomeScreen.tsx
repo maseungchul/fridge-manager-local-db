@@ -67,6 +67,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
   const ingredientFormPending = useRef(false);
+  const [isIngredientFormOpen, setIsIngredientFormOpen] = useState(false);
+  const [ingredientFormResultVersion, setIngredientFormResultVersion] = useState(0);
   const [ingredientListIndex, setIngredientListIndex] = useState(0);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
@@ -149,8 +151,9 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
         const savedIngredient = result.savedIngredient;
         if (savedIngredient) setIngredients(current => current.some(item => item.id === savedIngredient.id)
           ? current.map(item => item.id === savedIngredient.id ? savedIngredient : item) : [...current, savedIngredient]);
+        if (savedIngredient) setIngredientFormResultVersion(current => current + 1);
       }
-      setIsIngredientListOpen(true);
+      setIsIngredientFormOpen(false);
     } else {
       void loadRefrigerator();
     }
@@ -373,10 +376,11 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
         {isIngredientListOpen && focusPhase === 'open' && selectedPosition && layout ? (
           <IngredientListSheet key={selectedPosition.id} position={selectedPosition} layout={layout} allIngredients={ingredients}
             initialIndex={ingredientListIndex} onIndexChange={setIngredientListIndex}
+            isFormOpen={isIngredientFormOpen} formResultVersion={ingredientFormResultVersion}
             onOpenForm={ingredient => {
               if (ingredientFormPending.current) return;
               ingredientFormPending.current = true;
-              setIsIngredientListOpen(false);
+              setIsIngredientFormOpen(true);
               navigation.navigate('IngredientForm', {
                 position: { slotId: selectedPosition.slotId, drawerNumber: selectedPosition.drawerNumber ?? 0 },
                 ingredient,

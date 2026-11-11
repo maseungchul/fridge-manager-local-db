@@ -2574,7 +2574,7 @@ test('독립 재료 입력은 일반 입력·스크롤과 키보드 회피를 �
     assert.equal(scroll.props.keyboardShouldPersistTaps, 'handled', '키보드가 열려 있어도 날짜 버튼이 첫 탭을 받는다');
     assert.equal(scroll.props.automaticallyAdjustKeyboardInsets, false, '키보드 회피와 인셋을 중복 적용하지 않는다');
     assert.equal(flattenStyle(scroll.props.contentContainerStyle).paddingBottom, 34 + tokens.spacing.lg);
-    for (const button of [input('재료 목록으로 돌아가기'), save()]) {
+    for (const button of [input('취소'), save()]) {
       assert.equal(flattenStyle(button.props.style).width, 48);
       assert.equal(find(button, node => node.type === 'Icon').props.size, 28);
     }
@@ -2616,7 +2616,7 @@ test('날짜 버튼은 키보드를 닫고 측정 대기 없이 공통 달력을
   assert.equal(save().props.disabled, false);
   assert(find(input('유통기한 날짜 선택'), node => node.props.children === '날짜 선택'));
   input('유통기한 날짜 선택').props.onPress(); sheet.render();
-  input('재료 목록으로 돌아가기').props.onPress(); sheet.render();
+  input('취소').props.onPress(); sheet.render();
   assert.equal(popup(), undefined);
 });
 
@@ -2792,7 +2792,7 @@ test('재료 저장 성공 알림을 확인할 때까지 중복 저장·입력·
     assert.equal(save().props.disabled, true);
     assert.equal(save().props.accessibilityState.busy, true);
     for (const label of ['재료명', '재료 수량', '재료 메모']) assert.equal(input(label).props.editable, false);
-    input('재료명').props.onChangeText('변경 금지'); input('재료 목록으로 돌아가기').props.onPress();
+    input('재료명').props.onChangeText('변경 금지'); input('취소').props.onPress();
     sheet.preventRemove.onRemove({ data: { action: { type: 'GO_BACK' } } });
     find(sheet.tree, node => node.type === 'SafeAreaView').props.onAccessibilityEscape(); sheet.render();
     assert.equal(f.backs, 0);
@@ -2893,7 +2893,7 @@ test('독립 편집 화면은 기존 값을 표시하고 한 번만 수정하며
   const first = save().props.onPress(); await save().props.onPress(); sheet.render();
   assert.deepEqual(calls, [{ ...original, name: '두유', quantity: '반 병', memo: '', expirationDate: null }]);
   assert.equal(input('재료명').props.editable, false);
-  input('재료 목록으로 돌아가기').props.onPress(); assert.equal(f.backs, 0);
+  input('취소').props.onPress(); assert.equal(f.backs, 0);
   const updated = { ...calls[0], memo: null };
   pending.resolve(updated); await first; sheet.render();
   assert.deepEqual(f.results.at(-1), { draft: { name: '두유', quantity: '반 병', memo: '', expirationDate: null }, isEditing: true, savedIngredient: updated });
