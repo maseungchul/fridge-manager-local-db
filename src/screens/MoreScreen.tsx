@@ -1,7 +1,7 @@
 /**
  * @file
  * 설정 등 부가 기능의 진입 메뉴를 카테고리별로 모아 표시한다.
- * 카테고리는 화면 너비의 구분 영역에, 메뉴는 아이콘·이름으로 표시한다.
+ * 카테고리와 메뉴를 그룹으로 묶고 메뉴는 아이콘·이름으로 표시한다.
  * 메뉴 구성은 한곳에서 관리하고 실제 기능은 각 하위 화면에서 제공한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -40,8 +40,8 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.more')}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.content} alwaysBounceVertical={false}>
-        {menuSections.map(section => (
-          <View key={section.title} style={styles.section}>
+        {menuSections.map((section, index) => (
+          <View key={section.title} style={index > 0 && styles.sectionSeparator}>
             <View style={styles.sectionHeader}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>{t(section.title)}</Text>
             </View>
@@ -64,15 +64,13 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   ...headerStyles,
-  content: { paddingBottom: spacing.lg },
-  section: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  content: { paddingTop: spacing.md, paddingBottom: spacing.lg },
+  sectionSeparator: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   sectionHeader: {
     minHeight: 44, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, justifyContent: 'center',
-    backgroundColor: colors.toolbar,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   sectionTitle: { color: colors.text, opacity: 0.7, fontSize: 14, lineHeight: 22 },
-  menu: { paddingVertical: spacing.xs, backgroundColor: colors.surface },
+  menu: { paddingVertical: spacing.xs },
   item: { minHeight: 56, paddingHorizontal: spacing.md, paddingVertical: spacing.md, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   itemLabel: { flex: 1, color: colors.text, fontSize: 16, lineHeight: 24 },
 });
