@@ -43,7 +43,9 @@ export function FeedbackPressable({ feedback = 'default', iconFeedback = false, 
             isValidElement<ComponentProps<typeof MaterialDesignIcons>>(child) && child.type === MaterialDesignIcons
               ? cloneElement(child, {
                 pointerEvents: 'none',
-                color: !isDisabled && (state.pressed || hovered) ? colors.chilled : child.props.color,
+                color: !isDisabled && (state.pressed || hovered)
+                  ? feedback === 'danger' ? colors.errorPressed : colors.iconPressed
+                  : child.props.color,
               })
               : child);
         } : children}

@@ -128,7 +128,8 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                     accessibilityState={{ disabled: !canSave || isSaving, busy: isSaving }} disabled={!canSave || isSaving}
                     onPress={saveIngredient} style={[styles.headerIconButton, styles.headerRightButton]}>
                     {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
-                      : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                      : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'}
+                        size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
                   </FeedbackPressable>
                 </Pressable>
               </View>

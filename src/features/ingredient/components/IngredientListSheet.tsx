@@ -286,13 +286,12 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           style={styles.title}>{secondary ? t('queue.title', { count: queuedIngredients.length }) : t('ingredient.list')}</Text>
                       </View>
                       {secondary ? (
-                        <FeedbackPressable feedback="none" accessibilityRole="button" accessibilityLabel={t('queue.clear')}
+                        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
                           disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                           accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
                           onPress={() => { if (!formRequest.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
                           style={[styles.headerIconButton, styles.headerRightButton]}>
-                          {({ pressed }) => <MaterialDesignIcons name={pressed ? 'clipboard-remove' : 'clipboard-remove-outline'}
-                            size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                          <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : isSelecting ? (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
@@ -419,8 +418,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="none" onPress={enqueueSelectedIngredients} style={styles.selectionAction}>
                             {({ pressed }) => <>
-                              <MaterialDesignIcons name={pressed ? 'clipboard-plus' : 'clipboard-plus-outline'} size={24} color={colors.text} accessible={false} />
-                              <Text style={styles.selectionActionLabel}>{t('ingredient.enqueueLabel')}</Text>
+                              <MaterialDesignIcons name="clipboard-plus-outline" size={24} color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
+                              <Text style={[styles.selectionActionLabel, pressed && styles.selectionActionPressed]}>{t('ingredient.enqueueLabel')}</Text>
                             </>}
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.consumeSelected')}
@@ -428,8 +427,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="none" onPress={() => requestRemoval('consume')} style={styles.selectionAction}>
                             {({ pressed }) => <>
-                              <MaterialDesignIcons name={pressed ? 'check-circle' : 'check-circle-outline'} size={24} color={colors.text} accessible={false} />
-                              <Text style={styles.selectionActionLabel}>{t('ingredient.consume')}</Text>
+                              <MaterialDesignIcons name="check-circle-outline" size={24} color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
+                              <Text style={[styles.selectionActionLabel, pressed && styles.selectionActionPressed]}>{t('ingredient.consume')}</Text>
                             </>}
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.deleteSelected')}
@@ -437,8 +436,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="none" onPress={() => requestRemoval('delete')} style={styles.selectionAction}>
                             {({ pressed }) => <>
-                              <MaterialDesignIcons name={pressed ? 'trash-can' : 'trash-can-outline'} size={24} color={colors.error} accessible={false} />
-                              <Text style={[styles.selectionActionLabel, styles.deleteLabel]}>{t('common.delete')}</Text>
+                              <MaterialDesignIcons name="trash-can-outline" size={24} color={pressed ? colors.errorPressed : colors.error} accessible={false} pointerEvents="none" />
+                              <Text style={[styles.selectionActionLabel, styles.deleteLabel, pressed && styles.deleteLabelPressed]}>{t('common.delete')}</Text>
                             </>}
                           </FeedbackPressable>
                         </View>
@@ -476,7 +475,9 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface },
   selectionAction: { flex: 1, minHeight: 48, marginHorizontal: spacing.xs, paddingTop: spacing.xs, alignItems: 'center', justifyContent: 'center' },
   selectionActionLabel: { color: colors.text, fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: '600' },
+  selectionActionPressed: { color: colors.iconPressed },
   deleteLabel: { color: colors.error },
+  deleteLabelPressed: { color: colors.errorPressed },
   selectableItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   selectedItem: { backgroundColor: colors.chilledBackground },
   itemDetails: { flex: 1, gap: spacing.xs },

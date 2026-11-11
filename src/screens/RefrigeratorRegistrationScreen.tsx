@@ -343,7 +343,8 @@ export function RefrigeratorRegistrationScreen({
             accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
             disabled={isSaving || isStepChanging || isFocusMoving}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
-            <MaterialDesignIcons name={step === 'basic' && isEditing ? 'close' : 'arrow-left'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+            <MaterialDesignIcons name={step === 'basic' && isEditing ? 'close' : 'arrow-left'}
+              size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
           {step === 'configuration' ? (
             <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('fridge.goHome')}
@@ -369,7 +370,8 @@ export function RefrigeratorRegistrationScreen({
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving, busy: isSaving }}
               disabled={isSaving} interactionBlocked={isStepChanging || isFocusMoving} onPress={saveRegistration} style={styles.headerIconButton}>
               {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={t('fridge.saving')} />
-                : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'}
+                  size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
             </FeedbackPressable>
           )}
         </View>
@@ -464,11 +466,10 @@ export function RefrigeratorRegistrationScreen({
                                   <QuantityStepper value={row.doors.length} maximum={MAX_DOORS_PER_ROW} unit={t('fridge.doorUnit')}
                                     accessibilityLabel={t('fridge.rowDoor', { row: index + 1 })}
                                     onChange={delta => { Keyboard.dismiss(); updateStructure(changeDraftDoorCount(draft, row.id, delta)); }} />
-                                  <FeedbackPressable feedback="none" accessibilityRole="button" accessibilityLabel={t('fridge.removeRow', { row: index + 1 })} disabled={draft.rows.length <= 1}
+                                  <FeedbackPressable iconFeedback feedback="danger" accessibilityRole="button" accessibilityLabel={t('fridge.removeRow', { row: index + 1 })} disabled={draft.rows.length <= 1}
                                     onPress={() => { Keyboard.dismiss(); updateStructure(removeDraftRow(draft, row.id)); }}
                                     style={styles.deleteRowButton}>
-                                    {({ pressed }) => <MaterialDesignIcons name={pressed ? 'trash-can' : 'trash-can-outline'}
-                                      size={18} color={colors.error} accessible={false} pointerEvents="none" style={styles.controlIcon} />}
+                                    <MaterialDesignIcons name="trash-can-outline" size={18} color={colors.error} accessible={false} style={styles.controlIcon} />
                                   </FeedbackPressable>
                                 </View>
                               ))}

@@ -358,7 +358,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                   style={[styles.toolbarToggle, styles.floatingButton]} hitSlop={4}>
                   {({ pressed }) => <View>
                     <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={HOME_TOOL_ICON_SIZE}
-                      color={pressed ? colors.noticeForeground : colors.buttonText} accessible={false} />
+                      color={pressed ? colors.sheetHandle : colors.buttonText} accessible={false} />
                     {!isToolbarExpanded && hasQueuedIngredients ? (
                       <View style={[styles.queueDot, styles.queueDotOnToggle]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
                         <View style={styles.queueDotFill} />

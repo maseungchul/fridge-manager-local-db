@@ -71,7 +71,7 @@ export function Toast({ message, icon, duration = FADE_IN_DURATION + HOLD_DURATI
         accessibilityLiveRegion={accessibilityHidden ? 'none' : 'polite'}>{message}</Text>
       {closeLabel && <Pressable accessibilityRole="button" accessibilityLabel={closeLabel} onPress={() => startDismiss.current()} hitSlop={8}>
         {({ pressed }) => <MaterialDesignIcons name="close" size={16}
-          color={pressed ? colors.buttonText : colors.noticeForeground} accessible={false} />}
+          color={pressed ? colors.buttonText : colors.noticeForeground} accessible={false} pointerEvents="none" />}
       </Pressable>}
     </Animated.View>
   );
