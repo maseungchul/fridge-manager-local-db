@@ -7,7 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import type { IngredientCounts } from '@/features/ingredient/model/ingredient';
-import { colors, ingredientBadgeColors } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { defaultTranslate } from '@/i18n/translations';
 import type { Translator } from '@/i18n/translations';
 
@@ -33,8 +33,9 @@ export function getIngredientCountLabel(counts: IngredientCounts, t: Translator 
 export function IngredientCountBadge({ count, kind, style }: {
   count?: number; kind: typeof badgeKinds[number]; style?: StyleProp<ViewStyle>;
 }) {
+  const { colors, ingredientBadgeColors } = useAppTheme();
   const backgroundColor = ingredientBadgeColors[kind];
-  const color = colors.buttonText;
+  const color = colors.badgeText;
   const iconSize = count === undefined ? 22 : 14;
   return (
     <View style={[styles.badge, styles.countBadge, count === undefined && styles.legendBadge, { backgroundColor }, style]}>

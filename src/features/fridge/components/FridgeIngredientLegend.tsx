@@ -8,7 +8,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INGREDIENT_BADGE_SIZE, IngredientCountBadge } from '@/features/ingredient/components/IngredientCountBadges';
 import { DoorModeArt } from '@/features/fridge/components/FridgeMap';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 const legendItems = [
@@ -21,6 +22,8 @@ const legendItems = [
 ] as const;
 
 export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   return (
@@ -37,7 +40,7 @@ export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {
           </View>
           {/* 밝은 팝업에서 표시줄이 보이도록 검은색을 지정하고, 자체 여백으로 둥근 모서리에서 떨어뜨린다. */}
           <ScrollView style={styles.scroll} contentContainerStyle={styles.content} bounces={false} showsVerticalScrollIndicator
-            indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
+            indicatorStyle={mode === 'dark' ? 'white' : 'black'} automaticallyAdjustsScrollIndicatorInsets={false}
             scrollIndicatorInsets={{ top: 0, bottom: spacing.md, left: 0, right: spacing.xs }}>
             {legendItems.map(item => (
               <View key={item.title} style={styles.item} accessible
@@ -59,7 +62,7 @@ export function FridgeIngredientLegend({ onClose }: { onClose: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
   popup: { width: '100%', maxWidth: 360, height: 340, maxHeight: '100%', borderRadius: 16, backgroundColor: colors.surface, overflow: 'hidden' },
   header: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs * 3 },
@@ -72,4 +75,4 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center' },
   itemTitle: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '600' },
   itemDescription: { marginLeft: INGREDIENT_BADGE_SIZE + spacing.md, color: colors.textMuted, fontSize: 14, lineHeight: 21 },
-});
+}));

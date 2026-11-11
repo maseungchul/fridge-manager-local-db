@@ -1,7 +1,7 @@
 /**
  * @file
- * 앱의 표시 언어를 선택하고 저장 실패 시 현재 언어로 안내한다.
- * 언어 상태·영구 저장은 공통 Provider에서 관리한다.
+ * 앱의 표시 언어와 화면 테마를 선택하고 저장 실패를 안내한다.
+ * 설정 상태와 영구 저장은 각 공통 Provider에서 관리한다.
  */
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,21 +13,36 @@ import { useTranslation } from '@/i18n/LanguageProvider';
 import { languageNames } from '@/i18n/translations';
 import type { AppLanguage } from '@/i18n/translations';
 import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
-import { colors, spacing } from '@/theme/tokens';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
+import type { ThemeMode } from '@/theme/tokens';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 
 type SettingsScreenProps = NativeStackScreenProps<MoreStackParamList, 'Settings'>;
 
 const languages = Object.keys(languageNames) as AppLanguage[];
+const themes = { light: 'settings.themeLight', dark: 'settings.themeDark' } as const;
+const themeModes = Object.keys(themes) as ThemeMode[];
 
-export function SettingsScreen({ navigation }: SettingsScreenProps) {
+export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
+  const { mode, colors, changeTheme, isChangingTheme } = useAppTheme();
+  const styles = getStyles(mode);
   const { t, language, changeLanguage, isChangingLanguage } = useTranslation();
+  const section = route?.params?.section ?? 'language';
 
   async function selectLanguage(next: AppLanguage) {
     try {
       await changeLanguage(next);
     } catch {
       Alert.alert(t('common.error'), t('settings.languageSaveError'), [{ text: t('common.ok') }]);
+    }
+  }
+
+  async function selectTheme(next: ThemeMode) {
+    try {
+      await changeTheme(next);
+    } catch {
+      Alert.alert(t('common.error'), t('settings.themeSaveError'), [{ text: t('common.ok') }]);
     }
   }
 
@@ -38,10 +53,10 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
-        <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('settings.language')}</Text>
+        <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t(section === 'language' ? 'settings.language' : 'settings.theme')}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.content} alwaysBounceVertical={false}>
-        <View style={styles.section}>
+        {section === 'language' ? <View style={styles.section}>
           <Text style={styles.description}>{t('settings.languageDescription')}</Text>
           <View style={styles.options}>
             {languages.map(option => (
@@ -54,22 +69,33 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
               </FeedbackPressable>
             ))}
           </View>
-        </View>
+        </View> : <View style={styles.section}>
+          <View style={styles.options}>
+            {themeModes.map(option => (
+              <FeedbackPressable key={option} accessibilityRole="radio" accessibilityLabel={t(themes[option])}
+                accessibilityState={{ checked: mode === option, disabled: isChangingTheme }} disabled={isChangingTheme}
+                onPress={() => selectTheme(option)} style={[styles.option, mode === option && styles.selected]}>
+                <Text style={styles.optionLabel}>{t(themes[option])}</Text>
+                <SelectionCheck selected={mode === option} />
+              </FeedbackPressable>
+            ))}
+          </View>
+        </View>}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
     paddingBottom: spacing.lg,
   },
-  ...headerStyles,
-  title: { ...headerStyles.title, flexShrink: 1 },
+  ...getHeaderStyles(mode),
+  title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  content: { padding: spacing.lg },
+  content: { padding: spacing.lg, gap: spacing.lg },
   section: { gap: spacing.sm },
   description: { color: colors.textMuted, fontSize: 14, lineHeight: 22 },
   options: { gap: spacing.sm, marginTop: spacing.xs },
@@ -86,4 +112,4 @@ const styles = StyleSheet.create({
   },
   selected: { borderColor: colors.chilled, backgroundColor: colors.sageLight },
   optionLabel: { flex: 1, color: colors.text, fontSize: 16, lineHeight: 24 },
-});
+}));

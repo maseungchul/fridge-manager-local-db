@@ -21,8 +21,9 @@ import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
 import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
-import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 
@@ -39,6 +40,8 @@ interface IngredientListSheetProps {
 }
 
 export function IngredientListSheet({ position, layout, allIngredients = [], initialIndex, onIndexChange, onClose, onOpenForm, onDeleted, onMoved }: IngredientListSheetProps) {
+  const { mode, colors, ingredientBadgeColors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const showToast = useToast();
   const insets = useSafeAreaInsets();
@@ -362,7 +365,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                         ) : (
                           <FlatList data={ingredients} keyExtractor={item => item.id}
                             extraData={{ isSelecting, selectedIds, queuedIds: moveQueue.ingredientIds }}
-                            showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
+                            showsVerticalScrollIndicator indicatorStyle={mode === 'dark' ? 'white' : 'black'} automaticallyAdjustsScrollIndicatorInsets={false}
                             scrollIndicatorInsets={{ top: 0, bottom: spacing.md + (isSelecting ? 0 : insets.bottom), left: 0, right: spacing.xs }}
                             style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.emptyList : undefined, { paddingBottom: isSelecting ? 0 : insets.bottom }]}
                             ListEmptyComponent={
@@ -442,7 +445,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) => StyleSheet.create({
   panel: {
     flex: 1,
     backgroundColor: colors.surface,
@@ -450,10 +453,10 @@ const styles = StyleSheet.create({
   headerViewport: { overflow: 'hidden' },
   headerTrack: { flexDirection: 'row' },
   header: {
-    ...headerStyles.header,
+    ...getHeaderStyles(mode).header,
   },
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
-  title: { ...headerStyles.title, textAlign: 'center' },
+  title: { ...getHeaderStyles(mode).title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
@@ -475,7 +478,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, borderRadius: 22, backgroundColor: colors.chilledBackground },
   queueLabel: { color: colors.chilled, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   moveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-    minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 22, backgroundColor: colors.chilled },
+    minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 22, backgroundColor: colors.chilledFill },
   moveLabel: { color: colors.buttonText, fontSize: 15, fontWeight: '600' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
@@ -495,4 +498,4 @@ const styles = StyleSheet.create({
   quantity: { fontSize: 17, fontWeight: '400' },
   memo: { color: colors.textMuted, fontSize: 15 },
   expirationDate: { color: ingredientBadgeColors.unknown, fontSize: 14, lineHeight: 24, textAlign: 'right', fontVariant: ['tabular-nums'] },
-});
+}));

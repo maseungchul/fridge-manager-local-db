@@ -11,8 +11,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { ActivityIndicator, Animated, AppState, BackHandler, Easing, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
-import { colors, fridgeDoorColors, spacing } from '@/theme/tokens';
-import { headerStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
+import { getHeaderStyles } from '@/theme/headerStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
@@ -32,7 +33,7 @@ import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueu
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
-import { fridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
+import { getFridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 type HomeScreenProps = CompositeScreenProps<
@@ -52,6 +53,8 @@ const MIN_LOADING_VISIBLE_MS = 300;
 const EMPTY_INGREDIENT_DRAFT: IngredientDraft = { name: '', quantity: '', memo: '', expirationDate: null };
 
 export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngredientFormResult }: HomeScreenProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const { ingredientIds: queuedIds, retain: retainMoveQueue } = useIngredientMoveQueue();
@@ -389,8 +392,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   );
 }
 
-const styles = StyleSheet.create({
-  ...fridgeToolbarStyles,
+const getStyles = createThemedStyles(({ colors, fridgeDoorColors }, mode) => StyleSheet.create({
+  ...getFridgeToolbarStyles(mode),
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -448,10 +451,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   header: {
-    ...headerStyles.header,
+    ...getHeaderStyles(mode).header,
   },
   headerText: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
-  title: { ...headerStyles.title },
+  title: { ...getHeaderStyles(mode).title },
   refrigeratorName: { flex: 1, color: colors.textMuted, fontSize: 14, lineHeight: 20, includeFontPadding: false },
   headerIconButton: {
     width: FRIDGE_HEADER_BUTTON_SIZE,
@@ -474,12 +477,12 @@ const styles = StyleSheet.create({
   // 점 주변은 각 버튼 배경색으로 채워 아이콘과 구분한다.
   queueDot: { position: 'absolute', top: -4, right: -3, width: 10, height: 10, borderRadius: 5,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  queueDotOnToggle: { top: -2, right: -2, backgroundColor: colors.chilled },
+  queueDotOnToggle: { top: -2, right: -2, backgroundColor: colors.chilledFill },
   queueDotFill: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.moveQueueBadge },
   floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
   toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
-    borderRadius: HOME_MENU_SIZE / 2, backgroundColor: colors.chilled },
+    borderRadius: HOME_MENU_SIZE / 2, backgroundColor: colors.chilledFill },
   diagram: {
     flex: 1,
   },
-});
+}));

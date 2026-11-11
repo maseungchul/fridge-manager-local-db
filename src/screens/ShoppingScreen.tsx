@@ -4,11 +4,14 @@
  */
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing } from '@/theme/tokens';
-import { headerStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
+import { getHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 export function ShoppingScreen() {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
 
   return (
@@ -20,11 +23,11 @@ export function ShoppingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
     paddingBottom: spacing.lg,
   },
-  ...headerStyles,
-});
+  ...getHeaderStyles(mode),
+}));

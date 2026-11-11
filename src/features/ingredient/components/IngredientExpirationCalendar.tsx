@@ -8,7 +8,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface IngredientExpirationCalendarProps {
@@ -35,6 +36,8 @@ function formatCalendarDate(year: number, month: number, day: number) {
 }
 
 export function IngredientExpirationCalendar({ value, disabled = false, onSelect, onDismiss }: IngredientExpirationCalendarProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const weekdays = weekdayKeys.map(key => t(key));
   const [month, setMonth] = useState(() => {
@@ -190,7 +193,7 @@ export function IngredientExpirationCalendar({ value, disabled = false, onSelect
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
   popup: { width: '100%', maxWidth: 360, maxHeight: '100%', borderRadius: 16, backgroundColor: colors.surface, overflow: 'hidden' },
   scroll: { flexGrow: 0, flexShrink: 1 },
@@ -211,11 +214,11 @@ const styles = StyleSheet.create({
   dayNumber: { width: '100%', maxWidth: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   dayText: { color: colors.text, fontSize: 16, fontVariant: ['tabular-nums'] },
   today: { borderWidth: 1, borderColor: colors.chilled },
-  selected: { backgroundColor: colors.chilled },
+  selected: { backgroundColor: colors.chilledFill },
   selectedText: { color: colors.buttonText, fontWeight: '600' },
   sunday: { color: colors.error },
   saturday: { color: colors.frozen },
   adjacentMonth: { color: colors.textMuted },
   periodCell: { width: `${100 / 3}%`, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   periodNumber: { minHeight: 40, paddingHorizontal: spacing.sm, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-});
+}));

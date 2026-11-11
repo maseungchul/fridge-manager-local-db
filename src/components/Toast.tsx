@@ -7,7 +7,8 @@ import { useEffect, useRef } from 'react';
 import type { ComponentProps } from 'react';
 import { Animated, Pressable, StyleSheet, Text, useAnimatedValue } from 'react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { colors } from '@/theme/tokens';
+import { createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 interface ToastProps {
   message: string;
@@ -24,6 +25,8 @@ const HOLD_DURATION = 2500;
 const FADE_OUT_DURATION = 200;
 
 export function Toast({ message, icon, duration = FADE_IN_DURATION + HOLD_DURATION + FADE_OUT_DURATION, accessibilityHidden = false, closeLabel, variant = 'default', onDismiss }: ToastProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const opacity = useAnimatedValue(0);
   const translateY = useAnimatedValue(variant === 'success' ? -24 : 0);
   const dismiss = useRef(onDismiss);
@@ -73,13 +76,13 @@ export function Toast({ message, icon, duration = FADE_IN_DURATION + HOLD_DURATI
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   toast: { maxWidth: '90%', flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.toastBackground },
   successToast: { backgroundColor: colors.noticeBackground, borderWidth: 1, borderColor: colors.noticeForeground },
   successMessage: { color: colors.noticeForeground, fontWeight: '600' },
   message: { flexShrink: 1, color: colors.buttonText, fontSize: 13, lineHeight: 18 },
-});
+}));
 
 
 

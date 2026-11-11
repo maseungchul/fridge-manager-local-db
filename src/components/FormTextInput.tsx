@@ -7,7 +7,8 @@
 import { forwardRef, type ComponentRef, type ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import type { StyleProp, TextInputProps, TextStyle, ViewStyle } from 'react-native';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 // TextInput의 속성을 재사용하되 style은 제외해 입력란의 공통 스타일을 유지한다.
@@ -32,13 +33,16 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
       required = false,
       labelStyle,
       containerStyle,
-      placeholderTextColor = colors.textMuted,
+      placeholderTextColor,
+      keyboardAppearance,
       trailingElement,
       // value, onChangeText, 키보드 설정 등 나머지 속성은 내부 TextInput에 전달한다.
       ...inputProps
     },
     ref,
   ) {
+    const { mode, colors } = useAppTheme();
+    const styles = getStyles(mode);
     const { t } = useTranslation();
     const accessibilityLabel = required
       ? `${inputProps.accessibilityLabel ?? label}, ${t('common.required')}`
@@ -54,7 +58,8 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
             <TextInput
               {...inputProps}
               accessibilityLabel={accessibilityLabel}
-              placeholderTextColor={placeholderTextColor}
+              placeholderTextColor={placeholderTextColor ?? colors.textMuted}
+              keyboardAppearance={keyboardAppearance ?? (mode === 'dark' ? 'dark' : 'default')}
               ref={ref}
               style={styles.inputWithTrailingElement}
             />
@@ -64,7 +69,8 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
           <TextInput
             {...inputProps}
             accessibilityLabel={accessibilityLabel}
-            placeholderTextColor={placeholderTextColor}
+            placeholderTextColor={placeholderTextColor ?? colors.textMuted}
+            keyboardAppearance={keyboardAppearance ?? (mode === 'dark' ? 'dark' : 'default')}
             ref={ref}
             style={[styles.input, inputProps.multiline && styles.multilineInput, errorMessage ? styles.inputError : undefined]}
           />
@@ -80,7 +86,7 @@ export const FormTextInput = forwardRef<ComponentRef<typeof TextInput>, FormText
   },
 );
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   field: {
     gap: spacing.xs,
     marginBottom: spacing.md,
@@ -133,4 +139,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
-});
+}));

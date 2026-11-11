@@ -11,9 +11,10 @@ import { QuantityStepper } from '@/components/QuantityStepper';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import { doorOpeningOptions, getSlotName, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { FRIDGE_SUBMENU_HEIGHT, FRIDGE_SUBMENU_BOTTOM_SPACE } from '@/features/fridge/components/fridgeDiagramLayout';
-import { fridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
+import { getFridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 export type FridgeMenuCategory = 'mode' | 'opening' | 'slots';
@@ -57,6 +58,8 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
   openingDoors, storageEnabled, storageMode, showSlots, slots, maxSlotCount, selectedSlotIndex, location,
   mergeDisabled = false, onOpeningChange, onStorageChange, onStorageModeChange,
   onSlotCountChange, onSlotStructureChange, onMerge, onSplit }: FridgeAreaMenuProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const categories = categoryOptions.map(category => ({ ...category, label: t(category.label) })).filter(category => {
     switch (category.id) {
@@ -160,8 +163,8 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
   );
 }
 
-const styles = StyleSheet.create({
-  ...fridgeToolbarStyles,
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
+  ...getFridgeToolbarStyles(mode),
   // 툴바의 배치 높이를 바꾸지 않고, 도면 계산에서 별도로 제외한 공간에 하위 설정을 펼친다.
   submenuSlot: {
     position: 'absolute',
@@ -219,7 +222,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 6,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: '#000000',
+    borderTopColor: colors.menuArrow,
   },
   choices: {
     flexGrow: 1,
@@ -254,4 +257,4 @@ const styles = StyleSheet.create({
     borderColor: colors.chilled,
     backgroundColor: colors.sageLight,
   },
-});
+}));

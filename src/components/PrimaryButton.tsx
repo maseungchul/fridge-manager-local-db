@@ -8,7 +8,8 @@ import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import type { ComponentProps } from 'react';
 import type { PressableProps, StyleProp, TextStyle, ViewStyle } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 
 // 버튼 문구와 클릭 처리, 표시 상태, 추가 스타일을 호출하는 쪽에서 전달한다.
@@ -38,6 +39,8 @@ export function PrimaryButton({
   style,
   labelStyle,
 }: PrimaryButtonProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   // 명시적인 비활성화뿐 아니라 처리 중인 상태에서도 중복 클릭을 막는다.
   const isDisabled = disabled || loading;
 
@@ -69,7 +72,7 @@ export function PrimaryButton({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   // 버튼 안의 문구와 로딩 표시를 중앙에 배치한다.
   button: {
     height: 54,
@@ -97,4 +100,4 @@ const styles = StyleSheet.create({
   secondaryText: {
     color: colors.text,
   },
-});
+}));

@@ -10,7 +10,8 @@ import type { PropsWithChildren, ReactNode, Ref } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 export interface IngredientSheetRef {
   close: () => void;
@@ -38,6 +39,8 @@ function SheetContainer({ children }: PropsWithChildren) {
 function SheetContent({ children, onClose }: PropsWithChildren<{
   onClose: () => void;
 }>) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const { animatedLayoutState, animatedPosition } = useBottomSheetInternal();
   // Gorhom의 본문은 최대 높이를 기준으로 배치되므로 반높이에서도 마지막 항목까지 스크롤되게 제한한다.
   const contentStyle = useAnimatedStyle(() => {
@@ -53,6 +56,8 @@ function SheetContent({ children, onClose }: PropsWithChildren<{
 }
 
 export function IngredientSheet({ ref, children, header, disabled, initialIndex = 0, onIndexChange, onClose }: IngredientSheetProps) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const sheetRef = useRef<BottomSheetModal>(null);
   const phase = useRef<'open' | 'closing' | 'closed'>('open');
   const insets = useSafeAreaInsets();
@@ -70,14 +75,14 @@ export function IngredientSheet({ ref, children, header, disabled, initialIndex 
     <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1}
       pressBehavior={disabled ? 'none' : 'close'} opacity={1} accessible={false}
       style={[props.style, styles.backdrop]} />
-  ), [disabled]);
+  ), [disabled, styles.backdrop]);
   // 제목과 고정 드래그 바만 손잡이로 사용해 목록 최상단의 아래 스와이프도 스크롤로 처리한다.
   const renderHandle = useCallback(() => (
     <View onAccessibilityEscape={close}>
       <View style={styles.dragIndicator} pointerEvents="none" accessible={false} />
       {header}
     </View>
-  ), [header, close]);
+  ), [header, close, styles.dragIndicator]);
   return (
     <BottomSheetModal ref={sheetRef} index={initialIndex} snapPoints={SNAP_POINTS}
       animationConfigs={TRANSITION_ANIMATION}
@@ -101,10 +106,10 @@ export function IngredientSheet({ ref, children, header, disabled, initialIndex 
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   content: { flex: 1 },
   backdrop: { backgroundColor: 'transparent' },
   background: { backgroundColor: colors.surface, borderRadius: 24 },
   dragIndicator: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
-    marginTop: spacing.xs, marginBottom: 5, backgroundColor: '#C4C4C4' },
-});
+    marginTop: spacing.xs, marginBottom: 5, backgroundColor: colors.sheetHandle },
+}));

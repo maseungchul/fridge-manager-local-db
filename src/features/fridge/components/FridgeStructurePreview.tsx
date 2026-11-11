@@ -5,7 +5,8 @@
  */
 import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 // 기본정보 도식의 비율은 내부 설정 도면과 별도로 관리한다.
 export const STRUCTURE_PREVIEW_ASPECT_RATIO = 1 / 2;
@@ -17,6 +18,8 @@ interface FridgeStructurePreviewProps {
 
 /** 기본 외곽 비율로 표시하되 호출자가 배치 공간을 조정할 수 있고, 문 경계는 한쪽에서만 그린다. */
 export function FridgeStructurePreview({ rows, style }: FridgeStructurePreviewProps) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   return (
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={[styles.preview, style]}>
       {rows.map((row, rowIndex) => (
@@ -32,7 +35,7 @@ export function FridgeStructurePreview({ rows, style }: FridgeStructurePreviewPr
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   preview: {
     width: 144,
     aspectRatio: STRUCTURE_PREVIEW_ASPECT_RATIO,
@@ -62,7 +65,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 44,
     borderRadius: 2,
-    backgroundColor: '#B1B1B1',
+    backgroundColor: colors.previewHandle,
   },
   handleRight: {
     right: 8,
@@ -74,4 +77,4 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: colors.border,
   },
-});
+}));

@@ -7,17 +7,18 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MoreScreen } from '@/screens/MoreScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { ConsumedIngredientsScreen } from '@/screens/ConsumedIngredientsScreen';
-import { colors } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 export type MoreStackParamList = {
   MoreHome: undefined;
-  Settings: undefined;
+  Settings: { section: 'language' | 'theme' } | undefined;
   ConsumedIngredients: undefined;
 };
 
 const Stack = createNativeStackNavigator<MoreStackParamList>();
 
 export function MoreStackNavigator({ onInteractionBlockedChange }: { onInteractionBlockedChange: (blocked: boolean) => void }) {
+  const { colors } = useAppTheme();
   return (
     <Stack.Navigator initialRouteName="MoreHome" screenOptions={{
       headerShown: false,

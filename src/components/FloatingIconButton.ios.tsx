@@ -9,14 +9,15 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { Platform, StyleSheet } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import type { FloatingIconButtonProps } from './FloatingIconButton';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 export function FloatingIconButton({ label, icon, accessibilityLabel: labelForAccessibility, accessibilityHint: hint, expanded, size = 'large', disabled, onPress, style }: FloatingIconButtonProps) {
+  const { colors, mode } = useAppTheme();
   const { t } = useTranslation();
   return (
-    <Host matchContents alignment="bottomLeading" ignoreSafeArea="all" style={style}>
+    <Host matchContents alignment="bottomLeading" ignoreSafeArea="all" colorScheme={mode} style={style}>
       <Button onPress={onPress} modifiers={[
         buttonStyle(parseInt(String(Platform.Version), 10) >= 26 ? 'glass' : 'bordered'),
         buttonBorderShape('capsule'), controlSize(size), disabledModifier(disabled),

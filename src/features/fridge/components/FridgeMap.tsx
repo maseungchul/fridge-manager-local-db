@@ -10,7 +10,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { INGREDIENT_BADGES_MAX_WIDTH, IngredientCountBadges, getIngredientCountLabel } from '@/features/ingredient/components/IngredientCountBadges';
 import { getIngredientCounts } from '@/features/ingredient/model/ingredient';
-import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle, spacing } from '@/theme/tokens';
+import { getFridgeSurfaceStyle, spacing, fridgeSurfaces as lightFridgeSurfaces, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { getPositionPath, getSlotName } from '../model/fridgeLayout';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { FridgeIngredient, StorageArea, SlotConfiguration, SlotPosition, StorageMode } from '../model/fridgeLayout';
@@ -34,15 +35,15 @@ export const DOOR_MODE_ART_INSET = 8;
 export function getFridgeAreaEditSize(slots: readonly SlotConfiguration[], isBody: boolean, showIngredientCounts = false) {
   const slotCount = Math.max(1, slots.length);
   const columns = Math.max(1, ...slots.map(slot => slot.drawerCount === 2 ? 2 : 1));
-  const innerMargin = fridgeSurfaces.bodySideWidth - fridgeSurfaces.frameWidth;
+  const innerMargin = lightFridgeSurfaces.bodySideWidth - lightFridgeSurfaces.frameWidth;
   const horizontalPadding = isBody ? BODY_EDGE_INSET : AREA_CONTENT_PADDING;
   // 홈의 가로 배지는 최대 건수에 맞춘 고정 폭을 확보하고, 편집 칸의 높이는 그대로 유지한다.
   const cellWidth = showIngredientCounts ? INGREDIENT_BADGES_MAX_WIDTH + INGREDIENT_BADGE_INSET * 2
     + (isBody ? 0 : (POCKET_SIDE_INSET + POCKET_BORDER_WIDTH) * 2) : MIN_EDIT_CELL_SIZE;
   return {
-    width: fridgeSurfaces.frameWidth * 2 + innerMargin * 2 + horizontalPadding * 2
+    width: lightFridgeSurfaces.frameWidth * 2 + innerMargin * 2 + horizontalPadding * 2
       + columns * cellWidth + (columns - 1) * (isBody ? BODY_CELL_GAP : POSITION_SEPARATOR_WIDTH),
-    height: fridgeSurfaces.frameWidth * 2 + fridgeSurfaces.headerHeight + innerMargin
+    height: lightFridgeSurfaces.frameWidth * 2 + lightFridgeSurfaces.headerHeight + innerMargin
       + (isBody ? BODY_EDGE_INSET * 2 : AREA_CONTENT_PADDING) + slotCount * MIN_EDIT_CELL_SIZE
       + (isBody ? (slotCount - 1) * BODY_CELL_GAP : 0),
   };
@@ -92,6 +93,8 @@ interface FridgeMapProps {
 export function DoorHandle({ horizontal = false, storageMode, style }: {
   horizontal?: boolean; storageMode?: StorageMode | null; style?: StyleProp<ViewStyle>;
 }) {
+  const { mode, fridgeDoorColors, fridgeSurfaces } = useAppTheme();
+  const styles = getStyles(mode);
   const palette = storageMode ? fridgeDoorColors[storageMode] : null;
   const depth = 6;
   return (
@@ -113,6 +116,8 @@ export function DoorHandle({ horizontal = false, storageMode, style }: {
 export function DoorModeArt({ storageMode, size, handleOnLeft = false, style }: {
   storageMode: StorageMode | null; size: number; handleOnLeft?: boolean; style?: StyleProp<ViewStyle>;
 }) {
+  const { mode, fridgeDoorColors } = useAppTheme();
+  const styles = getStyles(mode);
   if (!storageMode) return null;
   const frozen = storageMode === 'FROZEN';
   const palette = fridgeDoorColors[storageMode];
@@ -130,6 +135,8 @@ function DoorPocketBin({ style, selectionStyle, selected = false, disabled = fal
   style?: StyleProp<ViewStyle>; selectionStyle?: StyleProp<ViewStyle>; selected?: boolean;
   disabled?: boolean; label?: string; onSelect?: () => void; children?: ReactNode;
 }) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const Bin = onSelect ? Pressable : View;
   return (
     <View pointerEvents={onSelect ? 'box-none' : 'none'} accessibilityElementsHidden={onSelect ? undefined : true}
@@ -148,6 +155,9 @@ export function FridgeMap({
   showAreaLabels = true, minAreaHeight = 240, fitHeight = false, compact = false, style, areaHeader, disabled = false, onSelectPosition, onSelectArea,
   selectedSlotIndex, onSelectSlot,
 }: FridgeMapProps) {
+  const theme = useAppTheme();
+  const { mode, fridgeDoorColors, fridgeSurfaces } = theme;
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const groupInteraction = !!onSelectArea;
   const slotInteraction = !!onSelectSlot;
@@ -182,7 +192,7 @@ export function FridgeMap({
               accessibilityState={groupInteraction ? { selected: areaSelected, disabled } : undefined}
               disabled={disabled} onPress={groupInteraction ? () => onSelectArea?.(area.id) : undefined}
               style={[styles.areaInterior, { minHeight: minAreaHeight },
-                getFridgeSurfaceStyle(storageMode),
+                getFridgeSurfaceStyle(storageMode, 'interior', theme),
                 cornerStyle,
                 areaSelected && !groupInteraction && { borderColor: selectionColor }]}>
               {areaHeader}
@@ -254,7 +264,7 @@ export function FridgeMap({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors, fridgeSurfaces }) => StyleSheet.create({
   ingredientBadges: { top: INGREDIENT_BADGE_INSET, left: INGREDIENT_BADGE_INSET, right: INGREDIENT_BADGE_INSET, bottom: INGREDIENT_BADGE_INSET },
   modeArt: {
     position: 'absolute',
@@ -443,4 +453,4 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     gap: 0,
   },
-});
+}));

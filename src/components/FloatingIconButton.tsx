@@ -8,7 +8,8 @@ import type { ComponentProps } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 export interface FloatingIconButtonProps {
   label: string;
@@ -23,6 +24,8 @@ export interface FloatingIconButtonProps {
 }
 
 export function FloatingIconButton({ label, icon, accessibilityLabel, accessibilityHint, expanded, size = 'large', disabled, onPress, style }: FloatingIconButtonProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   return (
     <FeedbackPressable accessibilityRole="button" accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
@@ -33,7 +36,7 @@ export function FloatingIconButton({ label, icon, accessibilityLabel, accessibil
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   button: {
     height: 44,
     flexDirection: 'row',
@@ -53,4 +56,4 @@ const styles = StyleSheet.create({
   },
   smallButton: { height: 32, paddingHorizontal: spacing.sm, borderRadius: 16, gap: 4 },
   smallLabel: { fontSize: 12 },
-});
+}));

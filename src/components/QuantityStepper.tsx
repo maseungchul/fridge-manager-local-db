@@ -6,7 +6,8 @@
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { colors } from '@/theme/tokens';
+import { createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 export const QUANTITY_STEPPER_WIDTH = 128;
@@ -22,6 +23,8 @@ interface QuantityStepperProps {
 
 /** 최소 한 개와 최대 개수에 맞춰 양쪽 버튼을 비활성화하고, 현재 개수는 고정된 가운데 영역에 표시한다. */
 export function QuantityStepper({ value, maximum, unit, accessibilityLabel, disabled = false, onChange }: QuantityStepperProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   return (
     <View style={styles.counter}>
@@ -38,7 +41,7 @@ export function QuantityStepper({ value, maximum, unit, accessibilityLabel, disa
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   counter: {
     flexShrink: 0,
     width: QUANTITY_STEPPER_WIDTH,
@@ -67,4 +70,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-});
+}));

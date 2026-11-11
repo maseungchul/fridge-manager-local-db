@@ -12,7 +12,8 @@ import { getPositionName } from '@/features/fridge/model/fridgeLayout';
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
-import { colors, ingredientBadgeColors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { formatDate } from '@/i18n/translations';
 
@@ -24,6 +25,8 @@ interface IngredientMoveQueueListProps {
 }
 
 export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemove }: IngredientMoveQueueListProps) {
+  const { mode, colors, ingredientBadgeColors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const sections: { key: string; title: string; path: string[]; data: Ingredient[] }[] = [];
@@ -49,7 +52,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
 
   return (
     <BottomSheetSectionList sections={sections} keyExtractor={item => item.id} stickySectionHeadersEnabled={false}
-      showsVerticalScrollIndicator indicatorStyle="black" automaticallyAdjustsScrollIndicatorInsets={false}
+      showsVerticalScrollIndicator indicatorStyle={mode === 'dark' ? 'white' : 'black'} automaticallyAdjustsScrollIndicatorInsets={false}
       scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
       style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.empty : undefined, { paddingBottom: insets.bottom }]}
       ListEmptyComponent={<View style={styles.emptyContent}>
@@ -89,7 +92,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   list: { flex: 1 },
   guide: { color: colors.textMuted, fontSize: 13, lineHeight: 20, padding: spacing.md },
   location: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
@@ -106,4 +109,4 @@ const styles = StyleSheet.create({
   empty: { flexGrow: 1, justifyContent: 'center' },
   emptyContent: { alignItems: 'center', padding: spacing.lg },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center', marginTop: spacing.sm },
-});
+}));

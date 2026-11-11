@@ -12,7 +12,8 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ShoppingScreen } from '@/screens/ShoppingScreen';
 import { MoreStackNavigator } from '@/navigation/MoreStackNavigator';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import type { IngredientFormResult } from '@/screens/IngredientFormScreen';
 
@@ -27,6 +28,8 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 export function MainTabNavigator({ takeIngredientFormResult }: {
   takeIngredientFormResult: () => IngredientFormResult | null;
 }) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
@@ -85,7 +88,7 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   scene: { backgroundColor: colors.background },
   tabBar: {
     backgroundColor: colors.navigationBackground, paddingTop: 0,
@@ -97,4 +100,4 @@ const styles = StyleSheet.create({
   // 아이콘 슬롯을 실제 크기로 맞춰 탭바 높이를 늘리지 않고 상단 여백을 확보한다.
   icon: { height: 24 },
   label: { fontSize: 12, lineHeight: 16, fontWeight: '600', marginBottom: 0 },
-});
+}));

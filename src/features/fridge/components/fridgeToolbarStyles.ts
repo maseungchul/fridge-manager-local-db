@@ -4,10 +4,10 @@
  * 툴바의 표시 방식과 조건은 각 화면에서 관리한다.
  */
 import { StyleSheet } from 'react-native';
-import { colors, spacing } from '@/theme/tokens';
+import { createThemedStyles, spacing } from '@/theme/tokens';
 import { FRIDGE_TOOLBAR_ACTION_HEIGHT } from '@/features/fridge/components/fridgeDiagramLayout';
 
-export const fridgeToolbarStyles = StyleSheet.create({
+export const getFridgeToolbarStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   toolbar: {
     flexShrink: 0, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.toolbar,
@@ -19,4 +19,4 @@ export const fridgeToolbarStyles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
   },
   label: { flexShrink: 1, color: colors.text, fontSize: 12, fontWeight: '600', textAlign: 'center' },
-});
+}));

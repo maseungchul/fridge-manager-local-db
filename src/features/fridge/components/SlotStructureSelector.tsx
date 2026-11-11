@@ -8,7 +8,8 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import type { DrawerCount } from '../model/fridgeLayout';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
@@ -41,6 +42,8 @@ interface SlotStructureSelectorProps {
  * @returns 가로 분할 구조 선택 버튼.
  */
 export function SlotStructureSelector({ label, accessibilityLabel = label, value, disabled, inline = false, onChange }: SlotStructureSelectorProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const selectedValue = value === 2 ? 2 : 0;
   const options = structureOptions.map(option => (
@@ -61,7 +64,7 @@ export function SlotStructureSelector({ label, accessibilityLabel = label, value
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   container: {
     gap: spacing.xs,
   },
@@ -99,4 +102,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-});
+}));

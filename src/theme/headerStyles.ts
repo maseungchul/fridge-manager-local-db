@@ -4,17 +4,17 @@
  * 시스템 안전 영역과 시트 손잡이는 각 화면에서 별도로 관리한다.
  */
 import { StyleSheet } from 'react-native';
-import { colors, spacing } from '@/theme/tokens';
+import { createThemedStyles, spacing } from '@/theme/tokens';
 
 export const HEADER_CONTENT_HEIGHT = 48;
 export const HEADER_HEIGHT = HEADER_CONTENT_HEIGHT + spacing.xs * 2 + StyleSheet.hairlineWidth;
 export const HEADER_ICON_SIZE = 28;
 
-export const headerStyles = StyleSheet.create({
+export const getHeaderStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   header: {
     minHeight: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   title: { color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: '700', includeFontPadding: false },
-});
+}));

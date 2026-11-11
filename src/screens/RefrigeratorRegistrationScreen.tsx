@@ -39,8 +39,9 @@ import {
 import type { DoorOpening, RefrigeratorDraft, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { colors, spacing } from '@/theme/tokens';
-import { HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
+import { HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { AppError, getErrorMessage } from '@/i18n/errors';
@@ -59,6 +60,8 @@ export function RefrigeratorRegistrationScreen({
   navigation,
   route,
 }: RefrigeratorRegistrationScreenProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const showToast = useToast();
   const refrigeratorId = route?.params?.refrigeratorId;
@@ -551,7 +554,7 @@ export function RefrigeratorRegistrationScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -601,7 +604,7 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   header: {
-    ...headerStyles.header,
+    ...getHeaderStyles(mode).header,
   },
   headerNavigation: {
     width: FRIDGE_HEADER_BUTTON_SIZE,
@@ -627,7 +630,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   title: {
-    ...headerStyles.title,
+    ...getHeaderStyles(mode).title,
     flex: 1,
     textAlign: 'center',
   },
@@ -766,4 +769,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-});
+}));

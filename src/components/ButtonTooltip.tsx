@@ -8,7 +8,8 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useS
 import type { PropsWithChildren } from 'react';
 import { BackHandler, Keyboard, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/theme/tokens';
+import { createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 export interface TooltipAnchor {
   x: number;
@@ -35,6 +36,8 @@ const TooltipContext = createContext<{
 
 /** 시트를 포함한 화면 바깥에서 하나의 설명 레이어를 공유한다. */
 export function ButtonTooltipProvider({ children }: PropsWithChildren) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const [entry, setEntry] = useState<TooltipEntry | null>(null);
   const show = useCallback((next: TooltipEntry) => setEntry(next), []);
   const hide = useCallback((owner: string) => setEntry(current => current?.owner === owner ? null : current), []);
@@ -61,6 +64,8 @@ export function ButtonTooltip({ anchor, label, gap, onDismiss }: ButtonTooltipPr
 }
 
 function TooltipBubble({ anchor, label, gap = 8, onDismiss }: ButtonTooltipProps) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -99,7 +104,7 @@ function TooltipBubble({ anchor, label, gap = 8, onDismiss }: ButtonTooltipProps
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   container: { flex: 1 },
   overlay: { ...StyleSheet.absoluteFill, zIndex: 1000 },
   bubble: { position: 'absolute', backgroundColor: colors.chilledPressed, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
@@ -108,4 +113,4 @@ const styles = StyleSheet.create({
   arrow: { position: 'absolute', width: 12, height: 12, backgroundColor: colors.chilledPressed, transform: [{ rotate: '45deg' }] },
   arrowAbove: { top: -6 },
   arrowBelow: { bottom: -6 },
-});
+}));

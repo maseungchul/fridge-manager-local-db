@@ -21,8 +21,9 @@ import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
 import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
-import { colors, spacing } from '@/theme/tokens';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 type ConsumedIngredientsScreenProps = CompositeScreenProps<
   NativeStackScreenProps<MoreStackParamList, 'ConsumedIngredients'>,
@@ -30,6 +31,8 @@ type ConsumedIngredientsScreenProps = CompositeScreenProps<
 > & { onInteractionBlockedChange: (blocked: boolean) => void };
 
 export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChange }: ConsumedIngredientsScreenProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const showToast = useToast();
   const db = useSQLiteContext();
@@ -166,10 +169,10 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  ...headerStyles,
-  title: { ...headerStyles.title, flexShrink: 1 },
+  ...getHeaderStyles(mode),
+  title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   list: { flex: 1 },
   listContent: { paddingBottom: spacing.lg },
@@ -187,4 +190,4 @@ const styles = StyleSheet.create({
   deleteButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, borderRadius: 22 },
   restoreLabel: { color: colors.chilled, fontSize: 15, fontWeight: '600' },
   deleteLabel: { color: colors.error, fontSize: 15 },
-});
+}));

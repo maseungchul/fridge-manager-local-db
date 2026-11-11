@@ -12,9 +12,12 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { initializeDatabase } from '@/db/initializeDatabase';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 export function DatabaseProvider({ children }: { children: ReactNode }) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const [error, setError] = useState<Error | null>(null);
 
@@ -36,8 +39,8 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.md },
   error: { color: colors.error, fontSize: 16, lineHeight: 24 },
-});
+}));

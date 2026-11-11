@@ -13,8 +13,9 @@ import { IngredientMoveQueueList } from '@/features/ingredient/components/Ingred
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
-import { colors } from '@/theme/tokens';
-import { HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
+import { createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
+import { HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface IngredientMoveQueueSheetProps {
@@ -24,6 +25,8 @@ interface IngredientMoveQueueSheetProps {
 }
 
 export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: IngredientMoveQueueSheetProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const sheet = useRef<IngredientSheetRef>(null);
   const { remove, clear } = useIngredientMoveQueue();
@@ -54,9 +57,9 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   panel: { flex: 1, backgroundColor: colors.surface },
-  header: { ...headerStyles.header, justifyContent: 'space-between' },
-  title: { ...headerStyles.title, flex: 1, textAlign: 'center' },
+  header: { ...getHeaderStyles(mode).header, justifyContent: 'space-between' },
+  title: { ...getHeaderStyles(mode).title, flex: 1, textAlign: 'center' },
   clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-});
+}));

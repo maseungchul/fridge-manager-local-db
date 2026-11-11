@@ -224,6 +224,10 @@ function loadComponent(path, overrides = {}) {
     '@/features/ingredient/components/IngredientListSheet': { IngredientListSheet: 'IngredientListSheet' },
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
+    '@/theme/ThemeProvider': {
+      ThemeProvider: 'ThemeProvider',
+      useAppTheme: () => ({ ...tokens.getAppTheme('light'), mode: 'light', isChangingTheme: false }),
+    },
     '@/features/fridge/components/FridgeInteriorMap': interiorModule,
     '@/features/fridge/components/fridgeDiagramLayout': diagramLayoutModule,
     '@/theme/headerStyles': headerStylesModule,
@@ -1609,7 +1613,7 @@ test('더보기의 언어 메뉴에서 언어를 바꾸면 같은 화면에 즉�
   assert.equal(option('한국어').props.accessibilityState.checked, true);
   assert.equal(option('日本語').props.accessibilityLanguage, 'ja-JP');
 
-  for (const [selected, language, expectedTitles, languageTitle, backLabel] of [
+  for (const [selected, language, expectedTitles, settingsTitle, backLabel] of [
     ['日本語', 'ja', ['冷蔵庫', '買い物', 'その他'], '言語', 'その他に戻る'],
     ['한국어', 'ko', ['냉장고', '장보기', '더보기'], '언어', '더보기로 돌아가기'],
   ]) {
@@ -1619,10 +1623,10 @@ test('더보기의 언어 메뉴에서 언어를 바꾸면 같은 화면에 즉�
     assert.deepEqual(titles(), expectedTitles);
     assert.equal(header(shopping), expectedTitles[1]);
     assert.equal(header(more), expectedTitles[2]);
-    assert.equal(header(settings), languageTitle);
+    assert.equal(header(settings), settingsTitle);
     find(settings.tree, node => node.props.accessibilityLabel === backLabel).props.onPress();
     assert.equal(destination, 'MoreHome');
-    find(more.tree, node => node.props.accessibilityLabel === languageTitle).props.onPress();
+    find(more.tree, node => node.props.accessibilityLabel === settingsTitle).props.onPress();
     assert.equal(destination, 'Settings');
     assert.equal(option(selected).props.accessibilityState.checked, true);
     const restarted = mount(languageModule.LanguageProvider, { children: null });
@@ -1649,7 +1653,7 @@ test('언어 저장 중에는 선택을 막고 연속 입력·실패 뒤 재시�
   refreshLanguage(); settings.render();
   assert.deepEqual(writes, ['ja'], '재렌더링 전 연속 입력도 한 번만 저장한다');
   assert.equal(languageModule.useTranslation().language, 'ko');
-  assert(findAll(settings.tree, node => node.props.accessibilityRole === 'radio').every(node => node.props.disabled
+  assert(['한국어', '日本語'].map(option).every(node => node.props.disabled
     && node.props.accessibilityState.disabled));
   resolveWrite();
   await selecting;
@@ -3249,7 +3253,8 @@ test('도면 복구는 칸을 선택한 뒤 저장하고 실패 시 선택을 �
 
 test('임시목록 공통 상태는 화면 전환으로 제거되지 않게 앱의 전체 경로를 감싼다', t => {
   const { default: App } = loadComponent('App.tsx', {
-    '@react-navigation/native': { NavigationContainer: 'NavigationContainer' },
+    '@react-navigation/native': { NavigationContainer: 'NavigationContainer', DefaultTheme: { colors: {} } },
+    'react-native': { ...native, Appearance: { setColorScheme() {} } },
     'expo-status-bar': { StatusBar: 'StatusBar' },
     'expo-sqlite': { SQLiteProvider: 'SQLiteProvider' },
     '@/db/initializeDatabase': { initializeDatabase() {} },
@@ -3257,8 +3262,11 @@ test('임시목록 공통 상태는 화면 전환으로 제거되지 않게 앱�
   });
   const app = mount(App, {});
   t.after(() => app.unmount());
-  assert.equal(app.tree.type, 'GestureHandlerRootView');
-  const provider = find(app.tree, named('IngredientMoveQueueProvider'));
+  assert.equal(app.tree.type, 'ThemeProvider');
+  const content = mount(app.tree.props.children.type, {});
+  t.after(() => content.unmount());
+  assert.equal(content.tree.type, 'GestureHandlerRootView');
+  const provider = find(content.tree, named('IngredientMoveQueueProvider'));
   assert(provider);
   const sheets = find(provider, node => node.type === 'BottomSheetModalProvider');
   assert(sheets, '포털의 재료 시트도 공통 대기 목록 상태에 접근한다');

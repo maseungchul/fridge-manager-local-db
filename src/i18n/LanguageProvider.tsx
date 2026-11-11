@@ -9,7 +9,8 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import Storage from 'expo-sqlite/kv-store';
 import { DEFAULT_LANGUAGE, resolveLanguage, translate } from '@/i18n/translations';
 import type { AppLanguage, TranslationArgs, TranslationKey, Translator } from '@/i18n/translations';
-import { colors } from '@/theme/tokens';
+import { createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 interface LanguageContextValue {
   language: AppLanguage;
@@ -22,6 +23,8 @@ const LANGUAGE_STORAGE_KEY = 'settings.language';
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const [language, setLanguage] = useState<AppLanguage | null>(null);
   const [isChangingLanguage, setIsChangingLanguage] = useState(false);
   const changing = useRef(false);
@@ -75,11 +78,11 @@ export function useTranslation() {
   return context;
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   loading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.background,
   },
-});
+}));

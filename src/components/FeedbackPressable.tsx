@@ -8,7 +8,8 @@ import { useCallback, useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import type { PressableProps } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { ButtonTooltip } from '@/components/ButtonTooltip';
 import type { TooltipAnchor } from '@/components/ButtonTooltip';
 
@@ -24,6 +25,8 @@ interface FeedbackPressableProps extends PressableProps {
 /** 마우스 호버와 터치 누름에 같은 색상을 적용하며, 비활성화 중에는 효과를 막는다. */
 export function FeedbackPressable({ feedback = 'default', disabled, interactionBlocked = false, tooltip, tooltipGap, style, onHoverIn, onHoverOut,
   onLongPress, onPress, onPressIn, ...props }: FeedbackPressableProps) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const [hovered, setHovered] = useState(false);
   const button = useRef<ComponentRef<typeof Pressable>>(null);
   const longPressed = useRef(false);
@@ -58,10 +61,10 @@ export function FeedbackPressable({ feedback = 'default', disabled, interactionB
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   primary: { backgroundColor: colors.buttonPressed },
   chilled: { backgroundColor: colors.chilledPressed },
   default: { backgroundColor: colors.sageLight },
   danger: { backgroundColor: colors.rose },
   disabled: { opacity: 0.42 },
-});
+}));

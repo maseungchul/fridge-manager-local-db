@@ -20,8 +20,9 @@ import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
-import { colors, spacing } from '@/theme/tokens';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 export interface IngredientFormResult {
   draft: IngredientDraft;
@@ -34,6 +35,8 @@ type IngredientFormScreenProps = NativeStackScreenProps<RootStackParamList, 'Ing
 };
 
 export function IngredientFormScreen({ navigation, route, onResultChange }: IngredientFormScreenProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const showToast = useToast();
   const db = useSQLiteContext();
@@ -173,13 +176,13 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
   content: { flex: 1 },
   scrollContent: { flexGrow: 1 },
-  header: { ...headerStyles.header, backgroundColor: colors.surface },
+  header: { ...getHeaderStyles(mode).header, backgroundColor: colors.surface },
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
-  title: { ...headerStyles.title, textAlign: 'center' },
+  title: { ...getHeaderStyles(mode).title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   form: { flexGrow: 1, padding: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
@@ -189,4 +192,4 @@ const styles = StyleSheet.create({
     gap: spacing.sm, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 10 },
   clearDateButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   error: { color: colors.error, fontSize: 16, textAlign: 'center', marginTop: spacing.md },
-});
+}));

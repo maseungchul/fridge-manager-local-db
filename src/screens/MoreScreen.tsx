@@ -11,8 +11,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
-import { headerStyles } from '@/theme/headerStyles';
-import { colors, spacing } from '@/theme/tokens';
+import { getHeaderStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 type MoreScreenProps = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
 
@@ -26,12 +27,15 @@ const menuSections = [
   {
     title: 'settings.title',
     items: [
-      { screen: 'Settings', label: 'settings.language', icon: 'translate' },
+      { screen: 'Settings', label: 'settings.language', icon: 'translate', section: 'language' },
+      { screen: 'Settings', label: 'settings.theme', icon: 'theme-light-dark', section: 'theme' },
     ],
   },
 ] as const;
 
 export function MoreScreen({ navigation }: MoreScreenProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
 
   return (
@@ -47,8 +51,10 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
             </View>
             <View style={styles.menu}>
               {section.items.map(item => (
-                <FeedbackPressable key={item.screen} accessibilityRole="button" accessibilityLabel={t(item.label)}
-                  onPress={() => navigation.navigate(item.screen)} style={styles.item}>
+                <FeedbackPressable key={item.label} accessibilityRole="button" accessibilityLabel={t(item.label)}
+                  onPress={() => item.screen === 'Settings'
+                    ? navigation.navigate('Settings', { section: item.section })
+                    : navigation.navigate(item.screen)} style={styles.item}>
                   <MaterialDesignIcons name={item.icon} size={24} color={colors.textMuted} accessible={false} />
                   <Text style={styles.itemLabel}>{t(item.label)}</Text>
                 </FeedbackPressable>
@@ -61,9 +67,9 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  ...headerStyles,
+  ...getHeaderStyles(mode),
   content: { paddingTop: spacing.md, paddingBottom: spacing.lg },
   sectionSeparator: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   sectionHeader: {
@@ -73,4 +79,4 @@ const styles = StyleSheet.create({
   menu: { paddingVertical: spacing.xs },
   item: { minHeight: 56, paddingHorizontal: spacing.md, paddingVertical: spacing.md, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   itemLabel: { flex: 1, color: colors.text, fontSize: 16, lineHeight: 24 },
-});
+}));

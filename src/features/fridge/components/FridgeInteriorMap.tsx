@@ -15,7 +15,8 @@ import type { DraftDoor, FridgeLayout, RefrigeratorDraft, StorageArea, StorageMo
 import { IngredientCountBadges, getIngredientCountLabel } from '@/features/ingredient/components/IngredientCountBadges';
 import { getIngredientCounts } from '@/features/ingredient/model/ingredient';
 import type { Ingredient, IngredientCounts } from '@/features/ingredient/model/ingredient';
-import { colors, fridgeDoorColors, fridgeSurfaces, getFridgeSurfaceStyle, spacing } from '@/theme/tokens';
+import { getFridgeSurfaceStyle, spacing, fridgeSurfaces as lightFridgeSurfaces, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 import { getFridgeDiagramSizes } from '@/features/fridge/components/fridgeDiagramLayout';
 import type { FridgeDiagramSize } from '@/features/fridge/components/fridgeDiagramLayout';
 import { useTranslation } from '@/i18n/LanguageProvider';
@@ -122,10 +123,10 @@ function getGridCorners(edges: GridEdges, mirrored = false): ViewStyle {
   const right = mirrored ? edges.left : edges.right;
   return {
     borderRadius: 0,
-    borderTopLeftRadius: !edges.top && !left ? fridgeSurfaces.radius : 0,
-    borderTopRightRadius: !edges.top && !right ? fridgeSurfaces.radius : 0,
-    borderBottomLeftRadius: !edges.bottom && !left ? fridgeSurfaces.radius : 0,
-    borderBottomRightRadius: !edges.bottom && !right ? fridgeSurfaces.radius : 0,
+    borderTopLeftRadius: !edges.top && !left ? lightFridgeSurfaces.radius : 0,
+    borderTopRightRadius: !edges.top && !right ? lightFridgeSurfaces.radius : 0,
+    borderBottomLeftRadius: !edges.bottom && !left ? lightFridgeSurfaces.radius : 0,
+    borderBottomRightRadius: !edges.bottom && !right ? lightFridgeSurfaces.radius : 0,
   };
 }
 
@@ -158,6 +159,9 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
   cornerStyle?: ViewStyle;
   areaHeader?: ReactNode;
 }) {
+  const theme = useAppTheme();
+  const { mode, fridgeDoorColors, fridgeSurfaces } = theme;
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { width, height } = size;
@@ -168,7 +172,7 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
     <Container accessible={onPress ? undefined : true} accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={t('fridge.noStorage', { label })} accessibilityState={onPress ? { selected } : undefined}
       onPress={onPress}
-      style={[styles.noStorage, getFridgeSurfaceStyle(storageMode), cornerStyle]}>
+      style={[styles.noStorage, getFridgeSurfaceStyle(storageMode, 'interior', theme), cornerStyle]}>
       {areaHeader}
       <View pointerEvents="none" style={[styles.pocketCavity,
         { backgroundColor: storageMode ? fridgeDoorColors[storageMode].frame : fridgeSurfaces.frame }]}
@@ -190,6 +194,8 @@ export function DoorWithoutStorage({ label, selected, storageMode, cornerStyle, 
 
 /** 도면 크기를 바꾸지 않고 선택 테두리로 현재 영역을 표시한다. */
 function SelectionFrame({ storageMode, style }: { storageMode: StorageMode | null; style?: StyleProp<ViewStyle> }) {
+  const { mode, fridgeDoorColors, fridgeSurfaces } = useAppTheme();
+  const styles = getStyles(mode);
   const color = storageMode ? fridgeDoorColors[storageMode].ink : fridgeSurfaces.handle;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
@@ -210,6 +216,8 @@ function InteriorArea({ area, layout, now, compact, selected, storageMode, corne
   onSelectSlot?: (index: number, positionId?: string) => void;
   disabled?: boolean;
 }) {
+  const { mode, fridgeDoorColors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const positions = layout.positions.filter(position => position.areaId === area.id);
   const header = (
@@ -248,6 +256,9 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   // 합친 본체는 첫 문에만 왼쪽 아이콘을 두고, 지정하지 않으면 손잡이 위치를 따른다.
   modeArt?: 'left' | 'hidden';
 }) {
+  const theme = useAppTheme();
+  const { mode } = theme;
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const drawer = door.kind === 'DRAWER';
   const closed = phase === 'closed';
@@ -258,8 +269,8 @@ function FridgeDoor({ door, label, phase, progress, selected, storageMode, style
   // 중앙 보기로 옮길 때도 앞면 인쇄는 닫힌 문의 크기를 기준으로 유지한다.
   const artSize = Math.max(12, Math.min(22, (sourceSize?.width ?? leafWidth) * 0.16, (sourceSize?.height ?? faceHeight) * 0.18));
   const handleOnLeft = !drawer && !leftHinge;
-  const modeStyle = getFridgeSurfaceStyle(storageMode, 'exterior');
-  const contactColor = '#c0c9cf';
+  const modeStyle = getFridgeSurfaceStyle(storageMode, 'exterior', theme);
+  const contactColor = theme.colors.doorContact;
   const gridCorners = doorGaps ? HOME_DOOR_CORNERS : gridEdges ? getGridCorners(gridEdges) : undefined;
   const backCorners = doorGaps ? HOME_DOOR_CORNERS : gridEdges ? getGridCorners(gridEdges, true) : undefined;
   const gridStyle: ViewStyle | undefined = gridEdges ? {
@@ -328,6 +339,8 @@ function FridgeCompartment({ group, row, rowIndex, rowCount, layout, now, select
   focus: FridgeInteriorMapProps['focus']; onFocus: FridgeInteriorMapProps['onFocus'];
   doorGaps?: boolean;
 }) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const frameRef = useRef<ComponentRef<typeof View>>(null);
   const progress = useAnimatedValue(0);
@@ -462,6 +475,8 @@ export function getFridgeFocusGeometry(draft: FridgeInteriorMapProps['draft'], f
 
 /** 연결 위치는 유지하고 손잡이와 같은 단색의 짧은 캡슐로 경첩을 표시한다. */
 function DoorHinge({ storageMode, style }: { storageMode: StorageMode | null; style: StyleProp<ViewStyle> }) {
+  const { mode, fridgeDoorColors } = useAppTheme();
+  const styles = getStyles(mode);
   return (
     <View style={[styles.hinge, style]}>
       <View style={[styles.hingePin, storageMode && { backgroundColor: fridgeDoorColors[storageMode].handle }]} />
@@ -471,6 +486,8 @@ function DoorHinge({ storageMode, style }: { storageMode: StorageMode | null; st
 
 /** 본체·포켓에 세로 경첩을 두 군데 표시하고, 먼 경계는 위아래 연결선으로 잇는다. */
 function DoorHinges({ fromX, toX, height, storageMode }: { fromX: number; toX: number; height: number; storageMode: StorageMode | null }) {
+  const { mode, fridgeDoorColors } = useAppTheme();
+  const styles = getStyles(mode);
   const adjacent = Math.abs(fromX - toX) < 0.01;
   return (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
@@ -497,6 +514,8 @@ function DoorHinges({ fromX, toX, height, storageMode }: { fromX: number; toX: n
 function FridgeScrollHint({ enabled, viewport, onSeen }: {
   enabled: boolean; viewport: LayoutRectangle; onSeen?: () => void;
 }) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const [visible, setVisible] = useState(enabled);
 
@@ -532,6 +551,9 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   selectedPositionId?: string;
   onSelectSlot?: (areaId: string, index: number, positionId?: string) => void;
 }) {
+  const theme = useAppTheme();
+  const { mode, fridgeDoorColors, fridgeSurfaces } = theme;
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const progress = useAnimatedValue(0);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -645,7 +667,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         }]}>
           <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
             style={[StyleSheet.absoluteFill, styles.bodyFrame,
-              getFridgeSurfaceStyle(group.body.storageMode), bodyCorners]}>
+              getFridgeSurfaceStyle(group.body.storageMode, 'interior', theme), bodyCorners]}>
             <View style={[styles.bodyCavity, {
               backgroundColor: group.body.storageMode ? fridgeDoorColors[group.body.storageMode].frame : fridgeSurfaces.frame,
             }]} />
@@ -732,6 +754,8 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
 /** 닫힌 도면은 공통 크기 기준으로 배치하고, 중앙 보기로 이동한 영역은 원래 자리에서 숨긴다. */
 export function FridgeInteriorMap({ draft, ingredients, now, selectedAreaId, onSelectArea, focus, onFocus, fitHeight = false, layoutSize,
   scrollVertically = false, onCanvasOffsetChange, doorGaps = true }: FridgeInteriorMapProps) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const size = layoutSize ?? viewportSize;
@@ -769,7 +793,7 @@ export function FridgeInteriorMap({ draft, ingredients, now, selectedAreaId, onS
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors, fridgeSurfaces }) => StyleSheet.create({
   viewport: {
     paddingVertical: MAP_PADDING,
   },
@@ -953,4 +977,4 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: fridgeSurfaces.border,
   },
-});
+}));

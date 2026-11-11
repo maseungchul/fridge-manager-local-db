@@ -20,6 +20,7 @@ export const colors = {
   textMuted: '#686868',
   // 냉장고 경로의 실 이름과 아이콘을 등록·편집·홈에서 같은 색상으로 구분한다.
   chilled: '#42654E',
+  chilledFill: '#42654E',
   chilledPressed: '#324D3B',
   frozen: '#42677F',
   // 등록 도면의 보관 모드 배지와 선택 영역에 사용하는 옅은 배경색이다.
@@ -40,6 +41,11 @@ export const colors = {
   button: '#303432',
   buttonPressed: '#242725',
   buttonText: '#FFFFFF',
+  badgeText: '#FFFFFF',
+  sheetHandle: '#C4C4C4',
+  menuArrow: '#000000',
+  previewHandle: '#B1B1B1',
+  doorContact: '#c0c9cf',
   // 오류 문구와 입력 오류가 있는 필드의 테두리에 사용한다.
   error: '#A33D43',
 } as const;
@@ -91,9 +97,62 @@ export const fridgeDoorColors = {
   },
 } as const;
 
-/** 문 앞면은 모드 색을 유지하고, 열린 프레임과 이름 영역은 흰 바탕을 공유한다. */
-export function getFridgeSurfaceStyle(storageMode: keyof typeof fridgeDoorColors | null | undefined, side: 'interior' | 'exterior' = 'interior') {
+export type ThemeMode = 'light' | 'dark';
+type Palette<T> = { [K in keyof T]: T[K] extends string ? string : T[K] };
+
+export interface AppTheme {
+  colors: Palette<typeof colors>;
+  fridgeSurfaces: Palette<typeof fridgeSurfaces>;
+  fridgeDoorColors: { [K in keyof typeof fridgeDoorColors]: Palette<(typeof fridgeDoorColors)[K]> };
+  ingredientBadgeColors: Palette<typeof ingredientBadgeColors>;
+}
+
+const lightTheme: AppTheme = { colors, fridgeSurfaces, fridgeDoorColors, ingredientBadgeColors };
+const darkTheme: AppTheme = {
+  colors: {
+    background: '#141616', navigationBackground: '#1D2020', surface: '#222626', toolbar: '#1D2020',
+    text: '#F0F2F1', textMuted: '#ADB6B2', border: '#484F4C',
+    chilled: '#9AC9A9', chilledFill: '#3D624B', chilledPressed: '#32503E', frozen: '#9DC5E1', chilledBackground: '#2A4336',
+    sage: '#687F72', sageLight: '#32463A', rose: '#59343A',
+    noticeBackground: '#26352C', noticeForeground: '#B8DBA8', toastBackground: 'rgba(36, 40, 39, 0.96)',
+    moveQueueBadge: '#19C17B', button: '#41664F', buttonPressed: '#335440', buttonText: '#FFFFFF', error: '#F1989F',
+    badgeText: '#17221D', sheetHandle: '#89958E', menuArrow: '#C6D0CA', previewHandle: '#85928B', doorContact: '#64736B',
+  },
+  fridgeSurfaces: {
+    ...fridgeSurfaces, border: '#58625D', exterior: '#333936', interior: '#292E2C', frame: '#272C29',
+    selection: '#464F4A', shelf: '#59655F', pocket: '#394440CC', handle: '#85928B', ink: '#CDD6D0',
+  },
+  fridgeDoorColors: {
+    CHILLED: {
+      background: '#33483D', border: '#527060', ink: '#B7DDC3', motif: '#94BCA2', frame: '#263B30',
+      shelf: '#617E6E', pocket: '#3E5749CC', handle: '#819D8C', selection: '#4D6A59',
+    },
+    FROZEN: {
+      background: '#344652', border: '#546F82', ink: '#BCD8EB', motif: '#99BBD1', frame: '#293B48',
+      shelf: '#637D90', pocket: '#405665CC', handle: '#859EAE', selection: '#4D697D',
+    },
+  },
+  ingredientBadgeColors: { normal: '#9AC9A9', warning: '#F1AE76', expired: '#F29DA7', unknown: '#ADB6B2' },
+};
+
+export function getAppTheme(mode: ThemeMode): AppTheme {
+  return mode === 'dark' ? darkTheme : lightTheme;
+}
+
+// 같은 테마의 스타일은 화면이 다시 렌더링될 때도 재사용한다.
+export function createThemedStyles<T>(create: (theme: AppTheme, mode: ThemeMode) => T) {
+  const cache = new Map<ThemeMode, T>();
+  return (mode: ThemeMode) => {
+    if (!cache.has(mode)) cache.set(mode, create(getAppTheme(mode), mode));
+    return cache.get(mode)!;
+  };
+}
+
+/** 문과 열린 프레임은 현재 테마의 도면 색을 사용한다. */
+export function getFridgeSurfaceStyle(storageMode: keyof typeof fridgeDoorColors | null | undefined,
+  side: 'interior' | 'exterior' = 'interior', theme = lightTheme) {
   if (!storageMode) return undefined;
+  const { fridgeDoorColors, fridgeSurfaces } = theme;
   const palette = fridgeDoorColors[storageMode];
   return {
     backgroundColor: side === 'interior' ? fridgeSurfaces.interior : palette.background,

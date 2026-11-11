@@ -22,13 +22,16 @@ import type { ConsumedIngredient, Ingredient } from '@/features/ingredient/model
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { AppError, getErrorMessage } from '@/i18n/errors';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, headerStyles } from '@/theme/headerStyles';
-import { colors, spacing } from '@/theme/tokens';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { spacing, createThemedStyles } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 type IngredientRestoreScreenProps = NativeStackScreenProps<RootStackParamList, 'IngredientRestore'>;
 type RestoreResult = { refrigerator: Refrigerator | null; record: ConsumedIngredient; ingredients: Ingredient[] } | { error: unknown };
 
 export function IngredientRestoreScreen({ navigation, route }: IngredientRestoreScreenProps) {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const { id, consumedAt } = route.params;
@@ -164,10 +167,10 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  ...headerStyles,
-  title: { ...headerStyles.title, flexShrink: 1 },
+  ...getHeaderStyles(mode),
+  title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   scene: { flex: 1, minHeight: 0, overflow: 'hidden' },
   guide: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, color: colors.textMuted, fontSize: 14, lineHeight: 22 },
@@ -177,4 +180,4 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
   retry: { alignSelf: 'stretch' },
-});
+}));

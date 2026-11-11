@@ -10,7 +10,7 @@ import { RefrigeratorRegistrationScreen } from '@/screens/RefrigeratorRegistrati
 import { IngredientFormScreen, type IngredientFormResult } from '@/screens/IngredientFormScreen';
 import { IngredientRestoreScreen } from '@/screens/IngredientRestoreScreen';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
-import { colors } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/ThemeProvider';
 
 // 냉장고 ID가 있으면 저장된 구성을 편집하고, 매개변수가 없으면 신규 등록한다.
 export type RootStackParamList = {
@@ -28,6 +28,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 /** 화면을 Navigator에 등록하고 공통 전환 효과와 헤더 표시를 설정한다. */
 export function RootNavigator() {
+  const { colors } = useAppTheme();
   // 화면을 닫기 전에 전달한 초안·저장 결과를 홈 복귀 시 한 번만 가져간다.
   const ingredientFormResult = useRef<IngredientFormResult | null>(null);
   const updateIngredientFormResult = useCallback((result: IngredientFormResult) => {
