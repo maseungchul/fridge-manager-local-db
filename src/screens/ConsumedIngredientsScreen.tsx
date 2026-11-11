@@ -181,7 +181,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
   retry: { alignSelf: 'stretch' },
-  item: { padding: spacing.lg, gap: spacing.xs, backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  item: { paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.xs, backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   name: { color: colors.text, fontSize: 17, fontWeight: '600' },
   quantity: { fontWeight: '400' },
   detail: { color: colors.textMuted, fontSize: 15, lineHeight: 21 },

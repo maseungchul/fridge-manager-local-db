@@ -27,7 +27,7 @@ export function getFridgeDiagramSizes(window: FridgeDiagramSize, insets: { top: 
   const toolbarHeight = FRIDGE_TOOLBAR_ACTION_HEIGHT + spacing.xs * 2 + StyleSheet.hairlineWidth;
   return {
     closed: {
-      width: Math.max(1, width - spacing.lg * 2),
+      width: Math.max(1, width - spacing.md * 2),
       height: Math.max(1, stageHeight - spacing.sm - spacing.lg - stepHeight - spacing.lg),
     },
     opened: {

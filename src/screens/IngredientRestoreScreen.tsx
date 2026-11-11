@@ -173,7 +173,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   scene: { flex: 1, minHeight: 0, overflow: 'hidden' },
-  guide: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, color: colors.textMuted, fontSize: 14, lineHeight: 22 },
+  guide: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.textMuted, fontSize: 14, lineHeight: 22 },
   footer: { padding: spacing.md, gap: spacing.sm },
   description: { color: colors.textMuted, fontSize: 14, lineHeight: 22, textAlign: 'center' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },

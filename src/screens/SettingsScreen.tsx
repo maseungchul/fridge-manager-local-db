@@ -95,7 +95,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   ...getHeaderStyles(mode),
   title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  content: { padding: spacing.lg, gap: spacing.lg },
+  content: { paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.lg },
   section: { gap: spacing.sm },
   description: { color: colors.textMuted, fontSize: 14, lineHeight: 22 },
   options: { gap: spacing.sm, marginTop: spacing.xs },

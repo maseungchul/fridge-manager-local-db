@@ -585,7 +585,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     height: '100%',
   },
   content: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
     gap: spacing.lg,

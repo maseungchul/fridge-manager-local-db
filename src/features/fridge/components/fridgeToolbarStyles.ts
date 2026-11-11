@@ -9,7 +9,7 @@ import { FRIDGE_TOOLBAR_ACTION_HEIGHT } from '@/features/fridge/components/fridg
 
 export const getFridgeToolbarStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   toolbar: {
-    flexShrink: 0, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs,
+    flexShrink: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.toolbar,
   },
   actions: { flexDirection: 'row', gap: spacing.xs },

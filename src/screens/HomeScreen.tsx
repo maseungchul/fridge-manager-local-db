@@ -409,7 +409,7 @@ const getStyles = createThemedStyles(({ colors, fridgeDoorColors }, mode) => Sty
   emptyContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.lg,
     paddingBottom: spacing.lg * 3,
   },

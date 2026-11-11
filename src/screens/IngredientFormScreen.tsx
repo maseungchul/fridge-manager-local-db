@@ -184,7 +184,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
   title: { ...getHeaderStyles(mode).title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  form: { flexGrow: 1, padding: spacing.lg },
+  form: { flexGrow: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
   date: { color: colors.text, fontSize: 16, flexShrink: 1 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
