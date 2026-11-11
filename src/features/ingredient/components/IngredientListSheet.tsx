@@ -413,23 +413,29 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.enqueueSelected')}
                             disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
-                            feedback="default" onPress={enqueueSelectedIngredients} style={styles.selectionAction}>
-                            <MaterialDesignIcons name="clipboard-plus-outline" size={24} color={colors.text} accessible={false} />
-                            <Text style={styles.selectionActionLabel}>{t('ingredient.enqueueLabel')}</Text>
+                            feedback="none" onPress={enqueueSelectedIngredients} style={styles.selectionAction}>
+                            {({ pressed }) => <>
+                              <MaterialDesignIcons name={pressed ? 'clipboard-plus' : 'clipboard-plus-outline'} size={24} color={colors.text} accessible={false} />
+                              <Text style={styles.selectionActionLabel}>{t('ingredient.enqueueLabel')}</Text>
+                            </>}
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.consumeSelected')}
                             disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
-                            feedback="default" onPress={() => requestRemoval('consume')} style={styles.selectionAction}>
-                            <MaterialDesignIcons name="check-circle-outline" size={24} color={colors.text} accessible={false} />
-                            <Text style={styles.selectionActionLabel}>{t('ingredient.consume')}</Text>
+                            feedback="none" onPress={() => requestRemoval('consume')} style={styles.selectionAction}>
+                            {({ pressed }) => <>
+                              <MaterialDesignIcons name={pressed ? 'check-circle' : 'check-circle-outline'} size={24} color={colors.text} accessible={false} />
+                              <Text style={styles.selectionActionLabel}>{t('ingredient.consume')}</Text>
+                            </>}
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('ingredient.deleteSelected')}
                             disabled={selectedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
-                            feedback="danger" onPress={() => requestRemoval('delete')} style={styles.selectionAction}>
-                            <MaterialDesignIcons name="trash-can-outline" size={24} color={colors.error} accessible={false} />
-                            <Text style={[styles.selectionActionLabel, styles.deleteLabel]}>{t('common.delete')}</Text>
+                            feedback="none" onPress={() => requestRemoval('delete')} style={styles.selectionAction}>
+                            {({ pressed }) => <>
+                              <MaterialDesignIcons name={pressed ? 'trash-can' : 'trash-can-outline'} size={24} color={colors.error} accessible={false} />
+                              <Text style={[styles.selectionActionLabel, styles.deleteLabel]}>{t('common.delete')}</Text>
+                            </>}
                           </FeedbackPressable>
                         </View>
                       ) : null}
@@ -462,7 +468,7 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
   selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
   selectionToolbar: { flexDirection: 'row', flexShrink: 0,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface },
-  selectionAction: { flex: 1, minHeight: 48, marginHorizontal: spacing.xs, paddingTop: spacing.xs, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  selectionAction: { flex: 1, minHeight: 48, marginHorizontal: spacing.xs, paddingTop: spacing.xs, alignItems: 'center', justifyContent: 'center' },
   selectionActionLabel: { color: colors.text, fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: '600' },
   deleteLabel: { color: colors.error },
   selectableItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

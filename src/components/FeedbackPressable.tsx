@@ -14,7 +14,7 @@ import { ButtonTooltip } from '@/components/ButtonTooltip';
 import type { TooltipAnchor } from '@/components/ButtonTooltip';
 
 interface FeedbackPressableProps extends PressableProps {
-  feedback?: 'primary' | 'default' | 'danger' | 'chilled';
+  feedback?: 'primary' | 'default' | 'danger' | 'chilled' | 'none';
   // 일시적인 입력 차단은 비활성화 색상 없이 처리한다.
   interactionBlocked?: boolean;
   // 아이콘 버튼에서만 요청하며, true이면 기존 접근성 이름을 설명으로 사용한다.
@@ -66,5 +66,6 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   chilled: { backgroundColor: colors.chilledPressed },
   default: { backgroundColor: colors.sageLight },
   danger: { backgroundColor: colors.rose },
+  none: {},
   disabled: { opacity: 0.42 },
 }));
