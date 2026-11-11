@@ -40,9 +40,14 @@ export async function registerIngredient(db: SQLiteDatabase, input: Omit<Ingredi
   return ingredient;
 }
 
-/** 등록과 같은 검증을 적용하고, 기존 ID·보관 위치가 일치하는 재료의 기본 정보만 수정한다. */
+/** 기존 제한보다 긴 값은 변경하지 않은 경우에만 유지하며 재료의 기본 정보를 수정한다. */
 export async function updateIngredient(db: SQLiteDatabase, input: Ingredient): Promise<Ingredient> {
-  const ingredient = prepareIngredientRegistration(input, () => input.id);
+  const existing = input.name.trim().length > 20 || input.quantity.trim().length > 10
+    ? await db.getFirstAsync<Pick<Ingredient, 'name' | 'quantity'>>(
+      'SELECT name, quantity FROM ingredients WHERE id = ? AND slot_id = ? AND drawer_number = ?',
+      input.id, input.slotId, input.drawerNumber)
+    : null;
+  const ingredient = prepareIngredientRegistration(input, () => input.id, existing);
   const result = await db.runAsync(`
     UPDATE ingredients SET name = ?, quantity = ?, memo = ?, expiration_date = ?
     WHERE id = ? AND slot_id = ? AND drawer_number = ?;

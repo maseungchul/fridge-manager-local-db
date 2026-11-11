@@ -152,14 +152,30 @@ test('재료 등록 입력은 공백을 정리하고 잘못된 이름·수량·�
   assert.equal(prepare({ ...input, expirationDate: '   ' }).expirationDate, null);
   for (const memo of [null, '', ' \n\t ']) assert.equal(prepare({ ...input, memo }).memo, null);
   const invalid = [
-    ...['', ' \n\t ', '가'.repeat(51)].map(name => ({ ...input, name })),
-    ...['', ' \n\t ', '가'.repeat(51)].map(quantity => ({ ...input, quantity })),
+    ...['', ' \n\t ', '가'.repeat(21)].map(name => ({ ...input, name })),
+    ...['', ' \n\t ', '가'.repeat(11)].map(quantity => ({ ...input, quantity })),
     ...['2026-02-29', '2026-04-31', '2026-00-01', '2026-01-00', '2026-13-01', '2026-1-01', '날짜 아님',
       '2026-11-04T00:00:00Z'].map(expirationDate => ({ ...input, expirationDate })),
     { ...input, slotId: ' ' }, { ...input, drawerNumber: 3 }, { ...input, drawerNumber: 1.5 },
   ];
   for (const value of invalid) assert.throws(() => prepare(value), /재료명|수량|유통기한|위치/);
   assert.equal(issuedIds, 5);
+  assert.equal(prepare({ ...input, name: '가'.repeat(20), quantity: '1'.repeat(10) }).name.length, 20);
+});
+
+test('기존 제한보다 긴 재료명과 수량은 수정하지 않은 경우에만 유지한다', async t => {
+  const { db, adapter } = await createRepositoryDatabase(t);
+  await registerRefrigerator(adapter, model.createRefrigeratorDraft());
+  const refrigerator = await getRefrigerator(adapter);
+  const original = await registerIngredient(adapter, { name: '계란', quantity: '2개', memo: null,
+    expirationDate: null, slotId: refrigerator.rows[0].compartments[0].slots[0].id, drawerNumber: 0 });
+  const name = '가'.repeat(21);
+  const quantity = '1'.repeat(11);
+  db.prepare('UPDATE ingredients SET name = ?, quantity = ? WHERE id = ?').run(name, quantity, original.id);
+  const legacy = { ...original, name, quantity };
+  assert.equal((await updateIngredient(adapter, { ...legacy, memo: '메모' })).memo, '메모');
+  await assert.rejects(updateIngredient(adapter, { ...legacy, name: `${name}나` }), /재료명/);
+  await assert.rejects(updateIngredient(adapter, { ...legacy, quantity: `${quantity}2` }), /수량/);
 });
 
 test('수동 등록 재료는 선택한 좌우·포켓에 저장되고 파일 DB를 다시 열어도 유지한다', async t => {
