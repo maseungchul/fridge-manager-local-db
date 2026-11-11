@@ -67,12 +67,12 @@ const styles = StyleSheet.create({
   content: { paddingBottom: spacing.lg },
   section: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   sectionHeader: {
-    minHeight: 44, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, justifyContent: 'center',
+    minHeight: 44, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, justifyContent: 'center',
     backgroundColor: colors.toolbar,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
   sectionTitle: { color: colors.text, opacity: 0.7, fontSize: 14, lineHeight: 22 },
   menu: { paddingVertical: spacing.xs, backgroundColor: colors.surface },
-  item: { minHeight: 56, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  item: { minHeight: 56, paddingHorizontal: spacing.md, paddingVertical: spacing.md, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   itemLabel: { flex: 1, color: colors.text, fontSize: 16, lineHeight: 24 },
 });
