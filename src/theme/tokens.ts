@@ -18,8 +18,8 @@ export const colors = {
   // text는 기본 글자, textMuted는 보조 설명과 입력 안내 문구에 사용한다.
   text: '#242424',
   textMuted: '#686868',
-  iconPressed: '#777777',
-  errorPressed: '#D2767B',
+  iconPressed: '#C2C2C2',
+  errorPressed: '#E58A90',
   // 냉장고 경로의 실 이름과 아이콘을 등록·편집·홈에서 같은 색상으로 구분한다.
   chilled: '#42654E',
   chilledFill: '#42654E',
@@ -113,7 +113,7 @@ const lightTheme: AppTheme = { colors, fridgeSurfaces, fridgeDoorColors, ingredi
 const darkTheme: AppTheme = {
   colors: {
     background: '#141616', navigationBackground: '#1D2020', surface: '#222626', toolbar: '#1D2020',
-    text: '#F0F2F1', textMuted: '#ADB6B2', iconPressed: '#A5A5A5', errorPressed: '#BA656D', border: '#484F4C',
+    text: '#F0F2F1', textMuted: '#ADB6B2', iconPressed: '#777777', errorPressed: '#A74C55', border: '#484F4C',
     chilled: '#9AC9A9', chilledFill: '#3D624B', chilledPressed: '#32503E', frozen: '#9DC5E1', chilledBackground: '#2A4336',
     sage: '#687F72', sageLight: '#32463A', rose: '#59343A',
     noticeBackground: '#26352C', noticeForeground: '#B8DBA8', toastBackground: 'rgba(36, 40, 39, 0.96)',
