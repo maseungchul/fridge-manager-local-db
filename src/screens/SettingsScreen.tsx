@@ -15,17 +15,17 @@ import type { AppLanguage } from '@/i18n/translations';
 import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import type { ThemeMode } from '@/theme/tokens';
+import type { ThemePreference } from '@/theme/ThemeProvider';
 import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 
 type SettingsScreenProps = NativeStackScreenProps<MoreStackParamList, 'Settings'>;
 
 const languages = Object.keys(languageNames) as AppLanguage[];
-const themes = { light: 'settings.themeLight', dark: 'settings.themeDark' } as const;
-const themeModes = Object.keys(themes) as ThemeMode[];
+const themes = { system: 'settings.themeSystem', light: 'settings.themeLight', dark: 'settings.themeDark' } as const;
+const themeModes = Object.keys(themes) as ThemePreference[];
 
 export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
-  const { mode, colors, changeTheme, isChangingTheme } = useAppTheme();
+  const { mode, preference, colors, changeTheme, isChangingTheme } = useAppTheme();
   const styles = getStyles(mode);
   const { t, language, changeLanguage, isChangingLanguage } = useTranslation();
   const section = route?.params?.section ?? 'language';
@@ -38,7 +38,7 @@ export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
     }
   }
 
-  async function selectTheme(next: ThemeMode) {
+  async function selectTheme(next: ThemePreference) {
     try {
       await changeTheme(next);
     } catch {
@@ -73,10 +73,10 @@ export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
           <View style={styles.options}>
             {themeModes.map(option => (
               <FeedbackPressable key={option} accessibilityRole="radio" accessibilityLabel={t(themes[option])}
-                accessibilityState={{ checked: mode === option, disabled: isChangingTheme }} disabled={isChangingTheme}
-                onPress={() => selectTheme(option)} style={[styles.option, mode === option && styles.selected]}>
+                accessibilityState={{ checked: preference === option, disabled: isChangingTheme }} disabled={isChangingTheme}
+                onPress={() => selectTheme(option)} style={[styles.option, preference === option && styles.selected]}>
                 <Text style={styles.optionLabel}>{t(themes[option])}</Text>
-                <SelectionCheck selected={mode === option} />
+                <SelectionCheck selected={preference === option} />
               </FeedbackPressable>
             ))}
           </View>

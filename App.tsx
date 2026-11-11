@@ -21,11 +21,11 @@ export default function App() {
 }
 
 function AppContent() {
-  const { colors, mode } = useAppTheme();
+  const { colors, mode, preference } = useAppTheme();
   const navigationTheme = mode === 'dark' ? DarkTheme : DefaultTheme;
   useEffect(() => {
-    Appearance.setColorScheme(mode);
-  }, [mode]);
+    Appearance.setColorScheme(preference === 'system' ? 'auto' : preference);
+  }, [preference]);
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaProvider>

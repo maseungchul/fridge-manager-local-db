@@ -5,52 +5,58 @@
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
+import { useColorScheme } from 'react-native';
 import Storage from 'expo-sqlite/kv-store';
 import { getAppTheme } from '@/theme/tokens';
 import type { AppTheme, ThemeMode } from '@/theme/tokens';
 
+export type ThemePreference = ThemeMode | 'system';
+
 interface ThemeContextValue extends AppTheme {
   mode: ThemeMode;
+  preference: ThemePreference;
   isChangingTheme: boolean;
-  changeTheme: (mode: ThemeMode) => Promise<void>;
+  changeTheme: (preference: ThemePreference) => Promise<void>;
 }
 
 const THEME_STORAGE_KEY = 'settings.theme';
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-  const [mode, setMode] = useState<ThemeMode | null>(null);
+  const [preference, setPreference] = useState<ThemePreference | null>(null);
+  const systemColorScheme = useColorScheme();
   const [isChangingTheme, setIsChangingTheme] = useState(false);
   const changing = useRef(false);
 
   useEffect(() => {
     let active = true;
     Storage.getItemAsync(THEME_STORAGE_KEY).then(saved => {
-      if (active) setMode(saved === 'dark' ? 'dark' : 'light');
+      if (active) setPreference(saved === 'dark' || saved === 'system' ? saved : 'light');
     }).catch(() => {
-      if (active) setMode('light');
+      if (active) setPreference('light');
     });
     return () => { active = false; };
   }, []);
 
-  const changeTheme = useCallback(async (next: ThemeMode) => {
-    if (next === mode || changing.current) return;
+  const changeTheme = useCallback(async (next: ThemePreference) => {
+    if (next === preference || changing.current) return;
     // 저장 중에는 재렌더링 전에 들어오는 연속 입력도 무시한다.
     changing.current = true;
     setIsChangingTheme(true);
     try {
       await Storage.setItemAsync(THEME_STORAGE_KEY, next);
-      setMode(next);
+      setPreference(next);
     } finally {
       changing.current = false;
       setIsChangingTheme(false);
     }
-  }, [mode]);
+  }, [preference]);
 
-  if (mode === null) return null;
+  if (preference === null) return null;
+  const mode: ThemeMode = preference === 'system' ? (systemColorScheme === 'dark' ? 'dark' : 'light') : preference;
 
   return (
-    <ThemeContext.Provider value={{ ...getAppTheme(mode), mode, isChangingTheme, changeTheme }}>
+    <ThemeContext.Provider value={{ ...getAppTheme(mode), mode, preference, isChangingTheme, changeTheme }}>
       {children}
     </ThemeContext.Provider>
   );
