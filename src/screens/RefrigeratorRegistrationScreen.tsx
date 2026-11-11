@@ -338,7 +338,7 @@ export function RefrigeratorRegistrationScreen({
           pointerEvents={!isSaving && focusPhase === 'open' ? 'auto' : 'none'} accessibilityElementsHidden={isSaving || focusPhase !== 'open'}
           importantForAccessibility={!isSaving && focusPhase === 'open' ? 'auto' : 'no-hide-descendants'} /> : null}
         <View style={[styles.headerNavigation, styles.headerPreviousNavigation, step === 'configuration' && styles.headerHomeNavigation]}>
-          <FeedbackPressable iconFeedback tooltip accessibilityRole="button"
+          <FeedbackPressable iconFeedback accessibilityRole="button"
             accessibilityLabel={step === 'basic' ? (isEditing ? t('fridge.cancelEdit') : t('fridge.cancelRegistration')) : t('fridge.backToBasic')}
             accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
             disabled={isSaving || isStepChanging || isFocusMoving}
@@ -346,7 +346,7 @@ export function RefrigeratorRegistrationScreen({
             <MaterialDesignIcons name={step === 'basic' && isEditing ? 'close' : 'arrow-left'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
           {step === 'configuration' ? (
-            <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('fridge.goHome')}
+            <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('fridge.goHome')}
               accessibilityHint={t('fridge.goHomeHint')}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
               disabled={isSaving || isStepChanging || isFocusMoving} onPress={cancelRegistration}>
@@ -359,13 +359,13 @@ export function RefrigeratorRegistrationScreen({
           style={styles.title}>{isEditing ? t('fridge.edit') : t('fridge.register')}</Text>
         <View style={[styles.headerNavigation, step === 'configuration' && styles.headerHomeNavigation, styles.headerNextNavigation]}>
           {step === 'basic' ? (
-            <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('fridge.goConfiguration')}
+            <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('fridge.goConfiguration')}
               accessibilityState={{ disabled: !draft.name.trim() || isSaving || isStepChanging || isUnavailable }} style={styles.headerIconButton}
               disabled={!draft.name.trim() || isSaving || isUnavailable} interactionBlocked={isStepChanging} onPress={() => changeStep('configuration')}>
               <MaterialDesignIcons name="arrow-right" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : (
-            <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={isEditing ? t('fridge.saveEdit') : t('fridge.register')}
+            <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={isEditing ? t('fridge.saveEdit') : t('fridge.register')}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving, busy: isSaving }}
               disabled={isSaving} interactionBlocked={isStepChanging || isFocusMoving} onPress={saveRegistration} style={styles.headerIconButton}>
               {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={t('fridge.saving')} />
@@ -464,7 +464,7 @@ export function RefrigeratorRegistrationScreen({
                                   <QuantityStepper value={row.doors.length} maximum={MAX_DOORS_PER_ROW} unit={t('fridge.doorUnit')}
                                     accessibilityLabel={t('fridge.rowDoor', { row: index + 1 })}
                                     onChange={delta => { Keyboard.dismiss(); updateStructure(changeDraftDoorCount(draft, row.id, delta)); }} />
-                                  <FeedbackPressable iconFeedback tooltip feedback="danger" accessibilityRole="button" accessibilityLabel={t('fridge.removeRow', { row: index + 1 })} disabled={draft.rows.length <= 1}
+                                  <FeedbackPressable iconFeedback feedback="danger" accessibilityRole="button" accessibilityLabel={t('fridge.removeRow', { row: index + 1 })} disabled={draft.rows.length <= 1}
                                     onPress={() => { Keyboard.dismiss(); updateStructure(removeDraftRow(draft, row.id)); }}
                                     style={styles.deleteRowButton}>
                                     <MaterialDesignIcons name="trash-can-outline" size={18} color={colors.error} accessible={false} style={styles.controlIcon} />

@@ -12,7 +12,6 @@ import { RootNavigator } from '@/navigation/RootNavigator';
 import { IngredientMoveQueueProvider } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { ToastProvider } from '@/components/ToastProvider';
-import { ButtonTooltipProvider } from '@/components/ButtonTooltip';
 import { ThemeProvider, useAppTheme } from '@/theme/ThemeProvider';
 import { useEffect } from 'react';
 import { Appearance } from 'react-native';
@@ -41,11 +40,9 @@ function AppContent() {
                 },
               }}>
                 <IngredientMoveQueueProvider>
-                  <ButtonTooltipProvider>
-                    <BottomSheetModalProvider>
-                      <RootNavigator />
-                    </BottomSheetModalProvider>
-                  </ButtonTooltipProvider>
+                  <BottomSheetModalProvider>
+                    <RootNavigator />
+                  </BottomSheetModalProvider>
                 </IngredientMoveQueueProvider>
               </NavigationContainer>
             </ToastProvider>

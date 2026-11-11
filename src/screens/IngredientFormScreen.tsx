@@ -114,7 +114,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
           {/* 고정 헤더는 직접 자식의 스타일을 옮기므로 가로 배치는 내부 View에 둔다. */}
           <View>
             <Pressable style={styles.header} onPress={Keyboard.dismiss} accessible={false}>
-              <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
+              <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
                 disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
                 <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
               </FeedbackPressable>
@@ -122,7 +122,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                 <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
                   style={styles.title}>{isEditing ? t('ingredient.edit') : t('ingredient.add')}</Text>
               </View>
-              <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={isEditing ? t('ingredient.saveEdit') : t('ingredient.register')}
+              <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={isEditing ? t('ingredient.saveEdit') : t('ingredient.register')}
                 accessibilityState={{ disabled: !canSave || isSaving, busy: isSaving }} disabled={!canSave || isSaving}
                 onPress={saveIngredient} style={[styles.headerIconButton, styles.headerRightButton]}>
                 {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
@@ -151,7 +151,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                 <Text style={styles.date}>{draft.expirationDate ? formatDate(draft.expirationDate, t) : t('ingredient.datePlaceholder')}</Text>
               </FeedbackPressable>
               {draft.expirationDate ? (
-                <FeedbackPressable iconFeedback tooltip accessibilityRole="button" accessibilityLabel={t('ingredient.clearDate')}
+                <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.clearDate')}
                   disabled={isSaving} accessibilityState={{ disabled: isSaving }} style={styles.clearDateButton}
                   onPress={() => {
                     if (saving.current || leaving.current) return;
