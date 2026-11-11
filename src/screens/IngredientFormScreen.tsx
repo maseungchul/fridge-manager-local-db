@@ -112,7 +112,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
             {/* 헤더와 입력 영역 모두 첫 터치를 전달하고, 키보드는 각 버튼의 동작에서 닫는다. */}
             <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} stickyHeaderIndices={[0]}
               bounces={false} overScrollMode="never"
-              keyboardShouldPersistTaps="always" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets={false}>
+              keyboardShouldPersistTaps="always" keyboardDismissMode="none" automaticallyAdjustKeyboardInsets={false}>
               {/* 고정 헤더는 직접 자식의 스타일을 옮기므로 가로 배치는 내부 View에 둔다. */}
               <View>
                 <Pressable style={styles.header} onPress={Keyboard.dismiss} accessible={false}>
