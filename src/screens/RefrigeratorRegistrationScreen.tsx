@@ -464,10 +464,11 @@ export function RefrigeratorRegistrationScreen({
                                   <QuantityStepper value={row.doors.length} maximum={MAX_DOORS_PER_ROW} unit={t('fridge.doorUnit')}
                                     accessibilityLabel={t('fridge.rowDoor', { row: index + 1 })}
                                     onChange={delta => { Keyboard.dismiss(); updateStructure(changeDraftDoorCount(draft, row.id, delta)); }} />
-                                  <FeedbackPressable iconFeedback feedback="danger" accessibilityRole="button" accessibilityLabel={t('fridge.removeRow', { row: index + 1 })} disabled={draft.rows.length <= 1}
+                                  <FeedbackPressable feedback="none" accessibilityRole="button" accessibilityLabel={t('fridge.removeRow', { row: index + 1 })} disabled={draft.rows.length <= 1}
                                     onPress={() => { Keyboard.dismiss(); updateStructure(removeDraftRow(draft, row.id)); }}
                                     style={styles.deleteRowButton}>
-                                    <MaterialDesignIcons name="trash-can-outline" size={18} color={colors.error} accessible={false} style={styles.controlIcon} />
+                                    {({ pressed }) => <MaterialDesignIcons name={pressed ? 'trash-can' : 'trash-can-outline'}
+                                      size={18} color={colors.error} accessible={false} pointerEvents="none" style={styles.controlIcon} />}
                                   </FeedbackPressable>
                                 </View>
                               ))}
