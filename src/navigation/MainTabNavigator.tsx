@@ -9,6 +9,7 @@ import { Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
+import * as Haptics from 'expo-haptics';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ShoppingScreen } from '@/screens/ShoppingScreen';
 import { MoreStackNavigator } from '@/navigation/MoreStackNavigator';
@@ -55,6 +56,10 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
       }],
       tabBarButton: props => (
         <Pressable {...props} disabled={isTabInteractionBlocked} android_ripple={undefined}
+          onPressIn={event => {
+            Haptics.selectionAsync().catch(() => {});
+            props.onPressIn?.(event);
+          }}
           accessibilityState={{ ...props.accessibilityState, selected: props['aria-selected'], disabled: isTabInteractionBlocked }}
           accessibilityElementsHidden={isTabInteractionBlocked}
           importantForAccessibility={isTabInteractionBlocked ? 'no-hide-descendants' : 'auto'}
