@@ -2,7 +2,7 @@
  * @file
  * 장보기 목록을 표시하고 상단 추가 버튼으로 품목 입력 화면을 연다.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -21,14 +21,12 @@ import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
+import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 
 type ShoppingScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Shopping'>,
   NativeStackScreenProps<RootStackParamList>
 >;
-
-const LOADING_DELAY_MS = 200;
-const MIN_LOADING_VISIBLE_MS = 300;
 
 export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
   const { mode, colors } = useAppTheme();
@@ -36,48 +34,25 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const [items, setItems] = useState<ShoppingItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showLoading, setShowLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const { isLoading, showLoading, hasLoaded, runLoad, cancelLoad } = useDelayedLoading();
   const [hasLoadError, setHasLoadError] = useState(false);
-  const loadRequest = useRef(0);
 
   // 등록 화면에서 돌아오면 저장된 순서대로 목록을 다시 읽는다.
-  const loadItems = useCallback(async () => {
-    const request = ++loadRequest.current;
-    setIsLoading(true);
-    setShowLoading(false);
+  const loadItems = useCallback(() => runLoad(async isCurrent => {
     setHasLoadError(false);
-    let loadingShownAt: number | null = null;
-    const loadingTimer = setTimeout(() => {
-      if (request !== loadRequest.current) return;
-      loadingShownAt = Date.now();
-      setShowLoading(true);
-    }, LOADING_DELAY_MS);
 
     try {
       const result = await getShoppingItems(db);
-      if (request === loadRequest.current) setItems(result);
+      if (isCurrent()) setItems(result);
     } catch {
-      if (request === loadRequest.current) setHasLoadError(true);
-    } finally {
-      clearTimeout(loadingTimer);
-      if (loadingShownAt !== null) {
-        const remaining = MIN_LOADING_VISIBLE_MS - (Date.now() - loadingShownAt);
-        if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
-      }
-      if (request === loadRequest.current) {
-        setHasLoaded(true);
-        setIsLoading(false);
-        setShowLoading(false);
-      }
+      if (isCurrent()) setHasLoadError(true);
     }
-  }, [db]);
+  }), [db, runLoad]);
 
   useFocusEffect(useCallback(() => {
     void loadItems();
-    return () => { loadRequest.current++; };
-  }, [loadItems]));
+    return cancelLoad;
+  }, [cancelLoad, loadItems]));
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>

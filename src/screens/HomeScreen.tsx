@@ -35,6 +35,7 @@ import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 import { getFridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
+import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 
 type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -48,8 +49,6 @@ const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCou
 const HOME_MENU_SIZE = 40;
 const HOME_TOOL_ICON_SIZE = 22;
 const HOME_TOOLBAR_EDGE_SPACE = 8;
-const LOADING_DELAY_MS = 200;
-const MIN_LOADING_VISIBLE_MS = 300;
 const EMPTY_INGREDIENT_DRAFT: IngredientDraft = { name: '', quantity: '', memo: '', expirationDate: null };
 
 export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngredientFormResult }: HomeScreenProps) {
@@ -60,9 +59,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const { ingredientIds: queuedIds, retain: retainMoveQueue } = useIngredientMoveQueue();
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showLoading, setShowLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const { isLoading, showLoading, hasLoaded, runLoad, cancelLoad } = useDelayedLoading();
   const [error, setError] = useState<'home.loadError' | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
@@ -83,7 +80,6 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const queuedIngredients = queuedIds.flatMap(id => ingredients.find(ingredient => ingredient.id === id) ?? []);
   const hasQueuedIngredients = queuedIngredients.length > 0;
   const [badgeDate, setBadgeDate] = useState(() => new Date());
-  const loadRequest = useRef(0);
   const {
     selectedAreaId, setSelectedAreaId, setFocusTarget, focusPhase, focusBounds, focusViewport, activeFocus,
     hasSeenScrollHint, markScrollHintSeen, finishFocusTransition, resetFocus,
@@ -101,47 +97,26 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
     setSelectedAreaId(null);
   }, [setSelectedAreaId]);
 
-  // 홈 재진입·재시도 이전에 시작한 조회가 늦게 끝나도 최신 결과만 반영한다.
-  const loadRefrigerator = useCallback(async () => {
-    const request = ++loadRequest.current;
+  const loadRefrigerator = useCallback(() => runLoad(async isCurrent => {
     closedScrollY.current = 0;
     resetFocus();
     setSelectedSlot(null);
     setIsIngredientListOpen(false);
     setIsLegendOpen(false);
     setIsMoveQueueOpen(false);
-    setIsLoading(true);
-    setShowLoading(false);
     setError(null);
-    let loadingShownAt: number | null = null;
-    const loadingTimer = setTimeout(() => {
-      if (request !== loadRequest.current) return;
-      loadingShownAt = Date.now();
-      setShowLoading(true);
-    }, LOADING_DELAY_MS);
     try {
       const result = await getRefrigerator(db);
       const storedIngredients = result ? await getIngredients(db) : [];
-      if (request === loadRequest.current) {
+      if (isCurrent()) {
         setRefrigerator(result);
         setIngredients(storedIngredients);
         retainMoveQueue(storedIngredients.map(ingredient => ingredient.id));
       }
     } catch {
-      if (request === loadRequest.current) setError('home.loadError');
-    } finally {
-      clearTimeout(loadingTimer);
-      if (loadingShownAt !== null) {
-        const remaining = MIN_LOADING_VISIBLE_MS - (Date.now() - loadingShownAt);
-        if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
-      }
-      if (request === loadRequest.current) {
-        setHasLoaded(true);
-        setIsLoading(false);
-        setShowLoading(false);
-      }
+      if (isCurrent()) setError('home.loadError');
     }
-  }, [db, resetFocus, retainMoveQueue]);
+  }), [db, resetFocus, retainMoveQueue, runLoad]);
 
   useFocusEffect(useCallback(() => {
     if (ingredientFormPending.current) {
@@ -158,7 +133,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
       void loadRefrigerator();
     }
     return () => {
-      loadRequest.current++;
+      cancelLoad();
       // 재료 입력 화면을 다녀올 때는 도면·선택·목록 높이를 유지한다.
       if (ingredientFormPending.current) return;
       setIngredientListIndex(0);
@@ -166,7 +141,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
       setSelectedSlot(null); setIsIngredientListOpen(false); setIsLegendOpen(false);
       setIsMoveQueueOpen(false);
     };
-  }, [loadRefrigerator, resetFocus, takeIngredientFormResult]));
+  }, [cancelLoad, loadRefrigerator, resetFocus, takeIngredientFormResult]));
 
   // 자정과 앱 복귀 때 날짜를 갱신해 도면을 다시 열지 않아도 배지의 기한 분류를 맞춘다.
   useEffect(() => {
