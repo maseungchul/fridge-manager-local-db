@@ -27,6 +27,9 @@ type ShoppingScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
+const LOADING_DELAY_MS = 200;
+const MIN_LOADING_VISIBLE_MS = 300;
+
 export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
@@ -34,6 +37,8 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
   const db = useSQLiteContext();
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLoading, setShowLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
   const loadRequest = useRef(0);
 
@@ -41,7 +46,14 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
   const loadItems = useCallback(async () => {
     const request = ++loadRequest.current;
     setIsLoading(true);
+    setShowLoading(false);
     setHasLoadError(false);
+    let loadingShownAt: number | null = null;
+    const loadingTimer = setTimeout(() => {
+      if (request !== loadRequest.current) return;
+      loadingShownAt = Date.now();
+      setShowLoading(true);
+    }, LOADING_DELAY_MS);
 
     try {
       const result = await getShoppingItems(db);
@@ -49,7 +61,16 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
     } catch {
       if (request === loadRequest.current) setHasLoadError(true);
     } finally {
-      if (request === loadRequest.current) setIsLoading(false);
+      clearTimeout(loadingTimer);
+      if (loadingShownAt !== null) {
+        const remaining = MIN_LOADING_VISIBLE_MS - (Date.now() - loadingShownAt);
+        if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
+      }
+      if (request === loadRequest.current) {
+        setHasLoaded(true);
+        setIsLoading(false);
+        setShowLoading(false);
+      }
     }
   }, [db]);
 
@@ -68,9 +89,9 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
           <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
       </View>
-      {isLoading ? (
+      {isLoading && (!hasLoaded || showLoading) ? (
         <View style={styles.feedback}>
-          <ActivityIndicator color={colors.text} accessibilityLabel={t('common.loading')} />
+          {showLoading ? <ActivityIndicator color={colors.text} accessibilityLabel={t('common.loading')} /> : null}
         </View>
       ) : hasLoadError ? (
         <View style={styles.feedback}>
