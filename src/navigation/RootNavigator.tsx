@@ -1,7 +1,7 @@
 /**
  * @file
  * RootNavigator는 앱에서 사용할 화면과 화면 전환 방식을 구성한다.
- * 기본 하단 탭을 시작 화면으로 표시하고 냉장고·재료 입력과 복구 위치 선택을 별도 화면으로 연다.
+ * 기본 하단 탭을 시작 화면으로 표시하고 냉장고·재료·장보기 입력과 복구 위치 선택을 별도 화면으로 연다.
  */
 import { useCallback, useRef } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -9,6 +9,7 @@ import { MainTabNavigator } from '@/navigation/MainTabNavigator';
 import { RefrigeratorRegistrationScreen } from '@/screens/RefrigeratorRegistrationScreen';
 import { IngredientFormScreen, type IngredientFormResult } from '@/screens/IngredientFormScreen';
 import { IngredientRestoreScreen } from '@/screens/IngredientRestoreScreen';
+import { ShoppingFormScreen } from '@/screens/ShoppingFormScreen';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
@@ -22,6 +23,7 @@ export type RootStackParamList = {
     draft: IngredientDraft;
   };
   IngredientRestore: { id: string; consumedAt: string };
+  ShoppingForm: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -63,6 +65,10 @@ export function RootNavigator() {
         {props => <IngredientFormScreen {...props} onResultChange={updateIngredientFormResult} />}
       </Stack.Screen>
       <Stack.Screen name="IngredientRestore" component={IngredientRestoreScreen} />
+      <Stack.Screen name="ShoppingForm" component={ShoppingFormScreen} options={{
+        presentation: 'transparentModal', animation: 'none', gestureEnabled: false,
+        contentStyle: { backgroundColor: 'transparent' },
+      }} />
     </Stack.Navigator>
   );
 }

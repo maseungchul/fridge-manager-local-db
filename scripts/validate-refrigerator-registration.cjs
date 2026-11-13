@@ -959,7 +959,7 @@ for (const table of ['refrigerator_rows', 'refrigerator_compartments', 'refriger
     `);
     await assert.rejects(registerRefrigerator(adapter, model.createRefrigeratorDraft()), /검증용 저장 실패/);
     assert.deepEqual(readStoredData(db), before);
-    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 7);
+    assert.equal(db.prepare('PRAGMA user_version').get().user_version, 8);
     db.exec('DROP TRIGGER fail_registration');
     const id = await registerRefrigerator(adapter, model.createRefrigeratorDraft());
     assert.equal(db.prepare('SELECT id FROM refrigerators').get().id, id);

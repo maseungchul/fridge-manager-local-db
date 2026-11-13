@@ -1,24 +1,99 @@
 /**
  * @file
- * 장보기 탭의 기본 화면을 표시하며, 목록 관리 기능은 추후 연결한다.
+ * 장보기 목록을 표시하고 상단 추가 버튼으로 품목 입력 화면을 연다.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import type { CompositeScreenProps } from '@react-navigation/native';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
+import { useSQLiteContext } from 'expo-sqlite';
+import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { getShoppingItems } from '@/db/shoppingRepository';
+import type { ShoppingItem } from '@/db/shoppingRepository';
+import type { MainTabParamList } from '@/navigation/MainTabNavigator';
+import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
-export function ShoppingScreen() {
-  const { mode } = useAppTheme();
+type ShoppingScreenProps = CompositeScreenProps<
+  BottomTabScreenProps<MainTabParamList, 'Shopping'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
+
+export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
+  const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
+  const db = useSQLiteContext();
+  const [items, setItems] = useState<ShoppingItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
+  const loadRequest = useRef(0);
+
+  // 등록 화면에서 돌아오면 저장된 순서대로 목록을 다시 읽는다.
+  const loadItems = useCallback(async () => {
+    const request = ++loadRequest.current;
+    setIsLoading(true);
+    setHasLoadError(false);
+
+    try {
+      const result = await getShoppingItems(db);
+      if (request === loadRequest.current) setItems(result);
+    } catch {
+      if (request === loadRequest.current) setHasLoadError(true);
+    } finally {
+      if (request === loadRequest.current) setIsLoading(false);
+    }
+  }, [db]);
+
+  useFocusEffect(useCallback(() => {
+    void loadItems();
+    return () => { loadRequest.current++; };
+  }, [loadItems]));
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.header}>
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.shopping')}</Text>
+        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('shopping.add')}
+          accessibilityState={{ disabled: isLoading || hasLoadError }} disabled={isLoading || hasLoadError}
+          onPress={() => navigation.navigate('ShoppingForm')} style={styles.addButton}>
+          <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+        </FeedbackPressable>
       </View>
+      {isLoading ? (
+        <View style={styles.feedback}>
+          <ActivityIndicator color={colors.text} accessibilityLabel={t('common.loading')} />
+        </View>
+      ) : hasLoadError ? (
+        <View style={styles.feedback}>
+          <Text accessibilityRole="alert" style={styles.error}>{t('shopping.loadError')}</Text>
+          <PrimaryButton label={t('common.retry')} variant="secondary" onPress={loadItems} />
+        </View>
+      ) : (
+        <FlatList
+          data={items} keyExtractor={item => item.id} indicatorStyle={mode === 'dark' ? 'white' : 'black'}
+          contentContainerStyle={items.length === 0 ? styles.emptyList : styles.listContent}
+          ListEmptyComponent={(
+            <View style={styles.emptyState}>
+              <MaterialDesignIcons name="tray-plus" size={40} color={colors.textMuted} accessible={false} />
+              <Text style={styles.emptyTitle}>{t('shopping.empty')}</Text>
+            </View>
+          )}
+          renderItem={({ item }) => (
+            <View style={styles.item}>
+              <Text style={styles.name}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
+            </View>
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -27,7 +102,22 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingBottom: spacing.lg,
   },
   ...getHeaderStyles(mode),
+  title: { ...getHeaderStyles(mode).title, flex: 1 },
+  addButton: {
+    width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginRight: -HEADER_ICON_INSET,
+    alignItems: 'center', justifyContent: 'center', borderRadius: 24,
+  },
+  listContent: { paddingBottom: spacing.lg },
+  feedback: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.md, gap: spacing.md },
+  error: { color: colors.error, marginTop: spacing.xs },
+  emptyList: { flexGrow: 1, justifyContent: 'center' },
+  emptyState: { alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
+  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
+  item: {
+    padding: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+  },
+  name: { color: colors.text, fontSize: 17, fontWeight: '600' },
+  quantity: { color: colors.textMuted, fontWeight: '400' },
 }));

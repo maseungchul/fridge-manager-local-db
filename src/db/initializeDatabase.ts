@@ -6,8 +6,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { AppError } from '@/i18n/errors';
 
-// 철회된 임시 버전 6과 구분해 소비 완료 기록은 버전 7부터 저장한다.
-const DATABASE_VERSION = 7;
+const DATABASE_VERSION = 8;
 
 const INGREDIENT_TABLE_SQL = `CREATE TABLE IF NOT EXISTS ingredients (
   id TEXT PRIMARY KEY NOT NULL,
@@ -48,16 +47,19 @@ export async function initializeDatabase(db: SQLiteDatabase) {
     // 하위 테이블 재생성 중 참조 데이터가 연쇄 삭제되지 않게 한다.
     if (version === 2) await db.execAsync('PRAGMA foreign_keys = OFF;');
     await db.withTransactionAsync(async () => {
-      // 버전이 기록되지 않은 기존 스키마도 같은 전환 절차로 처리한다.
-      const legacyTable = version === 0 ? await db.getFirstAsync<{ name: string }>(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'refrigerator_areas';"
-      ) : null;
-      if (version === 1 || legacyTable) await migrateVersion1(db);
-      // 기존 재료와 위치를 유지하고, 미입력 메모는 NULL로 남긴다.
-      if (version === 4) await db.execAsync('ALTER TABLE ingredients ADD COLUMN memo TEXT;');
-      else if (version === 2) await migrateVersion2(db);
-      else await createTables(db);
-      await createConsumedIngredientsTable(db);
+      if (version < 7) {
+        // 버전이 기록되지 않은 기존 스키마도 같은 전환 절차로 처리한다.
+        const legacyTable = version === 0 ? await db.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'refrigerator_areas';"
+        ) : null;
+        if (version === 1 || legacyTable) await migrateVersion1(db);
+        // 기존 재료와 위치를 유지하고, 미입력 메모는 NULL로 남긴다.
+        if (version === 4) await db.execAsync('ALTER TABLE ingredients ADD COLUMN memo TEXT;');
+        else if (version === 2) await migrateVersion2(db);
+        else await createTables(db);
+        await createConsumedIngredientsTable(db);
+      }
+      await createShoppingItemsTable(db);
       const violation = await db.getFirstAsync('PRAGMA foreign_key_check;');
       if (violation) throw new AppError('errors.databaseConnections');
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION};`);
@@ -94,6 +96,7 @@ async function recoverTemporaryVersion6(db: SQLiteDatabase) {
   `);
   await createTables(db);
   await createConsumedIngredientsTable(db);
+  await createShoppingItemsTable(db);
   await db.execAsync(`
     INSERT INTO ingredients (id, name, quantity, expiration_date, slot_id, drawer_number, memo)
       SELECT id, name, quantity, expiration_date, slot_id, drawer_number, memo FROM recovery_v6_ingredients;
@@ -123,6 +126,18 @@ async function createConsumedIngredientsTable(db: SQLiteDatabase) {
       consumed_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_consumed_ingredients_date ON consumed_ingredients (consumed_at DESC, id);
+  `);
+}
+
+/** 보관 위치가 없어도 구매 예정 항목을 독립적으로 저장한다. */
+async function createShoppingItemsTable(db: SQLiteDatabase) {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS shopping_items (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50 AND length(trim(name)) > 0),
+      quantity TEXT NOT NULL CHECK (length(quantity) BETWEEN 1 AND 50 AND length(trim(quantity)) > 0),
+      created_at TEXT NOT NULL
+    );
   `);
 }
 
