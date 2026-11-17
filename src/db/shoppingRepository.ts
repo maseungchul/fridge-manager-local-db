@@ -12,12 +12,13 @@ export interface ShoppingItem {
   id: string;
   name: string;
   quantity: string;
+  memo: string | null;
 }
 
 /** 최근 추가한 항목부터 표시한다. */
 export function getShoppingItems(db: SQLiteDatabase) {
   return db.getAllAsync<ShoppingItem>(`
-    SELECT id, name, quantity FROM shopping_items ORDER BY created_at DESC, rowid DESC;
+    SELECT id, name, quantity, memo FROM shopping_items ORDER BY created_at DESC, rowid DESC;
   `);
 }
 
@@ -29,9 +30,9 @@ export async function addShoppingItem(db: SQLiteDatabase, input: Omit<ShoppingIt
     throw new AppError('shopping.invalidInput');
   }
 
-  const item = { id: uuid.v4(), name, quantity };
+  const item = { id: uuid.v4(), name, quantity, memo: input.memo?.trim() || null };
   await db.runAsync(`
-    INSERT INTO shopping_items (id, name, quantity, created_at) VALUES (?, ?, ?, ?);
-  `, item.id, item.name, item.quantity, new Date().toISOString());
+    INSERT INTO shopping_items (id, name, quantity, created_at, memo) VALUES (?, ?, ?, ?, ?);
+  `, item.id, item.name, item.quantity, new Date().toISOString(), item.memo);
   return item;
 }

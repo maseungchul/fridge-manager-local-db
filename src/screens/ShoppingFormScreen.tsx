@@ -29,6 +29,7 @@ export function ShoppingFormScreen({ navigation }: NativeStackScreenProps<RootSt
   const db = useSQLiteContext();
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [memo, setMemo] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<{ cause: unknown } | null>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
@@ -55,7 +56,7 @@ export function ShoppingFormScreen({ navigation }: NativeStackScreenProps<RootSt
     Keyboard.dismiss();
 
     try {
-      await addShoppingItem(db, { name, quantity });
+      await addShoppingItem(db, { name, quantity, memo });
     } catch (cause) {
       setSaveError({ cause });
       saving.current = false;
@@ -96,6 +97,8 @@ export function ShoppingFormScreen({ navigation }: NativeStackScreenProps<RootSt
                 onSubmitEditing={() => { if (!saving.current && !leaving.current) quantityInput.current?.focus(); }} />
               <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} required value={quantity} onChangeText={setQuantity}
                 placeholder={t('ingredient.quantityPlaceholder')} maxLength={SHOPPING_INPUT_MAX_LENGTH} editable={!isSaving} />
+              <FormTextInput label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
+                value={memo} onChangeText={setMemo} maxLength={100} editable={!isSaving} multiline />
               {saveError ? (
                 <Text accessibilityRole="alert" style={styles.error}>{getErrorMessage(saveError.cause, t, t('shopping.saveError'))}</Text>
               ) : null}

@@ -86,6 +86,7 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
           renderItem={({ item }) => (
             <View style={styles.item}>
               <Text style={styles.name}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
+              {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
             </View>
           )}
         />
@@ -112,8 +113,9 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   emptyState: { alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   item: {
-    padding: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+    padding: spacing.md, gap: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },
-  name: { color: colors.text, fontSize: 17, fontWeight: '600' },
-  quantity: { color: colors.textMuted, fontWeight: '400' },
+  name: { color: colors.text, fontSize: 17, lineHeight: 24, fontWeight: '600' },
+  quantity: { fontSize: 17, fontWeight: '400' },
+  memo: { color: colors.textMuted, fontSize: 15 },
 }));
