@@ -54,10 +54,10 @@ export function FeedbackPressable({ feedback = 'default', iconFeedback = false, 
   );
 }
 
-const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   primary: { backgroundColor: colors.buttonPressed },
   chilled: { backgroundColor: colors.chilledPressed },
-  chip: { backgroundColor: colors.chilledBackground },
+  chip: { backgroundColor: mode === 'dark' ? '#203027' : colors.chilledBackground },
   default: { backgroundColor: colors.sageLight },
   danger: { backgroundColor: colors.rose },
   none: {},
