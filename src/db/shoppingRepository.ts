@@ -36,3 +36,10 @@ export async function addShoppingItem(db: SQLiteDatabase, input: Omit<ShoppingIt
   `, item.id, item.name, item.quantity, new Date().toISOString(), item.memo);
   return item;
 }
+
+/** 선택한 품목을 한 번에 삭제한다. */
+export async function deleteShoppingItems(db: SQLiteDatabase, ids: string[]) {
+  await db.withTransactionAsync(async () => {
+    for (const id of ids) await db.runAsync('DELETE FROM shopping_items WHERE id = ?;', id);
+  });
+}
