@@ -14,8 +14,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { IconChipTabs } from '@/components/IconChipTabs';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { deleteShoppingItems, getShoppingItems } from '@/db/shoppingRepository';
-import type { ShoppingItem } from '@/db/shoppingRepository';
+import { deleteShoppingItems, getShoppingItems, setShoppingItemsPurchased } from '@/db/shoppingRepository';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
@@ -25,14 +24,21 @@ import { useTranslation } from '@/i18n/LanguageProvider';
 import { alertTitles } from '@/constants/alertTitles';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 
+export interface ShoppingSelectionActions {
+  disabled: boolean;
+  isUndo: boolean;
+  onPurchase: () => void;
+  onDelete?: () => void;
+}
+
 type ShoppingScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Shopping'>,
   NativeStackScreenProps<RootStackParamList>
-> & { onSelectionModeChange: (action: { disabled: boolean; onPress: () => void } | null) => void };
+> & { onSelectionModeChange: (actions: ShoppingSelectionActions | null) => void };
 
 const shoppingTabs = [
   { id: 'planned', label: 'shopping.plannedTab', icon: 'format-list-bulleted' },
-  { id: 'purchased', label: 'shopping.purchasedTab', icon: 'cart-check' },
+  { id: 'purchased', label: 'shopping.purchasedTab', icon: 'basket-outline' },
 ] as const;
 
 type ShoppingTab = (typeof shoppingTabs)[number]['id'];
@@ -43,14 +49,15 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const [activeTab, setActiveTab] = useState<ShoppingTab>('planned');
-  const [items, setItems] = useState<ShoppingItem[]>([]);
+  const [allItems, setItems] = useState<Awaited<ReturnType<typeof getShoppingItems>>>([]);
   const { isLoading, showLoading, hasLoaded, runLoad, cancelLoad } = useDelayedLoading();
   const [hasLoadError, setHasLoadError] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const deleting = useRef(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const processing = useRef(false);
   const isPlannedTab = activeTab === 'planned';
+  const items = allItems.filter(item => (item.purchasedAt === null) === isPlannedTab);
 
   // 추가·편집 화면에서 돌아오면 저장된 순서대로 목록을 다시 읽는다.
   const loadItems = useCallback(() => runLoad(async isCurrent => {
@@ -70,11 +77,11 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   }, [cancelLoad, loadItems]));
 
   const requestDelete = useCallback(() => {
-    if (deleting.current || selectedIds.length === 0) return;
+    if (processing.current || selectedIds.length === 0) return;
     const targets = selectedIds;
-    deleting.current = true;
-    setIsDeleting(true);
-    const unlock = () => { deleting.current = false; setIsDeleting(false); };
+    processing.current = true;
+    setIsProcessing(true);
+    const unlock = () => { processing.current = false; setIsProcessing(false); };
     Alert.alert(t(alertTitles.warning), t('shopping.deleteConfirm', { count: targets.length }), [
       { text: t('common.cancel'), style: 'cancel', onPress: unlock },
       { text: t('common.delete'), style: 'destructive', onPress: async () => {
@@ -90,13 +97,35 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
     ], { cancelable: false });
   }, [db, selectedIds, t]);
 
+  const changePurchaseState = useCallback(async () => {
+    if (processing.current || selectedIds.length === 0) return;
+    processing.current = true;
+    setIsProcessing(true);
+    try {
+      await setShoppingItemsPurchased(db, selectedIds, isPlannedTab);
+      setSelectedIds([]);
+      setIsSelecting(false);
+      await loadItems();
+    } catch {
+      Alert.alert(t(alertTitles.error), t('shopping.purchaseError'));
+    } finally {
+      processing.current = false;
+      setIsProcessing(false);
+    }
+  }, [db, isPlannedTab, loadItems, selectedIds, t]);
+
   useLayoutEffect(() => {
-    onSelectionModeChange(isSelecting ? { disabled: selectedIds.length === 0 || isDeleting, onPress: requestDelete } : null);
+    onSelectionModeChange(isSelecting ? {
+      disabled: selectedIds.length === 0 || isProcessing,
+      isUndo: !isPlannedTab,
+      onPurchase: changePurchaseState,
+      onDelete: isPlannedTab ? requestDelete : undefined,
+    } : null);
     return () => onSelectionModeChange(null);
-  }, [isSelecting, selectedIds.length, isDeleting, requestDelete, onSelectionModeChange]);
+  }, [isSelecting, selectedIds.length, isProcessing, isPlannedTab, changePurchaseState, requestDelete, onSelectionModeChange]);
 
   function openTab(tab: ShoppingTab) {
-    if (tab === activeTab || deleting.current) return;
+    if (tab === activeTab || processing.current) return;
     setIsSelecting(false);
     setSelectedIds([]);
     setActiveTab(tab);
@@ -105,27 +134,22 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.header}>
-        {isPlannedTab ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
-          disabled={isLoading || hasLoadError || isDeleting || items.length === 0}
+        {(isPlannedTab || items.length > 0) ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
+          disabled={isLoading || hasLoadError || isProcessing || items.length === 0}
           onPress={() => { if (!isSelecting) setIsSelecting(true); else setSelectedIds(selectedIds.length === items.length ? [] : items.map(item => item.id)); }}
           style={[styles.headerButton, styles.leftButton]}>
           <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable> : null}
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.shopping')}</Text>
-        {isPlannedTab ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.cancelSelection' : 'shopping.add')}
-          accessibilityState={{ disabled: isLoading || hasLoadError || isDeleting }} disabled={isLoading || hasLoadError || isDeleting}
+        {isPlannedTab || isSelecting ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.cancelSelection' : 'shopping.add')}
+          accessibilityState={{ disabled: isLoading || hasLoadError || isProcessing }} disabled={isLoading || hasLoadError || isProcessing}
           onPress={() => { if (isSelecting) { setIsSelecting(false); setSelectedIds([]); } else navigation.navigate('ShoppingForm'); }} style={[styles.headerButton, styles.rightButton]}>
           <MaterialDesignIcons name={isSelecting ? 'close' : 'plus'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-        </FeedbackPressable> : null}
+        </FeedbackPressable> : items.length > 0 ? <View style={[styles.headerButton, styles.rightButton]} /> : null}
       </View>
       <IconChipTabs tabs={shoppingTabs.map(tab => ({ ...tab, label: t(tab.label) }))}
-        activeTab={activeTab} onChange={openTab} interactionBlocked={isDeleting} style={styles.listTabs} />
-      {!isPlannedTab ? (
-        <View style={[styles.purchasedEmpty, styles.emptyState]}>
-          <MaterialDesignIcons name="cart-outline" size={40} color={colors.textMuted} accessible={false} />
-          <Text style={styles.emptyTitle}>{t('shopping.purchasedEmpty')}</Text>
-        </View>
-      ) : isLoading && (!hasLoaded || showLoading) ? (
+        activeTab={activeTab} onChange={openTab} interactionBlocked={isProcessing} style={styles.listTabs} />
+      {isLoading && (!hasLoaded || showLoading) ? (
         <View style={styles.feedback}>
           {showLoading ? <ActivityIndicator color={colors.text} accessibilityLabel={t('common.loading')} /> : null}
         </View>
@@ -141,19 +165,18 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
           contentContainerStyle={items.length === 0 ? styles.emptyList : styles.listContent}
           ListEmptyComponent={(
             <View style={styles.emptyState}>
-              <MaterialDesignIcons name="tray-plus" size={40} color={colors.textMuted} accessible={false} />
-              <Text style={styles.emptyTitle}>{t('shopping.empty')}</Text>
+              <Text style={styles.emptyTitle}>{t(isPlannedTab ? 'shopping.empty' : 'shopping.purchasedEmpty')}</Text>
             </View>
           )}
           renderItem={({ item }) => (
-            <FeedbackPressable accessibilityRole={isSelecting ? 'checkbox' : 'button'}
-              accessibilityLabel={t(isSelecting ? 'shopping.selectItem' : 'shopping.editItem', { name: item.name })}
+            <FeedbackPressable accessibilityRole={isSelecting ? 'checkbox' : isPlannedTab ? 'button' : undefined}
+              accessibilityLabel={isSelecting || isPlannedTab ? t(isSelecting ? 'shopping.selectItem' : 'shopping.editItem', { name: item.name }) : undefined}
               accessibilityValue={{ text: item.memo ? `${item.quantity}, ${item.memo}` : item.quantity }}
-              accessibilityState={{ disabled: isLoading || isDeleting, ...(isSelecting ? { checked: selectedIds.includes(item.id) } : {}) }}
-              interactionBlocked={isLoading || isDeleting} feedback={isSelecting ? 'none' : 'default'}
+              accessibilityState={{ disabled: isLoading || isProcessing, ...(isSelecting ? { checked: selectedIds.includes(item.id) } : {}) }}
+              interactionBlocked={isLoading || isProcessing || (!isPlannedTab && !isSelecting)} feedback={isSelecting ? 'none' : 'default'}
               onPress={() => {
                 if (isSelecting) setSelectedIds(current => current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id]);
-                else navigation.navigate('ShoppingForm', { item });
+                else if (isPlannedTab) navigation.navigate('ShoppingForm', { item });
               }}
               style={[styles.item, isSelecting && styles.selectableItem, isSelecting && selectedIds.includes(item.id) && styles.selectedItem]}>
               {isSelecting ? selectedIds.includes(item.id) ? <MaterialDesignIcons name="checkbox-marked-circle" size={24} color={colors.chilled} accessible={false} /> : <View style={styles.selectionCircleContainer}><View style={styles.selectionCircle} /></View> : null}
@@ -185,7 +208,6 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   feedback: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.md, gap: spacing.md },
   error: { color: colors.error, marginTop: spacing.xs },
   emptyList: { flexGrow: 1, justifyContent: 'center' },
-  purchasedEmpty: { flex: 1, justifyContent: 'center' },
   emptyState: { alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   item: {

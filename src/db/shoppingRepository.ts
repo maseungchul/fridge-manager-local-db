@@ -1,6 +1,6 @@
 /**
  * @file
- * 구매 예정 항목을 냉장고 재료와 별도로 관리한다.
+ * 구매 예정 항목과 구매 완료 항목을 냉장고 재료와 별도로 관리한다.
  */
 import { uuid } from 'expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
@@ -24,11 +24,26 @@ function normalizeShoppingInput(input: Omit<ShoppingItem, 'id'>) {
   return { name, quantity, memo: input.memo?.trim() || null };
 }
 
-/** 최근 추가한 항목부터 표시한다. */
+/** 구매 완료 품목은 완료 순으로, 구매 예정 품목은 추가 순으로 읽는다. */
 export function getShoppingItems(db: SQLiteDatabase) {
-  return db.getAllAsync<ShoppingItem>(`
-    SELECT id, name, quantity, memo FROM shopping_items ORDER BY created_at DESC, rowid DESC;
+  return db.getAllAsync<ShoppingItem & { purchasedAt: string | null }>(`
+    SELECT id, name, quantity, memo, purchased_at AS purchasedAt
+    FROM shopping_items ORDER BY purchased_at DESC, created_at DESC, rowid DESC;
   `);
+}
+
+/** 품목의 입력 내용과 추가 순서를 유지하며 구매 상태만 바꾼다. */
+export async function setShoppingItemsPurchased(db: SQLiteDatabase, ids: string[], purchased: boolean) {
+  const purchasedAt = purchased ? new Date().toISOString() : null;
+  await db.withTransactionAsync(async () => {
+    const expectedState = purchased ? 'IS NULL' : 'IS NOT NULL';
+    for (const id of new Set(ids)) {
+      const result = await db.runAsync(`
+        UPDATE shopping_items SET purchased_at = ? WHERE id = ? AND purchased_at ${expectedState};
+      `, purchasedAt, id);
+      if (result.changes !== 1) throw new AppError('shopping.purchaseError');
+    }
+  });
 }
 
 /** 수량의 단위를 그대로 보존하며 같은 이름도 별도 항목으로 등록한다. */

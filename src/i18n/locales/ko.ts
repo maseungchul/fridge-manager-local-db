@@ -14,6 +14,8 @@ export const ko = {
   'tabs.more': '더보기',
   'shopping.plannedTab': '목록',
   'shopping.purchasedTab': '구매 완료',
+  'shopping.undoPurchase': '구매 완료 취소',
+  'shopping.purchaseError': '구매 상태를 변경하지 못했습니다. 목록을 확인한 뒤 다시 시도해 주세요.',
   'shopping.purchasedEmpty': '구매 완료한 품목이 없어요.',
   'shopping.deleteSelected': '선택한 품목 삭제',
   'shopping.deleteConfirm': '선택한 품목 {count}개를 삭제할까요?\n삭제한 품목은 복구할 수 없습니다.',

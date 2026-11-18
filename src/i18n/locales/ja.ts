@@ -16,6 +16,8 @@ export const ja: Record<keyof typeof ko, string> = {
   'tabs.more': 'その他',
   'shopping.plannedTab': 'リスト',
   'shopping.purchasedTab': '購入済み',
+  'shopping.undoPurchase': '購入済みを取り消す',
+  'shopping.purchaseError': '購入状態を変更できませんでした。リストを確認してもう一度お試しください。',
   'shopping.purchasedEmpty': '購入済みの品目はありません。',
   'shopping.deleteSelected': '選択した品目を削除',
   'shopping.deleteConfirm': '選択した品目 {count}件を削除しますか？\n削除した品目は復元できません。',

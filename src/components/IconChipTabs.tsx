@@ -45,7 +45,7 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, maxWidth: '100%',
-    minHeight: 52, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+    minHeight: 46, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
     borderWidth: 1, borderRadius: 26, borderColor: 'transparent',
   },
   selectedChip: { backgroundColor: colors.chipSelected, borderColor: 'transparent' },

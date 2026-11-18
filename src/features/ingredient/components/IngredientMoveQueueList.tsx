@@ -56,7 +56,6 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
       scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
       style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.empty : undefined, { paddingBottom: insets.bottom }]}
       ListEmptyComponent={<View style={styles.emptyContent}>
-        <MaterialDesignIcons name="clipboard-outline" size={40} color={colors.textMuted} accessible={false} />
         <Text style={styles.emptyTitle}>{t('queue.emptyTitle')}</Text>
         <Text style={styles.guide}>{t('queue.emptyDescription')}</Text>
       </View>}
@@ -108,5 +107,5 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   remove: { width: 44, height: 44, marginRight: -11, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   empty: { flexGrow: 1, justifyContent: 'center' },
   emptyContent: { alignItems: 'center', padding: spacing.lg },
-  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center', marginTop: spacing.sm },
+  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
 }));

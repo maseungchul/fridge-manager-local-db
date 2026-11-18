@@ -136,7 +136,6 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
           <FlatList data={records} keyExtractor={item => item.id} extraData={isBusy} style={styles.list}
             contentContainerStyle={records.length === 0 ? styles.empty : styles.listContent}
             ListEmptyComponent={<View style={styles.feedback}>
-              <MaterialDesignIcons name="check-circle-outline" size={40} color={colors.textMuted} accessible={false} />
               <Text style={styles.emptyTitle}>{t('consumed.emptyTitle')}</Text>
               <Text style={styles.detail}>{t('consumed.emptyDescription')}</Text>
             </View>}

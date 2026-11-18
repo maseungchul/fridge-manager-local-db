@@ -373,7 +373,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.emptyList : undefined, { paddingBottom: isSelecting ? 0 : insets.bottom }]}
                             ListEmptyComponent={
                               <View style={styles.emptyState}>
-                                <MaterialDesignIcons name="tray-plus" size={40} color={colors.textMuted} accessible={false} />
                                 <Text style={styles.emptyTitle}>{t('ingredient.emptyTitle')}</Text>
                                 <Text style={styles.emptyDescription}>{t('ingredient.emptyDescription')}</Text>
                               </View>

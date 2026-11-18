@@ -6,7 +6,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { AppError } from '@/i18n/errors';
 
-const DATABASE_VERSION = 9;
+const DATABASE_VERSION = 10;
 
 const INGREDIENT_TABLE_SQL = `CREATE TABLE IF NOT EXISTS ingredients (
   id TEXT PRIMARY KEY NOT NULL,
@@ -60,6 +60,7 @@ export async function initializeDatabase(db: SQLiteDatabase) {
         await createConsumedIngredientsTable(db);
       }
       if (version === 8) await db.execAsync('ALTER TABLE shopping_items ADD COLUMN memo TEXT;');
+      if (version === 8 || version === 9) await db.execAsync('ALTER TABLE shopping_items ADD COLUMN purchased_at TEXT;');
       else await createShoppingItemsTable(db);
       const violation = await db.getFirstAsync('PRAGMA foreign_key_check;');
       if (violation) throw new AppError('errors.databaseConnections');
@@ -138,7 +139,8 @@ async function createShoppingItemsTable(db: SQLiteDatabase) {
       name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50 AND length(trim(name)) > 0),
       quantity TEXT NOT NULL CHECK (length(quantity) BETWEEN 1 AND 50 AND length(trim(quantity)) > 0),
       created_at TEXT NOT NULL,
-      memo TEXT
+      memo TEXT,
+      purchased_at TEXT
     );
   `);
 }
