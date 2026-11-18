@@ -10,6 +10,7 @@ import { RefrigeratorRegistrationScreen } from '@/screens/RefrigeratorRegistrati
 import { IngredientFormScreen, type IngredientFormResult } from '@/screens/IngredientFormScreen';
 import { IngredientRestoreScreen } from '@/screens/IngredientRestoreScreen';
 import { ShoppingFormScreen } from '@/screens/ShoppingFormScreen';
+import type { ShoppingItem } from '@/db/shoppingRepository';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
@@ -23,7 +24,7 @@ export type RootStackParamList = {
     draft: IngredientDraft;
   };
   IngredientRestore: { id: string; consumedAt: string };
-  ShoppingForm: undefined;
+  ShoppingForm: { item: ShoppingItem } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();

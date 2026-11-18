@@ -1,6 +1,6 @@
 /**
  * @file
- * 장보기 목록을 표시하고 상단 추가 버튼으로 품목 입력 화면을 연다.
+ * 장보기 목록과 삭제 선택 모드를 표시하고 품목 추가·편집 화면을 연다.
  */
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -42,7 +42,7 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   const [isDeleting, setIsDeleting] = useState(false);
   const deleting = useRef(false);
 
-  // 등록 화면에서 돌아오면 저장된 순서대로 목록을 다시 읽는다.
+  // 추가·편집 화면에서 돌아오면 저장된 순서대로 목록을 다시 읽는다.
   const loadItems = useCallback(() => runLoad(async isCurrent => {
     setHasLoadError(false);
 
@@ -122,11 +122,15 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
             </View>
           )}
           renderItem={({ item }) => (
-            <FeedbackPressable accessibilityRole={isSelecting ? 'checkbox' : undefined}
-              accessibilityLabel={isSelecting ? t('shopping.selectItem', { name: item.name }) : undefined}
-              accessibilityState={isSelecting ? { checked: selectedIds.includes(item.id), disabled: isDeleting } : undefined}
-              interactionBlocked={!isSelecting || isDeleting} feedback="none"
-              onPress={() => setSelectedIds(current => current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id])}
+            <FeedbackPressable accessibilityRole={isSelecting ? 'checkbox' : 'button'}
+              accessibilityLabel={t(isSelecting ? 'shopping.selectItem' : 'shopping.editItem', { name: item.name })}
+              accessibilityValue={{ text: item.memo ? `${item.quantity}, ${item.memo}` : item.quantity }}
+              accessibilityState={{ disabled: isLoading || isDeleting, ...(isSelecting ? { checked: selectedIds.includes(item.id) } : {}) }}
+              interactionBlocked={isLoading || isDeleting} feedback={isSelecting ? 'none' : 'default'}
+              onPress={() => {
+                if (isSelecting) setSelectedIds(current => current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id]);
+                else navigation.navigate('ShoppingForm', { item });
+              }}
               style={[styles.item, isSelecting && styles.selectableItem, isSelecting && selectedIds.includes(item.id) && styles.selectedItem]}>
               {isSelecting ? selectedIds.includes(item.id) ? <MaterialDesignIcons name="checkbox-marked-circle" size={24} color={colors.chilled} accessible={false} /> : <View style={styles.selectionCircleContainer}><View style={styles.selectionCircle} /></View> : null}
               <View style={styles.itemDetails}>

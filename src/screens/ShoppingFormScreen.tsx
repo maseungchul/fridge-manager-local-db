@@ -1,6 +1,6 @@
 /**
  * @file
- * 장보기 품목의 이름과 수량을 입력받고, 저장한 뒤 목록으로 돌아간다.
+ * 장보기 품목의 이름·수량·메모를 추가하거나 편집하고 목록으로 돌아간다.
  */
 import { useRef, useState, type ComponentRef } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
@@ -12,7 +12,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { useToast } from '@/components/ToastProvider';
-import { addShoppingItem, SHOPPING_INPUT_MAX_LENGTH } from '@/db/shoppingRepository';
+import { addShoppingItem, updateShoppingItem, SHOPPING_INPUT_MAX_LENGTH } from '@/db/shoppingRepository';
 import { getErrorMessage } from '@/i18n/errors';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
@@ -20,16 +20,17 @@ import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderSt
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { createThemedStyles, spacing } from '@/theme/tokens';
 
-export function ShoppingFormScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'ShoppingForm'>) {
+export function ShoppingFormScreen({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'ShoppingForm'>) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const showToast = useToast();
   const db = useSQLiteContext();
-  const [name, setName] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [memo, setMemo] = useState('');
+  const editingItem = route.params?.item;
+  const [name, setName] = useState(editingItem?.name ?? '');
+  const [quantity, setQuantity] = useState(editingItem?.quantity ?? '');
+  const [memo, setMemo] = useState(editingItem?.memo ?? '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<{ cause: unknown } | null>(null);
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
@@ -56,7 +57,8 @@ export function ShoppingFormScreen({ navigation }: NativeStackScreenProps<RootSt
     Keyboard.dismiss();
 
     try {
-      await addShoppingItem(db, { name, quantity, memo });
+      if (editingItem) await updateShoppingItem(db, { id: editingItem.id, name, quantity, memo });
+      else await addShoppingItem(db, { name, quantity, memo });
     } catch (cause) {
       setSaveError({ cause });
       saving.current = false;
@@ -66,7 +68,7 @@ export function ShoppingFormScreen({ navigation }: NativeStackScreenProps<RootSt
 
     leaving.current = true;
     navigation.goBack();
-    showToast(t('shopping.registered'));
+    showToast(t(editingItem ? 'shopping.updated' : 'shopping.registered'));
   }
 
   return (
@@ -81,12 +83,13 @@ export function ShoppingFormScreen({ navigation }: NativeStackScreenProps<RootSt
                 <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
               </FeedbackPressable>
               <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
-                style={styles.title}>{t('shopping.add')}</Text>
+                style={styles.title}>{t(editingItem ? 'shopping.edit' : 'shopping.add')}</Text>
               <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('shopping.save')}
                 disabled={!canSave || isSaving} accessibilityState={{ disabled: !canSave || isSaving, busy: isSaving }}
                 onPress={saveItem} style={[styles.headerButton, styles.rightButton]}>
                 {isSaving ? <ActivityIndicator color={colors.text} /> : (
-                  <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                  <MaterialDesignIcons name={editingItem ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'}
+                    size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                 )}
               </FeedbackPressable>
             </View>
