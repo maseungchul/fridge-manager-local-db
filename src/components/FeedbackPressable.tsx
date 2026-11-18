@@ -12,7 +12,7 @@ import { createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
 interface FeedbackPressableProps extends PressableProps {
-  feedback?: 'primary' | 'default' | 'danger' | 'chilled' | 'none';
+  feedback?: 'primary' | 'default' | 'danger' | 'chilled' | 'chip' | 'none';
   // 아이콘 전용 버튼은 배경 대신 아이콘 색상으로 누름 상태를 표시한다.
   iconFeedback?: boolean;
   // 일시적인 입력 차단은 비활성화 색상 없이 처리한다.
@@ -57,6 +57,7 @@ export function FeedbackPressable({ feedback = 'default', iconFeedback = false, 
 const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   primary: { backgroundColor: colors.buttonPressed },
   chilled: { backgroundColor: colors.chilledPressed },
+  chip: { backgroundColor: colors.chilledBackground },
   default: { backgroundColor: colors.sageLight },
   danger: { backgroundColor: colors.rose },
   none: {},

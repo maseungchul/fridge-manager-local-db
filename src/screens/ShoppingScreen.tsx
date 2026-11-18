@@ -1,6 +1,6 @@
 /**
  * @file
- * 장보기 목록과 삭제 선택 모드를 표시하고 품목 추가·편집 화면을 연다.
+ * 장보기 목록과 장본리스트를 전환하고 구매 예정 품목의 추가·편집·삭제를 처리한다.
  */
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { IconChipTabs } from '@/components/IconChipTabs';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { deleteShoppingItems, getShoppingItems } from '@/db/shoppingRepository';
 import type { ShoppingItem } from '@/db/shoppingRepository';
@@ -29,11 +30,19 @@ type ShoppingScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 > & { onSelectionModeChange: (action: { disabled: boolean; onPress: () => void } | null) => void };
 
+const shoppingTabs = [
+  { id: 'planned', label: 'shopping.plannedTab', icon: 'format-list-bulleted' },
+  { id: 'purchased', label: 'shopping.purchasedTab', icon: 'shopping-outline' },
+] as const;
+
+type ShoppingTab = (typeof shoppingTabs)[number]['id'];
+
 export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingScreenProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
   const db = useSQLiteContext();
+  const [activeTab, setActiveTab] = useState<ShoppingTab>('planned');
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const { isLoading, showLoading, hasLoaded, runLoad, cancelLoad } = useDelayedLoading();
   const [hasLoadError, setHasLoadError] = useState(false);
@@ -41,6 +50,7 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const deleting = useRef(false);
+  const isPlannedTab = activeTab === 'planned';
 
   // 추가·편집 화면에서 돌아오면 저장된 순서대로 목록을 다시 읽는다.
   const loadItems = useCallback(() => runLoad(async isCurrent => {
@@ -85,23 +95,37 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
     return () => onSelectionModeChange(null);
   }, [isSelecting, selectedIds.length, isDeleting, requestDelete, onSelectionModeChange]);
 
+  function openTab(tab: ShoppingTab) {
+    if (tab === activeTab || deleting.current) return;
+    setIsSelecting(false);
+    setSelectedIds([]);
+    setActiveTab(tab);
+  }
+
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.header}>
-        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
+        {isPlannedTab ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
           disabled={isLoading || hasLoadError || isDeleting || items.length === 0}
           onPress={() => { if (!isSelecting) setIsSelecting(true); else setSelectedIds(selectedIds.length === items.length ? [] : items.map(item => item.id)); }}
           style={[styles.headerButton, styles.leftButton]}>
           <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-        </FeedbackPressable>
+        </FeedbackPressable> : null}
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.shopping')}</Text>
-        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.cancelSelection' : 'shopping.add')}
+        {isPlannedTab ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.cancelSelection' : 'shopping.add')}
           accessibilityState={{ disabled: isLoading || hasLoadError || isDeleting }} disabled={isLoading || hasLoadError || isDeleting}
           onPress={() => { if (isSelecting) { setIsSelecting(false); setSelectedIds([]); } else navigation.navigate('ShoppingForm'); }} style={[styles.headerButton, styles.rightButton]}>
           <MaterialDesignIcons name={isSelecting ? 'close' : 'plus'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-        </FeedbackPressable>
+        </FeedbackPressable> : null}
       </View>
-      {isLoading && (!hasLoaded || showLoading) ? (
+      <IconChipTabs tabs={shoppingTabs.map(tab => ({ ...tab, label: t(tab.label) }))}
+        activeTab={activeTab} onChange={openTab} interactionBlocked={isDeleting} style={styles.listTabs} />
+      {!isPlannedTab ? (
+        <View style={[styles.purchasedEmpty, styles.emptyState]}>
+          <MaterialDesignIcons name="cart-outline" size={40} color={colors.textMuted} accessible={false} />
+          <Text style={styles.emptyTitle}>{t('shopping.purchasedEmpty')}</Text>
+        </View>
+      ) : isLoading && (!hasLoaded || showLoading) ? (
         <View style={styles.feedback}>
           {showLoading ? <ActivityIndicator color={colors.text} accessibilityLabel={t('common.loading')} /> : null}
         </View>
@@ -156,10 +180,12 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   headerButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   leftButton: { marginLeft: -HEADER_ICON_INSET },
   rightButton: { marginRight: -HEADER_ICON_INSET },
+  listTabs: { marginHorizontal: spacing.md, marginTop: 12, marginBottom: spacing.xs },
   listContent: { paddingBottom: spacing.lg },
   feedback: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.md, gap: spacing.md },
   error: { color: colors.error, marginTop: spacing.xs },
   emptyList: { flexGrow: 1, justifyContent: 'center' },
+  purchasedEmpty: { flex: 1, justifyContent: 'center' },
   emptyState: { alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   item: {
