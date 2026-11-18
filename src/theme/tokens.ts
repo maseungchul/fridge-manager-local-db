@@ -27,6 +27,7 @@ export const colors = {
   frozen: '#42677F',
   // 등록 도면의 보관 모드 배지와 선택 영역에 사용하는 옅은 배경색이다.
   chilledBackground: '#E8EEE9',
+  chipSelected: '#D2E0D6',
   // 입력 필드 등의 테두리에 사용한다.
   border: '#D6D6D6',
   // 선택 표시와 녹색 강조 컨트롤의 테두리에 사용한다.
@@ -114,7 +115,7 @@ const darkTheme: AppTheme = {
   colors: {
     background: '#141616', navigationBackground: '#1D2020', surface: '#222626', toolbar: '#1D2020',
     text: '#F0F2F1', textMuted: '#ADB6B2', iconPressed: '#777777', errorPressed: '#A74C55', border: '#484F4C',
-    chilled: '#9AC9A9', chilledFill: '#3D624B', chilledPressed: '#32503E', frozen: '#9DC5E1', chilledBackground: '#2A4336',
+    chilled: '#9AC9A9', chilledFill: '#3D624B', chilledPressed: '#32503E', frozen: '#9DC5E1', chilledBackground: '#2A4336', chipSelected: '#3A5142',
     sage: '#687F72', sageLight: '#32463A', rose: '#59343A',
     noticeBackground: '#26352C', noticeForeground: '#B8DBA8', toastBackground: 'rgba(36, 40, 39, 0.96)',
     moveQueueBadge: '#19C17B', button: '#41664F', buttonPressed: '#335440', buttonText: '#FFFFFF', error: '#F1989F',

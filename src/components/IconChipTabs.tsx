@@ -41,14 +41,14 @@ export function IconChipTabs<TabId extends string>({ tabs, activeTab, onChange, 
   );
 }
 
-const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, maxWidth: '100%',
     minHeight: 52, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
     borderWidth: 1, borderRadius: 26, borderColor: 'transparent',
   },
-  selectedChip: { backgroundColor: mode === 'dark' ? '#3A5142' : '#D2E0D6', borderColor: 'transparent' },
+  selectedChip: { backgroundColor: colors.chipSelected, borderColor: 'transparent' },
   icon: { flexShrink: 0 },
   label: { flexShrink: 1, color: colors.textMuted, fontSize: 15, fontWeight: '600' },
   selectedLabel: { color: colors.chilled },
