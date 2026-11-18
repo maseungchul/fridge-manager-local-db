@@ -2,7 +2,7 @@
  * @file
  * 장보기 목록을 표시하고 상단 추가 버튼으로 품목 입력 화면을 연다.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -27,9 +27,9 @@ import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 type ShoppingScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Shopping'>,
   NativeStackScreenProps<RootStackParamList>
->;
+> & { onSelectionModeChange: (action: { disabled: boolean; onPress: () => void } | null) => void };
 
-export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
+export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingScreenProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
@@ -59,7 +59,7 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
     return () => { cancelLoad(); setIsSelecting(false); setSelectedIds([]); };
   }, [cancelLoad, loadItems]));
 
-  function requestDelete() {
+  const requestDelete = useCallback(() => {
     if (deleting.current || selectedIds.length === 0) return;
     const targets = selectedIds;
     deleting.current = true;
@@ -78,7 +78,12 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
         } finally { unlock(); }
       } },
     ], { cancelable: false });
-  }
+  }, [db, selectedIds, t]);
+
+  useLayoutEffect(() => {
+    onSelectionModeChange(isSelecting ? { disabled: selectedIds.length === 0 || isDeleting, onPress: requestDelete } : null);
+    return () => onSelectionModeChange(null);
+  }, [isSelecting, selectedIds.length, isDeleting, requestDelete, onSelectionModeChange]);
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
@@ -131,14 +136,6 @@ export function ShoppingScreen({ navigation }: ShoppingScreenProps) {
             </FeedbackPressable>
           )}
         />
-        {isSelecting ? <View style={styles.selectionToolbar}>
-          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('shopping.deleteSelected')}
-            accessibilityState={{ disabled: selectedIds.length === 0 || isDeleting }} disabled={selectedIds.length === 0 || isDeleting}
-            feedback="none" onPress={requestDelete} style={styles.selectionAction}>
-            {({ pressed }) => <><MaterialDesignIcons name="trash-can-outline" size={24} color={pressed ? colors.errorPressed : colors.error} accessible={false} />
-              <Text style={[styles.deleteLabel, pressed && { color: colors.errorPressed }]}>{t('common.delete')}</Text></>}
-          </FeedbackPressable>
-        </View> : null}
         </>
       )}
     </SafeAreaView>
@@ -169,9 +166,6 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   itemDetails: { flex: 1, gap: spacing.xs },
   selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
-  selectionToolbar: { height: 50, flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface },
-  selectionAction: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  deleteLabel: { color: colors.error, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   name: { color: colors.text, fontSize: 17, lineHeight: 24, fontWeight: '600' },
   quantity: { fontSize: 17, fontWeight: '400' },
   memo: { color: colors.textMuted, fontSize: 15 },

@@ -5,11 +5,12 @@
  * 탭바에서 하단 안전 영역을 확보하고, 재료 패널·소비 기록 처리 중에는 탭 입력을 막는다.
  */
 import { useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { BottomTabBar, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import * as Haptics from 'expo-haptics';
+import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ShoppingScreen } from '@/screens/ShoppingScreen';
 import { MoreStackNavigator } from '@/navigation/MoreStackNavigator';
@@ -34,9 +35,21 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
+  const [shoppingAction, setShoppingAction] = useState<{ disabled: boolean; onPress: () => void } | null>(null);
 
   return (
-    <Tab.Navigator initialRouteName="Home" screenOptions={{
+    <Tab.Navigator initialRouteName="Home" tabBar={props => shoppingAction ? (
+      <View style={[styles.selectionToolbar, { height: 50 + insets.bottom, paddingBottom: insets.bottom,
+        paddingLeft: spacing.sm + insets.left, paddingRight: spacing.sm + insets.right }]}>
+        <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('shopping.deleteSelected')}
+          disabled={shoppingAction.disabled} accessibilityState={{ disabled: shoppingAction.disabled }}
+          feedback="none" onPress={shoppingAction.onPress} style={styles.selectionAction}>
+          {({ pressed }) => <><MaterialDesignIcons name="trash-can-outline" size={24}
+            color={pressed ? colors.errorPressed : colors.error} accessible={false} pointerEvents="none" />
+            <Text style={[styles.deleteLabel, pressed && { color: colors.errorPressed }]}>{t('common.delete')}</Text></>}
+        </FeedbackPressable>
+      </View>
+    ) : <BottomTabBar {...props} />} screenOptions={{
       headerShown: false,
       tabBarLabelVisibilityMode: 'labeled',
       tabBarLabelPosition: 'below-icon',
@@ -75,12 +88,14 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
         {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked}
           takeIngredientFormResult={takeIngredientFormResult} />}
       </Tab.Screen>
-      <Tab.Screen name="Shopping" component={ShoppingScreen} options={{
+      <Tab.Screen name="Shopping" options={{
         title: t('tabs.shopping'),
         tabBarIcon: ({ focused, color, size }) => (
           <MaterialDesignIcons name={focused ? 'cart' : 'cart-outline'} size={size} color={color} accessible={false} />
         ),
-      }} />
+      }}>
+        {props => <ShoppingScreen {...props} onSelectionModeChange={setShoppingAction} />}
+      </Tab.Screen>
       <Tab.Screen name="More" options={{
         title: t('tabs.more'),
         tabBarIcon: ({ focused, color, size }) => (
@@ -100,6 +115,9 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
     borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth,
     elevation: 0, shadowOpacity: 0,
   },
+  selectionToolbar: { flexDirection: 'row', justifyContent: 'center', flexShrink: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.background },
+  selectionAction: { width: 64, minHeight: 48, marginHorizontal: spacing.xs, paddingTop: spacing.xs, alignItems: 'center', justifyContent: 'center' },
+  deleteLabel: { color: colors.error, fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: '600' },
   item: { marginHorizontal: spacing.xs },
   button: { minHeight: 48, borderRadius: 18, paddingTop: spacing.xs, paddingBottom: 0, justifyContent: 'center' },
   // 아이콘 슬롯을 실제 크기로 맞춰 탭바 높이를 늘리지 않고 상단 여백을 확보한다.
