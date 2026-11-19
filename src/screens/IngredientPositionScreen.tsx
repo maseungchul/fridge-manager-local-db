@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, usePreventRemove } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, BackHandler, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -93,6 +93,23 @@ export function IngredientPositionScreen({ navigation, route }: IngredientPositi
   const position = layout?.positions.find(candidate => candidate.id === selectedSlot?.positionId && candidate.areaId === selectedAreaId);
   const area = layout?.areas.find(candidate => candidate.id === position?.areaId);
   const canConfirm = !!position && focusPhase === 'open' && purchasedItems?.length !== 0;
+  const showRegisterHighlight = !!purchasedItems && canConfirm;
+  const registerOpacity = useAnimatedValue(1);
+
+  useEffect(() => {
+    if (!showRegisterHighlight) return;
+
+    // 등록이 가능해진 순간에만 강조해 칸을 바꿀 때 효과가 반복되지 않게 한다.
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(registerOpacity, { toValue: 0.4, duration: 800, useNativeDriver: true, isInteraction: false }),
+      Animated.timing(registerOpacity, { toValue: 1, duration: 800, useNativeDriver: true, isInteraction: false }),
+    ]), { iterations: 3 });
+    animation.start();
+    return () => {
+      animation.stop();
+      registerOpacity.setValue(1);
+    };
+  }, [registerOpacity, showRegisterHighlight]);
 
   function goBack() {
     if (!saving.current) navigation.goBack();
@@ -147,13 +164,15 @@ export function IngredientPositionScreen({ navigation, route }: IngredientPositi
           {t(purchasedItems ? 'shopping.selectPosition' : 'consumed.selectPosition')}
         </Text>
         {purchasedItems ? (
-          <FeedbackPressable iconFeedback accessibilityRole="button"
-            accessibilityLabel={t('shopping.registerHere', { count: purchasedItems.length })}
-            disabled={!canConfirm || isSaving} accessibilityState={{ disabled: !canConfirm || isSaving, busy: isSaving }}
-            onPress={confirmPosition} style={styles.registerButton}>
-            {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.registering')} /> :
-              <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
-          </FeedbackPressable>
+          <Animated.View style={[styles.registerAction, { opacity: canConfirm && !isSaving ? registerOpacity : 1 }]}>
+            <FeedbackPressable iconFeedback accessibilityRole="button"
+              accessibilityLabel={t('shopping.registerHere', { count: purchasedItems.length })}
+              disabled={!canConfirm || isSaving} accessibilityState={{ disabled: !canConfirm || isSaving, busy: isSaving }}
+              onPress={confirmPosition} style={styles.registerButton}>
+              {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.registering')} /> :
+                <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+            </FeedbackPressable>
+          </Animated.View>
         ) : null}
       </View>
       {!result ? <View style={styles.feedback}><ActivityIndicator color={colors.text} accessibilityLabel={t('home.loading')} /></View>
@@ -208,7 +227,8 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   title: { ...getCompactHeaderStyles(mode).title, flexShrink: 1 },
   centeredTitle: { flex: 1, textAlign: 'center' },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  registerButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginRight: -spacing.sm,
+  registerAction: { marginRight: -spacing.sm },
+  registerButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT,
     alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   scene: { flex: 1, minHeight: 0, overflow: 'hidden' },
   guide: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.textMuted, fontSize: 14, lineHeight: 22 },
