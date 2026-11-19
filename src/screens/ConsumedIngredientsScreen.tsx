@@ -136,7 +136,7 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
         </View> : (
           <FlatList data={records} keyExtractor={item => item.id} extraData={isBusy} style={styles.list}
             contentContainerStyle={records.length === 0 ? styles.empty : styles.listContent}
-            ListEmptyComponent={<EmptyListState message={t('consumed.emptyTitle')} />}
+            ListEmptyComponent={<EmptyListState message={t('consumed.emptyTitle')} description={t('consumed.emptyGuide')} />}
             renderItem={({ item }) => {
               const date = new Date(item.consumedAt);
               const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;

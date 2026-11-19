@@ -56,7 +56,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
       showsVerticalScrollIndicator indicatorStyle={mode === 'dark' ? 'white' : 'black'} automaticallyAdjustsScrollIndicatorInsets={false}
       scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
       style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.empty : undefined, { paddingBottom: insets.bottom }]}
-      ListEmptyComponent={<EmptyListState message={t('queue.emptyTitle')} />}
+      ListEmptyComponent={<EmptyListState message={t('queue.emptyTitle')} description={t('queue.emptyGuide')} />}
       renderSectionHeader={({ section }) => (
         <View accessible accessibilityRole="header" accessibilityLabel={section.path.join(', ')} style={styles.location}>
           {section.path.map((part, index) => (

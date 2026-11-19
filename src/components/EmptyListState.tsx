@@ -15,9 +15,10 @@ const OPEN_DOOR_WIDTH = 44 * CHARACTER_SCALE;
 
 interface EmptyListStateProps {
   message: string;
+  description: string;
 }
 
-export function EmptyListState({ message }: EmptyListStateProps) {
+export function EmptyListState({ message, description }: EmptyListStateProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
@@ -43,7 +44,10 @@ export function EmptyListState({ message }: EmptyListStateProps) {
           </View>
         )}
       </FeedbackPressable>
-      <Text style={styles.message}>{message}</Text>
+      <View style={styles.messageContainer}>
+        <Text style={styles.message}>{message}</Text>
+        {isOpen ? <Text style={styles.description}>{description}</Text> : null}
+      </View>
     </View>
   );
 }
@@ -63,4 +67,6 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   eyes: { position: 'absolute', top: 19, left: 19, right: 14, flexDirection: 'row', justifyContent: 'space-between' },
   eye: { width: 5.5, height: 5.5, borderRadius: 3, backgroundColor: colors.chilled },
   message: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
+  messageContainer: { alignSelf: 'stretch' },
+  description: { position: 'absolute', top: '100%', left: 0, right: 0, marginTop: spacing.sm, color: colors.textMuted, fontSize: 14, textAlign: 'center' },
 }));

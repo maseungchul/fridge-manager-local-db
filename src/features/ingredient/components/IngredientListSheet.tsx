@@ -373,7 +373,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             scrollIndicatorInsets={{ top: 0, bottom: spacing.md + (isSelecting ? 0 : insets.bottom), left: 0, right: spacing.xs }}
                             style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.emptyList : undefined, { paddingBottom: isSelecting ? 0 : insets.bottom }]}
                             ListEmptyComponent={
-                              <EmptyListState message={t('ingredient.emptyTitle')} />
+                              <EmptyListState message={t('ingredient.emptyTitle')} description={t('ingredient.emptyDescription')} />
                             }
                             renderItem={({ item }) => {
                               const expiration = getIngredientExpirationStatus(item.expirationDate, undefined, t);
