@@ -22,7 +22,7 @@ import type { ConsumedIngredient, Ingredient } from '@/features/ingredient/model
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { AppError, getErrorMessage } from '@/i18n/errors';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
@@ -124,7 +124,7 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
       <View style={styles.header}>
         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('consumed.back')}
           disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={goBack} style={styles.backButton}>
-          <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+          <MaterialDesignIcons name="arrow-left" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
         <Text accessibilityRole="header" style={styles.title}>{t('consumed.selectPosition')}</Text>
       </View>
@@ -169,9 +169,9 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
 
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  ...getHeaderStyles(mode),
-  header: { ...getHeaderStyles(mode).header, gap: 0 },
-  title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
+  ...getCompactHeaderStyles(mode),
+  header: { ...getCompactHeaderStyles(mode).header, gap: 0 },
+  title: { ...getCompactHeaderStyles(mode).title, flexShrink: 1 },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   scene: { flex: 1, minHeight: 0, overflow: 'hidden' },
   guide: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.textMuted, fontSize: 14, lineHeight: 22 },

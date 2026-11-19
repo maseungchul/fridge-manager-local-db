@@ -28,7 +28,7 @@ import { PurchasedItemPicker } from '@/features/shopping/components/PurchasedIte
 import type { PurchasedSelectionAction } from '@/features/shopping/components/PurchasedItemPicker';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_INSET, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 
@@ -321,14 +321,14 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
                             disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
                             onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
-                            <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                            <MaterialDesignIcons name="arrow-left" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                           {secondaryPage === 'purchased' ? (
                             <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.selectAll')}
                               disabled={isBusy || !purchasedSelection} interactionBlocked={isChanging}
                               accessibilityState={{ disabled: isBusy || isChanging || !purchasedSelection, selected: purchasedSelection?.allSelected ?? false }}
                               onPress={purchasedSelection?.toggle} style={styles.headerIconButton}>
-                              <MaterialDesignIcons name="check-all" size={HEADER_ICON_SIZE}
+                              <MaterialDesignIcons name="check-all" size={COMPACT_HEADER_ICON_SIZE}
                                 color={purchasedSelection?.allSelected ? colors.chilled : colors.text} accessible={false} />
                             </FeedbackPressable>
                           ) : null}
@@ -342,7 +342,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             if (!isSelecting) toggleSelectionMode();
                             else setSelectedIds(allSelected ? [] : ingredients.map(item => item.id));
                           }} style={[styles.headerIconButton, styles.headerLeftButton]}>
-                          <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE}
+                          <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={COMPACT_HEADER_ICON_SIZE}
                             color={isSelecting && allSelected ? colors.chilled : colors.text} accessible={false} />
                         </FeedbackPressable>
                       )}
@@ -357,7 +357,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
                           onPress={() => { if (!formRequest.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
                           style={[styles.headerIconButton, styles.headerRightButton]}>
-                          <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                          <MaterialDesignIcons name="clipboard-remove-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
                         <View style={[styles.headerActions, styles.headerRightButton]}>
@@ -366,25 +366,25 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             disabled={isBusy || !purchasedSelection?.register} interactionBlocked={isChanging}
                             onPress={() => { if (!importing.current) purchasedSelection?.register?.(); }} style={styles.headerIconButton}>
                             {isImporting ? <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.registering')} /> :
-                              <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                              <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
                           </FeedbackPressable>
                         </View>
                       ) : isSelecting ? (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
                           disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={[styles.headerIconButton, styles.headerRightButton]}>
-                          <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                          <MaterialDesignIcons name="close" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
                         <View style={styles.headerActions}>
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('shopping.importPurchased')}
                             disabled={isBusy || purchasedItems === undefined || purchasedItems?.length === 0} interactionBlocked={isChanging}
                             onPress={openPurchasedPanel} style={styles.headerIconButton}>
-                            <MaterialDesignIcons name="shopping-search-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                            <MaterialDesignIcons name="shopping-search-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
                             accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
                             interactionBlocked={isChanging} onPress={() => openForm()} style={[styles.headerIconButton, styles.headerRightButton]}>
-                            <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                            <MaterialDesignIcons name="plus" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                         </View>
                       )}
@@ -547,13 +547,13 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
   headerViewport: { overflow: 'hidden' },
   headerTrack: { flexDirection: 'row' },
   header: {
-    ...getHeaderStyles(mode).header,
+    ...getCompactHeaderStyles(mode).header,
   },
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
-  title: { ...getHeaderStyles(mode).title, textAlign: 'center' },
+  title: { ...getCompactHeaderStyles(mode).title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  headerLeftButton: { marginLeft: -HEADER_ICON_INSET },
-  headerRightButton: { marginRight: -HEADER_ICON_INSET },
+  headerLeftButton: { marginLeft: -COMPACT_HEADER_ICON_INSET },
+  headerRightButton: { marginRight: -COMPACT_HEADER_ICON_INSET },
   headingWithActions: { marginLeft: HEADER_CONTENT_HEIGHT },
   headerActions: { flexDirection: 'row' },
   purchasedHeaderSpacer: { width: HEADER_CONTENT_HEIGHT },

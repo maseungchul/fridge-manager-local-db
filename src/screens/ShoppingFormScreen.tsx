@@ -17,7 +17,7 @@ import { INGREDIENT_MEMO_MAX_LENGTH, INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_QUAN
 import { getErrorMessage } from '@/i18n/errors';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_INSET, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { createThemedStyles, spacing } from '@/theme/tokens';
 
@@ -83,7 +83,7 @@ export function ShoppingFormScreen({ navigation, route }: NativeStackScreenProps
               <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('common.cancel')}
                 disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList}
                 style={[styles.headerButton, styles.leftButton]}>
-                <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                <MaterialDesignIcons name="close" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
               </FeedbackPressable>
               <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
                 style={styles.title}>{t(editingItem ? 'shopping.edit' : 'shopping.add')}</Text>
@@ -92,7 +92,7 @@ export function ShoppingFormScreen({ navigation, route }: NativeStackScreenProps
                 onPress={saveItem} style={[styles.headerButton, styles.rightButton]}>
                 {isSaving ? <ActivityIndicator color={colors.text} /> : (
                   <MaterialDesignIcons name={editingItem ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'}
-                    size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                    size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                 )}
               </FeedbackPressable>
             </View>
@@ -119,12 +119,12 @@ export function ShoppingFormScreen({ navigation, route }: NativeStackScreenProps
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1 },
-  ...getHeaderStyles(mode),
-  header: { ...getHeaderStyles(mode).header, backgroundColor: colors.background },
-  title: { ...getHeaderStyles(mode).title, flex: 1, textAlign: 'center' },
+  ...getCompactHeaderStyles(mode),
+  header: { ...getCompactHeaderStyles(mode).header, backgroundColor: colors.background },
+  title: { ...getCompactHeaderStyles(mode).title, flex: 1, textAlign: 'center' },
   headerButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  leftButton: { marginLeft: -HEADER_ICON_INSET },
-  rightButton: { marginRight: -HEADER_ICON_INSET },
+  leftButton: { marginLeft: -COMPACT_HEADER_ICON_INSET },
+  rightButton: { marginRight: -COMPACT_HEADER_ICON_INSET },
   form: { paddingHorizontal: spacing.md, paddingTop: spacing.lg },
   error: { color: colors.error },
 }));

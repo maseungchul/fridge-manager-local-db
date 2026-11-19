@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INGREDIENT_BADGE_SIZE, IngredientCountBadge } from '@/features/ingredient/components/IngredientCountBadges';
 import { DoorModeArt } from '@/features/fridge/components/FridgeMap';
 import { spacing, createThemedStyles } from '@/theme/tokens';
+import { COMPACT_HEADER_TITLE_LINE_HEIGHT, COMPACT_HEADER_TITLE_SIZE } from '@/theme/headerStyles';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
@@ -68,7 +69,7 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs * 3 },
   scroll: { flex: 1, minHeight: 0 },
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.lg },
-  title: { color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: '700' },
+  title: { color: colors.text, fontSize: COMPACT_HEADER_TITLE_SIZE, lineHeight: COMPACT_HEADER_TITLE_LINE_HEIGHT, fontWeight: '700' },
   item: { gap: 4 },
   itemHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   modeIcon: { position: 'relative', top: 0, left: 0, width: INGREDIENT_BADGE_SIZE, height: INGREDIENT_BADGE_SIZE,

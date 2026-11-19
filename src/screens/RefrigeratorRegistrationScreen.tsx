@@ -41,7 +41,7 @@ import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { COMPACT_HEADER_ICON_INSET, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { FRIDGE_HEADER_BUTTON_SIZE, FRIDGE_STEP_BADGE_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { AppError, getErrorMessage } from '@/i18n/errors';
@@ -344,14 +344,14 @@ export function RefrigeratorRegistrationScreen({
             disabled={isSaving || isStepChanging || isFocusMoving}
             onPress={step === 'basic' ? cancelRegistration : () => changeStep('basic')}>
             <MaterialDesignIcons name={step === 'basic' && isEditing ? 'close' : 'arrow-left'}
-              size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+              size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
           {step === 'configuration' ? (
             <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('fridge.goHome')}
               accessibilityHint={t('fridge.goHomeHint')}
               accessibilityState={{ disabled: isSaving || isStepChanging || isFocusMoving }} style={styles.headerIconButton}
               disabled={isSaving || isStepChanging || isFocusMoving} onPress={cancelRegistration}>
-              <MaterialDesignIcons name="home-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+              <MaterialDesignIcons name="home-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : null}
         </View>
@@ -363,7 +363,7 @@ export function RefrigeratorRegistrationScreen({
             <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('fridge.goConfiguration')}
               accessibilityState={{ disabled: !draft.name.trim() || isSaving || isStepChanging || isUnavailable }} style={styles.headerIconButton}
               disabled={!draft.name.trim() || isSaving || isUnavailable} interactionBlocked={isStepChanging} onPress={() => changeStep('configuration')}>
-              <MaterialDesignIcons name="arrow-right" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+              <MaterialDesignIcons name="arrow-right" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
             </FeedbackPressable>
           ) : (
             <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={isEditing ? t('fridge.saveEdit') : t('fridge.register')}
@@ -371,7 +371,7 @@ export function RefrigeratorRegistrationScreen({
               disabled={isSaving} interactionBlocked={isStepChanging || isFocusMoving} onPress={saveRegistration} style={styles.headerIconButton}>
               {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={t('fridge.saving')} />
                 : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'}
-                  size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                  size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
             </FeedbackPressable>
           )}
         </View>
@@ -606,7 +606,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     zIndex: 30,
   },
   header: {
-    ...getHeaderStyles(mode).header,
+    ...getCompactHeaderStyles(mode).header,
   },
   headerNavigation: {
     width: FRIDGE_HEADER_BUTTON_SIZE,
@@ -618,11 +618,11 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     width: FRIDGE_HEADER_BUTTON_SIZE * 2,
   },
   headerPreviousNavigation: {
-    marginLeft: -HEADER_ICON_INSET,
+    marginLeft: -COMPACT_HEADER_ICON_INSET,
   },
   headerNextNavigation: {
     justifyContent: 'flex-end',
-    marginRight: -HEADER_ICON_INSET,
+    marginRight: -COMPACT_HEADER_ICON_INSET,
   },
   headerIconButton: {
     width: FRIDGE_HEADER_BUTTON_SIZE,
@@ -636,7 +636,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   title: {
-    ...getHeaderStyles(mode).title,
+    ...getCompactHeaderStyles(mode).title,
     flex: 1,
     textAlign: 'center',
   },

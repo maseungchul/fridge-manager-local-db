@@ -22,7 +22,7 @@ import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
 import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
@@ -125,7 +125,7 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
       <View style={styles.header}>
         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('more.back')}
           disabled={isBusy} accessibilityState={{ disabled: isBusy }} onPress={() => { if (!busy.current) navigation.goBack(); }} style={styles.backButton}>
-          <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+          <MaterialDesignIcons name="arrow-left" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
         <Text accessibilityRole="header" style={styles.title}>{t('consumed.title')}</Text>
       </View>
@@ -168,9 +168,9 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
 
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  ...getHeaderStyles(mode),
-  header: { ...getHeaderStyles(mode).header, gap: 0 },
-  title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
+  ...getCompactHeaderStyles(mode),
+  header: { ...getCompactHeaderStyles(mode).header, gap: 0 },
+  title: { ...getCompactHeaderStyles(mode).title, flexShrink: 1 },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   list: { flex: 1 },
   listContent: { paddingBottom: spacing.lg },

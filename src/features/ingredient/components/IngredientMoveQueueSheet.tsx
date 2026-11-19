@@ -15,7 +15,7 @@ import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { COMPACT_HEADER_ICON_INSET, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface IngredientMoveQueueSheetProps {
@@ -46,7 +46,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
             disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
             onPress={clear} style={[styles.clearButton, styles.rightButton]}>
-            <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+            <MaterialDesignIcons name="clipboard-remove-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
           </FeedbackPressable>
         </View>
     }>
@@ -59,9 +59,9 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
 
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   panel: { flex: 1, backgroundColor: colors.surface },
-  header: { ...getHeaderStyles(mode).header, justifyContent: 'space-between' },
-  title: { ...getHeaderStyles(mode).title, flex: 1, textAlign: 'center' },
+  header: { ...getCompactHeaderStyles(mode).header, justifyContent: 'space-between' },
+  title: { ...getCompactHeaderStyles(mode).title, flex: 1, textAlign: 'center' },
   clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  leftSpacer: { marginLeft: -HEADER_ICON_INSET },
-  rightButton: { marginRight: -HEADER_ICON_INSET },
+  leftSpacer: { marginLeft: -COMPACT_HEADER_ICON_INSET },
+  rightButton: { marginRight: -COMPACT_HEADER_ICON_INSET },
 }));

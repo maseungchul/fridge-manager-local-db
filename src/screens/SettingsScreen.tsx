@@ -16,7 +16,7 @@ import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import type { ThemePreference } from '@/theme/ThemeProvider';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 
 type SettingsScreenProps = NativeStackScreenProps<MoreStackParamList, 'Settings'>;
 
@@ -51,7 +51,7 @@ export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
       <View style={styles.header}>
         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('more.back')}
           onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+          <MaterialDesignIcons name="arrow-left" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t(section === 'language' ? 'settings.language' : 'settings.theme')}</Text>
       </View>
@@ -92,9 +92,9 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     backgroundColor: colors.background,
     paddingBottom: spacing.lg,
   },
-  ...getHeaderStyles(mode),
-  header: { ...getHeaderStyles(mode).header, gap: 0 },
-  title: { ...getHeaderStyles(mode).title, flexShrink: 1 },
+  ...getCompactHeaderStyles(mode),
+  header: { ...getCompactHeaderStyles(mode).header, gap: 0 },
+  title: { ...getCompactHeaderStyles(mode).title, flexShrink: 1 },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   content: { paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.lg },
   section: { gap: spacing.sm },

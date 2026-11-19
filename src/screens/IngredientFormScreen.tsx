@@ -21,7 +21,7 @@ import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
+import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_INSET, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
@@ -119,7 +119,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                 <Pressable style={styles.header} onPress={Keyboard.dismiss} accessible={false}>
                 <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('common.cancel')}
                     disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
-                  <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                  <MaterialDesignIcons name="close" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                   </FeedbackPressable>
                   <View style={styles.heading}>
                     <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
@@ -130,7 +130,7 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
                     onPress={saveIngredient} style={[styles.headerIconButton, styles.headerRightButton]}>
                     {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={isEditing ? t('ingredient.updating') : t('ingredient.registering')} />
                       : <MaterialDesignIcons name={isEditing ? 'checkbox-marked-circle-outline' : 'checkbox-marked-circle-plus-outline'}
-                        size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                        size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
                   </FeedbackPressable>
                 </Pressable>
               </View>
@@ -186,12 +186,12 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
   content: { flex: 1 },
   scrollContent: { flexGrow: 1 },
-  header: { ...getHeaderStyles(mode).header, backgroundColor: colors.surface },
+  header: { ...getCompactHeaderStyles(mode).header, backgroundColor: colors.surface },
   heading: { flex: 1, minHeight: HEADER_CONTENT_HEIGHT, justifyContent: 'center' },
-  title: { ...getHeaderStyles(mode).title, textAlign: 'center' },
+  title: { ...getCompactHeaderStyles(mode).title, textAlign: 'center' },
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  headerLeftButton: { marginLeft: -HEADER_ICON_INSET },
-  headerRightButton: { marginRight: -HEADER_ICON_INSET },
+  headerLeftButton: { marginLeft: -COMPACT_HEADER_ICON_INSET },
+  headerRightButton: { marginRight: -COMPACT_HEADER_ICON_INSET },
   form: { flexGrow: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.lg },
   fieldLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
   date: { color: colors.text, fontSize: 16, flexShrink: 1 },
