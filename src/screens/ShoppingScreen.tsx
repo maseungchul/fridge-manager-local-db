@@ -157,20 +157,20 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.header}>
-        {(isPlannedTab || items.length > 0) ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
+        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
           disabled={isLoading || hasLoadError || isProcessing || items.length === 0}
           accessibilityState={isSelecting ? { selected: allSelected } : undefined}
           onPress={() => { if (!isSelecting) setIsSelecting(true); else setSelectedIds(allSelected ? [] : items.map(item => item.id)); }}
           style={[styles.headerButton, styles.leftButton]}>
           <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE}
             color={allSelected ? colors.chilled : colors.text} accessible={false} />
-        </FeedbackPressable> : null}
+        </FeedbackPressable>
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.shopping')}</Text>
         {isPlannedTab || isSelecting ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.cancelSelection' : 'shopping.add')}
           accessibilityState={{ disabled: isLoading || hasLoadError || isProcessing }} disabled={isLoading || hasLoadError || isProcessing}
           onPress={() => { if (isSelecting) { setIsSelecting(false); setSelectedIds([]); } else navigation.navigate('ShoppingForm'); }} style={[styles.headerButton, styles.rightButton]}>
           <MaterialDesignIcons name={isSelecting ? 'close' : 'plus'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-        </FeedbackPressable> : items.length > 0 ? <View style={[styles.headerButton, styles.rightButton]} /> : null}
+        </FeedbackPressable> : <View style={[styles.headerButton, styles.rightButton]} />}
       </View>
       <IconChipTabs tabs={shoppingTabs.map(tab => ({ ...tab, label: t(tab.label) }))}
         activeTab={activeTab} onChange={openTab} interactionBlocked={isProcessing} style={styles.listTabs} />
