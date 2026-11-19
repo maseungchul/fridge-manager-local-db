@@ -43,7 +43,7 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
         paddingLeft: spacing.sm + insets.left, paddingRight: spacing.sm + insets.right }]}>
         <FeedbackPressable accessibilityRole="button" accessibilityLabel={t(shoppingAction.isUndo ? 'shopping.undoPurchase' : 'shopping.purchasedTab')}
           disabled={shoppingAction.disabled} accessibilityState={{ disabled: shoppingAction.disabled }}
-          feedback="none" onPress={shoppingAction.onPurchase} style={[styles.selectionAction, styles.purchaseAction]}>
+          feedback="none" onPress={shoppingAction.onPurchase} style={styles.selectionAction}>
           {({ pressed }) => <><MaterialDesignIcons name={shoppingAction.isUndo ? 'undo-variant' : 'check-circle-outline'} size={24}
             color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
             <Text style={[styles.purchaseLabel, pressed && { color: colors.iconPressed }]}>{t(shoppingAction.isUndo ? 'shopping.undoPurchase' : 'shopping.purchasedTab')}</Text></>}
@@ -122,9 +122,8 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
     borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth,
     elevation: 0, shadowOpacity: 0,
   },
-  selectionToolbar: { flexDirection: 'row', justifyContent: 'center', flexShrink: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.background },
-  selectionAction: { width: 64, minHeight: 48, marginHorizontal: spacing.xs, paddingTop: spacing.xs, alignItems: 'center', justifyContent: 'center' },
-  purchaseAction: { width: 88 },
+  selectionToolbar: { flexDirection: 'row', flexShrink: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.background },
+  selectionAction: { flex: 1, minHeight: 48, marginHorizontal: spacing.xs, paddingTop: spacing.xs, alignItems: 'center', justifyContent: 'center' },
   purchaseLabel: { color: colors.text, fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: '600' },
   deleteLabel: { color: colors.error, fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: '600' },
   item: { marginHorizontal: spacing.xs },
