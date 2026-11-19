@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { EmptyListState } from '@/components/EmptyListState';
 import { IconChipTabs } from '@/components/IconChipTabs';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { deleteShoppingItems, getShoppingItems, setShoppingItemsPurchased } from '@/db/shoppingRepository';
@@ -164,9 +165,7 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
           data={items} extraData={selectedIds} keyExtractor={item => item.id} indicatorStyle={mode === 'dark' ? 'white' : 'black'}
           contentContainerStyle={items.length === 0 ? styles.emptyList : styles.listContent}
           ListEmptyComponent={(
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>{t(isPlannedTab ? 'shopping.empty' : 'shopping.purchasedEmpty')}</Text>
-            </View>
+            <EmptyListState message={t(isPlannedTab ? 'shopping.empty' : 'shopping.purchasedEmpty')} />
           )}
           renderItem={({ item }) => (
             <FeedbackPressable accessibilityRole={isSelecting ? 'checkbox' : isPlannedTab ? 'button' : undefined}
@@ -208,8 +207,6 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   feedback: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.md, gap: spacing.md },
   error: { color: colors.error, marginTop: spacing.xs },
   emptyList: { flexGrow: 1, justifyContent: 'center' },
-  emptyState: { alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
-  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   item: {
     padding: spacing.md, gap: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
   },

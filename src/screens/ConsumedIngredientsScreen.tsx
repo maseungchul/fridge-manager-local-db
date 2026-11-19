@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { EmptyListState } from '@/components/EmptyListState';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useToast } from '@/components/ToastProvider';
 import { deleteConsumedIngredient, getConsumedIngredients, restoreConsumedIngredient } from '@/db/ingredientRepository';
@@ -135,10 +136,7 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
         </View> : (
           <FlatList data={records} keyExtractor={item => item.id} extraData={isBusy} style={styles.list}
             contentContainerStyle={records.length === 0 ? styles.empty : styles.listContent}
-            ListEmptyComponent={<View style={styles.feedback}>
-              <Text style={styles.emptyTitle}>{t('consumed.emptyTitle')}</Text>
-              <Text style={styles.detail}>{t('consumed.emptyDescription')}</Text>
-            </View>}
+            ListEmptyComponent={<EmptyListState message={t('consumed.emptyTitle')} />}
             renderItem={({ item }) => {
               const date = new Date(item.consumedAt);
               const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -176,9 +174,8 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   list: { flex: 1 },
   listContent: { paddingBottom: spacing.lg },
-  empty: { flexGrow: 1 },
+  empty: { flexGrow: 1, justifyContent: 'center' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
-  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
   retry: { alignSelf: 'stretch' },
   item: { paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.xs, backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },

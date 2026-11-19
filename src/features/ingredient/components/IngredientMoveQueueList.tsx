@@ -8,6 +8,7 @@ import { BottomSheetSectionList } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { EmptyListState } from '@/components/EmptyListState';
 import { getPositionName } from '@/features/fridge/model/fridgeLayout';
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
@@ -55,10 +56,7 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
       showsVerticalScrollIndicator indicatorStyle={mode === 'dark' ? 'white' : 'black'} automaticallyAdjustsScrollIndicatorInsets={false}
       scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
       style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.empty : undefined, { paddingBottom: insets.bottom }]}
-      ListEmptyComponent={<View style={styles.emptyContent}>
-        <Text style={styles.emptyTitle}>{t('queue.emptyTitle')}</Text>
-        <Text style={styles.guide}>{t('queue.emptyDescription')}</Text>
-      </View>}
+      ListEmptyComponent={<EmptyListState message={t('queue.emptyTitle')} />}
       renderSectionHeader={({ section }) => (
         <View accessible accessibilityRole="header" accessibilityLabel={section.path.join(', ')} style={styles.location}>
           {section.path.map((part, index) => (
@@ -93,7 +91,6 @@ export function IngredientMoveQueueList({ ingredients, layout, disabled, onRemov
 
 const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   list: { flex: 1 },
-  guide: { color: colors.textMuted, fontSize: 13, lineHeight: 20, padding: spacing.md },
   location: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.chilledBackground },
   locationPart: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
@@ -106,6 +103,4 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   detail: { color: colors.textMuted, fontSize: 15, lineHeight: 21 },
   remove: { width: 44, height: 44, marginRight: -11, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   empty: { flexGrow: 1, justifyContent: 'center' },
-  emptyContent: { alignItems: 'center', padding: spacing.lg },
-  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
 }));

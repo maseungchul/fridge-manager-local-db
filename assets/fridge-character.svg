@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 174">
+  <style>
+    :root { --fridge-line: #42654e; --fridge-fill: #e1efdb; }
+    @media (prefers-color-scheme: dark) {
+      :root { --fridge-line: #9ac9a9; --fridge-fill: #2a4336; }
+    }
+  </style>
+  <g stroke="var(--fridge-line)" stroke-width="2.8" stroke-linejoin="round">
+    <path d="M18 158v5a6 6 0 0 0 6 6h4a6 6 0 0 0 6-6v-5M86 158v5a6 6 0 0 0 6 6h4a6 6 0 0 0 6-6v-5" fill="none" />
+    <rect x="4" y="4" width="112" height="156" rx="23" fill="var(--fridge-fill)" />
+    <path d="M4 78h112" fill="none" />
+    <rect x="14" y="47" width="8" height="21" rx="4" fill="none" stroke-width="2.2" />
+    <rect x="14" y="92" width="8" height="21" rx="4" fill="none" stroke-width="2.2" />
+  </g>
+  <g fill="var(--fridge-line)">
+    <circle cx="40" cy="41" r="4.5" />
+    <circle cx="82" cy="41" r="4.5" />
+  </g>
+</svg>

@@ -12,6 +12,7 @@ import type { IngredientSheetRef } from '@/features/ingredient/components/Ingred
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { EmptyListState } from '@/components/EmptyListState';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useToast } from '@/components/ToastProvider';
 import { alertTitles } from '@/constants/alertTitles';
@@ -372,10 +373,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             scrollIndicatorInsets={{ top: 0, bottom: spacing.md + (isSelecting ? 0 : insets.bottom), left: 0, right: spacing.xs }}
                             style={styles.list} contentContainerStyle={[ingredients.length === 0 ? styles.emptyList : undefined, { paddingBottom: isSelecting ? 0 : insets.bottom }]}
                             ListEmptyComponent={
-                              <View style={styles.emptyState}>
-                                <Text style={styles.emptyTitle}>{t('ingredient.emptyTitle')}</Text>
-                                <Text style={styles.emptyDescription}>{t('ingredient.emptyDescription')}</Text>
-                              </View>
+                              <EmptyListState message={t('ingredient.emptyTitle')} />
                             }
                             renderItem={({ item }) => {
                               const expiration = getIngredientExpirationStatus(item.expirationDate, undefined, t);
@@ -497,9 +495,6 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
   retryButton: { alignSelf: 'stretch' },
   list: { flex: 1 },
   emptyList: { flexGrow: 1, justifyContent: 'center' },
-  emptyState: { alignItems: 'center', padding: spacing.lg, gap: spacing.sm },
-  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
-  emptyDescription: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },
   item: { paddingHorizontal: spacing.md, paddingVertical: spacing.md, gap: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   itemHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
