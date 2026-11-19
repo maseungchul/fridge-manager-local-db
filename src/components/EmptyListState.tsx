@@ -2,7 +2,8 @@
  * @file
  * 빈 목록 문구와 터치로 문을 열고 닫을 수 있는 냉장고 캐릭터를 표시한다.
  */
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
@@ -23,6 +24,9 @@ export function EmptyListState({ message, description }: EmptyListStateProps) {
   const styles = getStyles(mode);
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+
+  // 화면이 뒤에 남아 있어도 다시 돌아올 때는 닫힌 상태로 시작한다.
+  useFocusEffect(useCallback(() => () => setIsOpen(false), []));
 
   return (
     <View style={styles.container}>

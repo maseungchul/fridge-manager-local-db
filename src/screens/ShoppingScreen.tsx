@@ -165,7 +165,7 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
           data={items} extraData={selectedIds} keyExtractor={item => item.id} indicatorStyle={mode === 'dark' ? 'white' : 'black'}
           contentContainerStyle={items.length === 0 ? styles.emptyList : styles.listContent}
           ListEmptyComponent={(
-            <EmptyListState message={t(isPlannedTab ? 'shopping.empty' : 'shopping.purchasedEmpty')}
+            <EmptyListState key={activeTab} message={t(isPlannedTab ? 'shopping.empty' : 'shopping.purchasedEmpty')}
               description={t(isPlannedTab ? 'shopping.emptyGuide' : 'shopping.purchasedEmptyGuide')} />
           )}
           renderItem={({ item }) => (
