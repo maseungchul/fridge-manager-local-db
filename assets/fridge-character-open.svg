@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="114" height="101" viewBox="0 0 114 101">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      :root { --fridge-line: #9ac9a9; --fridge-fill: #2a4336; }
+    }
+  </style>
+  <g stroke="var(--fridge-line, #42654e)" stroke-width="1.7" stroke-linejoin="round">
+    <rect x=".85" y=".85" width="68.3" height="92.3" rx="14.15" fill="var(--fridge-fill, #e8eee9)" />
+    <!-- 닫힌 상태의 중앙선 중심: 본체 테두리 1.7 + 위쪽 오프셋 43 + 선 두께의 절반 0.85 -->
+    <path d="M1 45.55h68" />
+    <g fill="none" stroke-linecap="round" opacity=".65">
+      <path d="M5.5 41.05V15.5a10 10 0 0 1 10-10h39a10 10 0 0 1 10 10V41.05a2 2 0 0 1-2 2h-55a2 2 0 0 1-2-2Zm2 7.5h55a2 2 0 0 1 2 2V79a10 10 0 0 1-10 10h-39a10 10 0 0 1-10-10V50.55a2 2 0 0 1 2-2Z" stroke-width=".7" />
+      <path d="M7.5 28h55m-55 39h55" stroke-width="1" />
+    </g>
+    <g fill="var(--fridge-fill, #e8eee9)">
+      <path d="M69.15 10.8q0-1.8 1.8-2.3L102 1.15a9.1 9.1 0 0 1 11.15 8.9V39a4.4 4.4 0 0 1-4.4 4.4l-39.6 1.7Z" />
+      <path d="m69.15 47.05 39.6 1.55a4.4 4.4 0 0 1 4.4 4.4v27.5a9.1 9.1 0 0 1-11.15 8.9l-31.05-7.3q-1.8-.5-1.8-2.3Z" />
+    </g>
+    <g fill="none" stroke-width="1.4">
+      <rect x="103" y="26" width="5.2" height="12.6" rx="2.6" />
+      <rect x="103" y="53.7" width="5.2" height="12.6" rx="2.6" />
+    </g>
+  </g>
+  <g fill="var(--fridge-line, #42654e)">
+    <circle cx="80.5" cy="22.2" r="2.75" />
+    <circle cx="96.2" cy="21.5" r="2.75" />
+  </g>
+</svg>

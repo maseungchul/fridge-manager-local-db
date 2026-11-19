@@ -1,40 +1,60 @@
 /**
  * @file
- * 빈 목록의 아이콘과 문구를 일관되게 표시한다.
+ * 빈 목록 문구와 터치로 문을 열고 닫을 수 있는 냉장고 캐릭터를 표시한다.
  */
+import { useState } from 'react';
+import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
+import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { useTranslation } from '@/i18n/LanguageProvider';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
+
+const CHARACTER_SCALE = 0.9;
+const OPEN_DOOR_WIDTH = 44 * CHARACTER_SCALE;
 
 interface EmptyListStateProps {
   message: string;
 }
 
 export function EmptyListState({ message }: EmptyListStateProps) {
-  const { mode } = useAppTheme();
+  const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
-  return <View style={styles.container}>
-    <View style={styles.characterContainer} accessible={false} importantForAccessibility="no-hide-descendants">
-      <View style={styles.character}>
-      <View style={styles.feet}><View style={styles.foot} /><View style={styles.foot} /></View>
-      <View style={styles.fridge}>
-        <View style={styles.divider} />
-        <View style={[styles.handle, styles.upperHandle]} />
-        <View style={[styles.handle, styles.lowerHandle]} />
-        <View style={styles.eyes}><View style={styles.eye} /><View style={styles.eye} /></View>
-      </View>
-      </View>
+  const { t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <View style={styles.container}>
+      <FeedbackPressable feedback="none" accessibilityRole="button" accessibilityState={{ expanded: isOpen }}
+        accessibilityLabel={t(isOpen ? 'fridge.characterClose' : 'fridge.characterOpen')}
+        onPress={() => setIsOpen(open => !open)} style={[styles.characterContainer, isOpen && styles.openCharacter]}>
+        {isOpen ? (
+          <Image source={require('../../assets/fridge-character-open.svg')} style={styles.openImage} contentFit="fill"
+            svgVariables={{ '--fridge-line': colors.chilled, '--fridge-fill': colors.chilledBackground }}
+            accessible={false} pointerEvents="none" />
+        ) : (
+          <View style={styles.character} pointerEvents="none">
+            <View style={styles.fridge}>
+              <View style={styles.divider} />
+              <View style={[styles.handle, styles.upperHandle]} />
+              <View style={[styles.handle, styles.lowerHandle]} />
+              <View style={styles.eyes}><View style={styles.eye} /><View style={styles.eye} /></View>
+            </View>
+          </View>
+        )}
+      </FeedbackPressable>
+      <Text style={styles.message}>{message}</Text>
     </View>
-    <Text style={styles.message}>{message}</Text>
-  </View>;
+  );
 }
 
 const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   container: { alignItems: 'center', padding: spacing.lg, gap: spacing.md },
   characterContainer: { width: 63, height: 91, alignItems: 'center', justifyContent: 'center' },
-  character: { width: 70, height: 101, transform: [{ scale: 0.9 }] },
-  feet: { position: 'absolute', bottom: 0, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-between' },
-  foot: { width: 10, height: 9, borderWidth: 1.7, borderColor: colors.chilled, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 },
+  // 열린 문만 오른쪽으로 늘려 본체의 중심과 문구 위치를 유지한다.
+  openCharacter: { width: 63 + OPEN_DOOR_WIDTH, transform: [{ translateX: OPEN_DOOR_WIDTH / 2 }] },
+  openImage: { width: '100%', height: 101 * CHARACTER_SCALE },
+  character: { width: 70, height: 101, transform: [{ scale: CHARACTER_SCALE }] },
   fridge: { position: 'absolute', top: 0, width: 70, height: 94, borderWidth: 1.7, borderColor: colors.chilled, borderRadius: 15, backgroundColor: colors.chilledBackground, overflow: 'hidden' },
   divider: { position: 'absolute', top: 43, left: 0, right: 0, height: 1.7, backgroundColor: colors.chilled },
   handle: { position: 'absolute', left: 6, width: 6, height: 13, borderWidth: 1.4, borderColor: colors.chilled, borderRadius: 4 },

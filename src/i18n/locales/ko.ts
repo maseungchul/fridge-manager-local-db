@@ -151,6 +151,8 @@ export const ko = {
   'fridge.noStorage': '{label}, 수납 없음',
   'fridge.modeUnset': '보관 모드 미설정',
   'fridge.openDoor': '{label}, {mode} 열기',
+  'fridge.characterOpen': '냉장고 문 열기',
+  'fridge.characterClose': '냉장고 문 닫기',
   'fridge.scrollHint': '좌우로 밀어 확인',
   'fridge.scrollHorizontal': '냉장고 내부 도면, 좌우로 이동',
   'fridge.scrollVertical': '냉장고 내부 도면, 위아래로 이동',

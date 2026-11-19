@@ -153,6 +153,8 @@ export const ja: Record<keyof typeof ko, string> = {
   'fridge.noStorage': '{label}、収納なし',
   'fridge.modeUnset': '保存モード未設定',
   'fridge.openDoor': '{label}、{mode}を開く',
+  'fridge.characterOpen': '冷蔵庫のドアを開く',
+  'fridge.characterClose': '冷蔵庫のドアを閉じる',
   'fridge.scrollHint': '左右にスワイプして確認',
   'fridge.scrollHorizontal': '冷蔵庫の庫内図、左右に移動',
   'fridge.scrollVertical': '冷蔵庫の庫内図、上下に移動',
