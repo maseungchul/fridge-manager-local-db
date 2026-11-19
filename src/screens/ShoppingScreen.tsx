@@ -60,6 +60,7 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   const processing = useRef(false);
   const isPlannedTab = activeTab === 'planned';
   const items = allItems.filter(item => (item.purchasedAt === null) === isPlannedTab);
+  const allSelected = isSelecting && items.length > 0 && items.every(item => selectedIds.includes(item.id));
 
   // 추가·편집 화면에서 돌아오면 저장된 순서대로 목록을 다시 읽는다.
   const loadItems = useCallback(() => runLoad(async isCurrent => {
@@ -143,9 +144,11 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
       <View style={styles.header}>
         {(isPlannedTab || items.length > 0) ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
           disabled={isLoading || hasLoadError || isProcessing || items.length === 0}
-          onPress={() => { if (!isSelecting) setIsSelecting(true); else setSelectedIds(selectedIds.length === items.length ? [] : items.map(item => item.id)); }}
+          accessibilityState={isSelecting ? { selected: allSelected } : undefined}
+          onPress={() => { if (!isSelecting) setIsSelecting(true); else setSelectedIds(allSelected ? [] : items.map(item => item.id)); }}
           style={[styles.headerButton, styles.leftButton]}>
-          <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+          <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE}
+            color={allSelected ? colors.chilled : colors.text} accessible={false} />
         </FeedbackPressable> : null}
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('tabs.shopping')}</Text>
         {isPlannedTab || isSelecting ? <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.cancelSelection' : 'shopping.add')}

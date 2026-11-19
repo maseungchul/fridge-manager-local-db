@@ -335,13 +335,15 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                         </View>
                       ) : (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
+                          accessibilityState={isSelecting ? { selected: allSelected } : undefined}
                           disabled={isBusy || isLoading || error !== null || ingredients.length === 0} interactionBlocked={isChanging}
                           onPress={() => {
                             if (!canChangeSelection()) return;
                             if (!isSelecting) toggleSelectionMode();
                             else setSelectedIds(allSelected ? [] : ingredients.map(item => item.id));
                           }} style={[styles.headerIconButton, styles.headerLeftButton]}>
-                          <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                          <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE}
+                            color={isSelecting && allSelected ? colors.chilled : colors.text} accessible={false} />
                         </FeedbackPressable>
                       )}
                       <View style={[styles.heading, !secondary && !isSelecting && styles.headingWithActions]}>
