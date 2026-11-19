@@ -2,7 +2,7 @@
  * @file
  * 장보기 목록과 장본리스트를 전환하고 구매 예정 품목의 추가·편집·삭제를 처리한다.
  */
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -76,6 +76,11 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
     void loadItems();
     return () => { cancelLoad(); setIsSelecting(false); setSelectedIds([]); };
   }, [cancelLoad, loadItems]));
+
+  // 하단 장보기 탭을 다시 눌러도 구매 예정 목록부터 보여 준다.
+  useEffect(() => navigation.addListener('tabPress', () => {
+    setActiveTab('planned');
+  }), [navigation]);
 
   const requestDelete = useCallback(() => {
     if (processing.current || selectedIds.length === 0) return;
