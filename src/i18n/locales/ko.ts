@@ -19,7 +19,6 @@ export const ko = {
   'shopping.purchasedEmpty': '구매 완료한 품목이 없어요.',
   'shopping.purchasedEmptyGuide': '장보기 목록에서 구매한 품목을 완료해 보세요.',
   'shopping.importPurchased': '구매 완료 품목 가져오기',
-  'shopping.selectedCount': '{count}개 선택',
   'shopping.reviewPurchased': '등록할 품목 확인',
   'shopping.importRegistered': '재료 {count}개를 등록했습니다.',
   'shopping.importMissing': '구매 상태가 바뀐 품목이 있습니다. 가져오기 목록을 다시 열어 확인해 주세요.',

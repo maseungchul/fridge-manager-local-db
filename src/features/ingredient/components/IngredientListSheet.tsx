@@ -17,14 +17,15 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { useToast } from '@/components/ToastProvider';
 import { alertTitles } from '@/constants/alertTitles';
 import { consumeIngredients, deleteIngredients, getIngredientsByPosition, moveIngredients } from '@/db/ingredientRepository';
-import { registerPurchasedIngredients } from '@/db/shoppingRepository';
-import type { PurchasedIngredientRegistration } from '@/db/shoppingRepository';
+import { getShoppingItems, registerPurchasedIngredients } from '@/db/shoppingRepository';
+import type { PurchasedIngredientRegistration, PurchasedShoppingItem } from '@/db/shoppingRepository';
 import type { FridgeLayout, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
 import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { PurchasedItemPicker } from '@/features/shopping/components/PurchasedItemPicker';
+import type { PurchasedSelectionAction } from '@/features/shopping/components/PurchasedItemPicker';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
@@ -67,6 +68,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const [isChanging, setIsChanging] = useState(false);
   const [isSecondaryOpen, setIsSecondaryOpen] = useState(false);
   const [secondaryPage, setSecondaryPage] = useState<'queue' | 'purchased'>('queue');
+  const [purchasedSelection, setPurchasedSelection] = useState<PurchasedSelectionAction | null>(null);
+  const [purchasedItems, setPurchasedItems] = useState<PurchasedShoppingItem[] | null>();
+  const [purchasedReloadCount, setPurchasedReloadCount] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -86,6 +90,16 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const allSelected = ingredients.length > 0 && selectedIngredients.length === ingredients.length;
   const canMove = queuedIngredients.some(ingredient => ingredient.slotId !== slotId || ingredient.drawerNumber !== drawerNumber)
     && !isLoading && error === null;
+
+  useEffect(() => {
+    let active = true;
+    void getShoppingItems(db).then(items => {
+      if (active) setPurchasedItems(items.filter((item): item is PurchasedShoppingItem => item.purchasedAt !== null));
+    }, () => {
+      if (active) setPurchasedItems(null);
+    });
+    return () => { active = false; };
+  }, [db, purchasedReloadCount]);
 
   useEffect(() => {
     let active = true;
@@ -151,7 +165,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     if (formRequest.current || deleting.current || moving.current || importing.current || transition.current.active) return;
     Keyboard.dismiss();
     changePanel('list');
-  }, [changePanel]);
+    if (secondaryPage === 'purchased') setPurchasedReloadCount(count => count + 1);
+  }, [changePanel, secondaryPage]);
 
   useEffect(() => {
     // 저장·전환 중에는 홈의 종료 동작을 막고, 하위 화면에서는 먼저 목록으로 돌아간다.
@@ -258,7 +273,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     }
   }
 
-  async function importPurchased(registrations: readonly PurchasedIngredientRegistration[]) {
+  const importPurchased = useCallback(async (registrations: readonly PurchasedIngredientRegistration[]) => {
     importing.current = true;
     setIsImporting(true);
     let registered: Ingredient[];
@@ -268,10 +283,22 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
       importing.current = false;
       setIsImporting(false);
     }
+    const registeredIds = new Set(registrations.map(({ item }) => item.id));
+    setPurchasedItems(current => current?.filter(item => !registeredIds.has(item.id)) ?? current);
     onRegistered(registered);
     setReloadCount(count => count + 1);
     returnToList();
     showToast(t('shopping.importRegistered', { count: registered.length }));
+  }, [db, slotId, drawerNumber, onRegistered, returnToList, showToast, t]);
+
+  function openPurchasedPanel() {
+    if (purchasedItems?.length) {
+      openSecondaryPanel('purchased');
+    } else if (purchasedItems === null) {
+      setPurchasedItems(undefined);
+      setPurchasedReloadCount(count => count + 1);
+      Alert.alert(t(alertTitles.error), t('shopping.loadError'));
+    }
   }
 
   return (
@@ -290,11 +317,22 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                   {secondary === isSecondaryOpen || isChanging ? (
                     <View style={styles.header}>
                       {secondary ? (
-                        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
-                          disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
-                          onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
-                          <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-                        </FeedbackPressable>
+                        <View style={styles.headerActions}>
+                          <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
+                            disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
+                            onPress={returnToList} style={[styles.headerIconButton, styles.headerLeftButton]}>
+                            <MaterialDesignIcons name="arrow-left" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                          </FeedbackPressable>
+                          {secondaryPage === 'purchased' ? (
+                            <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.selectAll')}
+                              disabled={isBusy || !purchasedSelection} interactionBlocked={isChanging}
+                              accessibilityState={{ disabled: isBusy || isChanging || !purchasedSelection, selected: purchasedSelection?.allSelected ?? false }}
+                              onPress={purchasedSelection?.toggle} style={styles.headerIconButton}>
+                              <MaterialDesignIcons name="check-all" size={HEADER_ICON_SIZE}
+                                color={purchasedSelection?.allSelected ? colors.chilled : colors.text} accessible={false} />
+                            </FeedbackPressable>
+                          ) : null}
+                        </View>
                       ) : (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
                           disabled={isBusy || isLoading || error !== null || ingredients.length === 0} interactionBlocked={isChanging}
@@ -309,7 +347,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                       <View style={[styles.heading, !secondary && !isSelecting && styles.headingWithActions]}>
                         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
                           style={styles.title}>{!secondary ? t('ingredient.list')
-                            : secondaryPage === 'queue' ? t('queue.title', { count: queuedIngredients.length }) : t('shopping.importPurchased')}</Text>
+                            : secondaryPage === 'queue' ? t('queue.title', { count: queuedIngredients.length }) : t('shopping.purchasedTab')}</Text>
                       </View>
                       {secondary ? secondaryPage === 'queue' ? (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
@@ -319,7 +357,17 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           style={[styles.headerIconButton, styles.headerRightButton]}>
                           <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
-                      ) : <View style={[styles.headerIconButton, styles.headerRightButton]} /> : isSelecting ? (
+                      ) : (
+                        <View style={[styles.headerActions, styles.headerRightButton]}>
+                          <View style={styles.purchasedHeaderSpacer} />
+                          <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.register')}
+                            disabled={isBusy || !purchasedSelection?.register} interactionBlocked={isChanging}
+                            onPress={() => { if (!importing.current) purchasedSelection?.register?.(); }} style={styles.headerIconButton}>
+                            {isImporting ? <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.registering')} /> :
+                              <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+                          </FeedbackPressable>
+                        </View>
+                      ) : isSelecting ? (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
                           disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={[styles.headerIconButton, styles.headerRightButton]}>
                           <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
@@ -327,8 +375,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                       ) : (
                         <View style={styles.headerActions}>
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('shopping.importPurchased')}
-                            disabled={isBusy} interactionBlocked={isChanging}
-                            onPress={() => openSecondaryPanel('purchased')} style={styles.headerIconButton}>
+                            disabled={isBusy || purchasedItems === undefined || purchasedItems?.length === 0} interactionBlocked={isChanging}
+                            onPress={openPurchasedPanel} style={styles.headerIconButton}>
                             <MaterialDesignIcons name="shopping-search-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
@@ -391,9 +439,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                         {secondary ? secondaryPage === 'queue' ? (
                           <IngredientMoveQueueList ingredients={queuedIngredients} layout={layout} disabled={isBusy || isChanging}
                             onRemove={moveQueue.remove} />
-                        ) : (
-                          <PurchasedItemPicker disabled={isBusy || isChanging} onRegister={importPurchased} />
-                        ) : isLoading ? (
+                        ) : purchasedItems ? (
+                          <PurchasedItemPicker disabled={isBusy || isChanging} items={purchasedItems} onRegister={importPurchased}
+                            onSelectionActionChange={setPurchasedSelection} />
+                        ) : null : isLoading ? (
                           <View style={styles.feedback}>
                             <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.loading')} />
                           </View>
@@ -505,6 +554,7 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
   headerRightButton: { marginRight: -HEADER_ICON_INSET },
   headingWithActions: { marginLeft: HEADER_CONTENT_HEIGHT },
   headerActions: { flexDirection: 'row' },
+  purchasedHeaderSpacer: { width: HEADER_CONTENT_HEIGHT },
   selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
   selectionToolbar: { flexDirection: 'row', flexShrink: 0,

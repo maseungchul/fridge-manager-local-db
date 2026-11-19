@@ -21,7 +21,6 @@ export const ja: Record<keyof typeof ko, string> = {
   'shopping.purchasedEmpty': '購入済みの品目はありません。',
   'shopping.purchasedEmptyGuide': '買い物リストで購入した品目を購入済みにしましょう。',
   'shopping.importPurchased': '購入済みの品目を取り込む',
-  'shopping.selectedCount': '{count}件選択中',
   'shopping.reviewPurchased': '登録する品目を確認',
   'shopping.importRegistered': '食材を{count}件登録しました。',
   'shopping.importMissing': '購入状態が変わった品目があります。取り込みリストを開き直して確認してください。',

@@ -27,7 +27,7 @@ interface PurchasedIngredientReviewProps {
   onRegister: (registrations: readonly PurchasedIngredientRegistration[]) => Promise<void>;
 }
 
-function getFieldErrors(draft: IngredientDraft) {
+export function getFieldErrors(draft: IngredientDraft) {
   const nameLength = draft.name.trim().length;
   const quantityLength = draft.quantity.trim().length;
   return {
