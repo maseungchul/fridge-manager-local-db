@@ -39,7 +39,7 @@ type ShoppingScreenProps = CompositeScreenProps<
 
 const shoppingTabs = [
   { id: 'planned', label: 'shopping.plannedTab', icon: 'format-list-bulleted' },
-  { id: 'purchased', label: 'shopping.purchasedTab', icon: 'basket-outline' },
+  { id: 'purchased', label: 'shopping.purchasedTab', icon: 'shopping-outline' },
 ] as const;
 
 type ShoppingTab = (typeof shoppingTabs)[number]['id'];
