@@ -20,6 +20,8 @@ export const ja: Record<keyof typeof ko, string> = {
   'shopping.purchaseError': '購入状態を変更できませんでした。リストを確認してもう一度お試しください。',
   'shopping.purchasedEmpty': '購入済みの品目はありません。',
   'shopping.purchasedEmptyGuide': '買い物リストで購入した品目を購入済みにしましょう。',
+  'shopping.importPurchased': '購入済みの品目を取り込む',
+  'shopping.selectedCount': '{count}件選択中',
   'shopping.deleteSelected': '選択した品目を削除',
   'shopping.deleteConfirm': '選択した品目 {count}件を削除しますか？\n削除した品目は復元できません。',
   'shopping.deleteError': '品目を削除できませんでした。もう一度お試しください。',

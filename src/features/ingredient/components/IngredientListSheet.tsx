@@ -1,6 +1,6 @@
 /**
  * @file
- * 선택한 위치의 재료와 임시이동목록을 공통 바텀 시트에 표시한다.
+ * 선택한 위치의 재료, 임시이동목록, 구매 완료 품목 선택을 공통 바텀 시트에 표시한다.
  * 추가·편집은 시트 종료 후 전달하고, 삭제·소비 완료·일괄 이동 결과로 홈 배지를 갱신한다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -22,6 +22,7 @@ import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
 import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
+import { PurchasedItemPicker } from '@/features/shopping/components/PurchasedItemPicker';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { HEADER_CONTENT_HEIGHT, HEADER_ICON_INSET, HEADER_ICON_SIZE, getHeaderStyles } from '@/theme/headerStyles';
@@ -61,6 +62,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const [pageWidth, setPageWidth] = useState(windowWidth);
   const [isChanging, setIsChanging] = useState(false);
   const [isSecondaryOpen, setIsSecondaryOpen] = useState(false);
+  const [secondaryPage, setSecondaryPage] = useState<'queue' | 'purchased'>('queue');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -109,12 +111,13 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   }, []);
 
   // 제목·버튼·본문을 함께 전환하고 완료 전까지 연속 조작을 막는다.
-  const changePanel = useCallback((nextPage: 'list' | 'queue') => {
+  const changePanel = useCallback((nextPage: 'list' | 'queue' | 'purchased') => {
     const showSecondary = nextPage !== 'list';
     if (transition.current.active || showSecondary === isSecondaryOpen) return;
     Keyboard.dismiss();
     transition.current.active = true;
     setIsChanging(true);
+    if (nextPage !== 'list') setSecondaryPage(nextPage);
     setIsSecondaryOpen(showSecondary);
     const target = showSecondary ? 1 : 0;
     const animation = Animated.timing(panelProgress, { toValue: target, duration: 240, useNativeDriver: true });
@@ -225,10 +228,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
 
   }
 
-  function openMoveQueue() {
+  function openSecondaryPanel(page: 'queue' | 'purchased') {
     if (formRequest.current || deleting.current || moving.current || transition.current.active || isSecondaryOpen || isSelecting) return;
 
-    changePanel('queue');
+    changePanel(page);
   }
 
   async function moveQueuedIngredients() {
@@ -282,11 +285,12 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           <MaterialDesignIcons name={isSelecting ? 'check-all' : 'check'} size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       )}
-                      <View style={styles.heading}>
+                      <View style={[styles.heading, !secondary && !isSelecting && styles.headingWithActions]}>
                         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
-                          style={styles.title}>{secondary ? t('queue.title', { count: queuedIngredients.length }) : t('ingredient.list')}</Text>
+                          style={styles.title}>{!secondary ? t('ingredient.list')
+                            : secondaryPage === 'queue' ? t('queue.title', { count: queuedIngredients.length }) : t('shopping.importPurchased')}</Text>
                       </View>
-                      {secondary ? (
+                      {secondary ? secondaryPage === 'queue' ? (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
                           disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
                           accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
@@ -294,17 +298,24 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           style={[styles.headerIconButton, styles.headerRightButton]}>
                           <MaterialDesignIcons name="clipboard-remove-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
-                      ) : isSelecting ? (
+                      ) : <View style={[styles.headerIconButton, styles.headerRightButton]} /> : isSelecting ? (
                         <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
                           disabled={isBusy} interactionBlocked={isChanging} onPress={toggleSelectionMode} style={[styles.headerIconButton, styles.headerRightButton]}>
                           <MaterialDesignIcons name="close" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                         </FeedbackPressable>
                       ) : (
-                        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
-                          accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
-                          interactionBlocked={isChanging} onPress={() => openForm()} style={[styles.headerIconButton, styles.headerRightButton]}>
-                          <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-                        </FeedbackPressable>
+                        <View style={styles.headerActions}>
+                          <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('shopping.importPurchased')}
+                            disabled={isBusy} interactionBlocked={isChanging}
+                            onPress={() => openSecondaryPanel('purchased')} style={styles.headerIconButton}>
+                            <MaterialDesignIcons name="shopping-search-outline" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                          </FeedbackPressable>
+                          <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
+                            accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
+                            interactionBlocked={isChanging} onPress={() => openForm()} style={[styles.headerIconButton, styles.headerRightButton]}>
+                            <MaterialDesignIcons name="plus" size={HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                          </FeedbackPressable>
+                        </View>
                       )}
                     </View>
                   ) : null}
@@ -318,7 +329,11 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         if (deleting.current || moving.current || transition.current.active) return;
         if (!formRequest.current) onClose();
       }}>
-        <View style={styles.panel} onAccessibilityEscape={() => { if (isSelecting) toggleSelectionMode(); else closeSheet(); }}>
+        <View style={styles.panel} onAccessibilityEscape={() => {
+          if (isSecondaryOpen) returnToList();
+          else if (isSelecting) toggleSelectionMode();
+          else closeSheet();
+        }}>
           <View style={styles.content} onLayout={({ nativeEvent }) => {
             if (nativeEvent.layout.width > 0) setPageWidth(nativeEvent.layout.width);
           }}>
@@ -334,12 +349,12 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                   {secondary === isSecondaryOpen || isChanging ? (
                     <>
                       {!secondary && !isSelecting && queuedIngredients.length > 0 ? (
-                        <View style={styles.moveToolbar}>
+                        <View style={styles.listToolbar}>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.check', { count: queuedIngredients.length })}
                             disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
-                            onPress={openMoveQueue} style={styles.queueButton}>
+                            onPress={() => openSecondaryPanel('queue')} style={styles.toolbarChip}>
                             <MaterialDesignIcons name="clipboard-text-outline" size={20} color={colors.chilled} accessible={false} />
-                            <Text style={styles.queueLabel}>{t('queue.title', { count: queuedIngredients.length })}</Text>
+                            <Text style={styles.toolbarChipLabel}>{t('queue.title', { count: queuedIngredients.length })}</Text>
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.moveHere')}
                             disabled={!canMove || isBusy} interactionBlocked={isChanging}
@@ -352,9 +367,11 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                         </View>
                       ) : null}
                       <View style={styles.pageContent}>
-                        {secondary ? (
+                        {secondary ? secondaryPage === 'queue' ? (
                           <IngredientMoveQueueList ingredients={queuedIngredients} layout={layout} disabled={isBusy || isChanging}
                             onRemove={moveQueue.remove} />
+                        ) : (
+                          <PurchasedItemPicker disabled={isBusy || isChanging} />
                         ) : isLoading ? (
                           <View style={styles.feedback}>
                             <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.loading')} />
@@ -465,6 +482,8 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
   headerIconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
   headerLeftButton: { marginLeft: -HEADER_ICON_INSET },
   headerRightButton: { marginRight: -HEADER_ICON_INSET },
+  headingWithActions: { marginLeft: HEADER_CONTENT_HEIGHT },
+  headerActions: { flexDirection: 'row' },
   selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
   selectionToolbar: { flexDirection: 'row', flexShrink: 0,
@@ -481,11 +500,11 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
   pageTrack: { flex: 1, flexDirection: 'row' },
   page: { height: '100%' },
   pageContent: { flex: 1 },
-  moveToolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm,
+  listToolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  queueButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44,
+  toolbarChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44,
     paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.chilledBackground },
-  queueLabel: { color: colors.chilled, fontSize: 15, fontWeight: '600', flexShrink: 1 },
+  toolbarChipLabel: { color: colors.chilled, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   moveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
     minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.chilledFill },
   moveLabel: { color: colors.buttonText, fontSize: 15, fontWeight: '600' },

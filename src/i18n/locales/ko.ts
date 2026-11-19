@@ -18,6 +18,8 @@ export const ko = {
   'shopping.purchaseError': '구매 상태를 변경하지 못했습니다. 목록을 확인한 뒤 다시 시도해 주세요.',
   'shopping.purchasedEmpty': '구매 완료한 품목이 없어요.',
   'shopping.purchasedEmptyGuide': '장보기 목록에서 구매한 품목을 완료해 보세요.',
+  'shopping.importPurchased': '구매 완료 품목 가져오기',
+  'shopping.selectedCount': '{count}개 선택',
   'shopping.deleteSelected': '선택한 품목 삭제',
   'shopping.deleteConfirm': '선택한 품목 {count}개를 삭제할까요?\n삭제한 품목은 복구할 수 없습니다.',
   'shopping.deleteError': '품목을 삭제하지 못했습니다. 다시 시도해 주세요.',

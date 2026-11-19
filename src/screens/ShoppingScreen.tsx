@@ -16,6 +16,7 @@ import { EmptyListState } from '@/components/EmptyListState';
 import { IconChipTabs } from '@/components/IconChipTabs';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { deleteShoppingItems, getShoppingItems, setShoppingItemsPurchased } from '@/db/shoppingRepository';
+import { ShoppingItemRow } from '@/features/shopping/components/ShoppingItemRow';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
@@ -174,22 +175,12 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
               description={t(isPlannedTab ? 'shopping.emptyGuide' : 'shopping.purchasedEmptyGuide')} />
           )}
           renderItem={({ item }) => (
-            <FeedbackPressable accessibilityRole={isSelecting ? 'checkbox' : isPlannedTab ? 'button' : undefined}
-              accessibilityLabel={isSelecting || isPlannedTab ? t(isSelecting ? 'shopping.selectItem' : 'shopping.editItem', { name: item.name }) : undefined}
-              accessibilityValue={{ text: item.memo ? `${item.quantity}, ${item.memo}` : item.quantity }}
-              accessibilityState={{ disabled: isLoading || isProcessing, ...(isSelecting ? { checked: selectedIds.includes(item.id) } : {}) }}
-              interactionBlocked={isLoading || isProcessing || (!isPlannedTab && !isSelecting)} feedback={isSelecting ? 'none' : 'default'}
-              onPress={() => {
+            <ShoppingItemRow item={item} selected={isSelecting ? selectedIds.includes(item.id) : undefined}
+              disabled={isLoading || isProcessing}
+              onPress={isSelecting || isPlannedTab ? () => {
                 if (isSelecting) setSelectedIds(current => current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id]);
-                else if (isPlannedTab) navigation.navigate('ShoppingForm', { item });
-              }}
-              style={[styles.item, isSelecting && styles.selectableItem, isSelecting && selectedIds.includes(item.id) && styles.selectedItem]}>
-              {isSelecting ? selectedIds.includes(item.id) ? <MaterialDesignIcons name="checkbox-marked-circle" size={24} color={colors.chilled} accessible={false} /> : <View style={styles.selectionCircleContainer}><View style={styles.selectionCircle} /></View> : null}
-              <View style={styles.itemDetails}>
-                <Text style={styles.name}>{item.name}<Text style={styles.quantity}>  {item.quantity}</Text></Text>
-                {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
-              </View>
-            </FeedbackPressable>
+                else navigation.navigate('ShoppingForm', { item });
+              } : undefined} />
           )}
         />
         </>
@@ -213,15 +204,4 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   feedback: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.md, gap: spacing.md },
   error: { color: colors.error, marginTop: spacing.xs },
   emptyList: { flexGrow: 1, justifyContent: 'center' },
-  item: {
-    padding: spacing.md, gap: spacing.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
-  },
-  selectableItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  selectedItem: { backgroundColor: colors.chilledBackground },
-  itemDetails: { flex: 1, gap: spacing.xs },
-  selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
-  name: { color: colors.text, fontSize: 17, lineHeight: 24, fontWeight: '600' },
-  quantity: { fontSize: 17, fontWeight: '400' },
-  memo: { color: colors.textMuted, fontSize: 15 },
 }));
