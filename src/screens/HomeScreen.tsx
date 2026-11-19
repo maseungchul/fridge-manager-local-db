@@ -365,6 +365,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
             }}
             onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
             onMoved={moved => setIngredients(current => current.map(item => moved.find(ingredient => ingredient.id === item.id) ?? item))}
+            onRegistered={registered => setIngredients(current => [...current, ...registered])}
             onClose={closeIngredientList} />
         ) : null}
       </View>

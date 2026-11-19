@@ -6,6 +6,10 @@
 import { defaultTranslate } from '@/i18n/translations';
 import type { Translator } from '@/i18n/translations';
 
+export const INGREDIENT_NAME_MAX_LENGTH = 20;
+export const INGREDIENT_QUANTITY_MAX_LENGTH = 10;
+export const INGREDIENT_MEMO_MAX_LENGTH = 100;
+
 export interface Ingredient {
   id: string;
   name: string;

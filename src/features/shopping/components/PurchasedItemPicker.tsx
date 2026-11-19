@@ -1,7 +1,7 @@
 /**
  * @file
- * 재료 패널에서 구매 완료 품목을 불러오고 여러 품목의 선택을 관리한다.
- * 패널을 나가면 선택을 버린다.
+ * 재료 패널에서 구매 완료 품목을 불러오고 선택한 품목을 등록 확인 화면에 전달한다.
+ * 확인을 취소하면 선택을 유지하고 패널을 나갈 때 버린다.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -11,29 +11,36 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { EmptyListState } from '@/components/EmptyListState';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { getShoppingItems } from '@/db/shoppingRepository';
-import type { ShoppingItem } from '@/db/shoppingRepository';
+import type { PurchasedIngredientRegistration, PurchasedShoppingItem } from '@/db/shoppingRepository';
+import { PurchasedIngredientReview } from '@/features/shopping/components/PurchasedIngredientReview';
 import { ShoppingItemRow } from '@/features/shopping/components/ShoppingItemRow';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
-export function PurchasedItemPicker({ disabled }: { disabled: boolean }) {
+interface PurchasedItemPickerProps {
+  disabled: boolean;
+  onRegister: (registrations: readonly PurchasedIngredientRegistration[]) => Promise<void>;
+}
+
+export function PurchasedItemPicker({ disabled, onRegister }: PurchasedItemPickerProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const db = useSQLiteContext();
   const { isLoading, showLoading, runLoad } = useDelayedLoading();
-  const [items, setItems] = useState<ShoppingItem[]>([]);
+  const [items, setItems] = useState<PurchasedShoppingItem[]>([]);
   const [hasLoadError, setHasLoadError] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [reviewItems, setReviewItems] = useState<PurchasedShoppingItem[] | null>(null);
 
   const loadItems = useCallback(() => runLoad(async isCurrent => {
     setHasLoadError(false);
     try {
       const items = await getShoppingItems(db);
-      if (isCurrent()) setItems(items.filter(item => item.purchasedAt !== null));
+      if (isCurrent()) setItems(items.filter((item): item is PurchasedShoppingItem => item.purchasedAt !== null));
     } catch {
       if (isCurrent()) setHasLoadError(true);
     }
@@ -75,7 +82,12 @@ export function PurchasedItemPicker({ disabled }: { disabled: boolean }) {
       {items.length > 0 ? (
         <View style={[styles.footer, { paddingBottom: spacing.sm + insets.bottom }]}>
           <Text accessibilityLiveRegion="polite" style={styles.count}>{t('shopping.selectedCount', { count: selectedIds.size })}</Text>
+          <PrimaryButton label={t('shopping.reviewPurchased')} disabled={disabled || selectedIds.size === 0}
+            onPress={() => setReviewItems(items.filter(item => selectedIds.has(item.id)))} />
         </View>
+      ) : null}
+      {reviewItems ? (
+        <PurchasedIngredientReview items={reviewItems} onClose={() => setReviewItems(null)} onRegister={onRegister} />
       ) : null}
     </>
   );
@@ -86,7 +98,7 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   empty: { flexGrow: 1, justifyContent: 'center' },
   feedback: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.md, gap: spacing.md },
   error: { color: colors.error, textAlign: 'center' },
-  footer: { flexShrink: 0, paddingHorizontal: spacing.md, paddingTop: spacing.sm,
+  footer: { flexShrink: 0, gap: spacing.xs, paddingHorizontal: spacing.md, paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   count: { color: colors.text, textAlign: 'center', fontSize: 15, fontWeight: '600' },
 }));

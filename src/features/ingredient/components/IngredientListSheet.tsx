@@ -1,7 +1,7 @@
 /**
  * @file
  * 선택한 위치의 재료, 임시이동목록, 구매 완료 품목 선택을 공통 바텀 시트에 표시한다.
- * 추가·편집은 시트 종료 후 전달하고, 삭제·소비 완료·일괄 이동 결과로 홈 배지를 갱신한다.
+ * 재료의 삭제·소비 완료·일괄 이동·일괄 등록 결과로 홈 배지를 갱신한다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, BackHandler, Keyboard, StyleSheet, Text, useAnimatedValue, useWindowDimensions, View } from 'react-native';
@@ -17,6 +17,8 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { useToast } from '@/components/ToastProvider';
 import { alertTitles } from '@/constants/alertTitles';
 import { consumeIngredients, deleteIngredients, getIngredientsByPosition, moveIngredients } from '@/db/ingredientRepository';
+import { registerPurchasedIngredients } from '@/db/shoppingRepository';
+import type { PurchasedIngredientRegistration } from '@/db/shoppingRepository';
 import type { FridgeLayout, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
@@ -41,9 +43,10 @@ interface IngredientListSheetProps {
   formResultVersion: number;
   onDeleted?: (ingredientId: string) => void;
   onMoved?: (ingredients: Ingredient[]) => void;
+  onRegistered: (ingredients: Ingredient[]) => void;
 }
 
-export function IngredientListSheet({ position, layout, allIngredients = [], initialIndex, onIndexChange, onClose, onOpenForm, isFormOpen, formResultVersion, onDeleted, onMoved }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, layout, allIngredients = [], initialIndex, onIndexChange, onClose, onOpenForm, isFormOpen, formResultVersion, onDeleted, onMoved, onRegistered }: IngredientListSheetProps) {
   const { mode, colors, ingredientBadgeColors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
@@ -56,6 +59,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const formRequest = useRef<{ ingredient?: Ingredient } | null>(null);
   const deleting = useRef(false);
   const moving = useRef(false);
+  const importing = useRef(false);
   const transition = useRef<{ active: boolean; animation?: Animated.CompositeAnimation }>({ active: false });
   const panelProgress = useAnimatedValue(0);
   const { width: windowWidth } = useWindowDimensions();
@@ -65,9 +69,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const [secondaryPage, setSecondaryPage] = useState<'queue' | 'purchased'>('queue');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const isBusy = isFormOpen || isDeleting || isMoving;
+  const isBusy = isFormOpen || isDeleting || isMoving || isImporting;
   const [reloadCount, setReloadCount] = useState(0);
   const [result, setResult] = useState<{ requestKey: string; ingredients: Ingredient[]; error: 'ingredient.loadError' | null } | null>(null);
   const { slotId } = position;
@@ -137,13 +142,13 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   }
 
   function closeSheet() {
-    if (formRequest.current || deleting.current || moving.current || transition.current.active) return;
+    if (formRequest.current || deleting.current || moving.current || importing.current || transition.current.active) return;
     Keyboard.dismiss();
     sheetRef.current?.close();
   }
 
   const returnToList = useCallback(() => {
-    if (formRequest.current || deleting.current || moving.current || transition.current.active) return;
+    if (formRequest.current || deleting.current || moving.current || importing.current || transition.current.active) return;
     Keyboard.dismiss();
     changePanel('list');
   }, [changePanel]);
@@ -151,7 +156,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   useEffect(() => {
     // 저장·전환 중에는 홈의 종료 동작을 막고, 하위 화면에서는 먼저 목록으로 돌아간다.
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (formRequest.current || deleting.current || moving.current || transition.current.active) return true;
+      if (formRequest.current || deleting.current || moving.current || importing.current || transition.current.active) return true;
       if (isSelecting) { setIsSelecting(false); setSelectedIds([]); return true; }
       if (!isSecondaryOpen) return false;
       returnToList();
@@ -253,6 +258,22 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
     }
   }
 
+  async function importPurchased(registrations: readonly PurchasedIngredientRegistration[]) {
+    importing.current = true;
+    setIsImporting(true);
+    let registered: Ingredient[];
+    try {
+      registered = await registerPurchasedIngredients(db, registrations, { slotId, drawerNumber });
+    } finally {
+      importing.current = false;
+      setIsImporting(false);
+    }
+    onRegistered(registered);
+    setReloadCount(count => count + 1);
+    returnToList();
+    showToast(t('shopping.importRegistered', { count: registered.length }));
+  }
+
   return (
     <BottomSheet ref={sheetRef} disabled={isBusy || isChanging} initialIndex={initialIndex} onIndexChange={onIndexChange}
       header={
@@ -326,7 +347,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         </View>
       }
       onClose={() => {
-        if (deleting.current || moving.current || transition.current.active) return;
+        if (deleting.current || moving.current || importing.current || transition.current.active) return;
         if (!formRequest.current) onClose();
       }}>
         <View style={styles.panel} onAccessibilityEscape={() => {
@@ -371,7 +392,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           <IngredientMoveQueueList ingredients={queuedIngredients} layout={layout} disabled={isBusy || isChanging}
                             onRemove={moveQueue.remove} />
                         ) : (
-                          <PurchasedItemPicker disabled={isBusy || isChanging} />
+                          <PurchasedItemPicker disabled={isBusy || isChanging} onRegister={importPurchased} />
                         ) : isLoading ? (
                           <View style={styles.feedback}>
                             <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.loading')} />

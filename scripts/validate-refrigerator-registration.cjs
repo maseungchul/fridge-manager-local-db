@@ -37,9 +37,15 @@ const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRef
 });
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 const ingredientRegistration = loadSource('src/db/ingredientRegistration.ts');
+const ingredientModel = loadSource('src/features/ingredient/model/ingredient.ts');
 const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient, deleteIngredient, moveIngredients,
   consumeIngredient, consumeIngredients, deleteIngredients, getConsumedIngredients, getConsumedIngredient, restoreConsumedIngredient, deleteConsumedIngredient } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
+  '@/features/ingredient/model/ingredient': ingredientModel,
+});
+const { addShoppingItem, getShoppingItems, setShoppingItemsPurchased, registerPurchasedIngredients } = loadModule('src/db/shoppingRepository.ts', {
+  expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRepository': { registerIngredient },
+  '@/features/ingredient/model/ingredient': ingredientModel,
 });
 
 function createConnectionAdapter(db) {
@@ -99,6 +105,49 @@ function createTwoDoorDraft() {
 function createSlots(count, drawerCount = 0) {
   return Array.from({ length: count }, (_, index) => ({ name: model.getSlotName(index), drawerCount }));
 }
+
+test('구매 완료 품목의 일괄 등록은 실패하면 전체를 되돌리고 재시도하면 선택한 품목만 옮긴다', async t => {
+  const { adapter } = await createRepositoryDatabase(t);
+  const draft = createTwoDoorDraft();
+  draft.rows[0].compartments[0].slots[0].drawerCount = 2;
+  await registerRefrigerator(adapter, draft);
+  const refrigerator = await getRefrigerator(adapter);
+  const position = { slotId: refrigerator.rows[0].compartments[0].slots[0].id, drawerNumber: 2 };
+  const first = await addShoppingItem(adapter, { name: '우유', quantity: '1팩', memo: '무가당' });
+  const second = await addShoppingItem(adapter, { name: '우유', quantity: '2팩', memo: null });
+  const unselected = await addShoppingItem(adapter, { name: '계란', quantity: '1판', memo: null });
+  const planned = await addShoppingItem(adapter, { name: '당근', quantity: '2개', memo: null });
+  await setShoppingItemsPurchased(adapter, [first.id, second.id, unselected.id], true);
+  const purchased = await getShoppingItems(adapter);
+  const registrations = [first, second].map(({ id, quantity, memo }, index) => ({
+    item: purchased.find(item => item.id === id),
+    draft: { name: '저지방 우유', quantity, memo, expirationDate: index === 0 ? '2026-12-01' : null },
+  }));
+  const [firstRegistration, secondRegistration] = registrations;
+
+  await assert.rejects(registerPurchasedIngredients(adapter, [firstRegistration, {
+    ...secondRegistration, draft: { ...secondRegistration.draft, quantity: '1'.repeat(11) },
+  }], position), { key: 'errors.ingredientQuantity' });
+  assert.deepEqual(await getIngredients(adapter), []);
+  assert.deepEqual(await getShoppingItems(adapter), purchased);
+
+  await setShoppingItemsPurchased(adapter, [second.id], false);
+  const afterUndo = await getShoppingItems(adapter);
+  await assert.rejects(registerPurchasedIngredients(adapter, registrations, position), { key: 'shopping.importMissing' });
+  assert.deepEqual(await getIngredients(adapter), []);
+  assert.deepEqual(await getShoppingItems(adapter), afterUndo);
+
+  await setShoppingItemsPurchased(adapter, [second.id], true);
+  secondRegistration.item = (await getShoppingItems(adapter)).find(item => item.id === second.id);
+  const registered = await registerPurchasedIngredients(adapter, registrations, position);
+  assert.notEqual(registered[0].id, registered[1].id);
+  assert.deepEqual(registered.map(({ id, ...ingredient }) => ingredient),
+    registrations.map(({ draft }) => ({ ...draft, ...position })));
+  assert.deepEqual((await getIngredientsByPosition(adapter, position)).map(item => ({ ...item })), registered);
+  assert.deepEqual((await getShoppingItems(adapter)).map(item => item.id), [unselected.id, planned.id]);
+  await assert.rejects(registerPurchasedIngredients(adapter, registrations, position), { key: 'shopping.importMissing' });
+  assert.equal((await getIngredients(adapter)).length, 2);
+});
 
 test('재료 목록은 칸·좌우·포켓을 구분하고 유통기한·이름 순서로 조회한다', async t => {
   const { db, adapter } = await createRepositoryDatabase(t);

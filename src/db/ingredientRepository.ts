@@ -7,6 +7,7 @@ import { uuid } from 'expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { prepareIngredientRegistration } from '@/db/ingredientRegistration';
 import type { ConsumedIngredient, Ingredient } from '@/features/ingredient/model/ingredient';
+import { INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_QUANTITY_MAX_LENGTH } from '@/features/ingredient/model/ingredient';
 import { AppError } from '@/i18n/errors';
 
 /** 냉장고 한 대의 전체 재료를 조회해 홈 도면의 위치별 등록 건수를 복원한다. */
@@ -42,7 +43,7 @@ export async function registerIngredient(db: SQLiteDatabase, input: Omit<Ingredi
 
 /** 기존 제한보다 긴 값은 변경하지 않은 경우에만 유지하며 재료의 기본 정보를 수정한다. */
 export async function updateIngredient(db: SQLiteDatabase, input: Ingredient): Promise<Ingredient> {
-  const existing = input.name.trim().length > 20 || input.quantity.trim().length > 10
+  const existing = input.name.trim().length > INGREDIENT_NAME_MAX_LENGTH || input.quantity.trim().length > INGREDIENT_QUANTITY_MAX_LENGTH
     ? await db.getFirstAsync<Pick<Ingredient, 'name' | 'quantity'>>(
       'SELECT name, quantity FROM ingredients WHERE id = ? AND slot_id = ? AND drawer_number = ?',
       input.id, input.slotId, input.drawerNumber)

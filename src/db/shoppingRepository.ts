@@ -1,9 +1,12 @@
 /**
  * @file
- * 구매 예정 항목과 구매 완료 항목을 냉장고 재료와 별도로 관리한다.
+ * 장보기 품목의 상태를 관리하고 구매 완료 품목을 냉장고 재료로 옮긴다.
  */
 import { uuid } from 'expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { registerIngredient } from '@/db/ingredientRepository';
+import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
+import { INGREDIENT_MEMO_MAX_LENGTH } from '@/features/ingredient/model/ingredient';
 import { AppError } from '@/i18n/errors';
 
 export const SHOPPING_INPUT_MAX_LENGTH = 50;
@@ -13,6 +16,13 @@ export interface ShoppingItem {
   name: string;
   quantity: string;
   memo: string | null;
+}
+
+export type PurchasedShoppingItem = ShoppingItem & { purchasedAt: string };
+
+export interface PurchasedIngredientRegistration {
+  item: Pick<PurchasedShoppingItem, 'id' | 'purchasedAt'>;
+  draft: IngredientDraft;
 }
 
 function normalizeShoppingInput(input: Omit<ShoppingItem, 'id'>) {
@@ -69,4 +79,22 @@ export async function deleteShoppingItems(db: SQLiteDatabase, ids: string[]) {
   await db.withTransactionAsync(async () => {
     for (const id of ids) await db.runAsync('DELETE FROM shopping_items WHERE id = ?;', id);
   });
+}
+
+/** 선택한 구매 기록과 새 재료를 함께 처리하고 한 건이라도 실패하면 전체를 되돌린다. */
+export async function registerPurchasedIngredients(db: SQLiteDatabase, registrations: readonly PurchasedIngredientRegistration[],
+  position: Pick<Ingredient, 'slotId' | 'drawerNumber'>): Promise<Ingredient[]> {
+  const ingredients: Ingredient[] = [];
+  if (registrations.length === 0) return ingredients;
+  await db.withExclusiveTransactionAsync(async transaction => {
+    for (const { item, draft } of registrations) {
+      if ((draft.memo?.trim().length ?? 0) > INGREDIENT_MEMO_MAX_LENGTH) throw new AppError('shopping.importMemoLength');
+      const result = await transaction.runAsync(
+        'DELETE FROM shopping_items WHERE id = ? AND purchased_at = ?;', item.id, item.purchasedAt);
+      if (result.changes !== 1) throw new AppError('shopping.importMissing');
+      const ingredient = await registerIngredient(transaction, { ...draft, ...position });
+      ingredients.push(ingredient);
+    }
+  });
+  return ingredients;
 }

@@ -16,6 +16,7 @@ import { useToast } from '@/components/ToastProvider';
 import { registerIngredient, updateIngredient } from '@/db/ingredientRepository';
 import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
+import { INGREDIENT_MEMO_MAX_LENGTH, INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_QUANTITY_MAX_LENGTH } from '@/features/ingredient/model/ingredient';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
@@ -53,9 +54,9 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
   const leaving = useRef(false);
   const savedIngredient = useRef<Ingredient | null>(null);
   const canSave = !!draft.name.trim() && !!draft.quantity.trim()
-    && (draft.name.trim().length <= 20 || draft.name === editingIngredient?.name)
-    && (draft.quantity.trim().length <= 10 || draft.quantity === editingIngredient?.quantity)
-    && ((draft.memo ?? '').trim().length <= 100 || draft.memo === editingIngredient?.memo) && !isDatePickerOpen;
+    && (draft.name.trim().length <= INGREDIENT_NAME_MAX_LENGTH || draft.name === editingIngredient?.name)
+    && (draft.quantity.trim().length <= INGREDIENT_QUANTITY_MAX_LENGTH || draft.quantity === editingIngredient?.quantity)
+    && ((draft.memo ?? '').trim().length <= INGREDIENT_MEMO_MAX_LENGTH || draft.memo === editingIngredient?.memo) && !isDatePickerOpen;
 
   useEffect(() => {
     onResultChange({ draft, isEditing, savedIngredient: savedIngredient.current });
@@ -135,15 +136,15 @@ export function IngredientFormScreen({ navigation, route, onResultChange }: Ingr
               </View>
               <Pressable style={[styles.form, { paddingBottom: spacing.lg + insets.bottom }]} onPress={Keyboard.dismiss} accessible={false}>
                 <FormTextInput label={t('ingredient.name')} accessibilityLabel={t('ingredient.name')} placeholder={t('ingredient.namePlaceholder')} required
-                  value={draft.name} maxLength={Math.max(20, editingIngredient?.name.length ?? 0)} editable={!isSaving} returnKeyType="next"
+                  value={draft.name} maxLength={Math.max(INGREDIENT_NAME_MAX_LENGTH, editingIngredient?.name.length ?? 0)} editable={!isSaving} returnKeyType="next"
                   onSubmitEditing={() => { if (!saving.current && !leaving.current) quantityInput.current?.focus(); }}
                   onChangeText={name => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, name })); }} />
                 <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} accessibilityLabel={t('ingredient.quantityLabel')} placeholder={t('ingredient.quantityPlaceholder')} required
-                  value={draft.quantity} maxLength={Math.max(10, editingIngredient?.quantity.length ?? 0)} editable={!isSaving} returnKeyType="next"
+                  value={draft.quantity} maxLength={Math.max(INGREDIENT_QUANTITY_MAX_LENGTH, editingIngredient?.quantity.length ?? 0)} editable={!isSaving} returnKeyType="next"
                   onSubmitEditing={() => { if (!saving.current && !leaving.current) memoInput.current?.focus(); }}
                   onChangeText={quantity => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, quantity })); }} />
                 <FormTextInput ref={memoInput} label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
-                  value={draft.memo ?? ''} maxLength={Math.max(100, editingIngredient?.memo?.length ?? 0)} editable={!isSaving} multiline
+                  value={draft.memo ?? ''} maxLength={Math.max(INGREDIENT_MEMO_MAX_LENGTH, editingIngredient?.memo?.length ?? 0)} editable={!isSaving} multiline
                   onChangeText={memo => { if (!saving.current && !leaving.current) setDraft(current => ({ ...current, memo })); }} />
                 <Text style={styles.fieldLabel}>{t('ingredient.expiration')}</Text>
                 <View style={styles.dateRow}>
