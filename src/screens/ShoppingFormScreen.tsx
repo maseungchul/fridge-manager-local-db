@@ -12,7 +12,8 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { FormTextInput } from '@/components/FormTextInput';
 import { useToast } from '@/components/ToastProvider';
-import { addShoppingItem, updateShoppingItem, SHOPPING_INPUT_MAX_LENGTH } from '@/db/shoppingRepository';
+import { addShoppingItem, updateShoppingItem } from '@/db/shoppingRepository';
+import { INGREDIENT_MEMO_MAX_LENGTH, INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_QUANTITY_MAX_LENGTH } from '@/features/ingredient/model/ingredient';
 import { getErrorMessage } from '@/i18n/errors';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
@@ -36,7 +37,9 @@ export function ShoppingFormScreen({ navigation, route }: NativeStackScreenProps
   const quantityInput = useRef<ComponentRef<typeof FormTextInput>>(null);
   const saving = useRef(false);
   const leaving = useRef(false);
-  const canSave = !!name.trim() && !!quantity.trim();
+  const canSave = !!name.trim() && !!quantity.trim()
+    && name.trim().length <= INGREDIENT_NAME_MAX_LENGTH && quantity.trim().length <= INGREDIENT_QUANTITY_MAX_LENGTH
+    && memo.trim().length <= INGREDIENT_MEMO_MAX_LENGTH;
 
   usePreventRemove(isSaving, ({ data }) => {
     if (leaving.current) navigation.dispatch(data.action);
@@ -96,12 +99,12 @@ export function ShoppingFormScreen({ navigation, route }: NativeStackScreenProps
             <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="none"
               contentContainerStyle={[styles.form, { paddingBottom: spacing.lg + insets.bottom }]}>
               <FormTextInput label={t('shopping.name')} required value={name} onChangeText={setName}
-                maxLength={SHOPPING_INPUT_MAX_LENGTH} editable={!isSaving} returnKeyType="next"
+                maxLength={INGREDIENT_NAME_MAX_LENGTH} editable={!isSaving} returnKeyType="next"
                 onSubmitEditing={() => { if (!saving.current && !leaving.current) quantityInput.current?.focus(); }} />
               <FormTextInput ref={quantityInput} label={t('ingredient.quantity')} required value={quantity} onChangeText={setQuantity}
-                placeholder={t('ingredient.quantityPlaceholder')} maxLength={SHOPPING_INPUT_MAX_LENGTH} editable={!isSaving} />
+                placeholder={t('ingredient.quantityPlaceholder')} maxLength={INGREDIENT_QUANTITY_MAX_LENGTH} editable={!isSaving} />
               <FormTextInput label={t('ingredient.memo')} accessibilityLabel={t('ingredient.memoLabel')} placeholder={t('ingredient.memoPlaceholder')}
-                value={memo} onChangeText={setMemo} maxLength={100} editable={!isSaving} multiline />
+                value={memo} onChangeText={setMemo} maxLength={INGREDIENT_MEMO_MAX_LENGTH} editable={!isSaving} multiline />
               {saveError ? (
                 <Text accessibilityRole="alert" style={styles.error}>{getErrorMessage(saveError.cause, t, t('shopping.saveError'))}</Text>
               ) : null}

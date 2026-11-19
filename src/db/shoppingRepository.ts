@@ -6,10 +6,8 @@ import { uuid } from 'expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { registerIngredient } from '@/db/ingredientRepository';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
-import { INGREDIENT_MEMO_MAX_LENGTH } from '@/features/ingredient/model/ingredient';
+import { INGREDIENT_MEMO_MAX_LENGTH, INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_QUANTITY_MAX_LENGTH } from '@/features/ingredient/model/ingredient';
 import { AppError } from '@/i18n/errors';
-
-export const SHOPPING_INPUT_MAX_LENGTH = 50;
 
 export interface ShoppingItem {
   id: string;
@@ -28,10 +26,12 @@ export interface PurchasedIngredientRegistration {
 function normalizeShoppingInput(input: Omit<ShoppingItem, 'id'>) {
   const name = input.name.trim();
   const quantity = input.quantity.trim();
-  if (!name || !quantity || name.length > SHOPPING_INPUT_MAX_LENGTH || quantity.length > SHOPPING_INPUT_MAX_LENGTH) {
+  const memo = input.memo?.trim() || null;
+  if (!name || !quantity || name.length > INGREDIENT_NAME_MAX_LENGTH || quantity.length > INGREDIENT_QUANTITY_MAX_LENGTH
+    || (memo?.length ?? 0) > INGREDIENT_MEMO_MAX_LENGTH) {
     throw new AppError('shopping.invalidInput');
   }
-  return { name, quantity, memo: input.memo?.trim() || null };
+  return { name, quantity, memo };
 }
 
 /** 구매 완료 품목은 완료 순으로, 구매 예정 품목은 추가 순으로 읽는다. */

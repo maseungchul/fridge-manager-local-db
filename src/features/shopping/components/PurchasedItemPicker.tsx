@@ -1,7 +1,6 @@
 /**
  * @file
  * 구매 완료 품목의 선택을 관리하고 헤더에서 현재 칸으로 등록하는 동작을 제공한다.
- * 입력을 수정해야 하면 확인 화면을 열고, 확인을 취소하면 선택을 유지한다.
  */
 import { useLayoutEffect, useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
@@ -10,7 +9,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyListState } from '@/components/EmptyListState';
 import { alertTitles } from '@/constants/alertTitles';
 import type { PurchasedIngredientRegistration, PurchasedShoppingItem } from '@/db/shoppingRepository';
-import { getFieldErrors, PurchasedIngredientReview } from '@/features/shopping/components/PurchasedIngredientReview';
 import { ShoppingItemRow } from '@/features/shopping/components/ShoppingItemRow';
 import { getErrorMessage } from '@/i18n/errors';
 import { useTranslation } from '@/i18n/LanguageProvider';
@@ -36,9 +34,7 @@ export function PurchasedItemPicker({ disabled, items, onRegister, onSelectionAc
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [reviewItems, setReviewItems] = useState<PurchasedShoppingItem[] | null>(null);
 
-  // 등록에 필요한 입력값이 제한을 벗어난 경우에만 기존 확인 화면을 연다.
   const allSelected = items.length > 0 && items.every(item => selectedIds.has(item.id));
   useLayoutEffect(() => {
     onSelectionActionChange(items.length > 0 ? {
@@ -49,10 +45,6 @@ export function PurchasedItemPicker({ disabled, items, onRegister, onSelectionAc
         const registrations = selected.map(item => ({
           item, draft: { name: item.name, quantity: item.quantity, memo: item.memo, expirationDate: null },
         }));
-        if (registrations.some(({ draft }) => Object.values(getFieldErrors(draft)).some(Boolean))) {
-          setReviewItems(selected);
-          return;
-        }
         try {
           await onRegister(registrations);
         } catch (cause) {
@@ -72,19 +64,14 @@ export function PurchasedItemPicker({ disabled, items, onRegister, onSelectionAc
   }
 
   return (
-    <>
-      <BottomSheetFlatList data={items} extraData={selectedIds} keyExtractor={item => item.id}
-        indicatorStyle={mode === 'dark' ? 'white' : 'black'} automaticallyAdjustsScrollIndicatorInsets={false}
-        scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
-        style={styles.list} contentContainerStyle={[items.length === 0 && styles.empty, { paddingBottom: insets.bottom }]}
-        ListEmptyComponent={<EmptyListState message={t('shopping.purchasedEmpty')} description={t('shopping.purchasedEmptyGuide')} />}
-        renderItem={({ item }) => (
-          <ShoppingItemRow item={item} selected={selectedIds.has(item.id)} disabled={disabled} onPress={() => toggleItem(item.id)} />
-        )} />
-      {reviewItems ? (
-        <PurchasedIngredientReview items={reviewItems} onClose={() => setReviewItems(null)} onRegister={onRegister} />
-      ) : null}
-    </>
+    <BottomSheetFlatList data={items} extraData={selectedIds} keyExtractor={item => item.id}
+      indicatorStyle={mode === 'dark' ? 'white' : 'black'} automaticallyAdjustsScrollIndicatorInsets={false}
+      scrollIndicatorInsets={{ top: 0, bottom: spacing.md + insets.bottom, left: 0, right: spacing.xs }}
+      style={styles.list} contentContainerStyle={[items.length === 0 && styles.empty, { paddingBottom: insets.bottom }]}
+      ListEmptyComponent={<EmptyListState message={t('shopping.purchasedEmpty')} description={t('shopping.purchasedEmptyGuide')} />}
+      renderItem={({ item }) => (
+        <ShoppingItemRow item={item} selected={selectedIds.has(item.id)} disabled={disabled} onPress={() => toggleItem(item.id)} />
+      )} />
   );
 }
 
