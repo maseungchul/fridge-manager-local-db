@@ -34,7 +34,7 @@ export const ko = {
   'shopping.registered': '장보기 품목을 등록했습니다.',
   'shopping.updated': '장보기 품목을 수정했습니다.',
   'shopping.updateMissing': '수정할 품목을 찾을 수 없습니다. 장보기 목록을 확인해 주세요.',
-  'shopping.empty': '장볼 품목이 없어요.',
+  'shopping.empty': '장보기 품목이 없어요.',
   'shopping.emptyGuide': '장볼 품목을 추가해 보세요.',
   'shopping.loadError': '장보기 목록을 불러오지 못했습니다.',
   'shopping.saveError': '품목을 저장하지 못했습니다. 다시 시도해 주세요.',

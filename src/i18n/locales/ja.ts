@@ -36,7 +36,7 @@ export const ja: Record<keyof typeof ko, string> = {
   'shopping.registered': '買い物品目を登録しました。',
   'shopping.updated': '買い物品目を更新しました。',
   'shopping.updateMissing': '編集する品目が見つかりません。買い物リストを確認してください。',
-  'shopping.empty': '買い物予定の品目はありません。',
+  'shopping.empty': '買い物リストに品目がありません。',
   'shopping.emptyGuide': '買い物する品目を追加しましょう。',
   'shopping.loadError': '買い物リストを読み込めませんでした。',
   'shopping.saveError': '品目を保存できませんでした。もう一度お試しください。',
