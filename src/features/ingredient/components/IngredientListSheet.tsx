@@ -340,7 +340,6 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             onPress={openMoveQueue} style={styles.queueButton}>
                             <MaterialDesignIcons name="clipboard-text-outline" size={20} color={colors.chilled} accessible={false} />
                             <Text style={styles.queueLabel}>{t('queue.title', { count: queuedIngredients.length })}</Text>
-                            <MaterialDesignIcons name="chevron-right" size={18} color={colors.chilled} accessible={false} />
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.moveHere')}
                             disabled={!canMove || isBusy} interactionBlocked={isChanging}
@@ -484,11 +483,11 @@ const getStyles = createThemedStyles(({ colors, ingredientBadgeColors }, mode) =
   pageContent: { flex: 1 },
   moveToolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  queueButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44, flexGrow: 1,
-    paddingHorizontal: spacing.md, borderRadius: 22, backgroundColor: colors.chilledBackground },
+  queueButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44,
+    paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.chilledBackground },
   queueLabel: { color: colors.chilled, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   moveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-    minHeight: 44, paddingHorizontal: spacing.md, borderRadius: 22, backgroundColor: colors.chilledFill },
+    minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: colors.chilledFill },
   moveLabel: { color: colors.buttonText, fontSize: 15, fontWeight: '600' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
