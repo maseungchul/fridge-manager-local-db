@@ -48,6 +48,17 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
             color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
             <Text style={[styles.purchaseLabel, pressed && { color: colors.iconPressed }]}>{t(shoppingAction.isUndo ? 'shopping.undoPurchase' : 'shopping.purchasedTab')}</Text></>}
         </FeedbackPressable>
+        {shoppingAction.onRegister ? (
+          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('shopping.registerAsIngredient')}
+            disabled={shoppingAction.disabled} accessibilityState={{ disabled: shoppingAction.disabled }}
+            feedback="none" onPress={shoppingAction.onRegister} style={styles.selectionAction}>
+            {({ pressed }) => <>
+              <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={24}
+                color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
+              <Text style={[styles.purchaseLabel, pressed && { color: colors.iconPressed }]}>{t('shopping.registerAsIngredient')}</Text>
+            </>}
+          </FeedbackPressable>
+        ) : null}
         {shoppingAction.onDelete ? <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('shopping.deleteSelected')}
           disabled={shoppingAction.disabled} accessibilityState={{ disabled: shoppingAction.disabled }}
           feedback="none" onPress={shoppingAction.onDelete} style={styles.selectionAction}>

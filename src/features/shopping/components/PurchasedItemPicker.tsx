@@ -8,6 +8,7 @@ import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyListState } from '@/components/EmptyListState';
 import { alertTitles } from '@/constants/alertTitles';
+import { preparePurchasedIngredientRegistrations } from '@/db/shoppingRepository';
 import type { PurchasedIngredientRegistration, PurchasedShoppingItem } from '@/db/shoppingRepository';
 import { ShoppingItemRow } from '@/features/shopping/components/ShoppingItemRow';
 import { getErrorMessage } from '@/i18n/errors';
@@ -42,11 +43,8 @@ export function PurchasedItemPicker({ disabled, items, onRegister, onSelectionAc
       toggle: () => setSelectedIds(allSelected ? new Set() : new Set(items.map(item => item.id))),
       register: selectedIds.size > 0 ? async () => {
         const selected = items.filter(item => selectedIds.has(item.id));
-        const registrations = selected.map(item => ({
-          item, draft: { name: item.name, quantity: item.quantity, memo: item.memo, expirationDate: null },
-        }));
         try {
-          await onRegister(registrations);
+          await onRegister(preparePurchasedIngredientRegistrations(selected));
         } catch (cause) {
           Alert.alert(t(alertTitles.error), getErrorMessage(cause, t, t('ingredient.saveError')));
         }

@@ -1,7 +1,7 @@
 /**
  * @file
- * 원래 위치를 잃은 소비 완료 재료의 복구 목적지를 공통 냉장고 도면에서 선택한다.
- * 복구를 확정하기 전까지 완료 기록을 유지하고, 취소·조회·저장 실패로 재료를 변경하지 않는다.
+ * 구매 완료 품목 등록과 소비 완료 재료 복구에 사용할 칸을 공통 냉장고 도면에서 선택한다.
+ * 선택한 위치에 저장을 확정하기 전까지 구매·소비 기록을 유지한다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, usePreventRemove } from '@react-navigation/native';
@@ -12,8 +12,10 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { useToast } from '@/components/ToastProvider';
 import { getConsumedIngredient, getIngredients, restoreConsumedIngredient } from '@/db/ingredientRepository';
 import { getRefrigerator } from '@/db/refrigeratorRepository';
+import { preparePurchasedIngredientRegistrations, registerPurchasedIngredients } from '@/db/shoppingRepository';
 import { FridgeFocusView, FridgeInteriorMap, useFridgeFocus } from '@/features/fridge/components/FridgeInteriorMap';
 import type { FridgeFocusPhase } from '@/features/fridge/components/FridgeInteriorMap';
 import { getDraftLayout, getPositionName } from '@/features/fridge/model/fridgeLayout';
@@ -26,16 +28,18 @@ import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
-type IngredientRestoreScreenProps = NativeStackScreenProps<RootStackParamList, 'IngredientRestore'>;
-type RestoreResult = { refrigerator: Refrigerator | null; record: ConsumedIngredient; ingredients: Ingredient[] } | { error: unknown };
+type IngredientPositionScreenProps = NativeStackScreenProps<RootStackParamList, 'IngredientRestore' | 'ShoppingIngredientRegistration'>;
+type PositionResult = { refrigerator: Refrigerator | null; record: ConsumedIngredient | null; ingredients: Ingredient[] } | { error: unknown };
 
-export function IngredientRestoreScreen({ navigation, route }: IngredientRestoreScreenProps) {
+export function IngredientPositionScreen({ navigation, route }: IngredientPositionScreenProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
+  const showToast = useToast();
   const db = useSQLiteContext();
-  const { id, consumedAt } = route.params;
-  const [result, setResult] = useState<RestoreResult | null>(null);
+  const params = route.params;
+  const purchasedItems = 'items' in params ? params.items : null;
+  const [result, setResult] = useState<PositionResult | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const saving = useRef(false);
@@ -46,31 +50,31 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
   const { selectedAreaId, setSelectedAreaId, setFocusTarget, focusPhase, focusBounds, focusViewport, activeFocus,
     hasSeenScrollHint, markScrollHintSeen, finishFocusTransition, resetFocus,
     layoutFocusViewport, openFocusedArea, closeFocusedArea, diagramSizes } = useFridgeFocus(0, isFocusBlocked);
-  const finishRestoreFocus = useCallback((phase: FridgeFocusPhase) => {
+  const finishPositionFocus = useCallback((phase: FridgeFocusPhase) => {
     finishFocusTransition(phase);
     if (phase === 'closed') setSelectedSlot(null);
   }, [finishFocusTransition]);
 
-  const loadRestore = useCallback(async () => {
+  const loadPosition = useCallback(async () => {
     const request = ++loadRequest.current;
     setResult(null);
     resetFocus();
     setSelectedSlot(null);
     closedScrollY.current = 0;
     try {
-      const record = await getConsumedIngredient(db, { id, consumedAt });
-      if (!record) throw new AppError('errors.consumedIngredientMissing');
+      const record = 'id' in params ? await getConsumedIngredient(db, params) : null;
+      if ('id' in params && !record) throw new AppError('errors.consumedIngredientMissing');
       const refrigerator = await getRefrigerator(db);
       const ingredients = refrigerator ? await getIngredients(db) : [];
       if (request === loadRequest.current) setResult({ refrigerator, record, ingredients });
     } catch (error) {
       if (request === loadRequest.current) setResult({ error });
     }
-  }, [db, id, consumedAt, resetFocus]);
+  }, [db, params, resetFocus]);
   useFocusEffect(useCallback(() => {
-    void loadRestore();
+    void loadPosition();
     return () => { loadRequest.current++; };
-  }, [loadRestore]));
+  }, [loadPosition]));
 
   usePreventRemove(isSaving, ({ data }) => {
     if (leaving.current) navigation.dispatch(data.action);
@@ -88,21 +92,34 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
   const layout = loaded?.refrigerator ? getDraftLayout(loaded.refrigerator, [], t) : null;
   const position = layout?.positions.find(candidate => candidate.id === selectedSlot?.positionId && candidate.areaId === selectedAreaId);
   const area = layout?.areas.find(candidate => candidate.id === position?.areaId);
+  const canConfirm = !!position && focusPhase === 'open' && purchasedItems?.length !== 0;
 
   function goBack() {
     if (!saving.current) navigation.goBack();
   }
 
-  async function restore() {
-    if (!loaded || !position || saving.current || focusPhase !== 'open') return;
+  async function confirmPosition() {
+    if (!position || saving.current || focusPhase !== 'open' || (!purchasedItems?.length && !loaded?.record)) return;
     saving.current = true;
     setIsSaving(true);
+    const destination: Pick<Ingredient, 'slotId' | 'drawerNumber'> = { slotId: position.slotId, drawerNumber: position.drawerNumber ?? 0 };
     try {
-      await restoreConsumedIngredient(db, loaded.record, { slotId: position.slotId, drawerNumber: position.drawerNumber ?? 0 });
+      if (purchasedItems) {
+        await registerPurchasedIngredients(db, preparePurchasedIngredientRegistrations(purchasedItems), destination);
+      } else if (loaded?.record) {
+        await restoreConsumedIngredient(db, loaded.record, destination);
+      }
     } catch (error) {
       saving.current = false;
       setIsSaving(false);
-      Alert.alert(t('common.error'), getErrorMessage(error, t, t('consumed.restoreError')), [{ text: t('common.ok') }]);
+      Alert.alert(t('common.error'), getErrorMessage(error, t, t(purchasedItems ? 'ingredient.saveError' : 'consumed.restoreError')),
+        [{ text: t('common.ok') }]);
+      return;
+    }
+    if (purchasedItems) {
+      leaving.current = true;
+      navigation.goBack();
+      showToast(t('shopping.importRegistered', { count: purchasedItems.length }));
       return;
     }
     Alert.alert(t('common.info'), t('consumed.restored'), [{ text: t('common.ok'), onPress: () => {
@@ -122,21 +139,34 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
   return (
     <SafeAreaView style={styles.container} onAccessibilityEscape={goBack}>
       <View style={styles.header}>
-        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('consumed.back')}
+        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(purchasedItems ? 'shopping.backToPurchased' : 'consumed.back')}
           disabled={isSaving} accessibilityState={{ disabled: isSaving }} onPress={goBack} style={styles.backButton}>
           <MaterialDesignIcons name="arrow-left" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
-        <Text accessibilityRole="header" style={styles.title}>{t('consumed.selectPosition')}</Text>
+        <Text accessibilityRole="header" style={[styles.title, purchasedItems && styles.centeredTitle]}>
+          {t(purchasedItems ? 'shopping.selectPosition' : 'consumed.selectPosition')}
+        </Text>
+        {purchasedItems ? (
+          <FeedbackPressable iconFeedback accessibilityRole="button"
+            accessibilityLabel={t('shopping.registerHere', { count: purchasedItems.length })}
+            disabled={!canConfirm || isSaving} accessibilityState={{ disabled: !canConfirm || isSaving, busy: isSaving }}
+            onPress={confirmPosition} style={styles.registerButton}>
+            {isSaving ? <ActivityIndicator color={colors.text} accessibilityLabel={t('ingredient.registering')} /> :
+              <MaterialDesignIcons name="checkbox-marked-circle-plus-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />}
+          </FeedbackPressable>
+        ) : null}
       </View>
       {!result ? <View style={styles.feedback}><ActivityIndicator color={colors.text} accessibilityLabel={t('home.loading')} /></View>
         : 'error' in result ? <View style={styles.feedback}>
-          <Text accessibilityRole="alert" style={styles.error}>{getErrorMessage(result.error, t, t('consumed.loadError'))}</Text>
-          <PrimaryButton label={t('common.retry')} variant="secondary" onPress={loadRestore} style={styles.retry} />
+          <Text accessibilityRole="alert" style={styles.error}>{getErrorMessage(result.error, t, t(purchasedItems ? 'home.loadError' : 'consumed.loadError'))}</Text>
+          <PrimaryButton label={t('common.retry')} variant="secondary" onPress={loadPosition} style={styles.retry} />
         </View> : !result.refrigerator ? <View style={styles.feedback}>
-          <Text style={styles.emptyTitle}>{t('consumed.noFridge')}</Text>
-          <Text style={styles.description}>{t('consumed.noFridgeDescription')}</Text>
+          <Text style={styles.emptyTitle}>{t(purchasedItems ? 'home.emptyTitle' : 'consumed.noFridge')}</Text>
+          <Text style={styles.description}>{t(purchasedItems ? 'shopping.noFridgeDescription' : 'consumed.noFridgeDescription')}</Text>
         </View> : <>
-          <Text style={styles.guide}>{t('consumed.selectDescription', { name: result.record.name })}</Text>
+          <Text style={styles.guide}>{result.record
+            ? t('consumed.selectDescription', { name: result.record.name })
+            : t('shopping.selectPositionGuide', { count: purchasedItems?.length ?? 0 })}</Text>
           <View style={styles.scene} pointerEvents={isSaving ? 'none' : 'auto'} accessibilityElementsHidden={isSaving}
             importantForAccessibility={isSaving ? 'no-hide-descendants' : 'auto'}>
             <View style={styles.scene} pointerEvents={activeFocus ? 'none' : 'auto'} accessibilityElementsHidden={!!activeFocus}
@@ -150,7 +180,7 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
                 target={activeFocus} viewport={focusBounds} phase={focusPhase} sizeViewport={diagramSizes.opened} flushVerticalEdges
                 selectedAreaId={selectedAreaId ?? undefined} selectedSlotIndex={selectedSlot?.index} selectedPositionId={selectedSlot?.positionId}
                 scrollHintEnabled={!hasSeenScrollHint} onScrollHintSeen={markScrollHintSeen}
-                onPhaseChange={finishRestoreFocus} onClose={closeFocusedArea}
+                onPhaseChange={finishPositionFocus} onClose={closeFocusedArea}
                 onSelectSlot={(areaId, index, positionId) => {
                   if (focusPhase !== 'open' || saving.current) return;
                   setSelectedAreaId(areaId);
@@ -158,10 +188,14 @@ export function IngredientRestoreScreen({ navigation, route }: IngredientRestore
                 }} /> : null}
             </View>
           </View>
-          <View style={styles.footer}>
-            {position && area ? <Text style={styles.description}>{`${area.compartment} · ${area.name} · ${getPositionName(position, t)}`}</Text> : null}
-            <PrimaryButton label={t('consumed.restoreHere')} icon="restore" disabled={!position || focusPhase !== 'open'} loading={isSaving} onPress={restore} />
-          </View>
+          {!purchasedItems ? (
+            <View style={styles.footer}>
+              {position && area ? (
+                <Text style={styles.description}>{`${area.compartment} · ${area.name} · ${getPositionName(position, t)}`}</Text>
+              ) : null}
+              <PrimaryButton label={t('consumed.restoreHere')} icon="restore" disabled={!canConfirm} loading={isSaving} onPress={confirmPosition} />
+            </View>
+          ) : null}
         </>}
     </SafeAreaView>
   );
@@ -172,7 +206,10 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   ...getCompactHeaderStyles(mode),
   header: { ...getCompactHeaderStyles(mode).header, gap: 0 },
   title: { ...getCompactHeaderStyles(mode).title, flexShrink: 1 },
+  centeredTitle: { flex: 1, textAlign: 'center' },
   backButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginLeft: -spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  registerButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, marginRight: -spacing.sm,
+    alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   scene: { flex: 1, minHeight: 0, overflow: 'hidden' },
   guide: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.textMuted, fontSize: 14, lineHeight: 22 },
   footer: { padding: spacing.md, gap: spacing.sm },

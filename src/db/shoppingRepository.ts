@@ -23,6 +23,14 @@ export interface PurchasedIngredientRegistration {
   draft: IngredientDraft;
 }
 
+/** 현재 구매 기록을 재료 입력으로 전달하며 유통기한은 비워 둔다. */
+export function preparePurchasedIngredientRegistrations(items: readonly PurchasedShoppingItem[]): PurchasedIngredientRegistration[] {
+  return items.map(({ id, purchasedAt, name, quantity, memo }) => ({
+    item: { id, purchasedAt },
+    draft: { name, quantity, memo, expirationDate: null },
+  }));
+}
+
 function normalizeShoppingInput(input: Omit<ShoppingItem, 'id'>) {
   const name = input.name.trim();
   const quantity = input.quantity.trim();

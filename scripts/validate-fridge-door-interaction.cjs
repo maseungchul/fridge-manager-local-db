@@ -27,6 +27,7 @@ const fridgeMessages = Object.fromEntries(Object.entries(fridgeMessageKeys).map(
 let languageModule;
 const database = {};
 const alerts = [];
+const toastMessages = [];
 const backHandlers = new Set();
 const appStateHandlers = new Set();
 const repository = {
@@ -61,6 +62,7 @@ const hooks = {
     return [slot.value, next => { slot.value = typeof next === 'function' ? next(slot.value) : next; }];
   },
   useRef(initial) { return hooks.useState(() => ({ current: initial }))[0]; },
+  useLayoutEffect(effect, dependencies) { hooks.useEffect(effect, dependencies); },
   useImperativeHandle(ref, create, dependencies) {
     hooks.useEffect(() => {
       if (ref) ref.current = create();
@@ -161,6 +163,8 @@ let headerStylesModule;
 let toolbarStylesModule;
 let iosHomeButtonModule;
 let defaultHomeButtonModule;
+let shoppingRepository;
+let delayedLoadingModule;
 const swiftUIModifiers = Object.fromEntries([
   'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'accessibilityValue', 'buttonBorderShape', 'buttonStyle', 'controlSize',
   'disabled', 'environment', 'frame', 'tint', 'interactiveDismissDisabled',
@@ -178,10 +182,14 @@ function loadComponent(path, overrides = {}) {
     react: hooks, 'react-native': native,
     '@react-native-vector-icons/material-design-icons': { MaterialDesignIcons: 'Icon' },
     '@/screens/IngredientFormScreen': { IngredientFormScreen: 'IngredientFormScreen' },
-    '@/screens/IngredientRestoreScreen': { IngredientRestoreScreen: 'IngredientRestoreScreen' },
+    '@/screens/IngredientPositionScreen': { IngredientPositionScreen: 'IngredientPositionScreen' },
+    '@/screens/ShoppingFormScreen': { ShoppingFormScreen: 'ShoppingFormScreen' },
     '@/screens/ConsumedIngredientsScreen': { ConsumedIngredientsScreen: 'ConsumedIngredientsScreen' },
     '@/components/PrimaryButton': { PrimaryButton: 'PrimaryButton' },
     '@/components/Toast': { Toast: 'Toast' },
+    '@/components/ToastProvider': { ToastProvider: 'ToastProvider', useToast: () => message => toastMessages.push(message) },
+    '@/components/EmptyListState': { EmptyListState: 'EmptyListState' },
+    '@/components/IconChipTabs': { IconChipTabs: 'IconChipTabs' },
     '@/components/SelectionCheck': { SelectionCheck: 'SelectionCheck' },
     '@/i18n/locales/ko': { ko }, '@/i18n/locales/ja': { ja },
     '@/i18n/translations': translationModule,
@@ -220,8 +228,12 @@ function loadComponent(path, overrides = {}) {
     'expo-sqlite': { useSQLiteContext: () => database },
     '@/db/refrigeratorRepository': repository,
     '@/db/ingredientRepository': ingredientRepository,
+    '@/db/shoppingRepository': shoppingRepository,
     '@/db/DatabaseProvider': { DatabaseProvider: 'DatabaseProvider' },
     '@/features/ingredient/components/IngredientListSheet': { IngredientListSheet: 'IngredientListSheet' },
+    '@/features/shopping/components/PurchasedItemPicker': { PurchasedItemPicker: 'PurchasedItemPicker' },
+    '@/features/shopping/components/ShoppingItemRow': { ShoppingItemRow: 'ShoppingItemRow' },
+    '@/hooks/useDelayedLoading': delayedLoadingModule,
     '@/features/fridge/model/fridgeLayout': model, '../model/fridgeLayout': model,
     '@/features/fridge/components/FridgeMap': mapModule, '@/theme/tokens': tokens,
     '@/theme/ThemeProvider': {
@@ -264,6 +276,8 @@ function loadComponent(path, overrides = {}) {
   return module.exports;
 }
 languageModule = loadComponent('src/i18n/LanguageProvider.tsx');
+shoppingRepository = loadComponent('src/db/shoppingRepository.ts', { expo: { uuid: {} } });
+delayedLoadingModule = loadComponent('src/hooks/useDelayedLoading.ts');
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 iosHomeButtonModule = loadComponent('src/components/FloatingIconButton.ios.tsx');
 defaultHomeButtonModule = loadComponent('src/components/FloatingIconButton.tsx');
@@ -308,7 +322,7 @@ const { Toast } = loadComponent('src/components/Toast.tsx');
 const { IngredientListSheet } = loadComponent('src/features/ingredient/components/IngredientListSheet.tsx');
 const { IngredientFormScreen } = loadComponent('src/screens/IngredientFormScreen.tsx');
 const { ConsumedIngredientsScreen } = loadComponent('src/screens/ConsumedIngredientsScreen.tsx');
-const { IngredientRestoreScreen } = loadComponent('src/screens/IngredientRestoreScreen.tsx');
+const { IngredientPositionScreen } = loadComponent('src/screens/IngredientPositionScreen.tsx');
 const { IngredientExpirationCalendar } = loadComponent('src/features/ingredient/components/IngredientExpirationCalendar.tsx');
 const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FloatingIconButton'
   || node?.type === badgeModule.IngredientCountBadges || node?.type === badgeModule.IngredientCountBadge
@@ -1531,7 +1545,8 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
       const root = mount(RootNavigator, {});
       t.after(() => root.unmount());
       const stackRoutes = children(root.tree);
-      assert.deepEqual(stackRoutes.map(route => route.props.name), ['MainTabs', 'RefrigeratorRegistration', 'IngredientForm', 'IngredientRestore']);
+      assert.deepEqual(stackRoutes.map(route => route.props.name),
+        ['MainTabs', 'RefrigeratorRegistration', 'IngredientForm', 'IngredientRestore', 'ShoppingIngredientRegistration', 'ShoppingForm']);
       assert.strictEqual(stackRoutes[0].props.children({}).type, MainTabNavigator);
       const formRoute = stackRoutes[2].props.children({});
       assert.strictEqual(formRoute.type, IngredientFormScreen);
@@ -3210,7 +3225,7 @@ test('도면 복구는 칸을 선택한 뒤 저장하고 실패 시 선택을 �
   repository.getRefrigerator = async () => refrigerator;
   ingredientRepository.getIngredients = async () => [];
   let returned = 0;
-  const screen = mount(IngredientRestoreScreen, { navigation: { goBack() { returned++; }, dispatch() {} }, route: { params: record } });
+  const screen = mount(IngredientPositionScreen, { navigation: { goBack() { returned++; }, dispatch() {} }, route: { params: record } });
   t.after(() => screen.unmount());
   await new Promise(setImmediate); screen.render();
   const restore = () => find(screen.tree, node => node.type === 'PrimaryButton' && node.props.label === '여기로 복구');
@@ -3249,6 +3264,107 @@ test('도면 복구는 칸을 선택한 뒤 저장하고 실패 시 선택을 �
   alerts.at(-1)[2][0].onPress(); alerts.at(-1)[2][0].onPress();
   assert.equal(returned, 1);
   assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+});
+
+test('장보기의 선택 품목은 공통 도면에서 고른 좌우 칸에 일괄 등록한다', async t => {
+  const { ShoppingScreen } = loadComponent('src/screens/ShoppingScreen.tsx');
+  const { MainTabNavigator } = loadComponent('src/navigation/MainTabNavigator.tsx', {
+    '@react-navigation/bottom-tabs': {
+      createBottomTabNavigator: () => ({ Navigator: 'Tabs', Screen: 'TabScreen' }),
+      BottomTabBar: 'BottomTabBar',
+    },
+    'expo-haptics': {},
+    '@/screens/HomeScreen': { HomeScreen },
+    '@/screens/ShoppingScreen': { ShoppingScreen },
+    '@/navigation/MoreStackNavigator': { MoreStackNavigator: 'MoreStackNavigator' },
+  });
+  const tabs = mount(MainTabNavigator, {});
+  t.after(() => tabs.unmount());
+  const previousShopping = { ...shoppingRepository };
+  const previousGet = repository.getRefrigerator;
+  t.after(() => { Object.assign(shoppingRepository, previousShopping); repository.getRefrigerator = previousGet; });
+  const purchasedAt = '2026-11-20T00:00:00.000Z';
+  const items = [
+    { id: 'milk', name: '우유', quantity: '1팩', memo: '무가당', purchasedAt },
+    { id: 'egg', name: '계란', quantity: '2개', memo: null, purchasedAt },
+    { id: 'fish', name: '고등어', quantity: '1마리', memo: null, purchasedAt },
+    { id: 'rice', name: '쌀', quantity: '1봉', memo: null, purchasedAt: null },
+  ];
+  shoppingRepository.getShoppingItems = async () => items;
+  const destinations = [];
+  const shoppingRoute = children(tabs.tree).find(route => route.props.name === 'Shopping');
+  const shoppingElement = shoppingRoute.props.children({
+    navigation: { addListener: () => () => {}, navigate: (...args) => destinations.push(args) },
+  });
+  const shopping = mount(ShoppingScreen, shoppingElement.props);
+  t.after(() => shopping.unmount());
+  await new Promise(setImmediate); shopping.render();
+  find(shopping.tree, node => node.type === 'IconChipTabs').props.onChange('purchased'); shopping.render();
+  find(shopping.tree, node => node.props.accessibilityLabel === '선택').props.onPress(); shopping.render();
+  const register = () => {
+    tabs.render();
+    return find(tabs.tree.props.tabBar({}), node => node.props.accessibilityLabel === '재료로 등록');
+  };
+  assert.equal(register().props.disabled, true);
+  const list = find(shopping.tree, node => node.type === 'FlatList');
+  assert.deepEqual(list.props.data, items.slice(0, 3));
+  for (const item of items.slice(0, 2)) list.props.renderItem({ item }).props.onPress();
+  shopping.render();
+  const registerAction = register();
+  assert.equal(registerAction.props.disabled, false);
+  registerAction.props.onPress(); registerAction.props.onPress();
+  assert.deepEqual(destinations, [['ShoppingIngredientRegistration', { items: items.slice(0, 2) }]]);
+
+  const draft = model.createRefrigeratorDraft();
+  draft.rows[0].compartments[0].slots[0].drawerCount = 2;
+  const refrigerator = savedRefrigerator('장본 재료 냉장고', draft);
+  repository.getRefrigerator = async () => refrigerator;
+  let returned = 0;
+  const screen = mount(IngredientPositionScreen, {
+    navigation: { goBack() { returned++; }, dispatch() {} }, route: { params: destinations[0][1] },
+  });
+  t.after(() => screen.unmount());
+  await new Promise(setImmediate); screen.render();
+  const button = () => find(screen.tree, node => node.props.accessibilityLabel === '이 칸에 2개 등록');
+  assert.equal(button().props.disabled, true);
+  const viewport = find(screen.tree, node => node.props.ref && node.props.onLayout);
+  viewport.props.ref.current = { measureInWindow: callback => callback(0, 120, 375, 600) };
+  viewport.props.onLayout({ nativeEvent: { layout: { width: 375, height: 600 } } }); screen.render();
+  const body = refrigerator.rows[0].compartments[0];
+  find(screen.tree, named('FridgeInteriorMap')).props.onFocus({ areaId: body.id, returnAreaId: refrigerator.rows[0].doors[0].id,
+    canvas: { x: 52.5, y: 150, width: 270, height: 540 } }); screen.render();
+  const focus = () => find(screen.tree, named('FridgeFocusView'));
+  focus().props.onPhaseChange('open'); screen.render();
+  const slotId = body.slots[0].id;
+  focus().props.onSelectSlot(body.id, 0, `${slotId}-right`); screen.render();
+  assert.equal(button().props.disabled, false);
+
+  let attempts = 0;
+  const pending = deferred();
+  shoppingRepository.registerPurchasedIngredients = (db, registrations, destination) => {
+    assert.deepEqual(destination, { slotId, drawerNumber: 2 });
+    assert.deepEqual(registrations, items.slice(0, 2).map(({ id, name, quantity, memo }) => ({
+      item: { id, purchasedAt }, draft: { name, quantity, memo, expirationDate: null },
+    })));
+    if (++attempts === 1) return Promise.reject(new Error('저장 실패'));
+    return pending.promise;
+  };
+  await button().props.onPress(); screen.render();
+  assert.equal(focus().props.selectedPositionId, `${slotId}-right`);
+  assert.match(alerts.at(-1)[1], /저장하지 못했습니다/);
+  const saving = button().props.onPress();
+  await button().props.onPress(); screen.render();
+  assert.equal(attempts, 2);
+  assert.equal(screen.preventRemove.enabled, true);
+  assert.equal(button().props.accessibilityState.busy, true);
+  assert.equal(returned, 0);
+  pending.resolve([]); await saving;
+  assert.equal(returned, 1);
+  assert.equal(toastMessages.at(-1), '재료 2개를 등록했습니다.');
+  shoppingRepository.getShoppingItems = async () => items.slice(2);
+  shopping.focus();
+  await new Promise(setImmediate); shopping.render();
+  assert.deepEqual(find(shopping.tree, node => node.type === 'FlatList').props.data, [items[2]]);
 });
 
 test('임시목록 공통 상태는 화면 전환으로 제거되지 않게 앱의 전체 경로를 감싼다', t => {

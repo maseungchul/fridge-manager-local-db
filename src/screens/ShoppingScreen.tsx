@@ -1,6 +1,6 @@
 /**
  * @file
- * 장보기 목록과 장본리스트를 전환하고 구매 예정 품목의 추가·편집·삭제를 처리한다.
+ * 장보기 목록과 장본리스트를 관리하고 선택한 구매 완료 품목을 보관 위치 선택 화면에 전달한다.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +16,7 @@ import { EmptyListState } from '@/components/EmptyListState';
 import { IconChipTabs } from '@/components/IconChipTabs';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { deleteShoppingItems, getShoppingItems, setShoppingItemsPurchased } from '@/db/shoppingRepository';
+import type { PurchasedShoppingItem } from '@/db/shoppingRepository';
 import { ShoppingItemRow } from '@/features/shopping/components/ShoppingItemRow';
 import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
@@ -31,6 +32,7 @@ export interface ShoppingSelectionActions {
   isUndo: boolean;
   onPurchase: () => void;
   onDelete?: () => void;
+  onRegister?: () => void;
 }
 
 type ShoppingScreenProps = CompositeScreenProps<
@@ -58,11 +60,12 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const processing = useRef(false);
+  const openingRegistration = useRef(false);
   const isPlannedTab = activeTab === 'planned';
   const items = allItems.filter(item => (item.purchasedAt === null) === isPlannedTab);
   const allSelected = isSelecting && items.length > 0 && items.every(item => selectedIds.includes(item.id));
 
-  // 추가·편집 화면에서 돌아오면 저장된 순서대로 목록을 다시 읽는다.
+  // 품목 입력이나 재료 등록에서 돌아오면 저장 결과를 반영한다.
   const loadItems = useCallback(() => runLoad(async isCurrent => {
     setHasLoadError(false);
 
@@ -75,6 +78,7 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   }), [db, runLoad]);
 
   useFocusEffect(useCallback(() => {
+    openingRegistration.current = false;
     void loadItems();
     return () => { cancelLoad(); setIsSelecting(false); setSelectedIds([]); };
   }, [cancelLoad, loadItems]));
@@ -85,7 +89,7 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   }), [navigation]);
 
   const requestDelete = useCallback(() => {
-    if (processing.current || selectedIds.length === 0) return;
+    if (processing.current || openingRegistration.current || selectedIds.length === 0) return;
     const targets = selectedIds;
     processing.current = true;
     setIsProcessing(true);
@@ -106,7 +110,7 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
   }, [db, selectedIds, t]);
 
   const changePurchaseState = useCallback(async () => {
-    if (processing.current || selectedIds.length === 0) return;
+    if (processing.current || openingRegistration.current || selectedIds.length === 0) return;
     processing.current = true;
     setIsProcessing(true);
     try {
@@ -122,18 +126,29 @@ export function ShoppingScreen({ navigation, onSelectionModeChange }: ShoppingSc
     }
   }, [db, isPlannedTab, loadItems, selectedIds, t]);
 
+  const openRegistration = useCallback(() => {
+    if (processing.current || openingRegistration.current || isLoading || hasLoadError) return;
+    const items = allItems.filter((item): item is PurchasedShoppingItem =>
+      item.purchasedAt !== null && selectedIds.includes(item.id));
+    if (items.length === 0) return;
+    openingRegistration.current = true;
+    navigation.navigate('ShoppingIngredientRegistration', { items });
+  }, [allItems, hasLoadError, isLoading, navigation, selectedIds]);
+
   useLayoutEffect(() => {
     onSelectionModeChange(isSelecting ? {
-      disabled: selectedIds.length === 0 || isProcessing,
+      disabled: selectedIds.length === 0 || isProcessing || isLoading || hasLoadError,
       isUndo: !isPlannedTab,
       onPurchase: changePurchaseState,
       onDelete: isPlannedTab ? requestDelete : undefined,
+      onRegister: isPlannedTab ? undefined : openRegistration,
     } : null);
     return () => onSelectionModeChange(null);
-  }, [isSelecting, selectedIds.length, isProcessing, isPlannedTab, changePurchaseState, requestDelete, onSelectionModeChange]);
+  }, [isSelecting, selectedIds.length, isProcessing, isLoading, hasLoadError, isPlannedTab, changePurchaseState, requestDelete,
+    openRegistration, onSelectionModeChange]);
 
   function openTab(tab: ShoppingTab) {
-    if (tab === activeTab || processing.current) return;
+    if (tab === activeTab || processing.current || openingRegistration.current) return;
     setIsSelecting(false);
     setSelectedIds([]);
     setActiveTab(tab);
