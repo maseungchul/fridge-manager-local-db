@@ -379,7 +379,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('shopping.importPurchased')}
                             disabled={isBusy || purchasedItems === undefined || purchasedItems?.length === 0} interactionBlocked={isChanging}
                             onPress={openPurchasedPanel} style={styles.headerIconButton}>
-                            <MaterialDesignIcons name="shopping-search-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+                            <MaterialDesignIcons name="shopping-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
                           </FeedbackPressable>
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.add')}
                             accessibilityState={{ disabled: isLoading || error !== null || isChanging || isBusy }} disabled={isLoading || error !== null || isBusy}
