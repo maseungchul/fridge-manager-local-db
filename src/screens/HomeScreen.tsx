@@ -314,15 +314,11 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
                       style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <View>
-                        <MaterialDesignIcons name="clipboard-text-outline" size={18} color={colors.chilled} accessible={false} />
-                        {hasQueuedIngredients && isToolbarExpanded ? (
-                          <View style={styles.queueDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                            <View style={styles.queueDotFill} />
-                          </View>
-                        ) : null}
-                      </View>
+                      <MaterialDesignIcons name="clipboard-text-outline" size={18} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('queue.pending')}</Text>
+                      {hasQueuedIngredients && isToolbarExpanded ? (
+                        <View style={styles.queueDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+                      ) : null}
                     </FeedbackPressable>
                   </Animated.View>
                 </View>
@@ -331,15 +327,13 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                   accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
                   disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} feedback="none"
                   style={[styles.toolbarToggle, styles.floatingButton]} hitSlop={4}>
-                  {({ pressed }) => <View>
+                  {({ pressed }) => <>
                     <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={HOME_TOOL_ICON_SIZE}
                       color={pressed ? colors.sheetHandle : colors.buttonText} accessible={false} />
                     {!isToolbarExpanded && hasQueuedIngredients ? (
-                      <View style={[styles.queueDot, styles.queueDotOnToggle]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                        <View style={styles.queueDotFill} />
-                      </View>
+                      <View style={[styles.queueDot, styles.queueDotOnToggle]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
                     ) : null}
-                  </View>}
+                  </>}
                 </FeedbackPressable>
               </View>
             </View>
@@ -456,11 +450,9 @@ const getStyles = createThemedStyles(({ colors, fridgeDoorColors }, mode) => Sty
     paddingHorizontal: spacing.sm, borderRadius: 18, borderColor: colors.sage,
     boxShadow: [{ offsetX: 0, offsetY: 1, blurRadius: 6, color: `${colors.button}14` }] },
   homeLabel: { color: colors.chilled, fontSize: 14 },
-  // 점 주변은 각 버튼 배경색으로 채워 아이콘과 구분한다.
-  queueDot: { position: 'absolute', top: -4, right: -3, width: 10, height: 10, borderRadius: 5,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  queueDotOnToggle: { top: -2, right: -2, backgroundColor: colors.chilledFill },
-  queueDotFill: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.moveQueueBadge },
+  queueDot: { position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: 4,
+    backgroundColor: colors.moveQueueBadge },
+  queueDotOnToggle: { right: -1 },
   floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
   toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
     borderRadius: HOME_MENU_SIZE / 2, backgroundColor: colors.chilledFill },
