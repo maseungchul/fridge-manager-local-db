@@ -20,12 +20,6 @@ type MoreScreenProps = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
 
 const menuSections = [
   {
-    title: 'consumed.section',
-    items: [
-      { screen: 'ConsumedIngredients', label: 'consumed.title', icon: 'check-circle-outline' },
-    ],
-  },
-  {
     title: 'settings.title',
     items: [
       { screen: 'Settings', label: 'settings.language', icon: 'translate', section: 'language' },
@@ -54,9 +48,7 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
             <View style={styles.menu}>
               {section.items.filter(item => supportsExpirationReminders || item.label !== 'settings.expirationReminder').map(item => (
                 <FeedbackPressable key={item.label} accessibilityRole="button" accessibilityLabel={t(item.label)}
-                  onPress={() => item.screen === 'Settings'
-                    ? navigation.navigate('Settings', { section: item.section })
-                    : navigation.navigate(item.screen)} style={styles.item}>
+                  onPress={() => navigation.navigate('Settings', { section: item.section })} style={styles.item}>
                   <MaterialDesignIcons name={item.icon} size={24} color={colors.textMuted} accessible={false} />
                   <Text style={styles.itemLabel}>{t(item.label)}</Text>
                 </FeedbackPressable>

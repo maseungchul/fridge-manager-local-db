@@ -6,21 +6,16 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MoreScreen } from '@/screens/MoreScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
-import { ConsumedIngredientsScreen, type ConsumedActions } from '@/screens/ConsumedIngredientsScreen';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
 export type MoreStackParamList = {
   MoreHome: undefined;
   Settings: { section: 'language' | 'theme' | 'expirationReminder' } | undefined;
-  ConsumedIngredients: undefined;
 };
 
 const Stack = createNativeStackNavigator<MoreStackParamList>();
 
-export function MoreStackNavigator({ onInteractionBlockedChange, onSelectionModeChange }: {
-  onInteractionBlockedChange: (blocked: boolean) => void;
-  onSelectionModeChange: (actions: ConsumedActions | null) => void;
-}) {
+export function MoreStackNavigator() {
   const { colors } = useAppTheme();
   return (
     <Stack.Navigator initialRouteName="MoreHome" screenOptions={{
@@ -30,9 +25,6 @@ export function MoreStackNavigator({ onInteractionBlockedChange, onSelectionMode
     }}>
       <Stack.Screen name="MoreHome" component={MoreScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen name="ConsumedIngredients">
-        {props => <ConsumedIngredientsScreen {...props} onInteractionBlockedChange={onInteractionBlockedChange} onSelectionModeChange={onSelectionModeChange} />}
-      </Stack.Screen>
     </Stack.Navigator>
   );
 }

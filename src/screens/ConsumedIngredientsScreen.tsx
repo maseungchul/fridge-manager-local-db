@@ -20,7 +20,7 @@ import type { ConsumedIngredient } from '@/features/ingredient/model/ingredient'
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
-import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
+import type { HomeStackParamList } from '@/navigation/MainTabNavigator';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_INSET, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { spacing, createThemedStyles } from '@/theme/tokens';
@@ -29,7 +29,7 @@ import { useAppTheme } from '@/theme/ThemeProvider';
 export type ConsumedActions = { disabled: boolean; onRestore: () => void; onDelete: () => void };
 
 type ConsumedIngredientsScreenProps = CompositeScreenProps<
-  NativeStackScreenProps<MoreStackParamList, 'ConsumedIngredients'>,
+  NativeStackScreenProps<HomeStackParamList, 'ConsumedIngredients'>,
   NativeStackScreenProps<RootStackParamList>
 > & { onInteractionBlockedChange: (blocked: boolean) => void; onSelectionModeChange: (actions: ConsumedActions | null) => void };
 

@@ -4,7 +4,6 @@
  * 칸 선택으로 재료 목록을 열고, 미등록 상태에서는 안내·등록 버튼을 표시한다.
  */
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -31,14 +30,14 @@ import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/in
 import type { IngredientFormResult } from '@/screens/IngredientFormScreen';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import type { MainTabParamList } from '@/navigation/MainTabNavigator';
+import type { HomeStackParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 import { getFridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 
 type HomeScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, 'Home'>,
+  NativeStackScreenProps<HomeStackParamList, 'FridgeHome'>,
   NativeStackScreenProps<RootStackParamList>
 > & {
   onTabInteractionBlockedChange?: (blocked: boolean) => void;
@@ -319,6 +318,13 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                       {hasQueuedIngredients && isToolbarExpanded ? (
                         <View style={styles.queueDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
                       ) : null}
+                    </FeedbackPressable>
+                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.title')}
+                      accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
+                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) navigation.navigate('ConsumedIngredients'); }}
+                      style={[styles.action, styles.homeAction]} hitSlop={4}>
+                      <MaterialDesignIcons name="check-circle-outline" size={18} color={colors.chilled} accessible={false} />
+                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('consumed.title')}</Text>
                     </FeedbackPressable>
                   </Animated.View>
                 </View>

@@ -7,13 +7,14 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BottomTabBar, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import * as Haptics from 'expo-haptics';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ShoppingScreen, type ShoppingSelectionActions } from '@/screens/ShoppingScreen';
-import type { ConsumedActions } from '@/screens/ConsumedIngredientsScreen';
+import { ConsumedIngredientsScreen, type ConsumedActions } from '@/screens/ConsumedIngredientsScreen';
 import { MoreStackNavigator } from '@/navigation/MoreStackNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
@@ -26,6 +27,12 @@ export type MainTabParamList = {
   More: undefined;
 };
 
+export type HomeStackParamList = {
+  FridgeHome: undefined;
+  ConsumedIngredients: undefined;
+};
+
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function MainTabNavigator({ takeIngredientFormResult }: {
@@ -121,8 +128,18 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
           <MaterialDesignIcons name={focused ? 'fridge' : 'fridge-outline'} size={size} color={color} accessible={false} />
         ),
       }}>
-        {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked}
-          takeIngredientFormResult={takeIngredientFormResult} />}
+        {() => (
+          <HomeStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+            <HomeStack.Screen name="FridgeHome">
+              {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked}
+                takeIngredientFormResult={takeIngredientFormResult} />}
+            </HomeStack.Screen>
+            <HomeStack.Screen name="ConsumedIngredients">
+              {props => <ConsumedIngredientsScreen {...props} onInteractionBlockedChange={setIsTabInteractionBlocked}
+                onSelectionModeChange={setConsumedAction} />}
+            </HomeStack.Screen>
+          </HomeStack.Navigator>
+        )}
       </Tab.Screen>
       <Tab.Screen name="Shopping" options={{
         title: t('tabs.shopping'),
@@ -138,7 +155,7 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
           <MaterialDesignIcons name={focused ? 'dots-horizontal-circle' : 'dots-horizontal-circle-outline'} size={size} color={color} accessible={false} />
         ),
       }}>
-        {() => <MoreStackNavigator onInteractionBlockedChange={setIsTabInteractionBlocked} onSelectionModeChange={setConsumedAction} />}
+        {() => <MoreStackNavigator />}
       </Tab.Screen>
     </Tab.Navigator>
   );
