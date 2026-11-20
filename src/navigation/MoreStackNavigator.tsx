@@ -6,7 +6,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MoreScreen } from '@/screens/MoreScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
-import { ConsumedIngredientsScreen } from '@/screens/ConsumedIngredientsScreen';
+import { ConsumedIngredientsScreen, type ConsumedActions } from '@/screens/ConsumedIngredientsScreen';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
 export type MoreStackParamList = {
@@ -17,7 +17,10 @@ export type MoreStackParamList = {
 
 const Stack = createNativeStackNavigator<MoreStackParamList>();
 
-export function MoreStackNavigator({ onInteractionBlockedChange }: { onInteractionBlockedChange: (blocked: boolean) => void }) {
+export function MoreStackNavigator({ onInteractionBlockedChange, onSelectionModeChange }: {
+  onInteractionBlockedChange: (blocked: boolean) => void;
+  onSelectionModeChange: (actions: ConsumedActions | null) => void;
+}) {
   const { colors } = useAppTheme();
   return (
     <Stack.Navigator initialRouteName="MoreHome" screenOptions={{
@@ -28,7 +31,7 @@ export function MoreStackNavigator({ onInteractionBlockedChange }: { onInteracti
       <Stack.Screen name="MoreHome" component={MoreScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="ConsumedIngredients">
-        {props => <ConsumedIngredientsScreen {...props} onInteractionBlockedChange={onInteractionBlockedChange} />}
+        {props => <ConsumedIngredientsScreen {...props} onInteractionBlockedChange={onInteractionBlockedChange} onSelectionModeChange={onSelectionModeChange} />}
       </Stack.Screen>
     </Stack.Navigator>
   );
