@@ -30,7 +30,7 @@ export function ReminderLeadTimePicker({ daysBefore, saving, onSave, onDismiss }
   const [wheel] = useState(() => createWheel(days.length, false));
   const [index, setIndex] = useState(() => days.indexOf(daysBefore));
   const { markEdited, dismiss } = usePickerAutoSave(days[index], daysBefore, saving, onSave, onDismiss);
-  const labelOffset = Math.max(30, String(days[days.length - 1]).length * 11 + 4);
+  const labelOffset = Math.max(34, String(days[days.length - 1]).length * 11 + 8);
 
   return (
     <CenteredPickerPopup dismissLabel={t('reminder.closeLeadTime')} dismissDisabled={saving} edgeToEdge onDismiss={() => void dismiss()}>
