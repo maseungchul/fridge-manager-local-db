@@ -80,16 +80,14 @@ export function PickerWheel({ side, formatOption = formatNumber, formatAccessibi
     const option = (index % optionCount + optionCount) % optionCount;
     const target = loop ? middleIndex + option : Math.max(0, Math.min(lastIndex, index));
     updateIndex(target);
-    scrollY.setValue(offsets[target]);
     scroll.current?.scrollTo({ y: offsets[target], animated: false });
   }
 
-  function trackPosition(event: NativeSyntheticEvent<NativeScrollEvent>, settled = false) {
+  function trackPosition(event: NativeSyntheticEvent<NativeScrollEvent>) {
     if (disabled) return;
     const index = Math.max(0, Math.min(lastIndex, Math.round(event.nativeEvent.contentOffset.y / ROW_HEIGHT)));
-    // 같은 값이 놓인 가운데 묶음으로 옮겨도 선택과 주변 숫자의 순서가 유지된다.
-    if (loop && (index <= SIDE_ROWS || index >= lastIndex - SIDE_ROWS
-      || (settled && (index < middleIndex || index >= middleIndex + optionCount)))) {
+    // 같은 값이 놓인 가운데 묶음으로의 이동은 실제 목록 끝에 접근할 때만 필요하다.
+    if (loop && (index <= SIDE_ROWS || index >= lastIndex - SIDE_ROWS)) {
       select(index);
     } else {
       updateIndex(index);
@@ -113,7 +111,7 @@ export function PickerWheel({ side, formatOption = formatNumber, formatAccessibi
         contentOffset={initialOffset} snapToOffsets={offsets} decelerationRate={DECELERATION_RATE} nestedScrollEnabled
         bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} scrollEnabled={!disabled}
         automaticallyAdjustContentInsets={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-        onScroll={onScroll} onMomentumScrollEnd={event => trackPosition(event, true)} scrollEventThrottle={16}>
+        onScroll={onScroll} onMomentumScrollEnd={trackPosition} scrollEventThrottle={16}>
         {/* 전체 높이를 유지하고, 순환 시 복귀할 가운데 묶음은 미리 그려 둔다. */}
         <View style={{ height: offsets.length * ROW_HEIGHT }}>
           {offsets.map((offset, index) => {

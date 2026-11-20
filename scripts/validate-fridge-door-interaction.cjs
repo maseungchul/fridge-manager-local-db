@@ -3554,7 +3554,7 @@ test('시각 휠은 시·분 끝에서 순환하고 선택값을 자동 저장�
   refresh();
   assert.equal(hour.tree.props.accessibilityValue.text, '00');
   assert.equal(minute.tree.props.accessibilityValue.text, '00');
-  assert.equal(minuteScrolls.at(-1).y, minuteWheel.offsets[minuteWheel.middleIndex]);
+  assert.deepEqual(minuteScrolls, []);
 
   minute.tree.props.onAccessibilityAction({ nativeEvent: { actionName: 'decrement' } });
   refresh();
