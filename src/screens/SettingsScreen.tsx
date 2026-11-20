@@ -1,14 +1,20 @@
 /**
  * @file
- * 앱의 표시 언어와 화면 테마를 선택하고 저장 실패를 안내한다.
+ * 앱의 표시 언어·화면 테마·유통기한 알림을 설정하고 저장 실패를 안내한다.
  * 설정 상태와 영구 저장은 각 공통 Provider에서 관리한다.
  */
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { SelectionCheck } from '@/components/SelectionCheck';
+import { TimePicker } from '@/components/TimePicker';
+import { supportsExpirationReminders, useExpirationReminder } from '@/features/ingredient/ExpirationReminderProvider';
+import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
+import { getReminderCalendarDates, getReminderDaysBefore } from '@/features/ingredient/model/expirationReminder';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { languageNames } from '@/i18n/translations';
 import type { AppLanguage } from '@/i18n/translations';
@@ -53,7 +59,7 @@ export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
           onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialDesignIcons name="arrow-left" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
         </FeedbackPressable>
-        <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t(section === 'language' ? 'settings.language' : 'settings.theme')}</Text>
+        <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t(`settings.${section}`)}</Text>
       </View>
       <ScrollView contentContainerStyle={styles.content} alwaysBounceVertical={false}>
         {section === 'language' ? <View style={styles.section}>
@@ -69,7 +75,7 @@ export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
               </FeedbackPressable>
             ))}
           </View>
-        </View> : <View style={styles.section}>
+        </View> : section === 'theme' ? <View style={styles.section}>
           <View style={styles.options}>
             {themeModes.map(option => (
               <FeedbackPressable key={option} accessibilityRole="radio" accessibilityLabel={t(themes[option])}
@@ -80,9 +86,100 @@ export function SettingsScreen({ navigation, route }: SettingsScreenProps) {
               </FeedbackPressable>
             ))}
           </View>
-        </View>}
+        </View> : supportsExpirationReminders && <ExpirationReminderSettings />}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ExpirationReminderSettings() {
+  const { mode, colors } = useAppTheme();
+  const styles = getStyles(mode);
+  const { language, t } = useTranslation();
+  const { settings, status, saving, saveSettings, refresh } = useExpirationReminder();
+  const [picker, setPicker] = useState<'time' | ReturnType<typeof getReminderCalendarDates> | null>(null);
+  const calendar = picker === 'time' ? null : picker;
+  const locale = language === 'ko' ? 'ko-KR' : 'ja-JP';
+
+  if (!settings) return <ActivityIndicator color={colors.text} accessibilityLabel={t('common.loading')} />;
+  const dateLabel = settings.daysBefore === 0 ? t('reminder.onExpirationDate') : t('reminder.daysBefore', { days: settings.daysBefore });
+  const savedTime = new Date(2000, 0, 15, Math.floor(settings.minutes / 60), settings.minutes % 60);
+  const timeLabel = savedTime.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  const disabled = saving || picker !== null;
+
+  function showError() {
+    Alert.alert(t('common.error'), t('reminder.settingsError'), [{ text: t('common.ok') }]);
+  }
+
+  async function saveTime(minutes: number) {
+    if (!settings || saving) return;
+    try {
+      if (minutes !== settings.minutes) await saveSettings({ ...settings, minutes });
+    } catch {
+      showError();
+    }
+  }
+
+  async function saveDate(date: string) {
+    if (!settings || !calendar || saving) return;
+    const daysBefore = getReminderDaysBefore(date, calendar.today);
+    if (!Number.isSafeInteger(daysBefore) || daysBefore < 0 || daysBefore === settings.daysBefore) return;
+    try {
+      await saveSettings({ ...settings, daysBefore });
+    } catch {
+      showError();
+    }
+  }
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.description}>{t('reminder.description')}</Text>
+      <View style={styles.options}>
+        <View style={styles.option}>
+          <Text style={styles.optionLabel}>{t('reminder.enabled')}</Text>
+          <Switch accessibilityLabel={t('reminder.enabled')} value={settings.enabled} disabled={disabled}
+            trackColor={{ true: colors.chilled, false: colors.border }}
+            onValueChange={enabled => void saveSettings({ ...settings, enabled }).catch(showError)} />
+        </View>
+        {settings.enabled && (
+          <>
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('reminder.date')}
+              accessibilityValue={{ text: dateLabel }} accessibilityState={{ disabled }} disabled={disabled}
+              style={styles.option} onPress={() => setPicker(getReminderCalendarDates(settings.daysBefore))}>
+              <Text style={styles.optionLabel}>{t('reminder.date')}</Text>
+              <Text style={styles.optionValue}>{dateLabel}</Text>
+            </FeedbackPressable>
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('reminder.time')}
+              accessibilityValue={{ text: timeLabel }} accessibilityState={{ disabled }} disabled={disabled}
+              style={styles.option} onPress={() => setPicker('time')}>
+              <Text style={styles.optionLabel}>{t('reminder.time')}</Text>
+              <Text style={styles.optionValue}>{timeLabel}</Text>
+            </FeedbackPressable>
+          </>
+        )}
+      </View>
+      {settings.enabled && calendar && (
+        <IngredientExpirationCalendar value={calendar.selected} maximumDate={calendar.today} disabled={saving}
+          onSelect={date => void saveDate(date)} onDismiss={() => setPicker(null)} />
+      )}
+      {settings.enabled && picker === 'time' && (
+        <TimePicker minutes={settings.minutes} minuteInterval={5} saving={saving} onSave={saveTime}
+          onDismiss={() => setPicker(null)} />
+      )}
+      {settings.enabled && status === 'permissionRequired' && (
+        <>
+          <Text accessibilityLiveRegion="polite" style={styles.description}>{t('reminder.permissionRequired')}</Text>
+          <PrimaryButton variant="secondary" label={t('reminder.openSettings')}
+            onPress={() => void Linking.openSettings().catch(showError)} />
+        </>
+      )}
+      {status === 'scheduleError' && (
+        <>
+          <Text accessibilityLiveRegion="polite" style={styles.description}>{t('reminder.scheduleError')}</Text>
+          <PrimaryButton variant="secondary" label={t('common.retry')} onPress={refresh} />
+        </>
+      )}
+    </View>
   );
 }
 
@@ -113,4 +210,5 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   },
   selected: { borderColor: colors.chilled, backgroundColor: colors.sageLight },
   optionLabel: { flex: 1, color: colors.text, fontSize: 16, lineHeight: 24 },
+  optionValue: { color: colors.textMuted, fontSize: 16, flexShrink: 1, textAlign: 'right' },
 }));

@@ -11,7 +11,7 @@ import { useAppTheme } from '@/theme/ThemeProvider';
 
 export type MoreStackParamList = {
   MoreHome: undefined;
-  Settings: { section: 'language' | 'theme' } | undefined;
+  Settings: { section: 'language' | 'theme' | 'expirationReminder' } | undefined;
   ConsumedIngredients: undefined;
 };
 

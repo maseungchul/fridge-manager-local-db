@@ -10,6 +10,19 @@ import type { ConsumedIngredient, Ingredient } from '@/features/ingredient/model
 import { INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_QUANTITY_MAX_LENGTH } from '@/features/ingredient/model/ingredient';
 import { AppError } from '@/i18n/errors';
 
+const ingredientChangeListeners = new Set<(db: SQLiteDatabase) => void>();
+
+/** 예약 알림이 확정된 재료 목록을 다시 읽을 수 있게 저장 완료 시점을 전달한다. */
+export function subscribeToIngredientChanges(listener: (db: SQLiteDatabase) => void) {
+  ingredientChangeListeners.add(listener);
+  return () => { ingredientChangeListeners.delete(listener); };
+}
+
+/** 재료를 포함한 다른 저장 작업에서도 커밋이 끝난 뒤 호출한다. */
+export function notifyIngredientChanges(db: SQLiteDatabase) {
+  for (const listener of ingredientChangeListeners) listener(db);
+}
+
 /** 냉장고 한 대의 전체 재료를 조회해 홈 도면의 위치별 등록 건수를 복원한다. */
 export function getIngredients(db: SQLiteDatabase) {
   return db.getAllAsync<Ingredient>(`
@@ -30,8 +43,14 @@ export function getIngredientsByPosition(db: SQLiteDatabase, position: Pick<Ingr
   `, position.slotId, position.drawerNumber);
 }
 
-/** 한 번의 INSERT로 재료를 등록하고, 저장된 입력과 UUID를 반환한다. */
 export async function registerIngredient(db: SQLiteDatabase, input: Omit<Ingredient, 'id'>): Promise<Ingredient> {
+  const ingredient = await insertIngredient(db, input);
+  notifyIngredientChanges(db);
+  return ingredient;
+}
+
+/** 다른 작업과 같은 트랜잭션에서 사용할 수 있도록 재료만 저장한다. */
+export async function insertIngredient(db: SQLiteDatabase, input: Omit<Ingredient, 'id'>): Promise<Ingredient> {
   const ingredient = prepareIngredientRegistration(input, uuid.v4);
   await db.runAsync(`
     INSERT INTO ingredients (id, name, quantity, memo, expiration_date, slot_id, drawer_number)
@@ -55,11 +74,17 @@ export async function updateIngredient(db: SQLiteDatabase, input: Ingredient): P
   `, ingredient.name, ingredient.quantity, ingredient.memo, ingredient.expirationDate,
   ingredient.id, ingredient.slotId, ingredient.drawerNumber);
   if (result.changes !== 1) throw new AppError('errors.ingredientUpdateMissing');
+  notifyIngredientChanges(db);
   return ingredient;
 }
 
 /** ID와 보관 위치가 일치하는 재료 한 건만 삭제하고, 달라진 대상은 목록에서 다시 확인한다. */
 export async function deleteIngredient(db: SQLiteDatabase, ingredient: Pick<Ingredient, 'id' | 'slotId' | 'drawerNumber'>): Promise<void> {
+  await removeIngredient(db, ingredient);
+  notifyIngredientChanges(db);
+}
+
+async function removeIngredient(db: SQLiteDatabase, ingredient: Pick<Ingredient, 'id' | 'slotId' | 'drawerNumber'>) {
   const result = await db.runAsync(`
     DELETE FROM ingredients WHERE id = ? AND slot_id = ? AND drawer_number = ?;
   `, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
@@ -83,9 +108,10 @@ export async function consumeIngredients(db: SQLiteDatabase, ingredients: readon
         WHERE id = ? AND slot_id = ? AND drawer_number = ?;
       `, consumedAt, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
       if (result.changes !== 1) throw new AppError('errors.ingredientConsumeMissing');
-      await deleteIngredient(transaction, ingredient);
+      await removeIngredient(transaction, ingredient);
     }
   });
+  notifyIngredientChanges(db);
 }
 
 /** 선택한 ID·출발 위치를 한 트랜잭션에서 삭제하고 일부만 삭제되는 상황을 막는다. */
@@ -93,9 +119,10 @@ export async function deleteIngredients(db: SQLiteDatabase, ingredients: readonl
   if (ingredients.length === 0) return;
   await db.withExclusiveTransactionAsync(async transaction => {
     for (const ingredient of new Map(ingredients.map(item => [item.id, item])).values()) {
-      await deleteIngredient(transaction, ingredient);
+      await removeIngredient(transaction, ingredient);
     }
   });
+  notifyIngredientChanges(db);
 }
 
 /** 원래 위치가 사라져도 기록을 유지하고, 최근 소비한 재료부터 표시한다. */
@@ -144,6 +171,7 @@ export async function restoreConsumedIngredient(db: SQLiteDatabase, record: Pick
     await deleteConsumedIngredient(transaction, record);
     restored = ingredient;
   });
+  if (restored) notifyIngredientChanges(db);
   return restored;
 }
 

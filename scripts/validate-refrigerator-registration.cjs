@@ -38,13 +38,14 @@ const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRef
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 const ingredientRegistration = loadSource('src/db/ingredientRegistration.ts');
 const ingredientModel = loadSource('src/features/ingredient/model/ingredient.ts');
-const { getIngredients, getIngredientsByPosition, registerIngredient, updateIngredient, deleteIngredient, moveIngredients,
+const { getIngredients, getIngredientsByPosition, registerIngredient, insertIngredient, notifyIngredientChanges,
+  subscribeToIngredientChanges, updateIngredient, deleteIngredient, moveIngredients,
   consumeIngredient, consumeIngredients, deleteIngredients, getConsumedIngredients, getConsumedIngredient, restoreConsumedIngredient, deleteConsumedIngredient } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
   '@/features/ingredient/model/ingredient': ingredientModel,
 });
 const { addShoppingItem, getShoppingItems, setShoppingItemsPurchased, registerPurchasedIngredients } = loadModule('src/db/shoppingRepository.ts', {
-  expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRepository': { registerIngredient },
+  expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRepository': { insertIngredient, notifyIngredientChanges },
   '@/features/ingredient/model/ingredient': ingredientModel,
 });
 
@@ -108,6 +109,8 @@ function createSlots(count, drawerCount = 0) {
 
 test('구매 완료 품목의 일괄 등록은 실패하면 전체를 되돌리고 재시도하면 선택한 품목만 옮긴다', async t => {
   const { adapter } = await createRepositoryDatabase(t);
+  const changes = [];
+  t.after(subscribeToIngredientChanges(db => changes.push(db)));
   const draft = createTwoDoorDraft();
   draft.rows[0].compartments[0].slots[0].drawerCount = 2;
   await registerRefrigerator(adapter, draft);
@@ -136,6 +139,7 @@ test('구매 완료 품목의 일괄 등록은 실패하면 전체를 되돌리�
   await assert.rejects(registerPurchasedIngredients(adapter, registrations, position), { key: 'shopping.importMissing' });
   assert.deepEqual(await getIngredients(adapter), []);
   assert.deepEqual(await getShoppingItems(adapter), afterUndo);
+  assert.deepEqual(changes, []);
 
   await setShoppingItemsPurchased(adapter, [second.id], true);
   secondRegistration.item = (await getShoppingItems(adapter)).find(item => item.id === second.id);
@@ -147,6 +151,7 @@ test('구매 완료 품목의 일괄 등록은 실패하면 전체를 되돌리�
   assert.deepEqual((await getShoppingItems(adapter)).map(item => item.id), [unselected.id, planned.id]);
   await assert.rejects(registerPurchasedIngredients(adapter, registrations, position), { key: 'shopping.importMissing' });
   assert.equal((await getIngredients(adapter)).length, 2);
+  assert.deepEqual(changes, [adapter]);
 });
 
 test('재료 목록은 칸·좌우·포켓을 구분하고 유통기한·이름 순서로 조회한다', async t => {

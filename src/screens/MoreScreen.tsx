@@ -9,6 +9,7 @@ import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { supportsExpirationReminders } from '@/features/ingredient/ExpirationReminderProvider';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
 import { getHeaderStyles } from '@/theme/headerStyles';
@@ -29,6 +30,7 @@ const menuSections = [
     items: [
       { screen: 'Settings', label: 'settings.language', icon: 'translate', section: 'language' },
       { screen: 'Settings', label: 'settings.theme', icon: 'theme-light-dark', section: 'theme' },
+      { screen: 'Settings', label: 'settings.expirationReminder', icon: 'bell-outline', section: 'expirationReminder' },
     ],
   },
 ] as const;
@@ -50,7 +52,7 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
               <Text accessibilityRole="header" style={styles.sectionTitle}>{t(section.title)}</Text>
             </View>
             <View style={styles.menu}>
-              {section.items.map(item => (
+              {section.items.filter(item => supportsExpirationReminders || item.label !== 'settings.expirationReminder').map(item => (
                 <FeedbackPressable key={item.label} accessibilityRole="button" accessibilityLabel={t(item.label)}
                   onPress={() => item.screen === 'Settings'
                     ? navigation.navigate('Settings', { section: item.section })

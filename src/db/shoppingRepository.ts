@@ -4,7 +4,7 @@
  */
 import { uuid } from 'expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { registerIngredient } from '@/db/ingredientRepository';
+import { insertIngredient, notifyIngredientChanges } from '@/db/ingredientRepository';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
 import { INGREDIENT_MEMO_MAX_LENGTH, INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_QUANTITY_MAX_LENGTH } from '@/features/ingredient/model/ingredient';
 import { AppError } from '@/i18n/errors';
@@ -100,9 +100,10 @@ export async function registerPurchasedIngredients(db: SQLiteDatabase, registrat
       const result = await transaction.runAsync(
         'DELETE FROM shopping_items WHERE id = ? AND purchased_at = ?;', item.id, item.purchasedAt);
       if (result.changes !== 1) throw new AppError('shopping.importMissing');
-      const ingredient = await registerIngredient(transaction, { ...draft, ...position });
+      const ingredient = await insertIngredient(transaction, { ...draft, ...position });
       ingredients.push(ingredient);
     }
   });
+  notifyIngredientChanges(db);
   return ingredients;
 }

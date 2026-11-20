@@ -11,6 +11,7 @@ const ts = require('typescript');
 const { loadSource } = require('./helpers/load-source.cjs');
 const model = loadSource('src/features/fridge/model/fridgeLayout.ts');
 const ingredientModel = loadSource('src/features/ingredient/model/ingredient.ts');
+const expirationReminderModel = loadSource('src/features/ingredient/model/expirationReminder.ts');
 const tokens = require('../src/theme/tokens.ts');
 const { alertTitles: alertTitleKeys } = require('../src/constants/alertTitles.ts');
 const { fridgeMessages: fridgeMessageKeys } = require('../src/features/fridge/constants/messages.ts');
@@ -62,6 +63,10 @@ const hooks = {
     return [slot.value, next => { slot.value = typeof next === 'function' ? next(slot.value) : next; }];
   },
   useRef(initial) { return hooks.useState(() => ({ current: initial }))[0]; },
+  useReducer(reducer, initial) {
+    const [state, setState] = hooks.useState(initial);
+    return [state, action => setState(value => reducer(value, action))];
+  },
   useLayoutEffect(effect, dependencies) { hooks.useEffect(effect, dependencies); },
   useImperativeHandle(ref, create, dependencies) {
     hooks.useEffect(() => {
@@ -165,6 +170,7 @@ let iosHomeButtonModule;
 let defaultHomeButtonModule;
 let shoppingRepository;
 let delayedLoadingModule;
+let centeredPickerPopupModule;
 const swiftUIModifiers = Object.fromEntries([
   'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'accessibilityValue', 'buttonBorderShape', 'buttonStyle', 'controlSize',
   'disabled', 'environment', 'frame', 'tint', 'interactiveDismissDisabled',
@@ -197,6 +203,8 @@ function loadComponent(path, overrides = {}) {
     '@/i18n/LanguageProvider': languageModule,
     'expo-sqlite/kv-store': { __esModule: true, default: languageStorage },
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
+    '@/components/CenteredPickerPopup': centeredPickerPopupModule,
+    '@/components/TimePicker': { TimePicker: 'TimePicker' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
     '@/components/QuantityStepper': quantityStepperModule,
     '@/constants/alertTitles': { alertTitles: alertTitleKeys },
@@ -216,9 +224,13 @@ function loadComponent(path, overrides = {}) {
     },
     '@/features/ingredient/components/IngredientSheet': { IngredientSheet: 'BottomSheet' },
     '@/features/ingredient/IngredientMoveQueueProvider': moveQueueModule,
+    '@/features/ingredient/ExpirationReminderProvider': {
+      ExpirationReminderProvider: 'ExpirationReminderProvider', supportsExpirationReminders: true,
+    },
     '@/features/ingredient/components/IngredientMoveQueueList': { IngredientMoveQueueList: 'IngredientMoveQueueList' },
     '@/features/ingredient/components/IngredientMoveQueueSheet': { IngredientMoveQueueSheet: 'IngredientMoveQueueSheet' },
     '@/features/ingredient/model/ingredient': ingredientModel,
+    '@/features/ingredient/model/expirationReminder': expirationReminderModel,
     '@/features/ingredient/components/IngredientCountBadges': badgeModule,
     '@/features/fridge/components/FridgeIngredientLegend': legendModule,
     '@/features/ingredient/components/IngredientExpirationCalendar': { IngredientExpirationCalendar: 'IngredientExpirationCalendar' },
@@ -278,6 +290,7 @@ function loadComponent(path, overrides = {}) {
 languageModule = loadComponent('src/i18n/LanguageProvider.tsx');
 shoppingRepository = loadComponent('src/db/shoppingRepository.ts', { expo: { uuid: {} } });
 delayedLoadingModule = loadComponent('src/hooks/useDelayedLoading.ts');
+centeredPickerPopupModule = loadComponent('src/components/CenteredPickerPopup.tsx');
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 iosHomeButtonModule = loadComponent('src/components/FloatingIconButton.ios.tsx');
 defaultHomeButtonModule = loadComponent('src/components/FloatingIconButton.tsx');
@@ -326,6 +339,7 @@ const { IngredientPositionScreen } = loadComponent('src/screens/IngredientPositi
 const { IngredientExpirationCalendar } = loadComponent('src/features/ingredient/components/IngredientExpirationCalendar.tsx');
 const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FloatingIconButton'
   || node?.type === badgeModule.IngredientCountBadges || node?.type === badgeModule.IngredientCountBadge
+  || node?.type === centeredPickerPopupModule.CenteredPickerPopup
   ? [node.type(node.props)].filter(Boolean)
   : [node?.props?.children, node?.type === 'BottomSheet' ? node.props.header : null].flat(Infinity).filter(child => child?.type);
 const flattenStyle = style => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
@@ -2638,6 +2652,7 @@ test('날짜 버튼은 키보드를 닫고 측정 대기 없이 공통 달력을
 const calendarDays = calendar => findAll(calendar.tree,
   node => /^\d+년 \d+월 \d+일/.test(node.props?.accessibilityLabel ?? ''));
 const calendarButton = (calendar, label) => find(calendar.tree, node => node.props.accessibilityLabel === label);
+const calendarModal = calendar => find(calendar.tree, node => node.type === 'Modal');
 
 test('미입력 달력은 오늘을 선택으로 오인하지 않고 날짜 칸을 누르면 오늘을 즉시 입력한다', async t => {
   for (const platform of ['ios', 'android']) await t.test(platform, t => {
@@ -2662,7 +2677,7 @@ test('미입력 달력은 오늘을 선택으로 오인하지 않고 날짜 칸�
     const expected = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'),
       String(now.getDate()).padStart(2, '0')].join('-');
     today.props.onPress(); today.props.onPress();
-    calendar.tree.props.onRequestClose();
+    calendarModal(calendar).props.onRequestClose();
     assert.deepEqual(events, [expected, 'dismiss']);
   });
 });
@@ -2725,11 +2740,12 @@ test('달력의 연도 경계 밖 이동은 막고 작은 화면에서는 공통
     assert.equal(calendarButton(calendar, boundary).props.disabled, true);
     calendarButton(calendar, boundary).props.onPress(); calendar.render();
     assert.deepEqual(calendarDays(calendar).map(day => day.props.accessibilityLabel), before);
-    const popup = children(children(calendar.tree)[0])[1];
+    const overlayView = children(calendarModal(calendar))[0];
+    const popup = children(overlayView)[1];
     assert.equal(flattenStyle(popup.props.style).maxWidth, 360);
     assert.equal(flattenStyle(popup.props.style).maxHeight, '100%');
     assert(find(calendar.tree, node => node.type === 'ScrollView'));
-    const overlay = flattenStyle(children(calendar.tree)[0].props.style);
+    const overlay = flattenStyle(overlayView.props.style);
     assert.equal(overlay.paddingTop, 44 + tokens.spacing.md);
     assert.equal(overlay.paddingBottom, 34 + tokens.spacing.md);
   }
@@ -2750,8 +2766,8 @@ test('달력은 비활성·중복 선택을 막고 바깥·닫기 버튼·뒤로
     calendarButton(calendar, '다음 달').props.onPress(); calendar.render();
     assert.equal(calendarDays(calendar).length, 29);
     assert.deepEqual(selected, []);
-    const close = trigger === 'back' ? calendar.tree.props.onRequestClose
-      : trigger === 'escape' ? children(calendar.tree)[0].props.onAccessibilityEscape
+    const close = trigger === 'back' ? calendarModal(calendar).props.onRequestClose
+      : trigger === 'escape' ? children(calendarModal(calendar))[0].props.onAccessibilityEscape
         : calendarButton(calendar, trigger === 'button' ? '유통기한 달력 닫기 버튼' : '유통기한 달력 닫기').props.onPress;
     close(); close();
     assert.equal(dismissed, 1);
@@ -3387,6 +3403,207 @@ test('임시목록 공통 상태는 화면 전환으로 제거되지 않게 앱�
   const sheets = find(provider, node => node.type === 'BottomSheetModalProvider');
   assert(sheets, '포털의 재료 시트도 공통 대기 목록 상태에 접근한다');
   assert(find(sheets, node => node.type === 'RootNavigator'));
+});
+
+test('알림 날짜는 공통 캘린더에서, 시각은 공통 입력에서 따로 저장한다', async t => {
+  let settings = { enabled: false, daysBefore: 2, minutes: 990 };
+  const saves = [];
+  const { SettingsScreen } = loadComponent('src/screens/SettingsScreen.tsx', {
+    '@/features/ingredient/ExpirationReminderProvider': {
+      supportsExpirationReminders: true,
+      useExpirationReminder: () => ({
+        settings, status: 'ready', saving: false,
+        async saveSettings(next) { settings = next; saves.push(next); },
+      }),
+    },
+  });
+  const screen = mount(SettingsScreen, { route: { params: { section: 'expirationReminder' } } });
+  const reminder = mount(find(screen.tree, named('ExpirationReminderSettings')).type, {});
+  t.after(() => { reminder.unmount(); screen.unmount(); });
+  const byLabel = label => find(reminder.tree, node => node.props.accessibilityLabel === label);
+  assert.equal(byLabel('알림 날짜'), undefined);
+  assert.equal(byLabel('알림 시각'), undefined);
+
+  byLabel('알림 받기').props.onValueChange(true);
+  reminder.render();
+  assert.equal(byLabel('알림 날짜').props.accessibilityValue.text, '유통기한 2일 전');
+  byLabel('알림 날짜').props.onPress();
+  reminder.render();
+  const calendar = find(reminder.tree, node => node.type === 'IngredientExpirationCalendar').props;
+  assert.notEqual(calendar.value, calendar.maximumDate);
+  calendar.onSelect(calendar.maximumDate);
+  calendar.onDismiss();
+  await new Promise(resolve => setImmediate(resolve));
+  reminder.render();
+  assert.equal(byLabel('알림 날짜').props.accessibilityValue.text, '유통기한 당일');
+  assert.deepEqual(saves.at(-1), { enabled: true, daysBefore: 0, minutes: 990 });
+
+  byLabel('알림 시각').props.onPress();
+  reminder.render();
+  const timePicker = find(reminder.tree, node => node.type === 'TimePicker').props;
+  assert.equal(timePicker.minuteInterval, 5);
+  timePicker.onSave(1040);
+  await new Promise(resolve => setImmediate(resolve));
+  reminder.render();
+  assert.equal(saves.length, 3);
+  assert.deepEqual(settings, { enabled: true, daysBefore: 0, minutes: 1040 });
+  assert.equal(byLabel('알림 날짜').props.accessibilityValue.text, '유통기한 당일');
+});
+
+test('알림 캘린더는 기준일 다음 날짜 선택을 막는다', t => {
+  const dates = [];
+  const calendar = mount(IngredientExpirationCalendar, {
+    value: '2028-02-27', maximumDate: '2028-02-28', onSelect(date) { dates.push(date); }, onDismiss() {},
+  });
+  t.after(() => calendar.unmount());
+  const future = calendarButton(calendar, '2028년 2월 29일');
+  assert.equal(future.props.disabled, true);
+  future.props.onPress();
+  assert.deepEqual(dates, []);
+  calendarButton(calendar, '2028년 2월 28일').props.onPress();
+  assert.deepEqual(dates, ['2028-02-28']);
+});
+
+test('시각 휠은 1·5·10분 간격에서 기존 시각을 해당 눈금으로 표시한다', t => {
+  const { TimePicker } = loadComponent('src/components/TimePicker.tsx');
+  for (const [minuteInterval, expectedMinute] of [[1, 59], [5, 55], [10, 50]]) {
+    const saved = [];
+    const picker = mount(TimePicker, { minutes: 16 * 60 + 59, minuteInterval, saving: false, onSave: value => saved.push(value) });
+    t.after(() => picker.unmount());
+    const minute = find(picker.tree, node => named('TimeWheel')(node) && node.props.label === '분').props;
+    assert.equal(minute.wheel.optionCount, 60 / minuteInterval);
+    assert.equal(minute.value * minute.step, expectedMinute);
+    assert.deepEqual(saved, []);
+  }
+});
+
+test('시각 휠은 시·분 끝에서 순환하고 선택값을 자동 저장한다', async t => {
+  const { TimePicker } = loadComponent('src/components/TimePicker.tsx');
+  const saved = [];
+  const picker = mount(TimePicker, { minutes: 23 * 60 + 55, minuteInterval: 5, saving: false, async onSave(value) { saved.push(value); } });
+  const wheel = label => find(picker.tree, node => named('TimeWheel')(node) && node.props.label === label);
+  const hour = mount(wheel('시').type, wheel('시').props);
+  const minute = mount(wheel('분').type, wheel('분').props);
+  t.after(() => { hour.unmount(); minute.unmount(); picker.unmount(); });
+  const scroll = instance => find(instance.tree, node => node.type === 'ScrollView').props;
+  const scrollEvent = y => ({ nativeEvent: { contentOffset: { y } } });
+  const refresh = () => {
+    picker.render();
+    hour.props = wheel('시').props;
+    minute.props = wheel('분').props;
+    hour.render();
+    minute.render();
+  };
+  const hourWheel = hour.props.wheel;
+  const minuteWheel = minute.props.wheel;
+  assert.equal(scroll(hour).contentOffset.y, hourWheel.offsets[hourWheel.middleIndex + 23]);
+  assert.equal(scroll(minute).contentOffset.y, minuteWheel.offsets[minuteWheel.middleIndex + 11]);
+  const minuteScrolls = [];
+  scroll(minute).ref.current = { scrollTo: command => minuteScrolls.push(command) };
+
+  scroll(hour).onScroll(scrollEvent(hourWheel.offsets[hourWheel.middleIndex + 24]));
+  scroll(minute).onMomentumScrollEnd(scrollEvent(minuteWheel.offsets[minuteWheel.middleIndex + 12]));
+  refresh();
+  assert.equal(hour.tree.props.accessibilityValue.text, '00');
+  assert.equal(minute.tree.props.accessibilityValue.text, '00');
+  assert.equal(minuteScrolls.at(-1).y, minuteWheel.offsets[minuteWheel.middleIndex]);
+
+  minute.tree.props.onAccessibilityAction({ nativeEvent: { actionName: 'decrement' } });
+  refresh();
+  assert.equal(minute.tree.props.accessibilityValue.text, '55');
+  scroll(minute).onScroll(scrollEvent(minuteWheel.offsets.at(-1)));
+  assert.equal(minuteScrolls.at(-1).y, minuteWheel.offsets[minuteWheel.middleIndex + 11]);
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.deepEqual(saved, [55]);
+});
+
+test('시각 선택은 중앙 팝업으로 열리고 바깥을 누르거나 뒤로 가면 저장하지 않고 닫는다', t => {
+  const { TimePicker } = loadComponent('src/components/TimePicker.tsx');
+  let dismissed = 0;
+  const picker = mount(TimePicker, {
+    minutes: 990, saving: false, async onSave() { assert.fail('변경이 없으면 저장하지 않는다'); }, onDismiss() { dismissed++; },
+  });
+  t.after(() => picker.unmount());
+  const modal = () => find(picker.tree, node => node.type === 'Modal');
+  const backdrop = () => find(picker.tree, node => node.props.accessibilityLabel === '시각 선택 닫기');
+  assert.equal(modal().props.transparent, true);
+  assert.equal(flattenStyle(children(modal())[0].props.style).justifyContent, 'center');
+  backdrop().props.onPress();
+  modal().props.onRequestClose();
+  assert.equal(dismissed, 2);
+
+  picker.props.saving = true;
+  picker.render();
+  assert.equal(backdrop().props.disabled, true);
+  modal().props.onRequestClose();
+  assert.equal(dismissed, 2);
+});
+
+test('알림 예약은 기존 설정을 복원하고 날짜·시각·재료 건수를 각각 갱신한다', async t => {
+  const date = '2099-09-22';
+  const unrelated = { identifier: 'other-feature' };
+  const pending = new Map([[unrelated.identifier, unrelated]]);
+  const calls = [];
+  const ingredients = [{ expirationDate: date }, { expirationDate: date }];
+  let change;
+  let saved = JSON.stringify({ enabled: false, minutes: 1010 });
+  const { ExpirationReminderProvider } = loadComponent('src/features/ingredient/ExpirationReminderProvider.tsx', {
+    'react-native': {
+      ...native, Platform: { OS: 'android' }, AppState: { addEventListener: () => ({ remove() {} }) },
+    },
+    'expo-notifications': {
+      AndroidImportance: { DEFAULT: 3 }, SchedulableTriggerInputTypes: { DATE: 'date' },
+      setNotificationHandler() {},
+      async setNotificationChannelAsync() {},
+      async getPermissionsAsync() { return { granted: true }; },
+      async getAllScheduledNotificationsAsync() { return [...pending.values()]; },
+      async cancelScheduledNotificationAsync(id) { calls.push('cancel'); pending.delete(id); },
+      async scheduleNotificationAsync(item) { calls.push('schedule'); pending.set(item.identifier, item); },
+    },
+    'expo-sqlite/kv-store': { __esModule: true, default: {
+      async getItemAsync() { return saved; },
+      async setItemAsync(_, value) { saved = value; },
+    } },
+    '@/db/ingredientRepository': {
+      async getIngredients() { return ingredients; },
+      subscribeToIngredientChanges(listener) { change = () => listener(database); return () => { change = undefined; }; },
+    },
+    '@/i18n/LanguageProvider': { useTranslation: () => ({ t: translationModule.defaultTranslate }) },
+  });
+  const provider = mount(ExpirationReminderProvider, {});
+  t.after(() => provider.unmount());
+  const refresh = async () => {
+    provider.render();
+    await new Promise(resolve => setImmediate(resolve));
+    return provider.tree.props.value;
+  };
+  const item = () => pending.get(`ingredient-expiration:${date}`);
+
+  await new Promise(resolve => setImmediate(resolve));
+  const initial = (await refresh()).settings;
+  assert.deepEqual(initial, { enabled: false, daysBefore: 2, minutes: 1010 });
+  await provider.tree.props.value.saveSettings({ ...initial, enabled: true });
+  await refresh();
+  assert.equal(item().trigger.date, new Date(2099, 8, 20, 16, 50).getTime());
+  assert.match(item().content.body, /2개/);
+  change();
+  await refresh();
+  assert.deepEqual(calls, ['schedule']);
+  ingredients.pop();
+  change();
+  await refresh();
+  assert.match(item().content.body, /1개/);
+  await provider.tree.props.value.saveSettings({ ...provider.tree.props.value.settings, daysBefore: 0 });
+  await refresh();
+  assert.equal(item().trigger.date, new Date(2099, 8, 22, 16, 50).getTime());
+  assert.match(item().content.body, /2099\.09\.22/);
+  await provider.tree.props.value.saveSettings({ ...provider.tree.props.value.settings, minutes: 1040 });
+  await refresh();
+  assert.equal(item().trigger.date, new Date(2099, 8, 22, 17, 20).getTime());
+  assert.deepEqual(JSON.parse(saved), { enabled: true, daysBefore: 0, minutes: 1040 });
+  await provider.tree.props.value.saveSettings({ ...provider.tree.props.value.settings, enabled: false });
+  await refresh();
+  assert.deepEqual([...pending.values()], [unrelated]);
 });
 
 test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입하고 도면 상태를 유지한다', async t => {

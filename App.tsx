@@ -10,6 +10,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { DatabaseProvider } from '@/db/DatabaseProvider';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { IngredientMoveQueueProvider } from '@/features/ingredient/IngredientMoveQueueProvider';
+import { ExpirationReminderProvider } from '@/features/ingredient/ExpirationReminderProvider';
 import { LanguageProvider } from '@/i18n/LanguageProvider';
 import { ToastProvider } from '@/components/ToastProvider';
 import { ThemeProvider, useAppTheme } from '@/theme/ThemeProvider';
@@ -41,7 +42,9 @@ function AppContent() {
               }}>
                 <IngredientMoveQueueProvider>
                   <BottomSheetModalProvider>
-                    <RootNavigator />
+                    <ExpirationReminderProvider>
+                      <RootNavigator />
+                    </ExpirationReminderProvider>
                   </BottomSheetModalProvider>
                 </IngredientMoveQueueProvider>
               </NavigationContainer>
