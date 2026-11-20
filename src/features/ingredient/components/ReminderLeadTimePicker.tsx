@@ -35,22 +35,18 @@ export function ReminderLeadTimePicker({ daysBefore, saving, onSave, onDismiss }
   return (
     <CenteredPickerPopup dismissLabel={t('reminder.closeLeadTime')} dismissDisabled={saving} edgeToEdge onDismiss={() => void dismiss()}>
       <PickerWheelTrack>
-        <PickerWheel label={t('reminder.leadTime')} value={index} wheel={wheel} disabled={saving} fontSize={23}
+        <PickerWheel label={t('reminder.leadTime')} value={index} wheel={wheel} disabled={saving}
           formatOption={option => days[option] === 0 ? t('reminder.sameDay') : String(days[option])}
           formatAccessibilityValue={option => formatReminderDaysBefore(days[option], t)}
           onChange={next => { if (next !== index) markEdited(); setIndex(next); }} />
         <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           style={[styles.label, styles.prefix, { marginRight: labelOffset }]}>
-          <View style={styles.badge}>
-            <Text style={styles.labelText} maxFontSizeMultiplier={1.4}>{t('ingredient.expiration')}</Text>
-          </View>
+          <Text style={styles.labelText} maxFontSizeMultiplier={1.4}>{t('ingredient.expiration')}</Text>
         </View>
         {days[index] > 0 && (
           <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
             style={[styles.label, styles.suffix, { marginLeft: labelOffset }]}>
-            <View style={styles.badge}>
-              <Text style={styles.labelText} maxFontSizeMultiplier={1.4}>{t('reminder.daysUnit')}</Text>
-            </View>
+            <Text style={styles.labelText} maxFontSizeMultiplier={1.4}>{t('reminder.daysUnit')}</Text>
           </View>
         )}
       </PickerWheelTrack>
@@ -62,6 +58,5 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   label: { position: 'absolute', bottom: PICKER_ROW_BOTTOM, height: PICKER_ROW_HEIGHT, justifyContent: 'center' },
   prefix: { right: '50%' },
   suffix: { left: '50%' },
-  badge: { backgroundColor: colors.chilledBackground, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
-  labelText: { color: colors.chilled, fontSize: 14, lineHeight: 20, fontWeight: '600', includeFontPadding: false },
+  labelText: { color: colors.textMuted, fontSize: 16, lineHeight: 23, includeFontPadding: false },
 }));

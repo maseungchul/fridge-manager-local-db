@@ -50,6 +50,6 @@ export function TimePicker({ minutes, minuteInterval = 1, saving, onSave, onDism
 }
 
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
-  separator: { position: 'absolute', left: 0, right: 0, bottom: PICKER_ROW_BOTTOM, height: PICKER_ROW_HEIGHT, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  separatorDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: mode === 'dark' ? colors.text : '#000000' },
+  separator: { position: 'absolute', left: 0, right: 0, bottom: PICKER_ROW_BOTTOM, height: PICKER_ROW_HEIGHT, alignItems: 'center', justifyContent: 'center', gap: 7.5 },
+  separatorDot: { width: 2.75, height: 2.75, borderRadius: 1.375, backgroundColor: mode === 'dark' ? colors.text : '#000000' },
 }));
