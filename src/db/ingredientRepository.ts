@@ -96,10 +96,11 @@ export async function consumeIngredient(db: SQLiteDatabase, ingredient: Pick<Ing
   await consumeIngredients(db, [ingredient]);
 }
 
-/** 선택한 재료 중 한 건이라도 달라지거나 저장에 실패하면 전체 소비 완료를 취소한다. */
-export async function consumeIngredients(db: SQLiteDatabase, ingredients: readonly Pick<Ingredient, 'id' | 'slotId' | 'drawerNumber'>[]): Promise<void> {
-  if (ingredients.length === 0) return;
+/** 소비 기록과 장보기 추가를 함께 확정하고, 이미 등록된 품목이 있었는지 반환한다. */
+export async function consumeIngredients(db: SQLiteDatabase, ingredients: readonly Pick<Ingredient, 'id' | 'slotId' | 'drawerNumber'>[]): Promise<boolean> {
+  if (ingredients.length === 0) return false;
   const consumedAt = new Date().toISOString();
+  let hasShoppingDuplicates = false;
   await db.withExclusiveTransactionAsync(async transaction => {
     for (const ingredient of new Map(ingredients.map(item => [item.id, item])).values()) {
       const result = await transaction.runAsync(`
@@ -108,10 +109,21 @@ export async function consumeIngredients(db: SQLiteDatabase, ingredients: readon
         WHERE id = ? AND slot_id = ? AND drawer_number = ?;
       `, consumedAt, ingredient.id, ingredient.slotId, ingredient.drawerNumber);
       if (result.changes !== 1) throw new AppError('errors.ingredientConsumeMissing');
+      // 기존 재료의 수량을 보존하고 같은 일괄 처리에서 먼저 추가한 품목도 중복으로 본다.
+      const shoppingResult = await transaction.runAsync(`
+        INSERT INTO shopping_items (id, name, quantity, created_at)
+        SELECT ?, source.name, source.quantity, ? FROM consumed_ingredients AS source
+        WHERE source.id = ? AND NOT EXISTS (
+          SELECT 1 FROM shopping_items
+          WHERE purchased_at IS NULL AND TRIM(name) = TRIM(source.name) COLLATE NOCASE
+        );
+      `, uuid.v4(), consumedAt, ingredient.id);
+      if (shoppingResult.changes === 0) hasShoppingDuplicates = true;
       await removeIngredient(transaction, ingredient);
     }
   });
   notifyIngredientChanges(db);
+  return hasShoppingDuplicates;
 }
 
 /** 선택한 ID·출발 위치를 한 트랜잭션에서 삭제하고 일부만 삭제되는 상황을 막는다. */

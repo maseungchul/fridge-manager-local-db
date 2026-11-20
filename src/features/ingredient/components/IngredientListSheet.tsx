@@ -201,8 +201,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
       { text: t(kind === 'consume' ? 'ingredient.consume' : 'common.delete'), style: kind === 'consume' ? 'default' : 'destructive', onPress: async () => {
         if (handled) return;
         handled = true;
+        let hasShoppingDuplicates = false;
         try {
-          if (kind === 'consume') await consumeIngredients(db, targets);
+          if (kind === 'consume') hasShoppingDuplicates = await consumeIngredients(db, targets);
           else await deleteIngredients(db, targets);
         } catch (error) {
           unlock();
@@ -217,7 +218,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         }
         setIsSelecting(false);
         setSelectedIds([]);
-        if (kind === 'consume') showToast(t('ingredient.consumed'));
+        if (kind === 'consume') {
+          showToast(t(hasShoppingDuplicates ? 'ingredient.consumedWithShoppingDuplicates' : 'ingredient.consumed'));
+        }
         unlock();
       } },
     ], { cancelable: false });

@@ -605,6 +605,7 @@ for (const kind of ['delete', 'consume']) {
     await assert.rejects(action(adapter, [ingredient, other]), /두 번째 선택 처리 실패/);
     assert.deepEqual(await getIngredients(adapter), before);
     assert.deepEqual(await getConsumedIngredients(adapter), []);
+    assert.deepEqual(db.prepare('SELECT * FROM shopping_items').all(), []);
     db.exec('DROP TRIGGER fail_second_selection');
     await action(adapter, [ingredient, other]);
     assert.deepEqual(await getIngredients(adapter), []);
@@ -631,6 +632,23 @@ test('소비 완료는 최신 정보·ID·원래 위치를 보존하고 활성 �
     assert.deepEqual(await getIngredients(createConnectionAdapter(reopened)), await getIngredients(adapter));
   } finally { reopened.close(); }
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+});
+
+test('소비 완료는 구매 예정 품목과 이름이 겹치면 건너뛰고 새 품목은 이름당 한 번 추가한다', async t => {
+  const { db, adapter, ingredient } = await createConsumableIngredient(t);
+  const insert = db.prepare('INSERT INTO shopping_items (id, name, quantity, created_at, purchased_at) VALUES (?, ?, ?, ?, ?)');
+  insert.run('planned', ingredient.name, '3팩', '2026-11-19', null);
+  insert.run('purchased', '달걀', '2개', '2026-11-19', '2026-11-20');
+  const eggs = await registerIngredient(adapter, { ...ingredient, name: '달걀', quantity: '6개' });
+  const sameName = await registerIngredient(adapter, { ...eggs, quantity: '10개' });
+
+  assert.equal(await consumeIngredients(adapter, [ingredient, eggs, sameName]), true);
+  assert.equal((await getConsumedIngredients(adapter)).length, 3);
+  const planned = db.prepare('SELECT name, quantity, memo FROM shopping_items WHERE purchased_at IS NULL ORDER BY rowid').all();
+  assert.deepEqual(planned.map(row => ({ ...row })), [
+    { name: ingredient.name, quantity: '3팩', memo: null },
+    { name: '달걀', quantity: '6개', memo: null },
+  ]);
 });
 
 for (const [operation, table] of [['INSERT', 'consumed_ingredients'], ['DELETE', 'ingredients']]) {
