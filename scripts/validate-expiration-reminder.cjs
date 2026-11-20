@@ -5,16 +5,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { loadSource } = require('./helpers/load-source.cjs');
-const { getExpirationReminderGroups, getReminderCalendarDates, getReminderDaysBefore } = loadSource('src/features/ingredient/model/expirationReminder.ts');
-
-test('알림 캘린더는 현지의 오늘을 기준으로 저장된 날짜 차이를 복원하고 계산한다', () => {
-  const calendar = getReminderCalendarDates(3, new Date(2028, 2, 1, 0, 15));
-  assert.deepEqual(calendar, { today: '2028-03-01', selected: '2028-02-27' });
-  assert.equal(getReminderDaysBefore(calendar.selected, calendar.today), 3);
-  assert.equal(getReminderDaysBefore(calendar.today, calendar.today), 0);
-  assert.deepEqual(getReminderCalendarDates(2, new Date(2028, 2, 13, 0, 15)),
-    { today: '2028-03-13', selected: '2028-03-11' });
-});
+const { getExpirationReminderGroups } = loadSource('src/features/ingredient/model/expirationReminder.ts');
 
 test('유통기한 2일 전의 선택 시각에 같은 날짜 재료를 묶고 지난 시각과 날짜 미입력은 제외한다', () => {
   const now = new Date(2028, 1, 28, 16, 30).getTime();

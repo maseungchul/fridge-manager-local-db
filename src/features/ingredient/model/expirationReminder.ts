@@ -3,18 +3,10 @@
  * 유통기한 알림 설정과 재료 목록을 현지 시각 기준의 날짜별 예약으로 변환한다.
  */
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
+import type { Translator } from '@/i18n/translations';
 
-/** 현지의 오늘을 기준일로 잡고 달력 날짜끼리 계산해 시차의 영향을 피한다. */
-export function getReminderCalendarDates(daysBefore: number, now = new Date()) {
-  const date = new Date(0);
-  date.setUTCFullYear(now.getFullYear(), now.getMonth(), now.getDate());
-  const today = date.toISOString().slice(0, 10);
-  date.setUTCDate(date.getUTCDate() - daysBefore);
-  return { today, selected: date.getUTCFullYear() >= 1 ? date.toISOString().slice(0, 10) : null };
-}
-
-export function getReminderDaysBefore(date: string, referenceDate: string) {
-  return (Date.parse(`${referenceDate}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`)) / 86_400_000;
+export function formatReminderDaysBefore(days: number, t: Translator) {
+  return days === 0 ? t('reminder.onExpirationDate') : t('reminder.daysBefore', { days });
 }
 
 export function getExpirationReminderGroups(

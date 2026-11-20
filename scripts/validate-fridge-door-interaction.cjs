@@ -171,6 +171,8 @@ let defaultHomeButtonModule;
 let shoppingRepository;
 let delayedLoadingModule;
 let centeredPickerPopupModule;
+let pickerWheelModule;
+let pickerAutoSaveModule;
 const swiftUIModifiers = Object.fromEntries([
   'accessibilityHidden', 'accessibilityHint', 'accessibilityLabel', 'accessibilityValue', 'buttonBorderShape', 'buttonStyle', 'controlSize',
   'disabled', 'environment', 'frame', 'tint', 'interactiveDismissDisabled',
@@ -204,6 +206,9 @@ function loadComponent(path, overrides = {}) {
     'expo-sqlite/kv-store': { __esModule: true, default: languageStorage },
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/CenteredPickerPopup': centeredPickerPopupModule,
+    '@/components/PickerWheel': pickerWheelModule,
+    '@/hooks/usePickerAutoSave': pickerAutoSaveModule,
+    '@/features/ingredient/components/ReminderLeadTimePicker': { ReminderLeadTimePicker: 'ReminderLeadTimePicker' },
     '@/components/TimePicker': { TimePicker: 'TimePicker' },
     '@/components/FeedbackPressable': { FeedbackPressable: 'FeedbackPressable' },
     '@/components/QuantityStepper': quantityStepperModule,
@@ -291,6 +296,8 @@ languageModule = loadComponent('src/i18n/LanguageProvider.tsx');
 shoppingRepository = loadComponent('src/db/shoppingRepository.ts', { expo: { uuid: {} } });
 delayedLoadingModule = loadComponent('src/hooks/useDelayedLoading.ts');
 centeredPickerPopupModule = loadComponent('src/components/CenteredPickerPopup.tsx');
+pickerWheelModule = loadComponent('src/components/PickerWheel.tsx');
+pickerAutoSaveModule = loadComponent('src/hooks/usePickerAutoSave.ts');
 quantityStepperModule = loadComponent('src/components/QuantityStepper.tsx');
 iosHomeButtonModule = loadComponent('src/components/FloatingIconButton.ios.tsx');
 defaultHomeButtonModule = loadComponent('src/components/FloatingIconButton.tsx');
@@ -3405,7 +3412,7 @@ test('임시목록 공통 상태는 화면 전환으로 제거되지 않게 앱�
   assert(find(sheets, node => node.type === 'RootNavigator'));
 });
 
-test('알림 날짜는 공통 캘린더에서, 시각은 공통 입력에서 따로 저장한다', async t => {
+test('알림 시점과 시각을 따로 저장한다', async t => {
   let settings = { enabled: false, daysBefore: 2, minutes: 990 };
   const saves = [];
   const { SettingsScreen } = loadComponent('src/screens/SettingsScreen.tsx', {
@@ -3421,21 +3428,21 @@ test('알림 날짜는 공통 캘린더에서, 시각은 공통 입력에서 따
   const reminder = mount(find(screen.tree, named('ExpirationReminderSettings')).type, {});
   t.after(() => { reminder.unmount(); screen.unmount(); });
   const byLabel = label => find(reminder.tree, node => node.props.accessibilityLabel === label);
-  assert.equal(byLabel('알림 날짜'), undefined);
+  assert.equal(byLabel('알림 시점'), undefined);
   assert.equal(byLabel('알림 시각'), undefined);
 
   byLabel('알림 받기').props.onValueChange(true);
   reminder.render();
-  assert.equal(byLabel('알림 날짜').props.accessibilityValue.text, '유통기한 2일 전');
-  byLabel('알림 날짜').props.onPress();
+  assert.equal(byLabel('알림 시점').props.accessibilityValue.text, '유통기한 2일 전');
+  byLabel('알림 시점').props.onPress();
   reminder.render();
-  const calendar = find(reminder.tree, node => node.type === 'IngredientExpirationCalendar').props;
-  assert.notEqual(calendar.value, calendar.maximumDate);
-  calendar.onSelect(calendar.maximumDate);
-  calendar.onDismiss();
+  const leadTime = find(reminder.tree, node => node.type === 'ReminderLeadTimePicker').props;
+  assert.equal(leadTime.daysBefore, 2);
+  await leadTime.onSave(0);
+  leadTime.onDismiss();
   await new Promise(resolve => setImmediate(resolve));
   reminder.render();
-  assert.equal(byLabel('알림 날짜').props.accessibilityValue.text, '유통기한 당일');
+  assert.equal(byLabel('알림 시점').props.accessibilityValue.text, '유통기한 당일');
   assert.deepEqual(saves.at(-1), { enabled: true, daysBefore: 0, minutes: 990 });
 
   byLabel('알림 시각').props.onPress();
@@ -3447,7 +3454,25 @@ test('알림 날짜는 공통 캘린더에서, 시각은 공통 입력에서 따
   reminder.render();
   assert.equal(saves.length, 3);
   assert.deepEqual(settings, { enabled: true, daysBefore: 0, minutes: 1040 });
-  assert.equal(byLabel('알림 날짜').props.accessibilityValue.text, '유통기한 당일');
+  assert.equal(byLabel('알림 시점').props.accessibilityValue.text, '유통기한 당일');
+});
+
+test('알림 시점 휠은 기존 30일 초과 값을 복원하고 새 시점을 저장한다', async t => {
+  const { ReminderLeadTimePicker } = loadComponent('src/features/ingredient/components/ReminderLeadTimePicker.tsx');
+  const saved = [];
+  const picker = mount(ReminderLeadTimePicker, {
+    daysBefore: 45, saving: false, async onSave(value) { saved.push(value); }, onDismiss() {},
+  });
+  t.after(() => picker.unmount());
+  const wheel = find(picker.tree, named('PickerWheel')).props;
+  assert.equal(wheel.formatOption(wheel.value), '유통기한 45일 전');
+  assert.equal(wheel.wheel.loop, false);
+  assert.equal(wheel.formatOption(0), '유통기한 당일');
+  wheel.onChange(30);
+  picker.render();
+  find(picker.tree, node => node.type === 'Modal').props.onRequestClose();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(saved, [30]);
 });
 
 test('알림 캘린더는 기준일 다음 날짜 선택을 막는다', t => {
@@ -3470,7 +3495,7 @@ test('시각 휠은 1·5·10분 간격에서 기존 시각을 해당 눈금으�
     const saved = [];
     const picker = mount(TimePicker, { minutes: 16 * 60 + 59, minuteInterval, saving: false, onSave: value => saved.push(value) });
     t.after(() => picker.unmount());
-    const minute = find(picker.tree, node => named('TimeWheel')(node) && node.props.label === '분').props;
+    const minute = find(picker.tree, node => named('PickerWheel')(node) && node.props.label === '분').props;
     assert.equal(minute.wheel.optionCount, 60 / minuteInterval);
     assert.equal(minute.value * minute.step, expectedMinute);
     assert.deepEqual(saved, []);
@@ -3481,7 +3506,7 @@ test('시각 휠은 시·분 끝에서 순환하고 선택값을 자동 저장�
   const { TimePicker } = loadComponent('src/components/TimePicker.tsx');
   const saved = [];
   const picker = mount(TimePicker, { minutes: 23 * 60 + 55, minuteInterval: 5, saving: false, async onSave(value) { saved.push(value); } });
-  const wheel = label => find(picker.tree, node => named('TimeWheel')(node) && node.props.label === label);
+  const wheel = label => find(picker.tree, node => named('PickerWheel')(node) && node.props.label === label);
   const hour = mount(wheel('시').type, wheel('시').props);
   const minute = mount(wheel('분').type, wheel('분').props);
   t.after(() => { hour.unmount(); minute.unmount(); picker.unmount(); });

@@ -13,8 +13,8 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { TimePicker } from '@/components/TimePicker';
 import { supportsExpirationReminders, useExpirationReminder } from '@/features/ingredient/ExpirationReminderProvider';
-import { IngredientExpirationCalendar } from '@/features/ingredient/components/IngredientExpirationCalendar';
-import { getReminderCalendarDates, getReminderDaysBefore } from '@/features/ingredient/model/expirationReminder';
+import { ReminderLeadTimePicker } from '@/features/ingredient/components/ReminderLeadTimePicker';
+import { formatReminderDaysBefore } from '@/features/ingredient/model/expirationReminder';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { languageNames } from '@/i18n/translations';
 import type { AppLanguage } from '@/i18n/translations';
@@ -97,12 +97,11 @@ function ExpirationReminderSettings() {
   const styles = getStyles(mode);
   const { language, t } = useTranslation();
   const { settings, status, saving, saveSettings, refresh } = useExpirationReminder();
-  const [picker, setPicker] = useState<'time' | ReturnType<typeof getReminderCalendarDates> | null>(null);
-  const calendar = picker === 'time' ? null : picker;
+  const [picker, setPicker] = useState<'time' | 'leadTime' | null>(null);
   const locale = language === 'ko' ? 'ko-KR' : 'ja-JP';
 
   if (!settings) return <ActivityIndicator color={colors.text} accessibilityLabel={t('common.loading')} />;
-  const dateLabel = settings.daysBefore === 0 ? t('reminder.onExpirationDate') : t('reminder.daysBefore', { days: settings.daysBefore });
+  const dateLabel = formatReminderDaysBefore(settings.daysBefore, t);
   const savedTime = new Date(2000, 0, 15, Math.floor(settings.minutes / 60), settings.minutes % 60);
   const timeLabel = savedTime.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
   const disabled = saving || picker !== null;
@@ -120,10 +119,8 @@ function ExpirationReminderSettings() {
     }
   }
 
-  async function saveDate(date: string) {
-    if (!settings || !calendar || saving) return;
-    const daysBefore = getReminderDaysBefore(date, calendar.today);
-    if (!Number.isSafeInteger(daysBefore) || daysBefore < 0 || daysBefore === settings.daysBefore) return;
+  async function saveLeadTime(daysBefore: number) {
+    if (!settings || saving || daysBefore === settings.daysBefore) return;
     try {
       await saveSettings({ ...settings, daysBefore });
     } catch {
@@ -143,10 +140,10 @@ function ExpirationReminderSettings() {
         </View>
         {settings.enabled && (
           <>
-            <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('reminder.date')}
+            <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('reminder.leadTime')}
               accessibilityValue={{ text: dateLabel }} accessibilityState={{ disabled }} disabled={disabled}
-              style={styles.option} onPress={() => setPicker(getReminderCalendarDates(settings.daysBefore))}>
-              <Text style={styles.optionLabel}>{t('reminder.date')}</Text>
+              style={styles.option} onPress={() => setPicker('leadTime')}>
+              <Text style={styles.optionLabel}>{t('reminder.leadTime')}</Text>
               <Text style={styles.optionValue}>{dateLabel}</Text>
             </FeedbackPressable>
             <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('reminder.time')}
@@ -158,9 +155,9 @@ function ExpirationReminderSettings() {
           </>
         )}
       </View>
-      {settings.enabled && calendar && (
-        <IngredientExpirationCalendar value={calendar.selected} maximumDate={calendar.today} disabled={saving}
-          onSelect={date => void saveDate(date)} onDismiss={() => setPicker(null)} />
+      {settings.enabled && picker === 'leadTime' && (
+        <ReminderLeadTimePicker daysBefore={settings.daysBefore} saving={saving} onSave={saveLeadTime}
+          onDismiss={() => setPicker(null)} />
       )}
       {settings.enabled && picker === 'time' && (
         <TimePicker minutes={settings.minutes} minuteInterval={5} saving={saving} onSave={saveTime}
