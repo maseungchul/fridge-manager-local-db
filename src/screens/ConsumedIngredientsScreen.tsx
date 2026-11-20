@@ -28,10 +28,11 @@ type RestoreRecord = Pick<ConsumedIngredient, 'id' | 'consumedAt'>;
 
 interface ConsumedIngredientsScreenProps {
   onClose: () => void;
+  onRecordsLoaded: () => void;
   onPickRestorePosition: (record: RestoreRecord) => void;
 }
 
-export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: ConsumedIngredientsScreenProps) {
+export function ConsumedIngredientsScreen({ onClose, onRecordsLoaded, onPickRestorePosition }: ConsumedIngredientsScreenProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const insets = useSafeAreaInsets();
@@ -58,13 +59,16 @@ export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: Co
 
     try {
       const result = await getConsumedIngredients(db);
-      if (request === loadRequest.current) setRecords(result);
+      if (request === loadRequest.current) {
+        setRecords(result);
+        onRecordsLoaded();
+      }
     } catch {
       if (request === loadRequest.current) setHasError(true);
     } finally {
       if (request === loadRequest.current) setIsLoading(false);
     }
-  }, [db]);
+  }, [db, onRecordsLoaded]);
   useFocusEffect(useCallback(() => {
     void loadRecords();
     return () => { loadRequest.current++; };

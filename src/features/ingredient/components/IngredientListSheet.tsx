@@ -43,11 +43,12 @@ interface IngredientListSheetProps {
   isFormOpen: boolean;
   formResultVersion: number;
   onDeleted?: (ingredientId: string) => void;
+  onConsumed?: () => void;
   onMoved?: (ingredients: Ingredient[]) => void;
   onRegistered: (ingredients: Ingredient[]) => void;
 }
 
-export function IngredientListSheet({ position, layout, allIngredients = [], initialIndex, onIndexChange, onClose, onOpenForm, isFormOpen, formResultVersion, onDeleted, onMoved, onRegistered }: IngredientListSheetProps) {
+export function IngredientListSheet({ position, layout, allIngredients = [], initialIndex, onIndexChange, onClose, onOpenForm, isFormOpen, formResultVersion, onDeleted, onConsumed, onMoved, onRegistered }: IngredientListSheetProps) {
   const { mode, colors, ingredientBadgeColors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
@@ -219,6 +220,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         setIsSelecting(false);
         setSelectedIds([]);
         if (kind === 'consume') {
+          onConsumed?.();
           showToast(t(hasShoppingDuplicates ? 'ingredient.consumedWithShoppingDuplicates' : 'ingredient.consumed'));
         }
         unlock();

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { ActivityIndicator, Animated, AppState, BackHandler, Easing, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
+import Storage from 'expo-sqlite/kv-store';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { getHeaderStyles } from '@/theme/headerStyles';
@@ -50,6 +51,7 @@ const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCou
 const HOME_MENU_SIZE = 40;
 const HOME_TOOL_ICON_SIZE = 22;
 const HOME_TOOLBAR_EDGE_SPACE = 8;
+const UNSEEN_CONSUMED_STORAGE_KEY = 'ingredients.hasUnseenConsumed';
 const EMPTY_INGREDIENT_DRAFT: IngredientDraft = { name: '', quantity: '', memo: '', expirationDate: null };
 
 export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngredientFormResult }: HomeScreenProps) {
@@ -70,6 +72,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const [ingredientListIndex, setIngredientListIndex] = useState(0);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
   const [isConsumedOpen, setIsConsumedOpen] = useState(false);
+  const [hasUnseenConsumed, setHasUnseenConsumed] = useState<boolean | null>(null);
+  const consumedBadgeWrite = useRef(Promise.resolve());
   const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
   const [isToolbarExpanded, setIsToolbarExpanded] = useState(true);
   const [isToolbarChanging, setIsToolbarChanging] = useState(false);
@@ -82,6 +86,26 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const queuedIngredients = queuedIds.flatMap(id => ingredients.find(ingredient => ingredient.id === id) ?? []);
   const hasQueuedIngredients = queuedIngredients.length > 0;
   const [badgeDate, setBadgeDate] = useState(() => new Date());
+
+  useEffect(() => {
+    let active = true;
+    void Storage.getItemAsync(UNSEEN_CONSUMED_STORAGE_KEY).then(saved => {
+      if (active) setHasUnseenConsumed(current => current ?? (saved === 'true'));
+    }).catch(() => {
+      if (active) setHasUnseenConsumed(current => current ?? false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const updateConsumedBadge = useCallback((hasUnseen: boolean) => {
+    setHasUnseenConsumed(hasUnseen);
+    // 소비 직후 목록을 열어도 확인 상태가 발생 순서대로 저장되도록 한다.
+    consumedBadgeWrite.current = consumedBadgeWrite.current.then(() =>
+      Storage.setItemAsync(UNSEEN_CONSUMED_STORAGE_KEY, String(hasUnseen))
+    ).catch(() => {});
+  }, []);
+  const markConsumedAsUnseen = useCallback(() => updateConsumedBadge(true), [updateConsumedBadge]);
+  const markConsumedAsSeen = useCallback(() => updateConsumedBadge(false), [updateConsumedBadge]);
   const {
     selectedAreaId, setSelectedAreaId, setFocusTarget, focusPhase, focusBounds, focusViewport, activeFocus,
     hasSeenScrollHint, markScrollHintSeen, finishFocusTransition, resetFocus,
@@ -319,28 +343,35 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                       <MaterialDesignIcons name="clipboard-text-outline" size={18} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('queue.pending')}</Text>
                       {hasQueuedIngredients && isToolbarExpanded ? (
-                        <View style={styles.queueDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+                        <View style={styles.toolbarDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
                       ) : null}
                     </FeedbackPressable>
                     <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.title')}
+                      accessibilityHint={hasUnseenConsumed ? t('consumed.unseenHint') : undefined}
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsConsumedOpen(true); }}
                       style={[styles.action, styles.homeAction]} hitSlop={4}>
                       <MaterialDesignIcons name="check-circle-outline" size={18} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('consumed.title')}</Text>
+                      {hasUnseenConsumed && isToolbarExpanded ? (
+                        <View style={styles.toolbarDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+                      ) : null}
                     </FeedbackPressable>
                   </Animated.View>
                 </View>
                 <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? t('home.collapseTools') : t('home.expandTools')}
-                  accessibilityHint={!isToolbarExpanded && hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : undefined}
+                  accessibilityHint={!isToolbarExpanded ? [
+                    hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : '',
+                    hasUnseenConsumed ? t('consumed.unseenHint') : '',
+                  ].filter(Boolean).join(' ') || undefined : undefined}
                   accessibilityState={{ expanded: isToolbarExpanded, disabled: isToolbarBlocked }}
                   disabled={false} interactionBlocked={isToolbarBlocked} onPress={toggleToolbar} feedback="none"
                   style={[styles.toolbarToggle, styles.floatingButton]} hitSlop={4}>
                   {({ pressed }) => <>
                     <MaterialDesignIcons name={isToolbarExpanded ? 'menu-close' : 'menu-open'} size={HOME_TOOL_ICON_SIZE}
                       color={pressed ? colors.sheetHandle : colors.buttonText} accessible={false} />
-                    {!isToolbarExpanded && hasQueuedIngredients ? (
-                      <View style={[styles.queueDot, styles.queueDotOnToggle]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+                    {!isToolbarExpanded && (hasQueuedIngredients || hasUnseenConsumed) ? (
+                      <View style={[styles.toolbarDot, styles.toolbarDotOnToggle]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
                     ) : null}
                   </>}
                 </FeedbackPressable>
@@ -349,6 +380,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
           </SafeAreaView>
         ) : null}
         {isConsumedOpen ? <ConsumedIngredientsScreen onClose={() => setIsConsumedOpen(false)}
+          onRecordsLoaded={markConsumedAsSeen}
           onPickRestorePosition={record => navigation.navigate('IngredientRestore', record)} /> : null}
         {isLegendOpen ? <FridgeIngredientLegend onClose={() => setIsLegendOpen(false)} /> : null}
         {isMoveQueueOpen && layout ? <IngredientMoveQueueSheet ingredients={queuedIngredients} layout={layout}
@@ -369,6 +401,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
               });
             }}
             onDeleted={ingredientId => setIngredients(current => current.filter(item => item.id !== ingredientId))}
+            onConsumed={markConsumedAsUnseen}
             onMoved={moved => setIngredients(current => current.map(item => moved.find(ingredient => ingredient.id === item.id) ?? item))}
             onRegistered={registered => setIngredients(current => [...current, ...registered])}
             onClose={closeIngredientList} />
@@ -461,9 +494,9 @@ const getStyles = createThemedStyles(({ colors, fridgeDoorColors }, mode) => Sty
     paddingHorizontal: spacing.sm, borderRadius: 18, borderColor: colors.sage,
     boxShadow: [{ offsetX: 0, offsetY: 1, blurRadius: 6, color: `${colors.button}14` }] },
   homeLabel: { color: colors.chilled, fontSize: 14 },
-  queueDot: { position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: 4,
+  toolbarDot: { position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: 4,
     backgroundColor: colors.moveQueueBadge },
-  queueDotOnToggle: { right: -1 },
+  toolbarDotOnToggle: { right: -1 },
   floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
   toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
     borderRadius: HOME_MENU_SIZE / 2, backgroundColor: colors.chilledFill },

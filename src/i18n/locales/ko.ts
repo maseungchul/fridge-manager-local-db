@@ -242,6 +242,7 @@ export const ko = {
   'ingredient.consumedWithShoppingDuplicates': '소비 완료했습니다. 이미 장보기 목록에 등록된 재료는 건너뛰었습니다.',
   'consumed.section': '재료 관리',
   'consumed.title': '소비 완료',
+  'consumed.unseenHint': '새 소비 완료 기록이 있습니다.',
   'consumed.loading': '소비 완료 목록 불러오는 중',
   'consumed.loadError': '소비 완료 목록을 불러오지 못했습니다.',
   'consumed.emptyTitle': '소비 완료한 재료가 없어요.',

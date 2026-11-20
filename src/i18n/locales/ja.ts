@@ -244,6 +244,7 @@ export const ja: Record<keyof typeof ko, string> = {
   'ingredient.consumedWithShoppingDuplicates': '使い切った食材として保存しました。買い物リストに登録済みの食材は追加を省略しました。',
   'consumed.section': '食材管理',
   'consumed.title': '使い切った食材',
+  'consumed.unseenHint': '使い切った食材の新しい記録があります。',
   'consumed.loading': '使い切った食材を読み込み中',
   'consumed.loadError': '使い切った食材を読み込めませんでした。',
   'consumed.emptyTitle': '使い切った食材はありません。',
