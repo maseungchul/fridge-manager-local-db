@@ -13,12 +13,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
-export interface IngredientSheetRef {
+export interface BottomSheetRef {
   close: () => void;
 }
 
-export interface IngredientSheetProps {
-  ref?: Ref<IngredientSheetRef>;
+export interface BottomSheetProps {
+  ref?: Ref<BottomSheetRef>;
   children: ReactNode;
   header?: ReactNode;
   disabled: boolean;
@@ -55,7 +55,7 @@ function SheetContent({ children, onClose }: PropsWithChildren<{
   );
 }
 
-export function IngredientSheet({ ref, children, header, disabled, initialIndex = 0, onIndexChange, onClose }: IngredientSheetProps) {
+export function BottomSheet({ ref, children, header, disabled, initialIndex = 0, onIndexChange, onClose }: BottomSheetProps) {
   const { mode } = useAppTheme();
   const styles = getStyles(mode);
   const sheetRef = useRef<BottomSheetModal>(null);

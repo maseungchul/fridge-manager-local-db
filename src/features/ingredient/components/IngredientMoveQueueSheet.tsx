@@ -7,8 +7,8 @@ import { useEffect, useRef } from 'react';
 import { BackHandler, StyleSheet, Text, View } from 'react-native';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { IngredientSheet } from '@/features/ingredient/components/IngredientSheet';
-import type { IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
+import { BottomSheet } from '@/features/ingredient/components/BottomSheet';
+import type { BottomSheetRef } from '@/features/ingredient/components/BottomSheet';
 import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
@@ -28,7 +28,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
-  const sheet = useRef<IngredientSheetRef>(null);
+  const sheet = useRef<BottomSheetRef>(null);
   const { remove, clear } = useIngredientMoveQueue();
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -39,7 +39,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
   }, []);
 
   return (
-    <IngredientSheet ref={sheet} disabled={false} onClose={onClose} header={
+    <BottomSheet ref={sheet} disabled={false} onClose={onClose} header={
         <View style={styles.header}>
           <View style={[styles.clearButton, styles.leftSpacer]} pointerEvents="none" />
           <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{t('queue.title', { count: ingredients.length })}</Text>
@@ -53,7 +53,7 @@ export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: Ingre
       <View style={styles.panel} onAccessibilityEscape={() => sheet.current?.close()}>
         <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false} onRemove={remove} />
       </View>
-    </IngredientSheet>
+    </BottomSheet>
   );
 }
 

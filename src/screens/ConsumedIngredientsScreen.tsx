@@ -8,7 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, BackHandler, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetFlatList as FlatList } from '@gorhom/bottom-sheet';
-import { IngredientSheet, type IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
+import { BottomSheet, type BottomSheetRef } from '@/features/ingredient/components/BottomSheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
@@ -48,7 +48,7 @@ export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: Co
   const allSelected = records.length > 0 && selected.length === records.length;
   const busy = useRef(false);
   const loadRequest = useRef(0);
-  const sheet = useRef<IngredientSheetRef>(null);
+  const sheet = useRef<BottomSheetRef>(null);
   const [pendingRestore, setPendingRestore] = useState<RestoreRecord | null>(null);
 
   const loadRecords = useCallback(async () => {
@@ -152,7 +152,7 @@ export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: Co
   const actionsDisabled = isBusy || isLoading || hasError || selected.length === 0;
 
   return (
-    <IngredientSheet ref={sheet} disabled={isBusy} onClose={() => {
+    <BottomSheet ref={sheet} disabled={isBusy} onClose={() => {
       onClose();
       if (pendingRestore) onPickRestorePosition(pendingRestore);
     }} header={
@@ -239,7 +239,7 @@ export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: Co
         </View>
       ) : null}
       </View>
-    </IngredientSheet>
+    </BottomSheet>
   );
 }
 

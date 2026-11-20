@@ -236,7 +236,7 @@ function loadComponent(path, overrides = {}) {
       useAnimatedStyle: callback => callback,
       useAnimatedReaction() {}, runOnJS: callback => callback,
     },
-    '@/features/ingredient/components/IngredientSheet': { IngredientSheet: 'BottomSheet' },
+    '@/features/ingredient/components/BottomSheet': { BottomSheet: 'BottomSheet' },
     '@/features/ingredient/IngredientMoveQueueProvider': moveQueueModule,
     '@/features/ingredient/ExpirationReminderProvider': {
       ExpirationReminderProvider: 'ExpirationReminderProvider', supportsExpirationReminders: true,
@@ -2310,7 +2310,7 @@ test('공통 재료 시트는 본문 스크롤과 제목 드래그를 구분하�
   for (const trigger of ['gesture', 'ref', 'escape']) {
     const events = [];
     const modal = { present() { events.push('present'); }, dismiss() { events.push('dismiss'); } };
-    const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.tsx', {
+    const { BottomSheet } = loadComponent('src/features/ingredient/components/BottomSheet.tsx', {
       react: { ...hooks, useRef(initial) {
         const ref = hooks.useRef(initial);
         if (initial === null) ref.current = modal;
@@ -2320,7 +2320,7 @@ test('공통 재료 시트는 본문 스크롤과 제목 드래그를 구분하�
     const ref = { current: null };
     const content = { type: 'Text', props: { children: '목록' } };
     const header = { type: 'Text', props: { children: '제목' } };
-    const sheet = mount(IngredientSheet, { ref, children: content, header, disabled: false, onClose() { events.push('end'); } });
+    const sheet = mount(BottomSheet, { ref, children: content, header, disabled: false, onClose() { events.push('end'); } });
     t.after(() => sheet.unmount());
     assert.deepEqual(events, ['present']);
     assert.equal(sheet.tree.type, 'BottomSheetModal');
@@ -2352,7 +2352,7 @@ test('공통 재료 시트는 본문 스크롤과 제목 드래그를 구분하�
 
 test('반높이 시트도 본문을 보이는 높이로 제한해 마지막 항목까지 스크롤한다', t => {
   const position = { value: 400 };
-  const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.tsx', {
+  const { BottomSheet } = loadComponent('src/features/ingredient/components/BottomSheet.tsx', {
     '@gorhom/bottom-sheet': {
       BottomSheetModal: 'BottomSheetModal', useBottomSheet: () => ({ snapToIndex() {} }),
       useBottomSheetInternal: () => ({
@@ -2360,7 +2360,7 @@ test('반높이 시트도 본문을 보이는 높이로 제한해 마지막 항�
       }),
     },
   });
-  const sheet = mount(IngredientSheet, { children: null, disabled: false, onClose() {} });
+  const sheet = mount(BottomSheet, { children: null, disabled: false, onClose() {} });
   const content = children(sheet.tree)[0];
   const body = mount(content.type, content.props);
   t.after(() => sheet.unmount());
@@ -2376,10 +2376,10 @@ test('반높이 시트도 본문을 보이는 높이로 제한해 마지막 항�
 
 test('공통 재료 시트는 복귀 높이로 열고 유효한 높이 변경만 전달하며 처리 중 닫기를 막는다', t => {
   for (const index of [0, 1]) {
-    const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.tsx');
+    const { BottomSheet } = loadComponent('src/features/ingredient/components/BottomSheet.tsx');
     const ref = { current: null };
     const changes = [];
-    const sheet = mount(IngredientSheet, { ref, initialIndex: index, children: null, disabled: false,
+    const sheet = mount(BottomSheet, { ref, initialIndex: index, children: null, disabled: false,
       onIndexChange(value) { changes.push(value); }, onClose() {} });
     t.after(() => sheet.unmount());
     assert.equal(sheet.tree.props.index, index);
@@ -2402,9 +2402,9 @@ test('공통 재료 시트는 복귀 높이로 열고 유효한 높이 변경만
 });
 
 test('손잡이 닫기를 취소해 복귀 신호가 없어도 다음 닫기를 허용한다', t => {
-  const { IngredientSheet } = loadComponent('src/features/ingredient/components/IngredientSheet.tsx');
+  const { BottomSheet } = loadComponent('src/features/ingredient/components/BottomSheet.tsx');
   const ref = { current: null };
-  const sheet = mount(IngredientSheet, { ref, children: null, disabled: false, onClose() {} });
+  const sheet = mount(BottomSheet, { ref, children: null, disabled: false, onClose() {} });
   t.after(() => sheet.unmount());
   let dismissed = 0;
   sheet.tree.props.ref.current = { dismiss() { dismissed++; } };
