@@ -2336,7 +2336,7 @@ test('공통 재료 시트는 본문 스크롤과 제목 드래그를 구분하�
     const backdrop = sheet.tree.props.backdropComponent({ style: native.StyleSheet.absoluteFill });
     assert.equal(backdrop.props.pressBehavior, 'close');
     assert.equal(backdrop.props.opacity, 1, 'iOS 터치 판정에서 제외되지 않도록 뷰의 불투명도를 유지한다');
-    assert.equal(flattenStyle(backdrop.props.style).backgroundColor, 'transparent', '배경색만 투명하게 유지한다');
+    assert.equal(flattenStyle(backdrop.props.style).backgroundColor, 'rgba(0, 0, 0, 0.4)', '배경색의 알파값으로 암전 강도를 조절한다');
     assert.equal(flattenStyle(backdrop.props.style).position, 'absolute');
     assert.equal(sheet.tree.props.containerComponent({ children: content }).props.accessibilityViewIsModal, true);
     if (trigger === 'ref') ref.current.close();

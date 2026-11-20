@@ -70,7 +70,7 @@ export function BottomSheet({ ref, children, header, disabled, initialIndex = 0,
     sheetRef.current?.dismiss();
   }, [disabled]);
   useImperativeHandle(ref, () => ({ close }), [close]);
-  // iOS는 opacity 0인 뷰를 터치 대상에서 제외하므로 배경색만 투명하게 처리한다.
+  // iOS는 opacity 0인 뷰를 터치 대상에서 제외하므로 배경색의 알파값으로 암전 강도를 조절한다.
   const renderBackdrop = useCallback((props: BottomSheetBackdropProps) => (
     <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1}
       pressBehavior={disabled ? 'none' : 'close'} opacity={1} accessible={false}
@@ -108,7 +108,7 @@ export function BottomSheet({ ref, children, header, disabled, initialIndex = 0,
 
 const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   content: { flex: 1 },
-  backdrop: { backgroundColor: 'transparent' },
+  backdrop: { backgroundColor: 'rgba(0, 0, 0, 0.4)' },
   background: { backgroundColor: colors.surface, borderRadius: 24 },
   dragIndicator: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3,
     marginTop: spacing.xs, marginBottom: 5, backgroundColor: colors.sheetHandle },
