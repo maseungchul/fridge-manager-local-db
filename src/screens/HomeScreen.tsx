@@ -3,6 +3,7 @@
  * 저장된 냉장고를 공통 도면으로 표시하며, 홈에서는 영역 대신 개별 수납 칸을 선택한다.
  * 칸 선택으로 재료 목록을 열고, 미등록 상태에서는 안내·등록 버튼을 표시한다.
  */
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,19 +26,20 @@ import type { FridgeFocusPhase } from '@/features/fridge/components/FridgeInteri
 import { getDraftLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Refrigerator } from '@/features/fridge/model/fridgeLayout';
 import { IngredientListSheet } from '@/features/ingredient/components/IngredientListSheet';
+import { ConsumedIngredientsScreen } from '@/screens/ConsumedIngredientsScreen';
 import { IngredientMoveQueueSheet } from '@/features/ingredient/components/IngredientMoveQueueSheet';
 import type { Ingredient, IngredientDraft } from '@/features/ingredient/model/ingredient';
 import type { IngredientFormResult } from '@/screens/IngredientFormScreen';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
-import type { HomeStackParamList } from '@/navigation/MainTabNavigator';
+import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import { FRIDGE_HEADER_BUTTON_SIZE } from '@/features/fridge/components/fridgeDiagramLayout';
 import { getFridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 
 type HomeScreenProps = CompositeScreenProps<
-  NativeStackScreenProps<HomeStackParamList, 'FridgeHome'>,
+  BottomTabScreenProps<MainTabParamList, 'Home'>,
   NativeStackScreenProps<RootStackParamList>
 > & {
   onTabInteractionBlockedChange?: (blocked: boolean) => void;
@@ -67,6 +69,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const [ingredientFormResultVersion, setIngredientFormResultVersion] = useState(0);
   const [ingredientListIndex, setIngredientListIndex] = useState(0);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+  const [isConsumedOpen, setIsConsumedOpen] = useState(false);
   const [isMoveQueueOpen, setIsMoveQueueOpen] = useState(false);
   const [isToolbarExpanded, setIsToolbarExpanded] = useState(true);
   const [isToolbarChanging, setIsToolbarChanging] = useState(false);
@@ -75,7 +78,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const toolbarChanging = useRef(false);
   const closedScrollY = useRef(0);
   const isFocusBlocked = useCallback(() => toolbarChanging.current, []);
-  const isSheetOpen = isIngredientListOpen || isMoveQueueOpen;
+  const isSheetOpen = isIngredientListOpen || isMoveQueueOpen || isConsumedOpen;
   const queuedIngredients = queuedIds.flatMap(id => ingredients.find(ingredient => ingredient.id === id) ?? []);
   const hasQueuedIngredients = queuedIngredients.length > 0;
   const [badgeDate, setBadgeDate] = useState(() => new Date());
@@ -321,7 +324,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                     </FeedbackPressable>
                     <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.title')}
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
-                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) navigation.navigate('ConsumedIngredients'); }}
+                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsConsumedOpen(true); }}
                       style={[styles.action, styles.homeAction]} hitSlop={4}>
                       <MaterialDesignIcons name="check-circle-outline" size={18} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('consumed.title')}</Text>
@@ -345,6 +348,8 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
             </View>
           </SafeAreaView>
         ) : null}
+        {isConsumedOpen ? <ConsumedIngredientsScreen onClose={() => setIsConsumedOpen(false)}
+          onPickRestorePosition={record => navigation.navigate('IngredientRestore', record)} /> : null}
         {isLegendOpen ? <FridgeIngredientLegend onClose={() => setIsLegendOpen(false)} /> : null}
         {isMoveQueueOpen && layout ? <IngredientMoveQueueSheet ingredients={queuedIngredients} layout={layout}
           onClose={() => setIsMoveQueueOpen(false)} /> : null}

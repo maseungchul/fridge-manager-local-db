@@ -7,14 +7,12 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BottomTabBar, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import * as Haptics from 'expo-haptics';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ShoppingScreen, type ShoppingSelectionActions } from '@/screens/ShoppingScreen';
-import { ConsumedIngredientsScreen, type ConsumedActions } from '@/screens/ConsumedIngredientsScreen';
 import { MoreStackNavigator } from '@/navigation/MoreStackNavigator';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
@@ -27,12 +25,6 @@ export type MainTabParamList = {
   More: undefined;
 };
 
-export type HomeStackParamList = {
-  FridgeHome: undefined;
-  ConsumedIngredients: undefined;
-};
-
-const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export function MainTabNavigator({ takeIngredientFormResult }: {
@@ -45,26 +37,11 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
   const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
   const [shoppingAction, setShoppingAction] = useState<ShoppingSelectionActions | null>(null);
 
-  const [consumedAction, setConsumedAction] = useState<ConsumedActions | null>(null);
 
   return (
-    <Tab.Navigator initialRouteName="Home" tabBar={props => shoppingAction || consumedAction ? (
+    <Tab.Navigator initialRouteName="Home" tabBar={props => shoppingAction ? (
       <View style={[styles.selectionToolbar, { height: 50 + insets.bottom, paddingBottom: insets.bottom,
         paddingLeft: spacing.sm + insets.left, paddingRight: spacing.sm + insets.right }]}>
-        {consumedAction ? [
-          { icon: 'restore' as const, label: t('consumed.restore'), onPress: consumedAction.onRestore, destructive: false },
-          { icon: 'trash-can-outline' as const, label: t('consumed.delete'), onPress: consumedAction.onDelete, destructive: true },
-        ].map(({ icon, label, onPress, destructive }) => (
-          <FeedbackPressable key={icon} accessibilityRole="button" accessibilityLabel={label}
-            disabled={consumedAction.disabled} accessibilityState={{ disabled: consumedAction.disabled }}
-            feedback="none" onPress={onPress} style={styles.selectionAction}>
-            {({ pressed }) => {
-              const color = destructive ? (pressed ? colors.errorPressed : colors.error) : (pressed ? colors.iconPressed : colors.text);
-              return <><MaterialDesignIcons name={icon} size={24} color={color} accessible={false} pointerEvents="none" />
-                <Text style={[destructive ? styles.deleteLabel : styles.purchaseLabel, { color }]}>{label}</Text></>;
-            }}
-          </FeedbackPressable>
-        )) : shoppingAction && <>
         <FeedbackPressable accessibilityRole="button" accessibilityLabel={t(shoppingAction.isUndo ? 'shopping.undoPurchase' : 'shopping.purchasedTab')}
           disabled={shoppingAction.disabled} accessibilityState={{ disabled: shoppingAction.disabled }}
           feedback="none" onPress={shoppingAction.onPurchase} style={styles.selectionAction}>
@@ -90,7 +67,6 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
             color={pressed ? colors.errorPressed : colors.error} accessible={false} pointerEvents="none" />
             <Text style={[styles.deleteLabel, pressed && { color: colors.errorPressed }]}>{t('common.delete')}</Text></>}
         </FeedbackPressable> : null}
-        </>}
       </View>
     ) : <BottomTabBar {...props} />} screenOptions={{
       headerShown: false,
@@ -128,18 +104,8 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
           <MaterialDesignIcons name={focused ? 'fridge' : 'fridge-outline'} size={size} color={color} accessible={false} />
         ),
       }}>
-        {() => (
-          <HomeStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-            <HomeStack.Screen name="FridgeHome">
-              {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked}
-                takeIngredientFormResult={takeIngredientFormResult} />}
-            </HomeStack.Screen>
-            <HomeStack.Screen name="ConsumedIngredients">
-              {props => <ConsumedIngredientsScreen {...props} onInteractionBlockedChange={setIsTabInteractionBlocked}
-                onSelectionModeChange={setConsumedAction} />}
-            </HomeStack.Screen>
-          </HomeStack.Navigator>
-        )}
+        {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked}
+          takeIngredientFormResult={takeIngredientFormResult} />}
       </Tab.Screen>
       <Tab.Screen name="Shopping" options={{
         title: t('tabs.shopping'),

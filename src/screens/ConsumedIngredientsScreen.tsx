@@ -4,11 +4,11 @@
  * 원래 위치를 사용할 수 없으면 공통 냉장고 도면의 위치 선택 화면으로 연결한다.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useFocusEffect, usePreventRemove } from '@react-navigation/native';
-import type { CompositeScreenProps } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, Alert, BackHandler, FlatList, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { ActivityIndicator, Alert, BackHandler, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomSheetFlatList as FlatList } from '@gorhom/bottom-sheet';
+import { IngredientSheet, type IngredientSheetRef } from '@/features/ingredient/components/IngredientSheet';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
@@ -20,22 +20,21 @@ import type { ConsumedIngredient } from '@/features/ingredient/model/ingredient'
 import { useTranslation } from '@/i18n/LanguageProvider';
 import { getErrorMessage } from '@/i18n/errors';
 import { formatDate } from '@/i18n/translations';
-import type { HomeStackParamList } from '@/navigation/MainTabNavigator';
-import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { HEADER_CONTENT_HEIGHT, COMPACT_HEADER_ICON_INSET, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
-export type ConsumedActions = { disabled: boolean; onRestore: () => void; onDelete: () => void };
+type RestoreRecord = Pick<ConsumedIngredient, 'id' | 'consumedAt'>;
 
-type ConsumedIngredientsScreenProps = CompositeScreenProps<
-  NativeStackScreenProps<HomeStackParamList, 'ConsumedIngredients'>,
-  NativeStackScreenProps<RootStackParamList>
-> & { onInteractionBlockedChange: (blocked: boolean) => void; onSelectionModeChange: (actions: ConsumedActions | null) => void };
+interface ConsumedIngredientsScreenProps {
+  onClose: () => void;
+  onPickRestorePosition: (record: RestoreRecord) => void;
+}
 
-export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChange, onSelectionModeChange }: ConsumedIngredientsScreenProps) {
+export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: ConsumedIngredientsScreenProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const showToast = useToast();
   const db = useSQLiteContext();
@@ -49,6 +48,8 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
   const allSelected = records.length > 0 && selected.length === records.length;
   const busy = useRef(false);
   const loadRequest = useRef(0);
+  const sheet = useRef<IngredientSheetRef>(null);
+  const [pendingRestore, setPendingRestore] = useState<RestoreRecord | null>(null);
 
   const loadRecords = useCallback(async () => {
     const request = ++loadRequest.current;
@@ -69,11 +70,10 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
     return () => { loadRequest.current++; };
   }, [loadRecords]));
 
+  // 위치 선택 화면이 시트 아래에 열리지 않도록 닫기 완료까지 기다린다.
   useEffect(() => {
-    onInteractionBlockedChange(isBusy);
-    return () => onInteractionBlockedChange(false);
-  }, [isBusy, onInteractionBlockedChange]);
-  usePreventRemove(isBusy, () => undefined);
+    if (pendingRestore && !isBusy) sheet.current?.close();
+  }, [isBusy, pendingRestore]);
 
   function unlock() {
     busy.current = false;
@@ -85,14 +85,16 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
     setSelectedIds([]);
   }, []);
 
-  useFocusEffect(useCallback(() => {
-    if (!isSelecting) return;
+  useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!busy.current) finishSelection();
+      if (!busy.current) {
+        if (isSelecting) finishSelection();
+        else sheet.current?.close();
+      }
       return true;
     });
     return () => subscription.remove();
-  }, [finishSelection, isSelecting]));
+  }, [finishSelection, isSelecting]);
 
   async function restore() {
     if (busy.current || isLoading || hasError || selected.length === 0) return;
@@ -104,7 +106,7 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
       for (const record of selected) {
         const restored = await restoreConsumedIngredient(db, record);
         if (!restored) {
-          navigation.navigate('IngredientRestore', { id: record.id, consumedAt: record.consumedAt });
+          setPendingRestore({ id: record.id, consumedAt: record.consumedAt });
           return;
         }
         setRecords(current => current.filter(item => item.id !== record.id));
@@ -147,27 +149,15 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
     ], { cancelable: false });
   }
 
-  const actionHandlers = useRef({ restore, requestDelete });
-  useEffect(() => { actionHandlers.current = { restore, requestDelete }; });
   const actionsDisabled = isBusy || isLoading || hasError || selected.length === 0;
-  useFocusEffect(useCallback(() => {
-    if (!isSelecting) return;
-    onSelectionModeChange({ disabled: actionsDisabled, onRestore: () => void actionHandlers.current.restore(),
-      onDelete: () => actionHandlers.current.requestDelete() });
-    return () => onSelectionModeChange(null);
-  }, [actionsDisabled, isSelecting, onSelectionModeChange]));
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+    <IngredientSheet ref={sheet} disabled={isBusy} onClose={() => {
+      onClose();
+      if (pendingRestore) onPickRestorePosition(pendingRestore);
+    }} header={
       <View style={styles.header}>
-        <View style={[styles.headerSide, isSelecting && styles.selectionHeaderLeft]}>
-          {!isSelecting && (
-            <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('more.back')}
-              disabled={isBusy} accessibilityState={{ disabled: isBusy }} onPress={() => { if (!busy.current) navigation.goBack(); }}
-              style={[styles.headerButton, styles.backButton]}>
-              <MaterialDesignIcons name="arrow-left" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-            </FeedbackPressable>
-          )}
+        <View style={[styles.headerSide, styles.selectionHeaderLeft]}>
           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t(isSelecting ? 'ingredient.selectAll' : 'ingredient.select')}
             disabled={isBusy || isLoading || hasError || records.length === 0}
             accessibilityState={isSelecting ? { selected: allSelected } : undefined}
@@ -181,20 +171,17 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
           </FeedbackPressable>
         </View>
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('consumed.title')}</Text>
-        <View style={[styles.headerSide, styles.headerRight, isSelecting && styles.selectionHeaderRight]}>
-          {isSelecting && <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
-            disabled={isBusy} onPress={finishSelection} style={styles.headerButton}>
-            <MaterialDesignIcons name="close" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-          </FeedbackPressable>}
-        </View>
+        <View style={[styles.headerButton, styles.selectionHeaderRight]} />
       </View>
+    }>
+      <View style={styles.container}>
       {isLoading ? <View style={styles.feedback}><ActivityIndicator color={colors.text} accessibilityLabel={t('consumed.loading')} /></View>
         : hasError ? <View style={styles.feedback}>
           <Text accessibilityRole="alert" style={styles.error}>{t('consumed.loadError')}</Text>
           <PrimaryButton label={t('common.retry')} variant="secondary" onPress={loadRecords} style={styles.retry} />
         </View> : (
           <FlatList data={records} keyExtractor={item => item.id} extraData={selectedIds} style={styles.list}
-            contentContainerStyle={records.length === 0 ? styles.empty : styles.listContent}
+            contentContainerStyle={records.length === 0 ? styles.empty : [styles.listContent, !isSelecting && { paddingBottom: spacing.lg + insets.bottom }]}
             ListEmptyComponent={<EmptyListState message={t('consumed.emptyTitle')} description={t('consumed.emptyGuide')} />}
             renderItem={({ item }) => {
               const date = new Date(item.consumedAt);
@@ -221,21 +208,44 @@ export function ConsumedIngredientsScreen({ navigation, onInteractionBlockedChan
               ) : <View style={styles.item}>{content}</View>;
             }} />
         )}
-    </SafeAreaView>
+      {isSelecting ? (
+        <View style={[styles.selectionToolbar, { minHeight: 50 + insets.bottom, paddingBottom: insets.bottom }]}>
+          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.restore')}
+            disabled={actionsDisabled} accessibilityState={{ disabled: actionsDisabled }}
+            feedback="none" onPress={restore} style={styles.selectionAction}>
+            {({ pressed }) => <>
+              <MaterialDesignIcons name="restore" size={24} color={pressed ? colors.iconPressed : colors.text} accessible={false} />
+              <Text style={[styles.restoreLabel, pressed && { color: colors.iconPressed }]}>{t('consumed.restore')}</Text>
+            </>}
+          </FeedbackPressable>
+          <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.delete')}
+            disabled={actionsDisabled} accessibilityState={{ disabled: actionsDisabled }}
+            feedback="none" onPress={requestDelete} style={styles.selectionAction}>
+            {({ pressed }) => <>
+              <MaterialDesignIcons name="trash-can-outline" size={24} color={pressed ? colors.errorPressed : colors.error} accessible={false} />
+              <Text style={[styles.deleteLabel, pressed && { color: colors.errorPressed }]}>{t('consumed.delete')}</Text>
+            </>}
+          </FeedbackPressable>
+        </View>
+      ) : null}
+      </View>
+    </IngredientSheet>
   );
 }
 
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: colors.surface },
   ...getCompactHeaderStyles(mode),
   header: { ...getCompactHeaderStyles(mode).header, gap: 0 },
   title: { ...getCompactHeaderStyles(mode).title, flex: 1, textAlign: 'center' },
-  headerSide: { width: HEADER_CONTENT_HEIGHT * 2 - spacing.sm, flexDirection: 'row' },
-  headerRight: { justifyContent: 'flex-end' },
+  headerSide: { flexDirection: 'row' },
   selectionHeaderLeft: { width: HEADER_CONTENT_HEIGHT, marginLeft: -COMPACT_HEADER_ICON_INSET },
   selectionHeaderRight: { width: HEADER_CONTENT_HEIGHT, marginRight: -COMPACT_HEADER_ICON_INSET },
   headerButton: { width: HEADER_CONTENT_HEIGHT, height: HEADER_CONTENT_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  backButton: { marginLeft: -spacing.sm },
+  selectionToolbar: { flexDirection: 'row', flexShrink: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surface },
+  selectionAction: { flex: 1, minHeight: 48, marginHorizontal: spacing.xs, paddingTop: spacing.xs, alignItems: 'center', justifyContent: 'center' },
+  restoreLabel: { color: colors.text, fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  deleteLabel: { color: colors.error, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   list: { flex: 1 },
   listContent: { paddingBottom: spacing.lg },
   empty: { flexGrow: 1, justifyContent: 'center' },
