@@ -171,7 +171,13 @@ export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: Co
           </FeedbackPressable>
         </View>
         <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>{t('consumed.title')}</Text>
-        <View style={[styles.headerButton, styles.selectionHeaderRight]} />
+        {isSelecting ? (
+          <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.cancelSelection')}
+            disabled={isBusy} onPress={() => { if (!busy.current) finishSelection(); }}
+            style={[styles.headerButton, styles.selectionHeaderRight]}>
+            <MaterialDesignIcons name="close" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
+          </FeedbackPressable>
+        ) : <View style={[styles.headerButton, styles.selectionHeaderRight]} />}
       </View>
     }>
       <View style={styles.container}>
@@ -180,8 +186,10 @@ export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: Co
           <Text accessibilityRole="alert" style={styles.error}>{t('consumed.loadError')}</Text>
           <PrimaryButton label={t('common.retry')} variant="secondary" onPress={loadRecords} style={styles.retry} />
         </View> : (
-          <FlatList data={records} keyExtractor={item => item.id} extraData={selectedIds} style={styles.list}
-            contentContainerStyle={records.length === 0 ? styles.empty : [styles.listContent, !isSelecting && { paddingBottom: spacing.lg + insets.bottom }]}
+          <FlatList data={records} keyExtractor={item => item.id} extraData={selectedIds}
+            showsVerticalScrollIndicator indicatorStyle={mode === 'dark' ? 'white' : 'black'} automaticallyAdjustsScrollIndicatorInsets={false}
+            scrollIndicatorInsets={{ top: 0, bottom: spacing.md + (isSelecting ? 0 : insets.bottom), left: 0, right: spacing.xs }}
+            style={styles.list} contentContainerStyle={[records.length === 0 ? styles.empty : undefined, { paddingBottom: isSelecting ? 0 : insets.bottom }]}
             ListEmptyComponent={<EmptyListState message={t('consumed.emptyTitle')} description={t('consumed.emptyGuide')} />}
             renderItem={({ item }) => {
               const date = new Date(item.consumedAt);
@@ -201,15 +209,17 @@ export function ConsumedIngredientsScreen({ onClose, onPickRestorePosition }: Co
                     if (!busy.current) setSelectedIds(current => current.includes(item.id)
                       ? current.filter(id => id !== item.id) : [...current, item.id]);
                   }} style={[styles.item, checked && styles.checkedItem]}>
-                  <MaterialDesignIcons name={checked ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'} size={24}
-                    color={checked ? colors.chilled : colors.textMuted} accessible={false} />
+                  {checked ? (
+                    <MaterialDesignIcons name="checkbox-marked-circle" size={24} color={colors.chilled} accessible={false} />
+                  ) : <View style={styles.selectionCircleContainer}><View style={styles.selectionCircle} /></View>}
                   {content}
                 </FeedbackPressable>
               ) : <View style={styles.item}>{content}</View>;
             }} />
         )}
       {isSelecting ? (
-        <View style={[styles.selectionToolbar, { minHeight: 50 + insets.bottom, paddingBottom: insets.bottom }]}>
+        <View style={[styles.selectionToolbar, { height: 50 + insets.bottom, paddingBottom: insets.bottom,
+          paddingLeft: spacing.sm + insets.left, paddingRight: spacing.sm + insets.right }]}>
           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.restore')}
             disabled={actionsDisabled} accessibilityState={{ disabled: actionsDisabled }}
             feedback="none" onPress={restore} style={styles.selectionAction}>
@@ -247,7 +257,6 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   restoreLabel: { color: colors.text, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   deleteLabel: { color: colors.error, fontSize: 12, lineHeight: 16, fontWeight: '600' },
   list: { flex: 1 },
-  listContent: { paddingBottom: spacing.lg },
   empty: { flexGrow: 1, justifyContent: 'center' },
   feedback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
   error: { color: colors.error, fontSize: 16, textAlign: 'center' },
@@ -255,6 +264,8 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.lg, gap: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   itemContent: { flex: 1, gap: spacing.xs },
   checkedItem: { backgroundColor: colors.chilledBackground },
+  selectionCircleContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  selectionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: colors.textMuted },
   name: { color: colors.text, fontSize: 17, fontWeight: '600' },
   quantity: { fontWeight: '400' },
   detail: { color: colors.textMuted, fontSize: 15, lineHeight: 21 },
