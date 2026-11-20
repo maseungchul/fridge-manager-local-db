@@ -10,8 +10,10 @@ import { useAppTheme } from '@/theme/ThemeProvider';
 import { createThemedStyles, spacing } from '@/theme/tokens';
 
 interface PickerWheelProps {
+  fontSize?: number;
   side?: 'left' | 'right';
   formatOption?: (value: number) => string;
+  formatAccessibilityValue?: (value: number) => string;
   label: string;
   value: number;
   wheel: ReturnType<typeof createWheel>;
@@ -54,7 +56,8 @@ export function PickerWheelTrack({ children }: { children: React.ReactNode }) {
 export const PICKER_ROW_HEIGHT = ROW_HEIGHT;
 export const PICKER_ROW_BOTTOM = CENTER_PADDING + FOOTER_HEIGHT;
 
-export function PickerWheel({ side, formatOption = formatNumber, label, value, wheel: { offsets, optionCount, middleIndex, loop }, step = 1, disabled, onChange }: PickerWheelProps) {
+export function PickerWheel({ side, fontSize = 25, formatOption = formatNumber, formatAccessibilityValue = formatOption,
+  label, value, wheel: { offsets, optionCount, middleIndex, loop }, step = 1, disabled, onChange }: PickerWheelProps) {
   const { mode } = useAppTheme();
   const styles = getStyles(mode);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -90,7 +93,7 @@ export function PickerWheel({ side, formatOption = formatNumber, label, value, w
 
   return (
     <View style={styles.column} accessible accessibilityRole="adjustable" accessibilityLabel={label}
-      accessibilityState={{ disabled }} accessibilityValue={{ text: formatOption(value * step) }}
+      accessibilityState={{ disabled }} accessibilityValue={{ text: formatAccessibilityValue(value * step) }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={event => {
         const action = event.nativeEvent.actionName;
@@ -109,7 +112,7 @@ export function PickerWheel({ side, formatOption = formatNumber, label, value, w
           return (
             <Pressable key={offset} accessible={false} disabled={disabled} style={styles.row} onPress={() => select(index)}>
               <Text numberOfLines={1} maxFontSizeMultiplier={1.4}
-                style={[styles.wheelText, side && styles[side], styles.number,
+                style={[styles.wheelText, side && styles[side], styles.number, { fontSize },
                   distance === 0 ? styles.selectedNumber : { opacity: Math.max(0.25, 1 - distance * 0.32) }]}>
                 {formatOption(option * step)}
               </Text>
@@ -133,7 +136,7 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   wheel: { height: CENTER_PADDING * 2 + ROW_HEIGHT + TOP_PADDING + FOOTER_HEIGHT, flexGrow: 0 },
   wheelContent: { paddingTop: CENTER_PADDING + TOP_PADDING, paddingBottom: CENTER_PADDING + FOOTER_HEIGHT },
   row: { height: ROW_HEIGHT, justifyContent: 'center', alignItems: 'center' },
-  number: { color: colors.textMuted, fontSize: 25, fontVariant: ['tabular-nums'] },
+  number: { color: colors.textMuted, fontVariant: ['tabular-nums'] },
   selectedNumber: { color: colors.text },
   selectionBand: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: CENTER_PADDING + FOOTER_HEIGHT, height: ROW_HEIGHT, borderRadius: 12, backgroundColor: colors.sageLight },
 }));

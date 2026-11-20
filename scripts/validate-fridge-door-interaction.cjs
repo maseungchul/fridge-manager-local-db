@@ -3465,9 +3465,16 @@ test('알림 시점 휠은 기존 30일 초과 값을 복원하고 새 시점을
   });
   t.after(() => picker.unmount());
   const wheel = find(picker.tree, named('PickerWheel')).props;
-  assert.equal(wheel.formatOption(wheel.value), '유통기한 45일 전');
+  assert.equal(wheel.formatOption(wheel.value), '45');
+  assert.equal(wheel.formatAccessibilityValue(wheel.value), '유통기한 45일 전');
   assert.equal(wheel.wheel.loop, false);
-  assert.equal(wheel.formatOption(0), '유통기한 당일');
+  assert.equal(wheel.formatOption(0), '당일');
+  assert(find(picker.tree, node => node.type === 'Text' && node.props.children === '유통기한'));
+  assert(find(picker.tree, node => node.type === 'Text' && node.props.children === '일 전'));
+  wheel.onChange(0);
+  picker.render();
+  assert(find(picker.tree, node => node.type === 'Text' && node.props.children === '유통기한'));
+  assert.equal(find(picker.tree, node => node.type === 'Text' && node.props.children === '일 전'), undefined);
   wheel.onChange(30);
   picker.render();
   find(picker.tree, node => node.type === 'Modal').props.onRequestClose();

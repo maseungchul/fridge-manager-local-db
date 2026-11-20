@@ -63,6 +63,8 @@ export const ja: Record<keyof typeof ko, string> = {
   'reminder.leadTime': '通知タイミング',
   'reminder.closeLeadTime': '通知タイミングを閉じる',
   'reminder.onExpirationDate': '賞味期限当日',
+  'reminder.sameDay': '当日',
+  'reminder.daysUnit': '日前',
   'reminder.daysBefore': '賞味期限の{days}日前',
   'reminder.time': '通知時刻',
   'timePicker.close': '時刻選択を閉じる',

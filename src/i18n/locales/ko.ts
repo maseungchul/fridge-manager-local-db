@@ -61,6 +61,8 @@ export const ko = {
   'reminder.leadTime': '알림 시점',
   'reminder.closeLeadTime': '알림 시점 닫기',
   'reminder.onExpirationDate': '유통기한 당일',
+  'reminder.sameDay': '당일',
+  'reminder.daysUnit': '일 전',
   'reminder.daysBefore': '유통기한 {days}일 전',
   'reminder.time': '알림 시각',
   'timePicker.close': '시각 선택 닫기',

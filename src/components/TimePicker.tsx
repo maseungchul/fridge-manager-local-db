@@ -49,7 +49,7 @@ export function TimePicker({ minutes, minuteInterval = 1, saving, onSave, onDism
   );
 }
 
-const getStyles = createThemedStyles(() => StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   separator: { position: 'absolute', left: 0, right: 0, bottom: PICKER_ROW_BOTTOM, height: PICKER_ROW_HEIGHT, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  separatorDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#000000' },
+  separatorDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: mode === 'dark' ? colors.text : '#000000' },
 }));
