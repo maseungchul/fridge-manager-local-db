@@ -4,10 +4,11 @@
  * 하위 설정은 도면과 분리된 표시 공간에 펼치며, 초안과 선택 상태는 호출자가 관리한다.
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { QuantityStepper } from '@/components/QuantityStepper';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import { doorOpeningOptions, getSlotName, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
@@ -139,14 +140,13 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
           );
         })}
         {storageEnabled !== undefined ? (
-          <View style={[styles.action, styles.storageAction, disabled && styles.disabled]}>
-            <View style={styles.actionLabel}>
+          <View style={[styles.action, styles.storageAction]}>
+            <View style={[styles.actionLabel, disabled && styles.disabled]}>
               <MaterialDesignIcons name="tray-full" size={18} color={colors.text} accessible={false} />
               <Text accessible={false} numberOfLines={1} style={styles.label}>{t('fridge.doorStorage')}</Text>
             </View>
-            <Switch accessibilityLabel={t('fridge.useDoorStorage')} value={storageEnabled} disabled={disabled}
-              onValueChange={onStorageChange} trackColor={{ false: colors.border, true: colors.chilled }}
-              thumbColor={colors.surface} ios_backgroundColor={colors.border} hitSlop={6} style={styles.storageSwitch} />
+            <ToggleSwitch accessibilityLabel={t('fridge.useDoorStorage')} value={storageEnabled} disabled={disabled}
+              onValueChange={onStorageChange} />
           </View>
         ) : null}
         {onMerge || onSplit ? (
@@ -198,13 +198,10 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   actionLabel: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  storageSwitch: {
-    alignSelf: 'center',
-    transform: [{ scale: 0.8 }],
   },
   disabled: {
     opacity: 0.42,

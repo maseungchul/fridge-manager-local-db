@@ -4,7 +4,7 @@
  * 설정 상태와 영구 저장은 각 공통 Provider에서 관리한다.
  */
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -12,6 +12,7 @@ import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { TimePicker } from '@/components/TimePicker';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { supportsExpirationReminders, useExpirationReminder } from '@/features/ingredient/ExpirationReminderProvider';
 import { ReminderLeadTimePicker } from '@/features/ingredient/components/ReminderLeadTimePicker';
 import { formatReminderDaysBefore } from '@/features/ingredient/model/expirationReminder';
@@ -132,10 +133,9 @@ function ExpirationReminderSettings() {
     <View style={styles.section}>
       <Text style={styles.description}>{t('reminder.description')}</Text>
       <View style={styles.options}>
-        <View style={styles.option}>
-          <Text style={styles.optionLabel}>{t('reminder.enabled')}</Text>
-          <Switch accessibilityLabel={t('reminder.enabled')} value={settings.enabled} disabled={disabled}
-            trackColor={{ true: colors.chilled, false: colors.border }}
+        <View style={[styles.option, styles.switchOption]}>
+          <Text accessible={false} style={styles.optionLabel}>{t('reminder.enabled')}</Text>
+          <ToggleSwitch accessibilityLabel={t('reminder.enabled')} value={settings.enabled} disabled={disabled}
             onValueChange={enabled => void saveSettings({ ...settings, enabled }).catch(showError)} />
         </View>
         {settings.enabled && (
@@ -205,6 +205,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.surface,
   },
+  switchOption: { paddingVertical: spacing.xs },
   selected: { borderColor: colors.chilled, backgroundColor: colors.sageLight },
   optionLabel: { flex: 1, color: colors.text, fontSize: 16, lineHeight: 24 },
   optionValue: { color: colors.textMuted, fontSize: 16, flexShrink: 1, textAlign: 'right' },
