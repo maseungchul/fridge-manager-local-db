@@ -2,7 +2,7 @@
  * @file
  * 공통 선택 휠의 스크롤·순환·접근성 조작을 처리한다.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, useAnimatedValue, View } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
@@ -26,15 +26,18 @@ const SIDE_ROWS = 2;
 const CENTER_PADDING = ROW_HEIGHT * SIDE_ROWS;
 const TOP_PADDING = spacing.md;
 const FOOTER_HEIGHT = spacing.md;
-const WHEEL_COPIES = 11;
+const LOOP_BUFFER_ROWS = 1200;
+const RECENTER_DISTANCE = 120;
+const SCROLL_SETTLE_DELAY = 150;
 const WINDOW_STEP = 8;
 const WINDOW_BUFFER = 16;
 const DECELERATION_RATE = Platform.OS === 'android' ? 0.95 : 0.994;
 
 export function createWheel(optionCount: number, loop = true) {
-  const copies = loop ? WHEEL_COPIES : 1;
-  const offsets = Array.from({ length: optionCount * copies }, (_, index) => index * ROW_HEIGHT);
-  return { optionCount, offsets, middleIndex: optionCount * Math.floor(copies / 2), loop };
+  // 옵션이 적은 분 휠도 한 번에 길게 돌릴 수 있도록 양쪽 행 수를 맞춘다.
+  const sideCopies = loop ? Math.ceil(LOOP_BUFFER_ROWS / optionCount) : 0;
+  const offsets = Array.from({ length: optionCount * (sideCopies * 2 + 1) }, (_, index) => index * ROW_HEIGHT);
+  return { optionCount, offsets, middleIndex: optionCount * sideCopies, loop };
 }
 
 
@@ -67,7 +70,25 @@ export function PickerWheel({ side, formatOption = formatNumber, formatAccessibi
   const scrollY = useAnimatedValue(initialOffset.y);
   const [windowStart, setWindowStart] = useState(() => Math.floor((middleIndex + value) / WINDOW_STEP) * WINDOW_STEP);
   const activeIndex = useRef(middleIndex + value);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastIndex = offsets.length - 1;
+  const windowFirst = Math.max(0, windowStart - WINDOW_BUFFER);
+  const windowEnd = windowStart + WINDOW_STEP + WINDOW_BUFFER;
+  const middleFirst = middleIndex - SIDE_ROWS;
+  const middleEnd = middleIndex + optionCount + SIDE_ROWS;
+  // 현재 위치와 되돌아갈 위치 주변만 잘라 전체 목록을 매번 순회하지 않는다.
+  const visibleOffsets = loop ? [
+    ...offsets.slice(middleFirst, Math.min(middleEnd, windowFirst)),
+    ...offsets.slice(windowFirst, windowEnd),
+    ...offsets.slice(Math.max(middleFirst, windowEnd), middleEnd),
+  ] : offsets;
+
+  useEffect(() => () => clearTimeout(settleTimer.current), []);
+
+  function cancelSettle() {
+    clearTimeout(settleTimer.current);
+    settleTimer.current = undefined;
+  }
 
   function updateIndex(index: number) {
     activeIndex.current = index;
@@ -77,6 +98,7 @@ export function PickerWheel({ side, formatOption = formatNumber, formatAccessibi
 
   function select(index: number) {
     if (disabled) return;
+    cancelSettle();
     const option = (index % optionCount + optionCount) % optionCount;
     const target = loop ? middleIndex + option : Math.max(0, Math.min(lastIndex, index));
     updateIndex(target);
@@ -86,12 +108,22 @@ export function PickerWheel({ side, formatOption = formatNumber, formatAccessibi
   function trackPosition(event: NativeSyntheticEvent<NativeScrollEvent>) {
     if (disabled) return;
     const index = Math.max(0, Math.min(lastIndex, Math.round(event.nativeEvent.contentOffset.y / ROW_HEIGHT)));
-    // 같은 값이 놓인 가운데 묶음으로의 이동은 실제 목록 끝에 접근할 때만 필요하다.
-    if (loop && (index <= SIDE_ROWS || index >= lastIndex - SIDE_ROWS)) {
-      select(index);
-    } else {
-      updateIndex(index);
-    }
+    updateIndex(index);
+    if (settleTimer.current !== undefined) scheduleSettle();
+  }
+
+  function recenterAfterScroll() {
+    cancelSettle();
+    const index = activeIndex.current;
+    // 관성이 끝난 뒤에만 같은 값으로 복귀해 다음 스와이프에 필요한 영역을 확보한다.
+    if (loop && (index < middleIndex - RECENTER_DISTANCE || index >= middleIndex + optionCount + RECENTER_DISTANCE)) select(index);
+  }
+
+  function scheduleSettle() {
+    if (!loop || disabled) return;
+    cancelSettle();
+    // 관성 없이 손을 뗐을 때는 스크롤 이벤트가 잠잠해지기를 기다린다.
+    settleTimer.current = setTimeout(recenterAfterScroll, SCROLL_SETTLE_DELAY);
   }
 
   // Animated.event는 스크롤 이벤트가 들어올 때만 listener를 호출한다.
@@ -111,13 +143,13 @@ export function PickerWheel({ side, formatOption = formatNumber, formatAccessibi
         contentOffset={initialOffset} snapToOffsets={offsets} decelerationRate={DECELERATION_RATE} nestedScrollEnabled
         bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} scrollEnabled={!disabled}
         automaticallyAdjustContentInsets={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-        onScroll={onScroll} onMomentumScrollEnd={trackPosition} scrollEventThrottle={16}>
+        onScroll={onScroll} onScrollBeginDrag={cancelSettle} onScrollEndDrag={scheduleSettle}
+        onMomentumScrollBegin={cancelSettle}
+        onMomentumScrollEnd={event => { trackPosition(event); recenterAfterScroll(); }} scrollEventThrottle={16}>
         {/* 전체 높이를 유지하고, 순환 시 복귀할 가운데 묶음은 미리 그려 둔다. */}
         <View style={{ height: offsets.length * ROW_HEIGHT }}>
-          {offsets.map((offset, index) => {
-            const nearWindow = index >= windowStart - WINDOW_BUFFER && index < windowStart + WINDOW_STEP + WINDOW_BUFFER;
-            const nearMiddle = index >= middleIndex - SIDE_ROWS && index < middleIndex + optionCount + SIDE_ROWS;
-            if (loop && !nearWindow && !nearMiddle) return null;
+          {visibleOffsets.map(offset => {
+            const index = offset / ROW_HEIGHT;
             return <WheelOption key={offset} offset={offset} scrollY={scrollY} side={side} disabled={disabled}
               text={formatOption((index % optionCount) * step)} onPress={() => select(index)} />;
           })}
