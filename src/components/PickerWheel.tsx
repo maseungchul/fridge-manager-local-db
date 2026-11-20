@@ -4,7 +4,7 @@
  */
 import { useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, useAnimatedValue, View } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { useAppTheme } from '@/theme/ThemeProvider';
 import { createThemedStyles, spacing } from '@/theme/tokens';
@@ -63,6 +63,13 @@ export function PickerWheel({ side, fontSize = 25, formatOption = formatNumber, 
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // 일반 렌더링에서 contentOffset을 다시 설정하면 사용자가 굴리는 도중 위치가 돌아간다.
   const [initialOffset] = useState(() => ({ x: 0, y: offsets[middleIndex + value] }));
+  const scrollY = useAnimatedValue(initialOffset.y);
+  // 강조는 JS의 선택값을 기다리지 않고 네이티브 스크롤 위치를 따라간다.
+  const [opacities] = useState(() => offsets.map(offset => scrollY.interpolate({
+    inputRange: [offset - ROW_HEIGHT * 2, offset - ROW_HEIGHT, offset, offset + ROW_HEIGHT, offset + ROW_HEIGHT * 2],
+    outputRange: [0.28, 0.58, 1, 0.58, 0.28],
+    extrapolate: 'clamp',
+  })));
   const activeIndex = useRef(middleIndex + value);
   const lastIndex = offsets.length - 1;
 
@@ -76,6 +83,7 @@ export function PickerWheel({ side, fontSize = 25, formatOption = formatNumber, 
     const option = (index % optionCount + optionCount) % optionCount;
     const target = loop ? middleIndex + option : Math.max(0, Math.min(lastIndex, index));
     updateIndex(target);
+    scrollY.setValue(offsets[target]);
     scroll.current?.scrollTo({ y: offsets[target], animated: false });
   }
 
@@ -91,6 +99,10 @@ export function PickerWheel({ side, fontSize = 25, formatOption = formatNumber, 
     }
   }
 
+  // Animated.event는 스크롤 이벤트가 들어올 때만 listener를 호출한다.
+  // eslint-disable-next-line react-hooks/refs
+  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true, listener: trackPosition });
+
   return (
     <View style={styles.column} accessible accessibilityRole="adjustable" accessibilityLabel={label}
       accessibilityState={{ disabled }} accessibilityValue={{ text: formatAccessibilityValue(value * step) }}
@@ -100,26 +112,23 @@ export function PickerWheel({ side, fontSize = 25, formatOption = formatNumber, 
         if (action === 'increment') select(activeIndex.current + 1);
         if (action === 'decrement') select(activeIndex.current - 1);
       }}>
-      <ScrollView ref={scroll} style={styles.wheel} contentContainerStyle={styles.wheelContent}
+      <Animated.ScrollView ref={scroll} style={styles.wheel} contentContainerStyle={styles.wheelContent}
         contentOffset={initialOffset} snapToOffsets={offsets} decelerationRate={DECELERATION_RATE} nestedScrollEnabled
         bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} scrollEnabled={!disabled}
         automaticallyAdjustContentInsets={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-        onScroll={trackPosition} onMomentumScrollEnd={event => trackPosition(event, true)} scrollEventThrottle={16}>
+        onScroll={onScroll} onMomentumScrollEnd={event => trackPosition(event, true)} scrollEventThrottle={16}>
         {offsets.map((offset, index) => {
           const option = index % optionCount;
-          const difference = Math.abs(option - value);
-          const distance = loop ? Math.min(difference, optionCount - difference) : difference;
           return (
             <Pressable key={offset} accessible={false} disabled={disabled} style={styles.row} onPress={() => select(index)}>
-              <Text numberOfLines={1} maxFontSizeMultiplier={1.4}
-                style={[styles.wheelText, side && styles[side], styles.number, { fontSize },
-                  distance === 0 ? styles.selectedNumber : { opacity: Math.max(0.25, 1 - distance * 0.32) }]}>
+              <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.4}
+                style={[styles.wheelText, side && styles[side], styles.number, { fontSize, opacity: opacities[index] }]}>
                 {formatOption(option * step)}
-              </Text>
+              </Animated.Text>
             </Pressable>
           );
         })}
-      </ScrollView>
+      </Animated.ScrollView>
       <View pointerEvents="none" style={styles.topMask} />
     </View>
   );
@@ -136,7 +145,6 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   wheel: { height: CENTER_PADDING * 2 + ROW_HEIGHT + TOP_PADDING + FOOTER_HEIGHT, flexGrow: 0 },
   wheelContent: { paddingTop: CENTER_PADDING + TOP_PADDING, paddingBottom: CENTER_PADDING + FOOTER_HEIGHT },
   row: { height: ROW_HEIGHT, justifyContent: 'center', alignItems: 'center' },
-  number: { color: colors.textMuted, fontVariant: ['tabular-nums'] },
-  selectedNumber: { color: colors.text },
+  number: { color: colors.text, fontVariant: ['tabular-nums'] },
   selectionBand: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: CENTER_PADDING + FOOTER_HEIGHT, height: ROW_HEIGHT, borderRadius: 12, backgroundColor: colors.sageLight },
 }));

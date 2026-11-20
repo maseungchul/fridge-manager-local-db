@@ -140,6 +140,14 @@ const native = {
   Animated: {
     Value: AnimatedValue,
     View: 'Animated.View',
+    Text: 'Animated.Text',
+    ScrollView: 'Animated.ScrollView',
+    event([mapping], { listener }) {
+      return event => {
+        mapping.nativeEvent.contentOffset.y.setValue(event.nativeEvent.contentOffset.y);
+        listener(event);
+      };
+    },
     timing(value, config) {
       const animation = {
         value, config,
@@ -3517,7 +3525,7 @@ test('시각 휠은 시·분 끝에서 순환하고 선택값을 자동 저장�
   const hour = mount(wheel('시').type, wheel('시').props);
   const minute = mount(wheel('분').type, wheel('분').props);
   t.after(() => { hour.unmount(); minute.unmount(); picker.unmount(); });
-  const scroll = instance => find(instance.tree, node => node.type === 'ScrollView').props;
+  const scroll = instance => find(instance.tree, node => node.type === 'Animated.ScrollView').props;
   const scrollEvent = y => ({ nativeEvent: { contentOffset: { y } } });
   const refresh = () => {
     picker.render();
