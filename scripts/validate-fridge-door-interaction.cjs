@@ -3536,10 +3536,18 @@ test('시각 휠은 시·분 끝에서 순환하고 선택값을 자동 저장�
   };
   const hourWheel = hour.props.wheel;
   const minuteWheel = minute.props.wheel;
+  const renderedOptions = instance => findAll(instance.tree, named('WheelOption'));
+  assert(renderedOptions(hour).length + renderedOptions(minute).length < 100);
   assert.equal(scroll(hour).contentOffset.y, hourWheel.offsets[hourWheel.middleIndex + 23]);
   assert.equal(scroll(minute).contentOffset.y, minuteWheel.offsets[minuteWheel.middleIndex + 11]);
   const minuteScrolls = [];
   scroll(minute).ref.current = { scrollTo: command => minuteScrolls.push(command) };
+
+  const farOffset = hourWheel.offsets[hourWheel.middleIndex + 80];
+  scroll(hour).onScroll(scrollEvent(farOffset));
+  refresh();
+  assert(renderedOptions(hour).some(option => option.props.offset === farOffset));
+  assert(renderedOptions(hour).some(option => option.props.offset === hourWheel.offsets[hourWheel.middleIndex]));
 
   scroll(hour).onScroll(scrollEvent(hourWheel.offsets[hourWheel.middleIndex + 24]));
   scroll(minute).onMomentumScrollEnd(scrollEvent(minuteWheel.offsets[minuteWheel.middleIndex + 12]));

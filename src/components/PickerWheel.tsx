@@ -27,6 +27,8 @@ const CENTER_PADDING = ROW_HEIGHT * SIDE_ROWS;
 const TOP_PADDING = spacing.md;
 const FOOTER_HEIGHT = spacing.md;
 const WHEEL_COPIES = 11;
+const WINDOW_STEP = 8;
+const WINDOW_BUFFER = 16;
 const DECELERATION_RATE = Platform.OS === 'android' ? 0.95 : 0.994;
 
 export function createWheel(optionCount: number, loop = true) {
@@ -63,17 +65,13 @@ export function PickerWheel({ side, formatOption = formatNumber, formatAccessibi
   // 일반 렌더링에서 contentOffset을 다시 설정하면 사용자가 굴리는 도중 위치가 돌아간다.
   const [initialOffset] = useState(() => ({ x: 0, y: offsets[middleIndex + value] }));
   const scrollY = useAnimatedValue(initialOffset.y);
-  // 강조는 JS의 선택값을 기다리지 않고 네이티브 스크롤 위치를 따라간다.
-  const [opacities] = useState(() => offsets.map(offset => scrollY.interpolate({
-    inputRange: [offset - ROW_HEIGHT * 2, offset - ROW_HEIGHT, offset, offset + ROW_HEIGHT, offset + ROW_HEIGHT * 2],
-    outputRange: [0.28, 0.58, 1, 0.58, 0.28],
-    extrapolate: 'clamp',
-  })));
+  const [windowStart, setWindowStart] = useState(() => Math.floor((middleIndex + value) / WINDOW_STEP) * WINDOW_STEP);
   const activeIndex = useRef(middleIndex + value);
   const lastIndex = offsets.length - 1;
 
   function updateIndex(index: number) {
     activeIndex.current = index;
+    if (loop) setWindowStart(Math.floor(index / WINDOW_STEP) * WINDOW_STEP);
     onChange(index % optionCount);
   }
 
@@ -116,20 +114,45 @@ export function PickerWheel({ side, formatOption = formatNumber, formatAccessibi
         bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} scrollEnabled={!disabled}
         automaticallyAdjustContentInsets={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
         onScroll={onScroll} onMomentumScrollEnd={event => trackPosition(event, true)} scrollEventThrottle={16}>
-        {offsets.map((offset, index) => {
-          const option = index % optionCount;
-          return (
-            <Pressable key={offset} accessible={false} disabled={disabled} style={styles.row} onPress={() => select(index)}>
-              <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.4}
-                style={[styles.wheelText, side && styles[side], styles.number, { opacity: opacities[index] }]}>
-                {formatOption(option * step)}
-              </Animated.Text>
-            </Pressable>
-          );
-        })}
+        {/* 전체 높이를 유지하고, 순환 시 복귀할 가운데 묶음은 미리 그려 둔다. */}
+        <View style={{ height: offsets.length * ROW_HEIGHT }}>
+          {offsets.map((offset, index) => {
+            const nearWindow = index >= windowStart - WINDOW_BUFFER && index < windowStart + WINDOW_STEP + WINDOW_BUFFER;
+            const nearMiddle = index >= middleIndex - SIDE_ROWS && index < middleIndex + optionCount + SIDE_ROWS;
+            if (loop && !nearWindow && !nearMiddle) return null;
+            return <WheelOption key={offset} offset={offset} scrollY={scrollY} side={side} disabled={disabled}
+              text={formatOption((index % optionCount) * step)} onPress={() => select(index)} />;
+          })}
+        </View>
       </Animated.ScrollView>
       <View pointerEvents="none" style={styles.topMask} />
     </View>
+  );
+}
+
+function WheelOption({ offset, scrollY, side, disabled, text, onPress }: {
+  offset: number;
+  scrollY: Animated.Value;
+  side: PickerWheelProps['side'];
+  disabled: boolean;
+  text: string;
+  onPress: () => void;
+}) {
+  const { mode } = useAppTheme();
+  const styles = getStyles(mode);
+  // 강조는 JS의 선택값을 기다리지 않고 네이티브 스크롤 위치를 따라간다.
+  const [opacity] = useState(() => scrollY.interpolate({
+    inputRange: [offset - ROW_HEIGHT * 2, offset - ROW_HEIGHT, offset, offset + ROW_HEIGHT, offset + ROW_HEIGHT * 2],
+    outputRange: [0.28, 0.58, 1, 0.58, 0.28],
+    extrapolate: 'clamp',
+  }));
+  return (
+    <Pressable accessible={false} disabled={disabled} style={[styles.row, { top: offset }]} onPress={onPress}>
+      <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.4}
+        style={[styles.wheelText, side && styles[side], styles.number, { opacity }]}>
+        {text}
+      </Animated.Text>
+    </Pressable>
   );
 }
 
@@ -143,7 +166,7 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, height: FOOTER_HEIGHT, backgroundColor: colors.surface },
   wheel: { height: CENTER_PADDING * 2 + ROW_HEIGHT + TOP_PADDING + FOOTER_HEIGHT, flexGrow: 0 },
   wheelContent: { paddingTop: CENTER_PADDING + TOP_PADDING, paddingBottom: CENTER_PADDING + FOOTER_HEIGHT },
-  row: { height: ROW_HEIGHT, justifyContent: 'center', alignItems: 'center' },
+  row: { position: 'absolute', left: 0, right: 0, height: ROW_HEIGHT, justifyContent: 'center', alignItems: 'center' },
   number: { color: colors.text, fontSize: 23, fontVariant: ['tabular-nums'] },
   selectionBand: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: CENTER_PADDING + FOOTER_HEIGHT, height: ROW_HEIGHT, borderRadius: 12, backgroundColor: colors.sageLight },
 }));
