@@ -215,6 +215,7 @@ function loadComponent(path, overrides = {}) {
     '@/components/FormTextInput': { FormTextInput: 'FormTextInput' },
     '@/components/CenteredPickerPopup': centeredPickerPopupModule,
     '@/components/PickerWheel': pickerWheelModule,
+    '@/components/ToggleSwitch': { ToggleSwitch: 'Switch' },
     '@/hooks/usePickerAutoSave': pickerAutoSaveModule,
     '@/features/ingredient/components/ReminderLeadTimePicker': { ReminderLeadTimePicker: 'ReminderLeadTimePicker' },
     '@/components/TimePicker': { TimePicker: 'TimePicker' },
@@ -3561,6 +3562,16 @@ test('시각 휠은 시·분 끝에서 순환하고 선택값을 자동 저장�
   assert.equal(minute.tree.props.accessibilityValue.text, '55');
   const lastOffset = minuteWheel.offsets.at(-1);
   const scrollCount = minuteScrolls.length;
+  scroll(minute).onScrollBeginDrag();
+  scroll(minute).onScroll(scrollEvent(minuteWheel.offsets[minuteWheel.middleIndex + 10]));
+  refresh();
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.deepEqual(saved, []);
+  scroll(minute).onScrollEndDrag();
+  scroll(minute).onMomentumScrollBegin();
+  refresh();
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.deepEqual(saved, []);
   const longFlingIndex = minuteWheel.middleIndex + 251;
   const longFling = minuteWheel.offsets[longFlingIndex];
   assert(longFling < lastOffset);
@@ -3574,6 +3585,7 @@ test('시각 휠은 시·분 끝에서 순환하고 선택값을 자동 저장�
   scroll(minute).onMomentumScrollEnd(scrollEvent(lastOffset));
   assert.equal(minuteScrolls.length, scrollCount + 2);
   assert.equal(minuteScrolls.at(-1).y, minuteWheel.offsets[minuteWheel.middleIndex + 11]);
+  refresh();
   await new Promise(resolve => setTimeout(resolve, 400));
   assert.deepEqual(saved, [55]);
 });

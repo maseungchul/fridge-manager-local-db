@@ -29,13 +29,14 @@ export function ReminderLeadTimePicker({ daysBefore, saving, onSave, onDismiss }
   const [days] = useState(() => daysBefore >= DAYS.length ? [...DAYS, daysBefore] : DAYS);
   const [wheel] = useState(() => createWheel(days.length, false));
   const [index, setIndex] = useState(() => days.indexOf(daysBefore));
-  const { markEdited, dismiss } = usePickerAutoSave(days[index], daysBefore, saving, onSave, onDismiss);
+  const [moving, setMoving] = useState(false);
+  const { markEdited, dismiss } = usePickerAutoSave(days[index], daysBefore, saving, onSave, onDismiss, moving);
   const labelOffset = Math.max(34, String(days[days.length - 1]).length * 11 + 8);
 
   return (
     <CenteredPickerPopup dismissLabel={t('reminder.closeLeadTime')} dismissDisabled={saving} edgeToEdge onDismiss={() => void dismiss()}>
       <PickerWheelTrack>
-        <PickerWheel label={t('reminder.leadTime')} value={index} wheel={wheel} disabled={saving}
+        <PickerWheel label={t('reminder.leadTime')} value={index} wheel={wheel} disabled={saving} onMovingChange={setMoving}
           formatOption={option => days[option] === 0 ? t('reminder.sameDay') : String(days[option])}
           formatAccessibilityValue={option => formatReminderDaysBefore(days[option], t)}
           onChange={next => { if (next !== index) markEdited(); setIndex(next); }} />

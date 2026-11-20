@@ -28,17 +28,19 @@ export function TimePicker({ minutes, minuteInterval = 1, saving, onSave, onDism
   const styles = getStyles(mode);
   const [hour, setHour] = useState(() => Math.floor(minutes / 60));
   const [minute, setMinute] = useState(() => minutes % 60);
+  const [hourMoving, setHourMoving] = useState(false);
+  const [minuteMoving, setMinuteMoving] = useState(false);
   const minuteIndex = Math.floor(minute / minuteInterval);
   const selected = hour * 60 + minuteIndex * minuteInterval;
-  const { markEdited, dismiss } = usePickerAutoSave(selected, minutes, saving, onSave, onDismiss);
+  const { markEdited, dismiss } = usePickerAutoSave(selected, minutes, saving, onSave, onDismiss, hourMoving || minuteMoving);
 
   return (
     <CenteredPickerPopup dismissLabel={t('timePicker.close')} dismissDisabled={saving} edgeToEdge onDismiss={() => void dismiss()}>
       <PickerWheelTrack>
-        <PickerWheel side="left" label={t('timePicker.hour')} value={hour} wheel={HOUR_WHEEL} disabled={saving}
+        <PickerWheel side="left" label={t('timePicker.hour')} value={hour} wheel={HOUR_WHEEL} disabled={saving} onMovingChange={setHourMoving}
           onChange={value => { if (value !== hour) markEdited(); setHour(value); }} />
         <PickerWheel key={minuteInterval} side="right" label={t('timePicker.minute')} value={minuteIndex} wheel={MINUTE_WHEELS[minuteInterval]}
-          step={minuteInterval} disabled={saving}
+          step={minuteInterval} disabled={saving} onMovingChange={setMinuteMoving}
           onChange={index => { if (index !== minuteIndex) markEdited(); setMinute(index * minuteInterval); }} />
         <View pointerEvents="none" style={styles.separator} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <View style={styles.separatorDot} />
