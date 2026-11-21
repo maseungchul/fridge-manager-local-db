@@ -15,7 +15,10 @@ export type MoreStackParamList = {
 
 const Stack = createNativeStackNavigator<MoreStackParamList>();
 
-export function MoreStackNavigator() {
+export function MoreStackNavigator({ onTabInteractionBlockedChange, onRefrigeratorDeleted }: {
+  onTabInteractionBlockedChange: (blocked: boolean) => void;
+  onRefrigeratorDeleted: () => void;
+}) {
   const { colors } = useAppTheme();
   return (
     <Stack.Navigator initialRouteName="MoreHome" screenOptions={{
@@ -23,7 +26,10 @@ export function MoreStackNavigator() {
       animation: 'slide_from_right',
       contentStyle: { backgroundColor: colors.background },
     }}>
-      <Stack.Screen name="MoreHome" component={MoreScreen} />
+      <Stack.Screen name="MoreHome">
+        {props => <MoreScreen {...props} onTabInteractionBlockedChange={onTabInteractionBlockedChange}
+          onRefrigeratorDeleted={onRefrigeratorDeleted} />}
+      </Stack.Screen>
       <Stack.Screen name="Settings" component={SettingsScreen} />
     </Stack.Navigator>
   );

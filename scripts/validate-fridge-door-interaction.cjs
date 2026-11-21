@@ -32,10 +32,12 @@ const toastMessages = [];
 const backHandlers = new Set();
 const appStateHandlers = new Set();
 const repository = {
+  async deleteRefrigerator() { throw new Error('냉장고 삭제 동작을 지정하지 않았습니다.'); },
   async registerRefrigerator() { throw new Error('저장 동작을 지정하지 않았습니다.'); },
   async updateRefrigerator() { throw new Error('수정 동작을 지정하지 않았습니다.'); },
   async updateRefrigeratorName() { throw new Error('이름 변경 동작을 지정하지 않았습니다.'); },
   async getRefrigerator() { return null; },
+  async getRefrigeratorSummary() { return null; },
 };
 const ingredientRepository = {
   async getIngredients() { return []; },
@@ -353,6 +355,65 @@ const { IngredientFormScreen } = loadComponent('src/screens/IngredientFormScreen
 const { ConsumedIngredientsScreen } = loadComponent('src/screens/ConsumedIngredientsScreen.tsx');
 const { IngredientPositionScreen } = loadComponent('src/screens/IngredientPositionScreen.tsx');
 const { IngredientExpirationCalendar } = loadComponent('src/features/ingredient/components/IngredientExpirationCalendar.tsx');
+
+test('더보기 냉장고 삭제는 재료 일괄 삭제를 고지하고 확인한 경우에만 홈으로 돌아간다', async t => {
+  const previous = { ...repository };
+  t.after(() => Object.assign(repository, previous));
+  const { MoreScreen } = loadComponent('src/screens/MoreScreen.tsx');
+  const blocked = [];
+  const destinations = [];
+  const screen = mount(MoreScreen, {
+    navigation: { navigate: name => destinations.push(name) },
+    onTabInteractionBlockedChange: value => blocked.push(value),
+    onRefrigeratorDeleted: () => destinations.push('clear'),
+  });
+  t.after(() => screen.unmount());
+  const menu = () => find(screen.tree, node => node.props.accessibilityLabel === '냉장고 삭제');
+  await new Promise(setImmediate);
+  screen.render();
+  assert.equal(menu().props.disabled, true);
+  assert.equal(menu().props.accessibilityState.disabled, true);
+
+  repository.getRefrigeratorSummary = async () => ({ id: 'fridge', name: '우리 집' });
+  const targets = [];
+  repository.deleteRefrigerator = async (db, id) => {
+    assert.strictEqual(db, database);
+    targets.push(id);
+    if (targets.length === 1) throw new Error('삭제 실패');
+  };
+  screen.focus();
+  await new Promise(setImmediate);
+  screen.render();
+  assert.equal(menu().props.disabled, false);
+  refreshMoveQueue().add('milk');
+  const pressDelete = menu().props.onPress;
+  pressDelete();
+  const [title, message, buttons] = alerts.at(-1);
+  assert.equal(title, '경고');
+  assert.match(message, /우리 집.*냉장고를 삭제할까요/);
+  assert.match(message, /등록된 재료도 모두 함께 삭제되며 복구할 수 없습니다/);
+  buttons.find(button => button.style === 'cancel').onPress();
+  assert.deepEqual(targets, []);
+
+  pressDelete();
+  const confirmation = alerts.at(-1);
+  pressDelete();
+  assert.strictEqual(alerts.at(-1), confirmation);
+  await confirmation[2].find(button => button.style === 'destructive').onPress();
+  assert.equal(alerts.at(-1)[0], '오류');
+  assert.deepEqual(destinations, []);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, ['milk']);
+
+  pressDelete();
+  await alerts.at(-1)[2].find(button => button.style === 'destructive').onPress();
+  screen.render();
+  assert.equal(menu().props.disabled, true);
+  assert.deepEqual(targets, ['fridge', 'fridge']);
+  assert.deepEqual(destinations, ['clear', 'Home']);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+  assert.deepEqual(blocked, [true, false, true, false, true, false]);
+});
+
 const children = node => node?.type === quantityStepperModule.QuantityStepper || node?.type?.name === 'FloatingIconButton'
   || node?.type === badgeModule.IngredientCountBadges || node?.type === badgeModule.IngredientCountBadge
   || node?.type === centeredPickerPopupModule.CenteredPickerPopup
@@ -1592,7 +1653,9 @@ test('하단 메뉴는 공통 디자인의 탭 3개로 연결하고 패널 입�
       assert.equal(moreStack.tree.props.initialRouteName, 'MoreHome');
       assert.equal(moreStack.tree.props.screenOptions.headerShown, false);
       assert.deepEqual(children(moreStack.tree).map(route => route.props.name), ['MoreHome', 'Settings', 'ConsumedIngredients']);
-      assert.deepEqual(children(moreStack.tree).slice(0, 2).map(route => route.props.component), [MoreScreen, SettingsScreen]);
+      const [moreHome, settingsRoute] = children(moreStack.tree);
+      assert.strictEqual(moreHome.props.children({}).type, MoreScreen);
+      assert.strictEqual(settingsRoute.props.component, SettingsScreen);
       for (const [Component, title] of [[ShoppingScreen, '장보기'], [MoreScreen, '더보기'], [SettingsScreen, '언어']]) {
         const screen = mount(Component, {});
         t.after(() => screen.unmount());

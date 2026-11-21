@@ -31,10 +31,6 @@ function loadModule(path, dependencies) {
 const registration = loadModule('src/db/refrigeratorRegistration.ts', {
   '@/features/fridge/model/fridgeLayout': model,
 });
-const { registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRefrigeratorSummary, getRefrigerator } = loadModule('src/db/refrigeratorRepository.ts', {
-  expo: { uuid: { v4: randomUUID } }, '@/db/refrigeratorRegistration': registration,
-  '@/features/fridge/model/fridgeLayout': model,
-});
 const prepare = draft => registration.prepareRefrigeratorRegistration(draft, randomUUID);
 const ingredientRegistration = loadSource('src/db/ingredientRegistration.ts');
 const ingredientModel = loadSource('src/features/ingredient/model/ingredient.ts');
@@ -43,6 +39,10 @@ const { getIngredients, getIngredientsByPosition, registerIngredient, insertIngr
   consumeIngredient, consumeIngredients, deleteIngredients, getConsumedIngredients, getConsumedIngredient, restoreConsumedIngredient, deleteConsumedIngredient } = loadModule('src/db/ingredientRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRegistration': ingredientRegistration,
   '@/features/ingredient/model/ingredient': ingredientModel,
+});
+const { deleteRefrigerator, registerRefrigerator, updateRefrigerator, updateRefrigeratorName, getRefrigeratorSummary, getRefrigerator } = loadModule('src/db/refrigeratorRepository.ts', {
+  expo: { uuid: { v4: randomUUID } }, '@/db/refrigeratorRegistration': registration,
+  '@/db/ingredientRepository': { notifyIngredientChanges }, '@/features/fridge/model/fridgeLayout': model,
 });
 const { addShoppingItem, getShoppingItems, setShoppingItemsPurchased, registerPurchasedIngredients } = loadModule('src/db/shoppingRepository.ts', {
   expo: { uuid: { v4: randomUUID } }, '@/db/ingredientRepository': { insertIngredient, notifyIngredientChanges },
@@ -554,8 +554,8 @@ test('일괄 이동 중 삭제됐거나 출발 위치가 다른 대상은 앞선
 });
 
 /** 소비 완료·복구 검증은 좌우 분할 재료와 다른 단의 목적지를 함께 준비한다. */
-async function createConsumableIngredient(t) {
-  const fixture = await createRepositoryDatabase(t);
+async function createConsumableIngredient(t, foreignKeys = false) {
+  const fixture = await createRepositoryDatabase(t, foreignKeys);
   const draft = model.createRefrigeratorDraft();
   draft.rows[0].compartments[0].slots[0].drawerCount = 2;
   await registerRefrigerator(fixture.adapter, draft);
@@ -564,6 +564,37 @@ async function createConsumableIngredient(t) {
     expirationDate: '2026-11-30', slotId: refrigerator.rows[0].compartments[0].slots[0].id, drawerNumber: 1 });
   const destination = { slotId: refrigerator.rows[1].compartments[0].slots[0].id, drawerNumber: 0 };
   return { ...fixture, refrigerator, ingredient, destination };
+}
+
+for (const foreignKeys of [false, true]) {
+  test(`냉장고 전체 삭제는 전용 연결 외래 키 ${foreignKeys ? '켜짐' : '꺼짐'}에서 재료와 구조만 함께 제거한다`, async t => {
+    const { db, adapter, refrigerator, ingredient, destination } = await createConsumableIngredient(t, foreignKeys);
+    await consumeIngredient(adapter, ingredient);
+    await registerIngredient(adapter, { ...ingredient, name: '달걀' });
+    await registerIngredient(adapter, { ...ingredient, ...destination, name: '사과' });
+    const stored = await getIngredients(adapter);
+    const records = await getConsumedIngredients(adapter);
+    const shopping = await getShoppingItems(adapter);
+    const changes = [];
+    t.after(subscribeToIngredientChanges(changedDb => changes.push(changedDb)));
+
+    await assert.rejects(deleteRefrigerator(adapter, '다른 냉장고'), /삭제할 냉장고/);
+    db.exec(`CREATE TRIGGER reject_fridge_delete BEFORE DELETE ON refrigerators
+      BEGIN SELECT RAISE(ABORT, '삭제 실패'); END;`);
+    await assert.rejects(deleteRefrigerator(adapter, refrigerator.id), /삭제 실패/);
+    assert.deepEqual(await getIngredients(adapter), stored);
+    assert.deepEqual(await getRefrigerator(adapter), refrigerator);
+    assert.deepEqual(changes, []);
+
+    db.exec('DROP TRIGGER reject_fridge_delete;');
+    await deleteRefrigerator(adapter, refrigerator.id);
+    assert.deepEqual(await getIngredients(adapter), []);
+    assert(Object.values(readStoredData(db)).every(rows => rows.length === 0));
+    assert.deepEqual(await getConsumedIngredients(adapter), records);
+    assert.deepEqual(await getShoppingItems(adapter), shopping);
+    assert.deepEqual(changes, [adapter]);
+    assert.notEqual(await registerRefrigerator(adapter, model.createRefrigeratorDraft()), refrigerator.id);
+  });
 }
 
 for (const kind of ['delete', 'consume']) {

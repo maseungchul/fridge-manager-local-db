@@ -1,10 +1,11 @@
 /**
  * @file
- * 냉장고 구성을 SQLite에 등록·수정하고 단·문·본체·칸을 조회해 복원한다.
+ * 냉장고 구성을 SQLite에 등록·수정·삭제하고 단·문·본체·칸을 조회해 복원한다.
  * 냉장고·단·본체·문·칸은 하나의 트랜잭션으로 처리하고 화면 상태는 호출자가 관리한다.
  */
 import { uuid } from 'expo';
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { notifyIngredientChanges } from '@/db/ingredientRepository';
 import { normalizeRefrigeratorName, prepareRefrigeratorRegistration } from '@/db/refrigeratorRegistration';
 import type { RefrigeratorRegistrationData } from '@/db/refrigeratorRegistration';
 import { getSlotName } from '@/features/fridge/model/fridgeLayout';
@@ -14,6 +15,27 @@ import { AppError } from '@/i18n/errors';
 /** 홈이 표시될 때 등록 여부와 냉장고 이름을 확인한다. */
 export function getRefrigeratorSummary(db: SQLiteDatabase) {
   return db.getFirstAsync<{ id: string; name: string }>('SELECT id, name FROM refrigerators LIMIT 1;');
+}
+
+/** 확인한 냉장고와 등록 재료만 함께 삭제하고, 커밋 후 유통기한 알림을 갱신한다. */
+export async function deleteRefrigerator(db: SQLiteDatabase, refrigeratorId: string): Promise<void> {
+  await db.withExclusiveTransactionAsync(async transaction => {
+    const refrigerator = await getRefrigeratorSummary(transaction);
+    if (refrigerator?.id !== refrigeratorId) throw new AppError('fridge.deleteMissing');
+
+    // 냉장고는 한 대만 저장된다. 전용 연결의 외래 키 설정과 관계없이 자식부터 제거한다.
+    await transaction.execAsync(`
+      DELETE FROM ingredients;
+      DELETE FROM refrigerator_slots;
+      DELETE FROM refrigerator_doors;
+      DELETE FROM refrigerator_compartments;
+      DELETE FROM refrigerator_rows;
+    `);
+    const result = await transaction.runAsync('DELETE FROM refrigerators WHERE id = ?;', refrigeratorId);
+    if (result.changes !== 1) throw new AppError('fridge.deleteMissing');
+    await checkForeignKeys(transaction);
+  });
+  notifyIngredientChanges(db);
 }
 
 /** 같은 읽기 트랜잭션에서 전체 구성을 가져오고 기존 도면 모델로 복원한다. */

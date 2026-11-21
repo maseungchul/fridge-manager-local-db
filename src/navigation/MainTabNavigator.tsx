@@ -4,7 +4,7 @@
  * 냉장고·재료·장보기 입력은 상위 Stack에서 열어 입력 중에는 탭을 표시하지 않는다.
  * 탭바에서 하단 안전 영역을 확보하고, 재료 패널·소비 기록 처리 중에는 탭 입력을 막는다.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabBar, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -36,6 +36,7 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
   const { t } = useTranslation();
   const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
   const [shoppingAction, setShoppingAction] = useState<ShoppingSelectionActions | null>(null);
+  const clearDeletedRefrigerator = useRef<(() => void) | null>(null);
 
 
   return (
@@ -105,6 +106,7 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
         ),
       }}>
         {props => <HomeScreen {...props} onTabInteractionBlockedChange={setIsTabInteractionBlocked}
+          clearDeletedRefrigeratorRef={clearDeletedRefrigerator}
           takeIngredientFormResult={takeIngredientFormResult} />}
       </Tab.Screen>
       <Tab.Screen name="Shopping" options={{
@@ -121,7 +123,8 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
           <MaterialDesignIcons name={focused ? 'dots-horizontal-circle' : 'dots-horizontal-circle-outline'} size={size} color={color} accessible={false} />
         ),
       }}>
-        {() => <MoreStackNavigator />}
+        {() => <MoreStackNavigator onTabInteractionBlockedChange={setIsTabInteractionBlocked}
+          onRefrigeratorDeleted={() => clearDeletedRefrigerator.current?.()} />}
       </Tab.Screen>
     </Tab.Navigator>
   );

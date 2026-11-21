@@ -2,21 +2,35 @@
  * @file
  * 설정 등 부가 기능의 진입 메뉴를 카테고리별로 모아 표시한다.
  * 카테고리와 메뉴를 그룹으로 묶고 메뉴는 아이콘·이름으로 표시한다.
- * 메뉴 구성은 한곳에서 관리하고 실제 기능은 각 하위 화면에서 제공한다.
+ * 설정은 하위 화면에서 제공하고 냉장고 삭제는 확인창에서 바로 처리한다.
  */
+import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import type { CompositeScreenProps } from '@react-navigation/native';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSQLiteContext } from 'expo-sqlite';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { useToast } from '@/components/ToastProvider';
+import { alertTitles } from '@/constants/alertTitles';
+import { deleteRefrigerator, getRefrigeratorSummary } from '@/db/refrigeratorRepository';
 import { supportsExpirationReminders } from '@/features/ingredient/ExpirationReminderProvider';
+import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
+import { getErrorMessage } from '@/i18n/errors';
 import { useTranslation } from '@/i18n/LanguageProvider';
+import type { MainTabParamList } from '@/navigation/MainTabNavigator';
 import type { MoreStackParamList } from '@/navigation/MoreStackNavigator';
 import { getHeaderStyles } from '@/theme/headerStyles';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
-type MoreScreenProps = NativeStackScreenProps<MoreStackParamList, 'MoreHome'>;
+type MoreScreenProps = CompositeScreenProps<
+  NativeStackScreenProps<MoreStackParamList, 'MoreHome'>,
+  BottomTabScreenProps<MainTabParamList, 'More'>
+> & { onTabInteractionBlockedChange: (blocked: boolean) => void; onRefrigeratorDeleted: () => void };
 
 const menuSections = [
   {
@@ -29,10 +43,54 @@ const menuSections = [
   },
 ] as const;
 
-export function MoreScreen({ navigation }: MoreScreenProps) {
+export function MoreScreen({ navigation, onTabInteractionBlockedChange, onRefrigeratorDeleted }: MoreScreenProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
+  const db = useSQLiteContext();
+  const showToast = useToast();
+  const { clear: clearMoveQueue } = useIngredientMoveQueue();
+  const [refrigerator, setRefrigerator] = useState<Awaited<ReturnType<typeof getRefrigeratorSummary>>>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleting = useRef(false);
+
+  // 등록·편집 후 더보기에 돌아오면 현재 냉장고를 삭제 대상으로 표시한다.
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void getRefrigeratorSummary(db).catch(() => null).then(result => {
+      if (active) setRefrigerator(result);
+    });
+    const back = BackHandler.addEventListener('hardwareBackPress', () => deleting.current);
+    return () => { active = false; back.remove(); setRefrigerator(null); };
+  }, [db]));
+
+  function requestDelete() {
+    if (!refrigerator || deleting.current) return;
+    const { id, name } = refrigerator;
+    deleting.current = true;
+    setIsDeleting(true);
+    onTabInteractionBlockedChange(true);
+    const unlock = () => {
+      deleting.current = false;
+      setIsDeleting(false);
+      onTabInteractionBlockedChange(false);
+    };
+    Alert.alert(t(alertTitles.warning), t('fridge.deleteConfirm', { name }), [
+      { text: t('common.cancel'), style: 'cancel', onPress: unlock },
+      { text: t('common.delete'), style: 'destructive', onPress: async () => {
+        try {
+          await deleteRefrigerator(db, id);
+          onRefrigeratorDeleted();
+          setRefrigerator(null);
+          clearMoveQueue();
+          showToast(t('fridge.deleteSuccess'));
+          navigation.navigate('Home');
+        } catch (error) {
+          Alert.alert(t(alertTitles.error), getErrorMessage(error, t, t('fridge.deleteError')));
+        } finally { unlock(); }
+      } },
+    ], { cancelable: false });
+  }
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
@@ -48,7 +106,7 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
             <View style={styles.menu}>
               {section.items.filter(item => supportsExpirationReminders || item.label !== 'settings.expirationReminder').map(item => (
                 <FeedbackPressable key={item.label} accessibilityRole="button" accessibilityLabel={t(item.label)}
-                  onPress={() => navigation.navigate('Settings', { section: item.section })} style={styles.item}>
+                  interactionBlocked={isDeleting} onPress={() => navigation.navigate('Settings', { section: item.section })} style={styles.item}>
                   <MaterialDesignIcons name={item.icon} size={24} color={colors.textMuted} accessible={false} />
                   <Text style={styles.itemLabel}>{t(item.label)}</Text>
                 </FeedbackPressable>
@@ -56,6 +114,19 @@ export function MoreScreen({ navigation }: MoreScreenProps) {
             </View>
           </View>
         ))}
+          <View style={styles.sectionSeparator}>
+            <View style={styles.sectionHeader}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>{t('more.fridgeManagement')}</Text>
+            </View>
+            <View style={styles.menu}>
+              <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('fridge.delete')}
+                disabled={!refrigerator} interactionBlocked={isDeleting} accessibilityState={{ disabled: !refrigerator || isDeleting }} feedback="danger"
+                onPress={requestDelete} style={styles.item}>
+                <MaterialDesignIcons name="fridge-off-outline" size={24} color={colors.error} accessible={false} />
+                <Text style={[styles.itemLabel, { color: colors.error }]}>{t('fridge.delete')}</Text>
+              </FeedbackPressable>
+            </View>
+          </View>
       </ScrollView>
     </SafeAreaView>
   );

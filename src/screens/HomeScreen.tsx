@@ -8,6 +8,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { ActivityIndicator, Animated, AppState, BackHandler, Easing, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -44,6 +45,7 @@ type HomeScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 > & {
   onTabInteractionBlockedChange?: (blocked: boolean) => void;
+  clearDeletedRefrigeratorRef?: RefObject<(() => void) | null>;
   takeIngredientFormResult: () => IngredientFormResult | null;
 };
 
@@ -54,7 +56,7 @@ const HOME_TOOLBAR_EDGE_SPACE = 8;
 const UNSEEN_CONSUMED_STORAGE_KEY = 'ingredients.hasUnseenConsumed';
 const EMPTY_INGREDIENT_DRAFT: IngredientDraft = { name: '', quantity: '', memo: '', expirationDate: null };
 
-export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngredientFormResult }: HomeScreenProps) {
+export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngredientFormResult, clearDeletedRefrigeratorRef }: HomeScreenProps) {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
@@ -64,6 +66,15 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const { isLoading, showLoading, hasLoaded, runLoad, cancelLoad } = useDelayedLoading();
   const [error, setError] = useState<'home.loadError' | null>(null);
+  useEffect(() => {
+    if (!clearDeletedRefrigeratorRef) return;
+    clearDeletedRefrigeratorRef.current = () => {
+      setRefrigerator(null);
+      setIngredients([]);
+      setError(null);
+    };
+    return () => { clearDeletedRefrigeratorRef.current = null; };
+  }, [clearDeletedRefrigeratorRef]);
   const [selectedSlot, setSelectedSlot] = useState<{ index: number; positionId?: string } | null>(null);
   const [isIngredientListOpen, setIsIngredientListOpen] = useState(false);
   const ingredientFormPending = useRef(false);
