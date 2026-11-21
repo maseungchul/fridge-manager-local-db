@@ -9,8 +9,9 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+import { MaskedView } from '@expo/ui/community/masked-view';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { ActivityIndicator, Animated, AppState, BackHandler, Easing, ScrollView, StyleSheet, Text, View, useAnimatedValue } from 'react-native';
+import { ActivityIndicator, Animated, AppState, BackHandler, Easing, ScrollView, StyleSheet, Text, View, useAnimatedValue, useWindowDimensions } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import Storage from 'expo-sqlite/kv-store';
 import { spacing, createThemedStyles } from '@/theme/tokens';
@@ -52,7 +53,9 @@ type HomeScreenProps = CompositeScreenProps<
 const EMPTY_PREVIEW_ROWS = [{ id: 'top', doorCount: 1 }, { id: 'bottom', doorCount: 1 }];
 const HOME_MENU_SIZE = 40;
 const HOME_TOOL_ICON_SIZE = 22;
+const HOME_TOOL_LABEL_SIZE = 14;
 const HOME_TOOLBAR_EDGE_SPACE = 8;
+const HOME_TOOLBAR_TOGGLE_OVERLAP = HOME_MENU_SIZE / 2 + spacing.xs;
 const UNSEEN_CONSUMED_STORAGE_KEY = 'ingredients.hasUnseenConsumed';
 const EMPTY_INGREDIENT_DRAFT: IngredientDraft = { name: '', quantity: '', memo: '', expirationDate: null };
 
@@ -60,6 +63,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const { t } = useTranslation();
+  const { fontScale } = useWindowDimensions();
   const db = useSQLiteContext();
   const { ingredientIds: queuedIds, retain: retainMoveQueue } = useIngredientMoveQueue();
   const [refrigerator, setRefrigerator] = useState<Refrigerator | null>(null);
@@ -89,6 +93,10 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
   const [isToolbarExpanded, setIsToolbarExpanded] = useState(true);
   const [isToolbarChanging, setIsToolbarChanging] = useState(false);
   const [toolbarWidth, setToolbarWidth] = useState(0);
+  const [toolbarContentWidth, setToolbarContentWidth] = useState(0);
+  const toolbarLabelHeight = Math.ceil(HOME_TOOL_LABEL_SIZE * fontScale * 1.5);
+  const toolbarButtonInsets = (styles.action.paddingVertical + styles.action.borderWidth) * 2;
+  const toolbarHeight = Math.max(HOME_MENU_SIZE, toolbarLabelHeight + toolbarButtonInsets) + spacing.sm * 2;
   const toolbarProgress = useAnimatedValue(1);
   const toolbarChanging = useRef(false);
   const closedScrollY = useRef(0);
@@ -335,40 +343,48 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                   onLayout={({ nativeEvent: { layout } }) => setToolbarWidth(layout.width)}
                   pointerEvents={canUseToolbar ? 'box-none' : 'none'} accessibilityElementsHidden={!canUseToolbar}
                   importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
-                  <Animated.View style={[styles.actions, styles.homeActions, { opacity: toolbarProgress,
-                    transform: [{ translateX: toolbarProgress.interpolate({ inputRange: [0, 1], outputRange: [toolbarWidth, 0] }) }] }]}
-                    pointerEvents={canUseToolbar ? 'box-none' : 'none'} accessibilityElementsHidden={!canUseToolbar}
-                    importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
-                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('legend.open')}
-                      accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
-                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
-                      style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <MaterialDesignIcons name="map-legend" size={18} color={colors.chilled} accessible={false} />
-                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>{t('legend.label')}</Text>
-                    </FeedbackPressable>
-                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.open')}
-                      accessibilityHint={hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : t('queue.emptyDescription')}
-                      accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
-                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
-                      style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <MaterialDesignIcons name="clipboard-text-outline" size={18} color={colors.chilled} accessible={false} />
-                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('queue.pending')}</Text>
-                      {hasQueuedIngredients && isToolbarExpanded ? (
-                        <View style={styles.toolbarDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
-                      ) : null}
-                    </FeedbackPressable>
-                    <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.title')}
-                      accessibilityHint={hasUnseenConsumed ? t('consumed.unseenHint') : undefined}
-                      accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
-                      onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsConsumedOpen(true); }}
-                      style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <MaterialDesignIcons name="sticker-check-outline" size={18} color={colors.chilled} accessible={false} />
-                      <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('consumed.title')}</Text>
-                      {hasUnseenConsumed && isToolbarExpanded ? (
-                        <View style={styles.toolbarDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
-                      ) : null}
-                    </FeedbackPressable>
-                  </Animated.View>
+                  <MaskedView style={[styles.toolbarMask, { width: toolbarContentWidth || '100%', height: toolbarHeight }]}
+                    pointerEvents="box-none" maskElement={<View style={styles.toolbarCutout} />}>
+                    <Animated.ScrollView horizontal showsHorizontalScrollIndicator={false} alwaysBounceHorizontal={false}
+                      contentContainerStyle={[styles.actions, styles.homeActions]}
+                      onContentSizeChange={setToolbarContentWidth}
+                      style={{ opacity: toolbarProgress,
+                        transform: [{ translateX: toolbarProgress.interpolate({ inputRange: [0, 1], outputRange: [toolbarWidth, 0] }) }],
+                      }}
+                      scrollEnabled={canUseToolbar}
+                      pointerEvents={canUseToolbar ? 'auto' : 'none'} accessibilityElementsHidden={!canUseToolbar}
+                      importantForAccessibility={canUseToolbar ? 'auto' : 'no-hide-descendants'}>
+                      <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('legend.open')}
+                        accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
+                        onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
+                        style={[styles.action, styles.homeAction]} hitSlop={4}>
+                        <MaterialDesignIcons name="map-legend" size={18} color={colors.chilled} accessible={false} />
+                        <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>{t('legend.label')}</Text>
+                      </FeedbackPressable>
+                      <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.open')}
+                        accessibilityHint={hasQueuedIngredients ? t('queue.openHint', { count: queuedIngredients.length }) : t('queue.emptyDescription')}
+                        accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
+                        onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsMoveQueueOpen(true); }}
+                        style={[styles.action, styles.homeAction]} hitSlop={4}>
+                        <MaterialDesignIcons name="clipboard-text-outline" size={18} color={colors.chilled} accessible={false} />
+                        <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('queue.pending')}</Text>
+                        {hasQueuedIngredients && isToolbarExpanded ? (
+                          <View style={styles.toolbarDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+                        ) : null}
+                      </FeedbackPressable>
+                      <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('consumed.title')}
+                        accessibilityHint={hasUnseenConsumed ? t('consumed.unseenHint') : undefined}
+                        accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
+                        onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsConsumedOpen(true); }}
+                        style={[styles.action, styles.homeAction]} hitSlop={4}>
+                        <MaterialDesignIcons name="sticker-check-outline" size={18} color={colors.chilled} accessible={false} />
+                        <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('consumed.title')}</Text>
+                        {hasUnseenConsumed && isToolbarExpanded ? (
+                          <View style={styles.toolbarDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+                        ) : null}
+                      </FeedbackPressable>
+                    </Animated.ScrollView>
+                  </MaskedView>
                 </View>
                 <FeedbackPressable accessibilityRole="button" accessibilityLabel={isToolbarExpanded ? t('home.collapseTools') : t('home.expandTools')}
                   accessibilityHint={!isToolbarExpanded ? [
@@ -498,18 +514,23 @@ const getStyles = createThemedStyles(({ colors, fridgeDoorColors }, mode) => Sty
   toolbarOverlay: { ...StyleSheet.absoluteFill, zIndex: 30 },
   toolbarAnchor: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: HOME_TOOLBAR_EDGE_SPACE, paddingBottom: 4 },
   toolbarRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  // 슬라이드 영역 안쪽에 그림자 여유를 두고 버튼 밖의 터치는 도면으로 전달한다.
-  toolbarToolsViewport: { flex: 1, minWidth: 0, overflow: 'hidden', paddingVertical: spacing.sm, paddingHorizontal: HOME_TOOLBAR_EDGE_SPACE },
-  homeActions: { alignItems: 'center', justifyContent: 'flex-end' },
-  homeAction: { flex: 0, flexShrink: 1, maxWidth: 180, minHeight: HOME_MENU_SIZE, flexDirection: 'row', gap: spacing.xs,
+  toolbarToolsViewport: { flex: 1, minWidth: 0, overflow: 'hidden', marginRight: -HOME_TOOLBAR_TOGGLE_OVERLAP },
+  toolbarMask: { alignSelf: 'flex-end', maxWidth: '100%' },
+  // 원의 중심을 여닫이 버튼과 맞추고, 반지름에 버튼 사이 간격을 더해 투명한 원호를 만든다.
+  toolbarCutout: { ...StyleSheet.absoluteFill,
+    experimental_backgroundImage: `radial-gradient(circle ${HOME_TOOLBAR_TOGGLE_OVERLAP}px at right center, transparent 98%, black 100%)` },
+  // 끝까지 스크롤하면 마지막 도구가 여닫이 버튼에 가려지지 않도록 콘텐츠 끝에 여백을 둔다.
+  homeActions: { alignItems: 'center', paddingVertical: spacing.sm, paddingLeft: HOME_TOOLBAR_EDGE_SPACE,
+    paddingRight: HOME_TOOLBAR_EDGE_SPACE + HOME_TOOLBAR_TOGGLE_OVERLAP },
+  homeAction: { flex: 0, flexShrink: 0, maxWidth: undefined, minHeight: HOME_MENU_SIZE, flexDirection: 'row', gap: spacing.xs,
     paddingHorizontal: spacing.sm, borderRadius: 18, borderColor: colors.sage,
     boxShadow: [{ offsetX: 0, offsetY: 1, blurRadius: 6, color: `${colors.button}14` }] },
-  homeLabel: { color: colors.chilled, fontSize: 14 },
+  homeLabel: { color: colors.chilled, fontSize: HOME_TOOL_LABEL_SIZE },
   toolbarDot: { position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: 4,
     backgroundColor: colors.moveQueueBadge },
   toolbarDotOnToggle: { right: -1 },
   floatingButton: { boxShadow: [{ offsetX: 0, offsetY: 3, blurRadius: 8, color: `${colors.button}30` }] },
-  toolbarToggle: { width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
+  toolbarToggle: { zIndex: 1, width: HOME_MENU_SIZE, height: HOME_MENU_SIZE, flexShrink: 0, alignItems: 'center', justifyContent: 'center',
     borderRadius: HOME_MENU_SIZE / 2, backgroundColor: colors.chilledFill },
   diagram: {
     flex: 1,
