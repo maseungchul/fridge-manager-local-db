@@ -343,7 +343,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsLegendOpen(true); }}
                       style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <MaterialDesignIcons name="information-outline" size={18} color={colors.chilled} accessible={false} />
+                      <MaterialDesignIcons name="map-legend" size={18} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1}>{t('legend.label')}</Text>
                     </FeedbackPressable>
                     <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.open')}
