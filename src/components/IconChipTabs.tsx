@@ -30,7 +30,7 @@ export function IconChipTabs<TabId extends string>({ tabs, activeTab, onChange, 
         return (
           <FeedbackPressable key={id} accessibilityRole="tab" accessibilityLabel={label}
             accessibilityState={{ selected, disabled: interactionBlocked }} interactionBlocked={interactionBlocked}
-            feedback="chip" onPress={() => onChange(id)} style={[styles.chip, selected && styles.selectedChip]}>
+            hitSlop={2} feedback="chip" onPress={() => onChange(id)} style={[styles.chip, selected && styles.selectedChip]}>
             <MaterialDesignIcons name={icon} size={16} color={selected ? colors.chilled : colors.textMuted} accessible={false}
               style={styles.icon} />
             <Text style={[styles.label, selected && styles.selectedLabel]}>{label}</Text>
@@ -46,7 +46,7 @@ export const getIconChipTabStyles = createThemedStyles(({ colors }) => StyleShee
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, maxWidth: '100%',
-    minHeight: 46, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+    minHeight: 42, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
     borderWidth: 1, borderRadius: 26, borderColor: 'transparent',
   },
   selectedChip: { backgroundColor: colors.chipSelected, borderColor: 'transparent' },

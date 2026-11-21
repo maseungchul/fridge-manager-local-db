@@ -50,7 +50,7 @@ export function SlotStructureSelector({ label, accessibilityLabel = label, value
   const options = structureOptions.map(option => (
     <FeedbackPressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${t(option.label)}`}
       accessibilityState={{ checked: selectedValue === option.value, disabled: !!disabled }} disabled={disabled}
-      feedback={inline ? 'chip' : undefined} onPress={() => onChange(option.value)}
+      hitSlop={inline ? 2 : undefined} feedback={inline ? 'chip' : undefined} onPress={() => onChange(option.value)}
       style={inline ? [styles.segment, selectedValue === option.value && styles.selectedSegment]
         : [styles.option, selectedValue === option.value && styles.selected]}>
       <MaterialDesignIcons name={option.icon} size={inline ? 16 : 18}
@@ -82,7 +82,8 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
   },
-  segments: { gap: 8 },
+  segments: { gap: 4, padding: 4, borderRadius: 26,
+    backgroundColor: mode === 'light' ? colors.navigationBackground : colors.background },
   option: {
     flexShrink: 0,
     minWidth: 0,
@@ -103,7 +104,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   },
   segment: { ...getIconChipTabStyles(mode).chip, maxWidth: undefined, flexShrink: 0 },
   selectedSegment: getIconChipTabStyles(mode).selectedChip,
-  segmentLabel: { ...getIconChipTabStyles(mode).label, flexShrink: 0 },
+  segmentLabel: { ...getIconChipTabStyles(mode).label, fontSize: 12, flexShrink: 0 },
   selectedSegmentLabel: getIconChipTabStyles(mode).selectedLabel,
   label: {
     color: colors.text,

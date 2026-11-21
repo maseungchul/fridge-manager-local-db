@@ -87,7 +87,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
                   <View style={styles.segments}>{storageModeOptions.map(mode => (
                     <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${location} ${t(mode.label)}`}
                       disabled={disabled} accessibilityState={{ checked: storageMode === mode.value, disabled }}
-                      feedback="chip" onPress={() => onStorageModeChange(mode.value)} style={[styles.choice, storageMode === mode.value && styles.selected]}>
+                      hitSlop={2} feedback="chip" onPress={() => onStorageModeChange(mode.value)} style={[styles.choice, storageMode === mode.value && styles.selected]}>
                       <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'weather-windy' : 'snowflake'} size={16}
                         color={storageMode === mode.value ? colors.chilled : colors.textMuted} accessible={false} />
                       <Text numberOfLines={1} style={[styles.choiceLabel, storageMode === mode.value && styles.selectedChoiceLabel]}>{t(mode.label)}</Text>
@@ -102,7 +102,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
                   <FeedbackPressable key={option.value} accessibilityRole="radio" disabled={disabled}
                     accessibilityLabel={`${door.label} ${t(option.label)}`}
                     accessibilityState={{ checked: door.opening === option.value, disabled }}
-                    feedback="chip" onPress={() => onOpeningChange(door.id, option.value)} style={[styles.choice, door.opening === option.value && styles.selected]}>
+                    hitSlop={2} feedback="chip" onPress={() => onOpeningChange(door.id, option.value)} style={[styles.choice, door.opening === option.value && styles.selected]}>
                     <MaterialDesignIcons name={openingIcons[option.value]} size={16} color={door.opening === option.value ? colors.chilled : colors.textMuted} accessible={false} />
                     <Text numberOfLines={1} style={[styles.choiceLabel, door.opening === option.value && styles.selectedChoiceLabel]}>{t(option.label)}</Text>
                   </FeedbackPressable>
@@ -214,7 +214,10 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   segments: {
     flexDirection: 'row',
     flexShrink: 0,
-    gap: 8,
+    padding: 4,
+    gap: 4,
+    borderRadius: 26,
+    backgroundColor: mode === 'light' ? colors.navigationBackground : colors.background,
   },
   choice: {
     ...getIconChipTabStyles(mode).chip,
@@ -223,6 +226,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   },
   choiceLabel: {
     ...getIconChipTabStyles(mode).label,
+    fontSize: 12,
     flexShrink: 0,
   },
   selected: getIconChipTabStyles(mode).selectedChip,
