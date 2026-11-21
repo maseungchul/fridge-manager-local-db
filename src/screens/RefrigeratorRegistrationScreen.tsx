@@ -426,21 +426,8 @@ export function RefrigeratorRegistrationScreen({
                       accessibilityLabel={pageStep === 'basic' ? t('fridge.basicStep') : t('fridge.configurationStep')}
                       style={styles.stepIndicator}
                     >
-                      <View style={styles.stepItem}>
-                        <View style={[styles.stepBadge, pageStep === 'basic' ? styles.stepBadgeActive : styles.stepBadgeCompleted]}>
-                          <Text style={[styles.stepNumber, pageStep === 'basic' ? styles.stepNumberActive : styles.stepNumberCompleted]}>
-                            {pageStep === 'basic' ? '1' : '✓'}
-                          </Text>
-                        </View>
-                        <Text style={[styles.stepLabel, pageStep === 'basic' ? styles.stepLabelActive : styles.stepLabelCompleted]}>{t('fridge.basic')}</Text>
-                      </View>
-                      <View style={[styles.stepConnector, pageStep === 'configuration' && styles.stepConnectorCompleted]} />
-                      <View style={styles.stepItem}>
-                        <View style={[styles.stepBadge, pageStep === 'configuration' && styles.stepBadgeActive]}>
-                          <Text style={[styles.stepNumber, pageStep === 'configuration' && styles.stepNumberActive]}>2</Text>
-                        </View>
-                        <Text style={[styles.stepLabel, pageStep === 'configuration' && styles.stepLabelActive]}>{t('fridge.configuration')}</Text>
-                      </View>
+                      <Text style={styles.stepLabel}>{t(pageStep === 'basic' ? 'fridge.basic' : 'fridge.configuration')}</Text>
+                      <Text style={styles.stepNumber}>{pageStep === 'basic' ? '1/2' : '2/2'}</Text>
                     </View>
                   </View>
                   {pageStep === 'basic' ? (
@@ -645,64 +632,19 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: spacing.sm,
-  },
-  stepItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    flexShrink: 1,
-  },
-  stepBadge: {
-    width: FRIDGE_STEP_BADGE_SIZE,
-    height: FRIDGE_STEP_BADGE_SIZE,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepBadgeActive: {
-    backgroundColor: colors.button,
-    borderColor: colors.button,
-  },
-  stepBadgeCompleted: {
-    backgroundColor: colors.sageLight,
-    borderColor: colors.sageLight,
+    paddingVertical: spacing.sm,
+    minHeight: FRIDGE_STEP_BADGE_SIZE + spacing.sm * 2,
   },
   stepNumber: {
     color: colors.textMuted,
     fontSize: 12,
-    fontWeight: '700',
-  },
-  stepNumberActive: {
-    color: colors.buttonText,
-  },
-  stepNumberCompleted: {
-    color: colors.chilled,
+    fontWeight: '600',
   },
   stepLabel: {
     flexShrink: 1,
-    color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  stepLabelActive: {
-    color: colors.button,
+    color: colors.text,
+    fontSize: 15,
     fontWeight: '700',
-  },
-  stepLabelCompleted: {
-    color: colors.chilled,
-  },
-  stepConnector: {
-    flex: 1,
-    minWidth: spacing.sm,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.border,
-  },
-  stepConnectorCompleted: {
-    backgroundColor: colors.sage,
   },
   description: {
     color: colors.textMuted,
