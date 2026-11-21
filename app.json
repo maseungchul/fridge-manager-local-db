@@ -1,7 +1,11 @@
 {
   "expo": {
-    "name": "fridge-manager-local-db",
-    "slug": "fridge-manager-local-db",
+    "name": "Fridge Pin",
+    "slug": "fridge-pin",
+    "locales": {
+      "ko": "./locales/ko.json",
+      "ja": "./locales/ja.json"
+    },
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
