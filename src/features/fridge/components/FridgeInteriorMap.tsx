@@ -564,15 +564,24 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const geometry = getFridgeFocusGeometry(draft, target, viewport, sizeViewport, flushVerticalEdges);
   const layout = getDraftLayout(draft, ingredients, t);
   const open = phase === 'open';
-  const scrollKey = `${target.areaId}:${geometry?.width}:${geometry?.height}:${viewport.width}`;
+  const scrollKey = target.areaId;
   const initialScrollX = geometry?.initialScrollX ?? 0;
   const scrollable = geometry?.scrollable ?? false;
   const verticalScrollable = geometry?.verticalScrollable ?? false;
   const maxScrollY = geometry ? Math.max(0, geometry.contentHeight - geometry.scrollViewportHeight) : 0;
+  const maxScrollX = geometry ? Math.max(0, geometry.contentWidth - viewport.width) : 0;
 
   useEffect(() => {
-    if (open && scrollable) scrollRef.current?.scrollTo({ x: initialScrollX, animated: false });
-  }, [open, scrollable, scrollKey, initialScrollX]);
+    if (!open || !scrollable) return;
+    const current = latestScrollPosition.current;
+    const x = current.key === scrollKey ? Math.min(current.x, maxScrollX) : initialScrollX;
+    scrollRef.current?.scrollTo({ x, animated: false });
+    if (current.key === scrollKey && x !== current.x) {
+      const next = { ...current, x };
+      latestScrollPosition.current = next;
+      setScrollPosition(next);
+    }
+  }, [open, scrollable, scrollKey, initialScrollX, maxScrollX]);
 
   // 툴바 높이만 달라지면 기존 스크롤을 보존하고, 새 표시 범위를 벗어난 값만 보정한다.
   useEffect(() => {
@@ -710,7 +719,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const horizontalScene = horizontalScrolling ? (
     <ScrollView ref={scrollRef} horizontal scrollEnabled nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never" removeClippedSubviews={false}
       accessibilityLabel={t('fridge.scrollHorizontal')} showsHorizontalScrollIndicator
-      contentOffset={{ x: initialScrollX, y: 0 }} scrollEventThrottle={16}
+      contentOffset={{ x: scrollPosition.key === scrollKey ? Math.min(scrollPosition.x, maxScrollX) : initialScrollX, y: 0 }} scrollEventThrottle={16}
       onScroll={({ nativeEvent }) => updateScrollPosition(nativeEvent.contentOffset.x)}
       style={[styles.compartment, { left: 0, top: verticalScrolling ? 0 : geometry.focusedTop,
         width: viewport.width, height: geometry.contentHeight }]}>

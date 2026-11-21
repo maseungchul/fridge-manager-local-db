@@ -86,7 +86,7 @@ export const ko = {
   'common.increase': '{label} 늘리기',
   'home.loadError': '냉장고 정보를 불러오지 못했습니다.',
   'home.loading': '냉장고 정보 불러오는 중',
-  'home.emptyTitle': '우리 집 냉장고를 등록해 보세요',
+  'home.emptyTitle': '우리 집 냉장고를 등록해 보세요.',
   'home.emptyDescription': '문과 수납칸을 우리 집 냉장고 구조에 맞게 설정할 수 있어요.',
   'home.register': '냉장고 등록하기',
   'home.expandTools': '도구 펼치기',
