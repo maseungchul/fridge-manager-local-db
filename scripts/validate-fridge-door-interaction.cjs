@@ -3754,7 +3754,7 @@ test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입
   refreshMoveQueue().add(original.id); refreshMoveQueue(); home.render();
   sheet.props.onClose(); home.render();
   expandHomeToolbar(home);
-  assert.equal(find(button(), node => node.type === 'Icon').props.name, 'clipboard-text-outline');
+  assert.equal(find(button(), node => node.type === 'Icon').props.name, 'swap-horizontal');
   const actionStyle = flattenStyle(button().props.style);
   assert.equal(actionStyle.minHeight, 40);
   assert.equal(actionStyle.flexDirection, 'row');

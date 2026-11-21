@@ -429,7 +429,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.check', { count: queuedIngredients.length })}
                             disabled={isBusy} interactionBlocked={isChanging} accessibilityState={{ disabled: isBusy || isChanging }}
                             onPress={() => openSecondaryPanel('queue')} style={styles.toolbarChip}>
-                            <MaterialDesignIcons name="clipboard-text-outline" size={20} color={colors.chilled} accessible={false} />
+                            <MaterialDesignIcons name="swap-horizontal" size={20} color={colors.chilled} accessible={false} />
                             <Text style={styles.toolbarChipLabel}>{t('queue.title', { count: queuedIngredients.length })}</Text>
                           </FeedbackPressable>
                           <FeedbackPressable accessibilityRole="button" accessibilityLabel={t('queue.moveHere')}
@@ -437,7 +437,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             accessibilityState={{ disabled: !canMove || isBusy || isChanging, busy: isMoving }}
                             onPress={moveQueuedIngredients} style={styles.moveButton} feedback="chilled">
                             {isMoving ? <ActivityIndicator color={colors.buttonText} accessibilityLabel={t('queue.moving')} />
-                              : <MaterialDesignIcons name="clipboard-arrow-down-outline" size={20} color={colors.buttonText} accessible={false} />}
+                              : <MaterialDesignIcons name="arrow-down-left" size={20} color={colors.buttonText} accessible={false} />}
                             <Text style={styles.moveLabel}>{t('queue.moveHereLabel')}</Text>
                           </FeedbackPressable>
                         </View>
@@ -508,7 +508,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="none" onPress={enqueueSelectedIngredients} style={styles.selectionAction}>
                             {({ pressed }) => <>
-                              <MaterialDesignIcons name="clipboard-plus-outline" size={24} color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
+                              <MaterialDesignIcons name="swap-horizontal" size={24} color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
                               <Text style={[styles.selectionActionLabel, pressed && styles.selectionActionPressed]}>{t('ingredient.enqueueLabel')}</Text>
                             </>}
                           </FeedbackPressable>
