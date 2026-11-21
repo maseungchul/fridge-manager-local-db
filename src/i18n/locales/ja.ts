@@ -94,6 +94,8 @@ export const ja: Record<keyof typeof ko, string> = {
   'home.expandTools': 'ツールを開く',
   'home.collapseTools': 'ツールを閉じる',
   'queue.open': '移動待ちリストを開く',
+  'queue.deleteSelected': '選択した食材を移動待ちリストから削除',
+  'queue.deleteSelectedConfirm': '選択した食材{count}件を移動待ちリストから削除しますか？',
   'queue.openHint': '移動待ちの食材{count}件を確認します。',
   'queue.title': '移動待ち {count}件',
   'queue.check': '移動待ち{count}件を確認',

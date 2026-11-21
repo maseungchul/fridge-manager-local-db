@@ -4,19 +4,15 @@
  * 기존 대기 목록을 재사용하고, 종료 후 홈 도면의 상태는 호출자가 유지한다.
  */
 import { useEffect, useRef } from 'react';
-import { BackHandler, StyleSheet, Text, View } from 'react-native';
-import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
-import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { BottomSheet } from '@/features/ingredient/components/BottomSheet';
 import type { BottomSheetRef } from '@/features/ingredient/components/BottomSheet';
-import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
+import { IngredientMoveQueueHeader, IngredientMoveQueueList, useMoveQueueSelection } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import type { FridgeLayout } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { COMPACT_HEADER_ICON_INSET, COMPACT_HEADER_ICON_SIZE, getCompactHeaderStyles } from '@/theme/headerStyles';
-import { useTranslation } from '@/i18n/LanguageProvider';
 
 interface IngredientMoveQueueSheetProps {
   ingredients: Ingredient[];
@@ -25,43 +21,36 @@ interface IngredientMoveQueueSheetProps {
 }
 
 export function IngredientMoveQueueSheet({ ingredients, layout, onClose }: IngredientMoveQueueSheetProps) {
-  const { mode, colors } = useAppTheme();
+  const { mode } = useAppTheme();
   const styles = getStyles(mode);
-  const { t } = useTranslation();
   const sheet = useRef<BottomSheetRef>(null);
-  const { remove, clear } = useIngredientMoveQueue();
+  const { remove } = useIngredientMoveQueue();
+  const selection = useMoveQueueSelection();
+  const { selectedIds, setSelectedIds } = selection;
+  const isSelecting = selectedIds !== null;
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      sheet.current?.close();
+      if (isSelecting) setSelectedIds(null);
+      else sheet.current?.close();
       return true;
     });
     return () => subscription.remove();
-  }, []);
+  }, [isSelecting, setSelectedIds]);
 
   return (
     <BottomSheet ref={sheet} disabled={false} onClose={onClose} header={
-        <View style={styles.header}>
-          <View style={[styles.clearButton, styles.leftSpacer]} pointerEvents="none" />
-          <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.title}>{t('queue.title', { count: ingredients.length })}</Text>
-          <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
-            disabled={ingredients.length === 0} accessibilityState={{ disabled: ingredients.length === 0 }}
-            onPress={clear} style={[styles.clearButton, styles.rightButton]}>
-            <MaterialDesignIcons name="clipboard-remove-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-          </FeedbackPressable>
-        </View>
+      <IngredientMoveQueueHeader ingredients={ingredients} selection={selection} disabled={false} />
     }>
-      <View style={styles.panel} onAccessibilityEscape={() => sheet.current?.close()}>
-        <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false} onRemove={remove} />
+      <View style={styles.panel} onAccessibilityEscape={() => {
+        if (isSelecting) setSelectedIds(null);
+        else sheet.current?.close();
+      }}>
+        <IngredientMoveQueueList ingredients={ingredients} layout={layout} disabled={false} selection={selection} onRemove={remove} />
       </View>
     </BottomSheet>
   );
 }
 
-const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   panel: { flex: 1, backgroundColor: colors.surface },
-  header: { ...getCompactHeaderStyles(mode).header, justifyContent: 'space-between' },
-  title: { ...getCompactHeaderStyles(mode).title, flex: 1, textAlign: 'center' },
-  clearButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  leftSpacer: { marginLeft: -COMPACT_HEADER_ICON_INSET },
-  rightButton: { marginRight: -COMPACT_HEADER_ICON_INSET },
 }));

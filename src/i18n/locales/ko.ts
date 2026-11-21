@@ -92,6 +92,8 @@ export const ko = {
   'home.expandTools': '도구 펼치기',
   'home.collapseTools': '도구 접기',
   'queue.open': '이동 대기 목록 열기',
+  'queue.deleteSelected': '선택한 재료를 이동 대기 목록에서 삭제',
+  'queue.deleteSelectedConfirm': '선택한 재료 {count}개를 이동 대기 목록에서 삭제할까요?',
   'queue.openHint': '이동 대기 중인 재료 {count}개를 확인합니다.',
   'queue.title': '이동 대기 {count}개',
   'queue.check': '이동 대기 {count}개 확인',

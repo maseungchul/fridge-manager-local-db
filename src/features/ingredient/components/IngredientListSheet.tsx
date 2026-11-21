@@ -22,7 +22,7 @@ import type { PurchasedIngredientRegistration, PurchasedShoppingItem } from '@/d
 import type { FridgeLayout, SlotPosition } from '@/features/fridge/model/fridgeLayout';
 import type { Ingredient } from '@/features/ingredient/model/ingredient';
 import { getIngredientExpirationStatus } from '@/features/ingredient/model/ingredient';
-import { IngredientMoveQueueList } from '@/features/ingredient/components/IngredientMoveQueueList';
+import { IngredientMoveQueueHeader, IngredientMoveQueueList, useMoveQueueSelection } from '@/features/ingredient/components/IngredientMoveQueueList';
 import { useIngredientMoveQueue } from '@/features/ingredient/IngredientMoveQueueProvider';
 import { PurchasedItemPicker } from '@/features/shopping/components/PurchasedItemPicker';
 import type { PurchasedSelectionAction } from '@/features/shopping/components/PurchasedItemPicker';
@@ -56,6 +56,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const insets = useSafeAreaInsets();
   const db = useSQLiteContext();
   const moveQueue = useIngredientMoveQueue();
+  const queueSelection = useMoveQueueSelection();
+  const { selectedIds: selectedQueueIds, setSelectedIds: setSelectedQueueIds } = queueSelection;
+  const isSelectingQueue = selectedQueueIds !== null;
   const queuedIngredients = moveQueue.ingredientIds.flatMap(id => allIngredients.find(ingredient => ingredient.id === id) ?? []);
   const sheetRef = useRef<BottomSheetRef>(null);
   const formRequest = useRef<{ ingredient?: Ingredient } | null>(null);
@@ -165,9 +168,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
   const returnToList = useCallback(() => {
     if (formRequest.current || deleting.current || moving.current || importing.current || transition.current.active) return;
     Keyboard.dismiss();
+    setSelectedQueueIds(null);
     changePanel('list');
     if (secondaryPage === 'purchased') setPurchasedReloadCount(count => count + 1);
-  }, [changePanel, secondaryPage]);
+  }, [changePanel, secondaryPage, setSelectedQueueIds]);
 
   useEffect(() => {
     // 저장·전환 중에는 홈의 종료 동작을 막고, 하위 화면에서는 먼저 목록으로 돌아간다.
@@ -175,11 +179,12 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
       if (formRequest.current || deleting.current || moving.current || importing.current || transition.current.active) return true;
       if (isSelecting) { setIsSelecting(false); setSelectedIds([]); return true; }
       if (!isSecondaryOpen) return false;
+      if (isSelectingQueue) { setSelectedQueueIds(null); return true; }
       returnToList();
       return true;
     });
     return () => subscription.remove();
-  }, [isSelecting, isSecondaryOpen, returnToList]);
+  }, [isSelecting, isSecondaryOpen, isSelectingQueue, returnToList, setSelectedQueueIds]);
 
   function requestRemoval(kind: 'delete' | 'consume') {
     if (!canChangeSelection() || !isSelecting || selectedIngredients.length === 0) return;
@@ -320,7 +325,10 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                   accessibilityElementsHidden={secondary !== isSecondaryOpen || isChanging}
                   importantForAccessibility={secondary === isSecondaryOpen && !isChanging ? 'auto' : 'no-hide-descendants'}>
                   {secondary === isSecondaryOpen || isChanging ? (
-                    <View style={styles.header}>
+                    secondary && secondaryPage === 'queue' ? (
+                      <IngredientMoveQueueHeader ingredients={queuedIngredients} selection={queueSelection}
+                        disabled={isBusy || isChanging} onBack={returnToList} />
+                    ) : <View style={styles.header}>
                       {secondary ? (
                         <View style={styles.headerActions}>
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.back')}
@@ -354,17 +362,9 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                       <View style={[styles.heading, !secondary && !isSelecting && styles.headingWithActions]}>
                         <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}
                           style={styles.title}>{!secondary ? t('ingredient.list')
-                            : secondaryPage === 'queue' ? t('queue.title', { count: queuedIngredients.length }) : t('shopping.purchasedTab')}</Text>
+                            : t('shopping.purchasedTab')}</Text>
                       </View>
-                      {secondary ? secondaryPage === 'queue' ? (
-                        <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('queue.clear')}
-                          disabled={queuedIngredients.length === 0 || isBusy} interactionBlocked={isChanging}
-                          accessibilityState={{ disabled: queuedIngredients.length === 0 || isBusy || isChanging }}
-                          onPress={() => { if (!formRequest.current && !deleting.current && !moving.current && !transition.current.active) moveQueue.clear(); }}
-                          style={[styles.headerIconButton, styles.headerRightButton]}>
-                          <MaterialDesignIcons name="clipboard-remove-outline" size={COMPACT_HEADER_ICON_SIZE} color={colors.text} accessible={false} />
-                        </FeedbackPressable>
-                      ) : (
+                      {secondary ? (
                         <View style={[styles.headerActions, styles.headerRightButton]}>
                           <View style={styles.purchasedHeaderSpacer} />
                           <FeedbackPressable iconFeedback accessibilityRole="button" accessibilityLabel={t('ingredient.register')}
@@ -406,7 +406,8 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
         if (!formRequest.current) onClose();
       }}>
         <View style={styles.panel} onAccessibilityEscape={() => {
-          if (isSecondaryOpen) returnToList();
+          if (isSecondaryOpen && isSelectingQueue) setSelectedQueueIds(null);
+          else if (isSecondaryOpen) returnToList();
           else if (isSelecting) toggleSelectionMode();
           else closeSheet();
         }}>
@@ -445,7 +446,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                       <View style={styles.pageContent}>
                         {secondary ? secondaryPage === 'queue' ? (
                           <IngredientMoveQueueList ingredients={queuedIngredients} layout={layout} disabled={isBusy || isChanging}
-                            onRemove={moveQueue.remove} />
+                            selection={queueSelection} onRemove={moveQueue.remove} />
                         ) : purchasedItems ? (
                           <PurchasedItemPicker disabled={isBusy || isChanging} items={purchasedItems} onRegister={importPurchased}
                             onSelectionActionChange={setPurchasedSelection} />

@@ -172,6 +172,7 @@ let interiorModule;
 let structureModule;
 let menuModule;
 let moveQueueModule;
+let moveQueueListModule;
 let quantityStepperModule;
 let diagramLayoutModule;
 let headerStylesModule;
@@ -198,6 +199,7 @@ function loadComponent(path, overrides = {}) {
   const module = { exports: {} };
   const dependencies = {
     react: hooks, 'react-native': native,
+    '@expo/ui/community/masked-view': { MaskedView: 'MaskedView' },
     '@react-native-vector-icons/material-design-icons': { MaterialDesignIcons: 'Icon' },
     '@/screens/IngredientFormScreen': { IngredientFormScreen: 'IngredientFormScreen' },
     '@/screens/IngredientPositionScreen': { IngredientPositionScreen: 'IngredientPositionScreen' },
@@ -244,7 +246,7 @@ function loadComponent(path, overrides = {}) {
     '@/features/ingredient/ExpirationReminderProvider': {
       ExpirationReminderProvider: 'ExpirationReminderProvider', supportsExpirationReminders: true,
     },
-    '@/features/ingredient/components/IngredientMoveQueueList': { IngredientMoveQueueList: 'IngredientMoveQueueList' },
+    '@/features/ingredient/components/IngredientMoveQueueList': { ...moveQueueListModule, IngredientMoveQueueList: 'IngredientMoveQueueList' },
     '@/features/ingredient/components/IngredientMoveQueueSheet': { IngredientMoveQueueSheet: 'IngredientMoveQueueSheet' },
     '@/features/ingredient/model/ingredient': ingredientModel,
     '@/features/ingredient/model/expirationReminder': expirationReminderModel,
@@ -316,13 +318,15 @@ iosHomeButtonModule = loadComponent('src/components/FloatingIconButton.ios.tsx')
 defaultHomeButtonModule = loadComponent('src/components/FloatingIconButton.tsx');
 badgeModule = loadComponent('src/features/ingredient/components/IngredientCountBadges.tsx');
 mapModule = loadComponent('src/features/fridge/components/FridgeMap.tsx');
-legendModule = loadComponent('src/features/fridge/components/FridgeIngredientLegend.tsx');
 headerStylesModule = loadComponent('src/theme/headerStyles.ts');
+legendModule = loadComponent('src/features/fridge/components/FridgeIngredientLegend.tsx');
 diagramLayoutModule = loadComponent('src/features/fridge/components/fridgeDiagramLayout.ts');
 toolbarStylesModule = loadComponent('src/features/fridge/components/fridgeToolbarStyles.ts');
 interiorModule = loadComponent('src/features/fridge/components/FridgeInteriorMap.tsx');
 structureModule = loadComponent('src/features/fridge/components/FridgeStructurePreview.tsx');
 moveQueueModule = loadComponent('src/features/ingredient/IngredientMoveQueueProvider.tsx');
+moveQueueListModule = loadComponent('src/features/ingredient/components/IngredientMoveQueueList.tsx');
+const inactiveQueueSelection = { selectedIds: null, setSelectedIds() {} };
 let queueProvider;
 let languageProvider;
 function refreshLanguage(provider = languageProvider) {
@@ -838,7 +842,9 @@ test('모든 화면·재료 시트는 홈의 xs 상단 간격과 같은 헤더 �
   const { IngredientMoveQueueSheet } = loadComponent('src/features/ingredient/components/IngredientMoveQueueSheet.tsx');
   const queue = mount(IngredientMoveQueueSheet, { ingredients: [], layout: { areas: [], positions: [] }, onClose() {} });
   t.after(() => queue.unmount());
-  assertHeader(queue, '이동 대기 0개');
+  const queueHeader = mount(queue.tree.props.header.type, queue.tree.props.header.props);
+  t.after(() => queueHeader.unmount());
+  assertHeader(queueHeader, '이동 대기 0개');
   const layout = diagramLayoutModule.getFridgeDiagramSizes({ width: 375, height: 844 }, { top: 44, bottom: 34, left: 0, right: 0 });
   const toolbarHeight = diagramLayoutModule.FRIDGE_TOOLBAR_ACTION_HEIGHT + tokens.spacing.xs * 2 + native.StyleSheet.hairlineWidth;
   assert.equal(layout.opened.height, 844 - 44 - reference.header.minHeight - toolbarHeight - 34 - FRIDGE_MENU_RESERVED_SPACE,
@@ -1887,7 +1893,7 @@ test('일본어 도면·하위 설정·범례·이동 대기 목록은 위치와
     showOpeningAction: true, openingDoors: [], storageMode: 'CHILLED', showSlots: true,
     slots: draft.rows[0].compartments[0].slots, maxSlotCount: 4, selectedSlotIndex: 0, location: '上から1段目 庫内' });
   const { IngredientMoveQueueList } = loadComponent('src/features/ingredient/components/IngredientMoveQueueList.tsx');
-  const queue = mount(IngredientMoveQueueList, { ingredients: [ingredient], layout, disabled: false, onRemove() {} });
+  const queue = mount(IngredientMoveQueueList, { ingredients: [ingredient], layout, disabled: false, selection: inactiveQueueSelection, onRemove() {} });
   t.after(() => { map.unmount(); legend.unmount(); menu.unmount(); queue.unmount(); });
   map.tree.props.onLayout({ nativeEvent: { layout: { width: 327 } } }); map.render();
   const group = children(children(map.tree)[0]).find(named('FridgeCompartment'));
@@ -1907,7 +1913,7 @@ test('일본어 도면·하위 설정·범례·이동 대기 목록은 위치와
   assert.equal(findAll(sectionHeader, node => node.props.name === 'menu-right').length, 2);
   const row = list.props.renderItem({ item: ingredient, section });
   assert(find(row, node => node.props.children === '賞味期限：2028/02/29'));
-  assert(find(row, node => node.props.accessibilityLabel === '계란を移動待ちから外す'));
+  assert.equal(find(row, node => node.props.accessibilityRole === 'button'), undefined);
 });
 
 test('DB 초기화 실패 안내는 언어를 바꾸어도 원인을 보존하고 재시도로 앱 화면을 다시 연다', async t => {
@@ -3165,6 +3171,9 @@ test('한 칸의 다중 선택을 이동 대기에 담을 때 기존 ID와 중�
 async function ingredientQueueFixture(t) {
   const previous = { ...ingredientRepository };
   t.after(() => Object.assign(ingredientRepository, previous));
+  const getShoppingItems = shoppingRepository.getShoppingItems;
+  shoppingRepository.getShoppingItems = async () => [];
+  t.after(() => { shoppingRepository.getShoppingItems = getShoppingItems; });
   const refrigerator = savedRefrigerator('임시목록 냉장고');
   const sourceSlot = refrigerator.rows[0].compartments[0].slots[0];
   sourceSlot.drawerCount = 2;
@@ -3781,15 +3790,16 @@ test('홈 대기 목록은 펼친 툴바의 같은 디자인 버튼으로 진입
   const emptyPopup = find(home.tree, node => node.type === 'IngredientMoveQueueSheet');
   assert.deepEqual(emptyPopup.props.ingredients, []);
   const { IngredientMoveQueueList } = loadComponent('src/features/ingredient/components/IngredientMoveQueueList.tsx');
-  const emptyList = mount(IngredientMoveQueueList, { ingredients: [], layout: emptyPopup.props.layout, disabled: false, onRemove() {} });
+  const emptyList = mount(IngredientMoveQueueList, { ingredients: [], layout: emptyPopup.props.layout, disabled: false, selection: inactiveQueueSelection, onRemove() {} });
   t.after(() => emptyList.unmount());
-  assert.equal(emptyList.tree.props.sections.length, 0);
-  assert.equal(flattenStyle(emptyList.tree.props.contentContainerStyle).paddingBottom, 34);
-  assert(find(emptyList.tree.props.ListEmptyComponent, node => node.props.children === '재료 목록에서 선택 버튼을 누르고 재료를 골라 이동 대기에 담을 수 있어요.'));
+  const emptySectionList = find(emptyList.tree, node => node.type === 'SectionList');
+  assert.equal(emptySectionList.props.sections.length, 0);
+  assert.equal(flattenStyle(emptySectionList.props.contentContainerStyle).paddingBottom, 34);
+  assert(find(emptySectionList.props.ListEmptyComponent, node => node.props.children === '재료 목록에서 선택 버튼을 누르고 재료를 골라 이동 대기에 담을 수 있어요.'));
   emptyPopup.props.onClose(); home.render();
 });
 
-test('홈 대기 시트는 같은 목록의 해제·전체 비우기를 지원하고 네이티브 종료 전까지 유지한다', t => {
+test('홈 대기 시트는 선택 모드를 먼저 취소하고 네이티브 종료 전까지 유지한다', t => {
   const { IngredientMoveQueueSheet } = loadComponent('src/features/ingredient/components/IngredientMoveQueueSheet.tsx');
   const original = { id: 'queued', name: '우유', quantity: '1팩', memo: null, expirationDate: null, slotId: 'slot', drawerNumber: 0 };
   refreshMoveQueue().add(original.id); refreshMoveQueue();
@@ -3801,11 +3811,15 @@ test('홈 대기 시트는 같은 목록의 해제·전체 비우기를 지원�
   assert.equal(sheet.tree.props.expanded, undefined);
   const list = find(sheet.tree, node => node.type === 'IngredientMoveQueueList');
   assert.deepEqual(list.props.ingredients, [original]);
-  list.props.onRemove(original.id);
-  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
-  refreshMoveQueue().add(original.id); refreshMoveQueue();
-  find(sheet.tree, node => node.props.accessibilityLabel === '이동 대기 목록 전체 비우기').props.onPress();
-  assert.deepEqual(refreshMoveQueue().ingredientIds, []);
+  const header = mount(sheet.tree.props.header.type, sheet.tree.props.header.props);
+  t.after(() => header.unmount());
+  find(header.tree, node => node.props.accessibilityLabel === '선택').props.onPress();
+  sheet.render();
+  assert.deepEqual(find(sheet.tree, node => node.type === 'IngredientMoveQueueList').props.selection.selectedIds, []);
+  assert.equal([...backHandlers].at(-1)(), true);
+  sheet.render();
+  assert.equal(find(sheet.tree, node => node.type === 'IngredientMoveQueueList').props.selection.selectedIds, null);
+  assert.deepEqual(refreshMoveQueue().ingredientIds, [original.id]);
   sheet.tree.props.ref.current = { close() { requested++; } };
   assert.equal([...backHandlers].at(-1)(), true);
   assert.equal(requested, 1);
@@ -3825,7 +3839,7 @@ test('이동 대기 목록은 플랫폼과 패널 높이에 관계없이 본문 
     t.after(() => sheet.unmount());
     const list = mount(IngredientMoveQueueList, find(sheet.tree, node => node.type === 'IngredientMoveQueueList').props);
     t.after(() => list.unmount());
-    assert.notEqual(list.tree.props.scrollEnabled, false);
+    assert.notEqual(find(list.tree, node => node.type === 'SectionList').props.scrollEnabled, false);
   }
 });
 
@@ -3868,30 +3882,35 @@ test('여러 칸에서 같은 이름의 재료를 담아도 원래 위치·시�
   assert.equal(move(reopened).props.disabled, false, '다른 칸에서 담은 재료가 있으면 현재 칸으로 옮길 수 있다');
 });
 
-test('임시목록은 출발 칸·좌우·포켓별로 묶고 같은 이름의 수량·실제 날짜와 개별 해제를 제공한다', async t => {
+test('임시목록은 출발 칸·좌우·포켓별로 묶고 같은 이름의 수량·실제 날짜를 표시하고 선택한 재료만 대기 목록에서 삭제한다', async t => {
   const { stored, layout } = await ingredientQueueFixture(t);
   const { IngredientMoveQueueList } = loadComponent('src/features/ingredient/components/IngredientMoveQueueList.tsx');
   const removed = [];
   const panel = mount(IngredientMoveQueueList, { ingredients: [stored[0], { ...stored[0], id: 'another', memo: '개봉함' }, stored[1], stored[2]],
-    layout, disabled: false, onRemove: id => removed.push(id) });
+    layout, disabled: false, selection: { ...inactiveQueueSelection, selectedIds: [stored[0].id, stored[1].id] }, onRemove: id => removed.push(id) });
   t.after(() => panel.unmount());
-  const sections = panel.tree.props.sections;
+  const sectionList = find(panel.tree, node => node.type === 'SectionList');
+  const sections = sectionList.props.sections;
   assert.equal(sections.length, 3);
   assert.deepEqual(sections.map(section => section.data.length), [2, 1, 1]);
   assert.match(sections[0].title, /1단.*본체.*왼쪽/);
   assert.match(sections[1].title, /1단.*본체.*오른쪽/);
   assert.match(sections[2].title, /도어포켓/);
   for (const section of sections) for (const item of section.data) {
-    const rendered = panel.tree.props.renderItem({ item, section });
+    const rendered = sectionList.props.renderItem({ item, section });
     assert(find(rendered, node => node.props.children === `유통기한: ${item.expirationDate.replaceAll('-', '.')}`));
-    const remove = find(rendered, node => node.props.accessibilityLabel === '우유 이동 대기 해제');
-    assert.match(remove.props.accessibilityHint, new RegExp(section.title));
-    remove.props.onPress();
+    assert.equal(rendered.props.accessibilityRole, 'checkbox');
+    assert.equal(rendered.props.accessibilityHint, section.title);
+    assert.equal(rendered.props.accessibilityState.checked, [stored[0].id, stored[1].id].includes(item.id));
   }
-  assert.deepEqual(removed, ['milk-left', 'another', 'milk-right', 'milk-pocket']);
+  find(panel.tree, node => node.props.accessibilityLabel === '선택한 재료를 이동 대기 목록에서 삭제').props.onPress();
+  assert.match(alerts.at(-1)[1], /2개/);
+  assert.deepEqual(removed, []);
+  alerts.at(-1)[2].find(button => button.style === 'destructive').onPress();
+  assert.deepEqual(removed, [stored[0].id, stored[1].id]);
 });
 
-test('임시목록은 같은 시트 높이에서 전환하고 해제·전체 비우기 후 빈 화면을 유지한다', async t => {
+test('임시목록은 같은 시트 높이에서 전환하고 선택 삭제 후 빈 화면을 유지한다', async t => {
   const { stored, open, render, row } = await ingredientQueueFixture(t);
   const sheet = await open(stored[0]);
   assert.notEqual(find(sheet.tree, node => node.type === 'FlatList').props.scrollEnabled, false);
@@ -3905,11 +3924,19 @@ test('임시목록은 같은 시트 높이에서 전환하고 해제·전체 비
   assert.equal(sheet.tree.props.expanded, undefined);
   assert.notEqual(queueList().props.scrollEnabled, false);
   assert.equal(find(sheet.tree, node => node.type === 'FlatList'), undefined);
-  queueList().props.onRemove(stored[0].id); render(sheet);
-  assert.deepEqual(queueList().props.ingredients, [stored[1]]);
-  find(sheet.tree, node => node.props.accessibilityLabel === '이동 대기 목록 전체 비우기').props.onPress(); render(sheet);
+  const headerNode = () => find(sheet.tree, named('IngredientMoveQueueHeader'));
+  const header = mount(headerNode().type, headerNode().props);
+  t.after(() => header.unmount());
+  find(header.tree, node => node.props.accessibilityLabel === '선택').props.onPress(); sheet.render();
+  header.props = headerNode().props; header.render();
+  find(header.tree, node => node.props.accessibilityLabel === '전체 선택/해제').props.onPress(); sheet.render();
+  const list = mount(moveQueueListModule.IngredientMoveQueueList, queueList().props);
+  t.after(() => list.unmount());
+  find(list.tree, node => node.props.accessibilityLabel === '선택한 재료를 이동 대기 목록에서 삭제').props.onPress();
+  alerts.at(-1)[2].find(button => button.style === 'destructive').onPress(); render(sheet);
   assert.deepEqual(queueList().props.ingredients, []);
-  assert.equal(find(sheet.tree, node => node.props.accessibilityLabel === '이동 대기 목록 전체 비우기').props.disabled, true);
+  header.props = headerNode().props; header.render();
+  assert.equal(find(header.tree, node => node.props.accessibilityLabel === '선택').props.disabled, true);
   assert.equal([...backHandlers].at(-1)(), true); animations.at(-1).finish(); sheet.render();
   assert.equal(queueList(), undefined);
   assert.notEqual(find(sheet.tree, node => node.type === 'FlatList').props.scrollEnabled, false);
