@@ -15,7 +15,7 @@ export interface FridgeDiagramSize {
 export const FRIDGE_HEADER_BUTTON_SIZE = HEADER_CONTENT_HEIGHT;
 export const FRIDGE_STEP_BADGE_SIZE = 28;
 export const FRIDGE_TOOLBAR_ACTION_HEIGHT = 56;
-export const FRIDGE_SUBMENU_HEIGHT = 56;
+export const FRIDGE_SUBMENU_HEIGHT = 64;
 // 설정 줄이 얇아져도 도면의 기존 크기와 중앙 위치를 유지한다.
 export const FRIDGE_MENU_RESERVED_SPACE = 102 + spacing.sm;
 

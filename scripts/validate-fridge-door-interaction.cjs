@@ -6025,7 +6025,7 @@ test('카테고리를 다시 누르면 접고 하위 영역을 툴바 위에 붙
     assert.equal(categories().filter(node => node.props.accessibilityState.expanded).length, 1);
     assert.notEqual(flattenStyle(panel.props.style).position, 'absolute');
     const reservedStyle = flattenStyle(children(tree)[0].props.style);
-    assert.equal(reservedStyle.height, 56);
+    assert.equal(reservedStyle.height, 64);
     const panelStyle = flattenStyle(panel.props.style);
     assert.equal(panelStyle.backgroundColor, flattenStyle(tree.props.style).backgroundColor);
     assert.equal(reservedStyle.bottom, '100%');

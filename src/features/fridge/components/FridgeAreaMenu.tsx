@@ -138,6 +138,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
                 return <>
                   <MaterialDesignIcons name={category.icon} size={24} color={color} accessible={false} />
                   <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.label, { color }]}>{category.label}</Text>
+                  {expanded ? <View pointerEvents="none" style={styles.selectedIndicator} /> : null}
                 </>;
               }}
             </FeedbackPressable>
@@ -200,6 +201,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   },
   action: { ...getFridgeToolbarStyles(mode).action, maxWidth: undefined, minHeight: 0, height: 50 - StyleSheet.hairlineWidth,
     justifyContent: 'flex-start', paddingTop: spacing.xs, paddingBottom: 0, gap: 0, borderWidth: 0, backgroundColor: 'transparent' },
+  selectedIndicator: { position: 'absolute', bottom: 0, width: 16, height: 2, borderRadius: 1, backgroundColor: colors.chilled },
   choices: {
     flexGrow: 1,
     flexDirection: 'row',
