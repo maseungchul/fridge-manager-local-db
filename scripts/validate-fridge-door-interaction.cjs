@@ -365,7 +365,7 @@ test('더보기 냉장고 삭제는 재료 일괄 삭제를 고지하고 확인�
   const screen = mount(MoreScreen, {
     navigation: { navigate: name => destinations.push(name) },
     onTabInteractionBlockedChange: value => blocked.push(value),
-    onRefrigeratorDeleted: () => destinations.push('clear'),
+    onRefrigeratorDeleted: navigate => { destinations.push('clear'); navigate(); },
   });
   t.after(() => screen.unmount());
   const menu = () => find(screen.tree, node => node.props.accessibilityLabel === '냉장고 삭제');
@@ -406,6 +406,9 @@ test('더보기 냉장고 삭제는 재료 일괄 삭제를 고지하고 확인�
 
   pressDelete();
   await alerts.at(-1)[2].find(button => button.style === 'destructive').onPress();
+  repository.getRefrigeratorSummary = async () => null;
+  screen.focus();
+  await new Promise(setImmediate);
   screen.render();
   assert.equal(menu().props.disabled, true);
   assert.deepEqual(targets, ['fridge', 'fridge']);

@@ -17,7 +17,7 @@ const Stack = createNativeStackNavigator<MoreStackParamList>();
 
 export function MoreStackNavigator({ onTabInteractionBlockedChange, onRefrigeratorDeleted }: {
   onTabInteractionBlockedChange: (blocked: boolean) => void;
-  onRefrigeratorDeleted: () => void;
+  onRefrigeratorDeleted: (navigate: () => void) => void;
 }) {
   const { colors } = useAppTheme();
   return (

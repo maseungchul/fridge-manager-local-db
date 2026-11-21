@@ -30,7 +30,7 @@ import { useAppTheme } from '@/theme/ThemeProvider';
 type MoreScreenProps = CompositeScreenProps<
   NativeStackScreenProps<MoreStackParamList, 'MoreHome'>,
   BottomTabScreenProps<MainTabParamList, 'More'>
-> & { onTabInteractionBlockedChange: (blocked: boolean) => void; onRefrigeratorDeleted: () => void };
+> & { onTabInteractionBlockedChange: (blocked: boolean) => void; onRefrigeratorDeleted: (navigate: () => void) => void };
 
 const menuSections = [
   {
@@ -57,11 +57,12 @@ export function MoreScreen({ navigation, onTabInteractionBlockedChange, onRefrig
   // 등록·편집 후 더보기에 돌아오면 현재 냉장고를 삭제 대상으로 표시한다.
   useFocusEffect(useCallback(() => {
     let active = true;
+    setRefrigerator(null);
     void getRefrigeratorSummary(db).catch(() => null).then(result => {
       if (active) setRefrigerator(result);
     });
     const back = BackHandler.addEventListener('hardwareBackPress', () => deleting.current);
-    return () => { active = false; back.remove(); setRefrigerator(null); };
+    return () => { active = false; back.remove(); };
   }, [db]));
 
   function requestDelete() {
@@ -80,11 +81,9 @@ export function MoreScreen({ navigation, onTabInteractionBlockedChange, onRefrig
       { text: t('common.delete'), style: 'destructive', onPress: async () => {
         try {
           await deleteRefrigerator(db, id);
-          onRefrigeratorDeleted();
-          setRefrigerator(null);
           clearMoveQueue();
           showToast(t('fridge.deleteSuccess'));
-          navigation.navigate('Home');
+          onRefrigeratorDeleted(() => navigation.navigate('Home'));
         } catch (error) {
           Alert.alert(t(alertTitles.error), getErrorMessage(error, t, t('fridge.deleteError')));
         } finally { unlock(); }

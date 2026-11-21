@@ -4,8 +4,8 @@
  * 냉장고·재료·장보기 입력은 상위 Stack에서 열어 입력 중에는 탭을 표시하지 않는다.
  * 탭바에서 하단 안전 영역을 확보하고, 재료 패널·소비 기록 처리 중에는 탭 입력을 막는다.
  */
-import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabBar, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
@@ -33,11 +33,20 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
   const { mode, colors } = useAppTheme();
   const styles = getStyles(mode);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { t } = useTranslation();
   const [isTabInteractionBlocked, setIsTabInteractionBlocked] = useState(false);
   const [shoppingAction, setShoppingAction] = useState<ShoppingSelectionActions | null>(null);
   const clearDeletedRefrigerator = useRef<(() => void) | null>(null);
+  const [isDeleteTransition, setIsDeleteTransition] = useState(false);
+  const navigateAfterDelete = useRef<(() => void) | null>(null);
 
+  useEffect(() => {
+    if (!isDeleteTransition || !navigateAfterDelete.current) return;
+    const navigate = navigateAfterDelete.current;
+    navigateAfterDelete.current = null;
+    navigate();
+  }, [isDeleteTransition]);
 
   return (
     <Tab.Navigator initialRouteName="Home" tabBar={props => shoppingAction ? (
@@ -69,8 +78,16 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
             <Text style={[styles.deleteLabel, pressed && { color: colors.errorPressed }]}>{t('common.delete')}</Text></>}
         </FeedbackPressable> : null}
       </View>
-    ) : <BottomTabBar {...props} />} screenOptions={{
+    ) : <BottomTabBar {...props} />} screenListeners={{
+      tabPress: () => setIsDeleteTransition(false),
+    }} screenOptions={{
       headerShown: false,
+      animation: isDeleteTransition ? 'shift' : 'none',
+      sceneStyleInterpolator: isDeleteTransition ? ({ current }) => ({
+        sceneStyle: { transform: [{ translateX: current.progress.interpolate({
+          inputRange: [-1, 0, 1], outputRange: [-width, 0, width],
+        }) }] },
+      }) : undefined,
       tabBarLabelVisibilityMode: 'labeled',
       tabBarLabelPosition: 'below-icon',
       tabBarIconSize: 28,
@@ -124,7 +141,11 @@ export function MainTabNavigator({ takeIngredientFormResult }: {
         ),
       }}>
         {() => <MoreStackNavigator onTabInteractionBlockedChange={setIsTabInteractionBlocked}
-          onRefrigeratorDeleted={() => clearDeletedRefrigerator.current?.()} />}
+          onRefrigeratorDeleted={navigate => {
+            clearDeletedRefrigerator.current?.();
+            navigateAfterDelete.current = navigate;
+            setIsDeleteTransition(true);
+          }} />}
       </Tab.Screen>
     </Tab.Navigator>
   );
