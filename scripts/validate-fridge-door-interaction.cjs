@@ -6687,16 +6687,19 @@ test('0건 상태를 제외한 배지는 홈에서 세로로 묶고 내부 칸�
       assert.equal(group.paddingVertical ?? 0, 0);
       for (const badge of badges) {
         const badgeStyle = flattenStyle(badge.type(badge.props).props.style);
-        assert.equal(badgeStyle.borderRadius, direction === 'horizontal' ? 3 : 0);
+        assert.equal(badgeStyle.borderRadius, direction === 'horizontal' ? 10 : 0);
         assert.equal(badgeStyle.borderTopWidth ?? 0, 0);
         assert.equal(badgeStyle.borderLeftWidth ?? 0, 0);
-        if (direction === 'horizontal') assert.equal(badgeStyle.maxWidth, '48%');
+        if (direction === 'horizontal') {
+          assert.equal(badgeStyle.width, undefined);
+          assert.equal(badgeStyle.maxWidth, '100%');
+        }
       }
     }
   }
 });
 
-test('내부 가로 배지는 본체·포켓의 왼쪽 상단에 작은 아이콘과 글자로 표시한다', () => {
+test('내부 가로 배지는 본체·포켓의 왼쪽 상단에 바깥 배지와 같은 크기로 표시한다', () => {
   const draft = savedRefrigerator('기한 배지');
   draft.rows[0].compartments[0].slots[0].drawerCount = 2;
   const layout = model.getDraftLayout(draft);
@@ -6740,10 +6743,13 @@ test('내부 가로 배지는 본체·포켓의 왼쪽 상단에 작은 아이�
         const rendered = item.type(item.props);
         const matchingHomeItem = homeItems.find(homeItem => homeItem.props.kind === item.props.kind);
         const homeItem = matchingHomeItem.type(matchingHomeItem.props);
-        assert(children(rendered)[0].props.size < children(homeItem)[0].props.size);
+        for (const dimension of ['minHeight', 'paddingHorizontal', 'paddingVertical', 'gap']) {
+          assert.equal(flattenStyle(rendered.props.style)[dimension], flattenStyle(homeItem.props.style)[dimension]);
+        }
+        assert.equal(children(rendered)[0].props.size, children(homeItem)[0].props.size);
         const label = find(rendered, node => node.type === 'Text');
         const homeLabel = find(homeItem, node => node.type === 'Text');
-        assert(flattenStyle(label.props.style).fontSize < flattenStyle(homeLabel.props.style).fontSize);
+        assert.equal(flattenStyle(label.props.style).fontSize, flattenStyle(homeLabel.props.style).fontSize);
       }
     }
     for (const badge of badges) {
