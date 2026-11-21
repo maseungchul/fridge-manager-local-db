@@ -253,6 +253,7 @@ export function RefrigeratorRegistrationScreen({
 
   function openFocusedArea(target: FridgeFocusTarget) {
     if (saving.current || activeFocus || stepChanging.current) return;
+    setMenuCategory(null);
     openFocus(target);
     setSlotIndex(0);
     setSelectedPositionId(undefined);

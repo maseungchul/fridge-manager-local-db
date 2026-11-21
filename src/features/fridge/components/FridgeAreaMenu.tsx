@@ -5,7 +5,6 @@
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { getIconChipTabStyles } from '@/components/IconChipTabs';
 import { QuantityStepper } from '@/components/QuantityStepper';
@@ -48,7 +47,6 @@ interface FridgeAreaMenuProps {
 }
 
 const openingIcons = { LEFT_DOOR: 'dock-left', RIGHT_DOOR: 'dock-right', DRAWER: 'window-open' } as const;
-const submenuFade = FadeIn.duration(120).reduceMotion(ReduceMotion.System);
 const categoryOptions = [
   { id: 'mode', label: 'fridge.storageMode', icon: 'thermometer-low' },
   { id: 'opening', label: 'fridge.opening', icon: 'door-open' },
@@ -80,7 +78,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
       {current ? (
         <View style={styles.submenuSlot}>
           <View accessibilityLabel={t('fridge.submenu', { label: current.label })} style={styles.submenu}>
-            <Animated.View key={current.id} entering={submenuFade} style={styles.submenuContent}>
+            <View style={styles.submenuContent}>
               {current.id === 'mode' ? (
                 <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
                   accessibilityRole="radiogroup" accessibilityLabel={t('fridge.modeLabel', { location })} style={styles.choicesViewport} contentContainerStyle={styles.choices}>
@@ -120,7 +118,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
                 ) : null}
               </ScrollView>
             ) : null}
-          </Animated.View>
+          </View>
         </View>
         </View>
       ) : null}

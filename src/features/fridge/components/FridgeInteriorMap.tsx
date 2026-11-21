@@ -557,6 +557,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const { t } = useTranslation();
   const progress = useAnimatedValue(0);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const laidOutHorizontalOffset = useRef<{ x: number; y: number } | null>(null);
   const verticalScrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const [scrollPosition, setScrollPosition] = useState({ key: '', x: 0, y: 0 });
   const latestScrollPosition = useRef(scrollPosition);
@@ -570,18 +571,27 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   const verticalScrollable = geometry?.verticalScrollable ?? false;
   const maxScrollY = geometry ? Math.max(0, geometry.contentHeight - geometry.scrollViewportHeight) : 0;
   const maxScrollX = geometry ? Math.max(0, geometry.contentWidth - viewport.width) : 0;
+  const horizontalViewKey = scrollable ? `${scrollKey}:${verticalScrollable}` : '';
+  const [horizontalStart, setHorizontalStart] = useState({ key: '', offset: { x: 0, y: 0 } });
+  let horizontalOffset = horizontalStart.offset;
+  // contentOffset은 스크롤 뷰가 붙을 때만 설정하고 네이티브 스크롤 이벤트를 다시 입력하지 않는다.
+  if (horizontalStart.key !== horizontalViewKey) {
+    const x = scrollPosition.key === scrollKey ? Math.min(scrollPosition.x, maxScrollX) : initialScrollX;
+    horizontalOffset = { x, y: 0 };
+    setHorizontalStart({ key: horizontalViewKey, offset: horizontalOffset });
+  }
 
   useEffect(() => {
-    if (!open || !scrollable) return;
+    if (!scrollable) return;
     const current = latestScrollPosition.current;
-    const x = current.key === scrollKey ? Math.min(current.x, maxScrollX) : initialScrollX;
-    scrollRef.current?.scrollTo({ x, animated: false });
-    if (current.key === scrollKey && x !== current.x) {
-      const next = { ...current, x };
-      latestScrollPosition.current = next;
-      setScrollPosition(next);
-    }
-  }, [open, scrollable, scrollKey, initialScrollX, maxScrollX]);
+    const currentX = current.key === scrollKey ? current.x : horizontalOffset.x;
+    const x = Math.min(currentX, maxScrollX);
+    if (x !== currentX) scrollRef.current?.scrollTo({ x, animated: false });
+    if (current.key === scrollKey && x === currentX) return;
+    const next = { key: scrollKey, x, y: current.key === scrollKey ? current.y : 0 };
+    latestScrollPosition.current = next;
+    setScrollPosition(next);
+  }, [scrollable, horizontalOffset, scrollKey, maxScrollX]);
 
   // 툴바 높이만 달라지면 기존 스크롤을 보존하고, 새 표시 범위를 벗어난 값만 보정한다.
   useEffect(() => {
@@ -589,15 +599,15 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
     const current = latestScrollPosition.current;
     const y = current.key === scrollKey ? Math.min(current.y, maxScrollY) : 0;
     const next = { key: scrollKey, x: current.key === scrollKey ? current.x : initialScrollX, y };
-    if (open && verticalScrollable && (!previous.enabled || previous.key !== scrollKey || y !== current.y)) {
+    if (verticalScrollable && (!previous.enabled || previous.key !== scrollKey || y !== current.y)) {
       verticalScrollRef.current?.scrollTo({ y, animated: false });
     }
     if (current.key === scrollKey && y !== current.y) {
       latestScrollPosition.current = next;
       setScrollPosition(next);
     }
-    previousVertical.current = { key: scrollKey, enabled: open && verticalScrollable };
-  }, [open, verticalScrollable, scrollKey, maxScrollY, initialScrollX]);
+    previousVertical.current = { key: scrollKey, enabled: verticalScrollable };
+  }, [verticalScrollable, scrollKey, maxScrollY, initialScrollX]);
 
   useEffect(() => {
     if (phase !== 'opening' && phase !== 'closing') return;
@@ -616,11 +626,9 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
   if (!geometry) return null;
   const { row, rowIndex, group, body, pockets, doors } = geometry;
   const bodyCorners = doorGaps ? HOME_DOOR_CORNERS : getGridCorners(getGridEdges(row, rowIndex, draft.rows.length, group.body.doorIds));
-  const horizontalScrolling = open && geometry.scrollable;
-  const verticalScrolling = open && geometry.verticalScrollable;
-  const scrolling = horizontalScrolling || verticalScrolling;
-  const scrollShift = scrollPosition.key === scrollKey ? scrollPosition.x - initialScrollX : 0;
-  const scrollShiftY = scrollPosition.key === scrollKey ? Math.min(scrollPosition.y, maxScrollY) : 0;
+  const hasScrollView = scrollable || verticalScrollable;
+  const scrollShift = scrollable && scrollPosition.key === scrollKey ? Math.min(scrollPosition.x, maxScrollX) - initialScrollX : 0;
+  const scrollShiftY = verticalScrollable && scrollPosition.key === scrollKey ? Math.min(scrollPosition.y, maxScrollY) : 0;
 
   function updateScrollPosition(x?: number, y?: number) {
     const current = latestScrollPosition.current;
@@ -643,14 +651,14 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
         { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [frame.fromTranslateY, 0] }) },
       ] };
   }
-  // 닫을 때는 스크롤 위치도 같은 진행값으로 원점에 돌려 시작 화면으로 튀지 않게 한다.
+  // 같은 스크롤 영역에서 문과 도면을 움직인다. 닫힐 때는 현재 스크롤 위치를 더해 원래 자리로 돌아간다.
   const scene = (
-    <Animated.View onStartShouldSetResponder={() => !scrolling} style={[styles.compartment, {
-      left: horizontalScrolling ? geometry.scrollPaddingLeft : geometry.focusedLeft,
-      top: scrolling ? 0 : geometry.focusedTop, width: geometry.width, height: geometry.height,
-      transform: scrolling ? [] : [
-        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateX, -scrollShift] }) },
-        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateY, -scrollShiftY] }) },
+    <Animated.View onStartShouldSetResponder={() => !hasScrollView} style={[styles.compartment, {
+      left: scrollable ? geometry.scrollPaddingLeft : geometry.focusedLeft,
+      top: hasScrollView ? 0 : geometry.focusedTop, width: geometry.width, height: geometry.height,
+      transform: [
+        { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateX + scrollShift, 0] }) },
+        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-geometry.translateY + scrollShiftY, 0] }) },
       ],
     }]}>
       {/* 경첩은 문 뒷면이 드러난 뒤 표시하고, 크기를 조절하는 동안에도 본체 중심과 높이를 따라간다. */}
@@ -716,28 +724,38 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
     </Animated.View>
   );
   // 각 수납 칸의 편집 크기를 유지하고, 넘치는 방향에만 도면 내부 스크롤을 허용한다.
-  const horizontalScene = horizontalScrolling ? (
-    <ScrollView ref={scrollRef} horizontal scrollEnabled nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never" removeClippedSubviews={false}
-      accessibilityLabel={t('fridge.scrollHorizontal')} showsHorizontalScrollIndicator
-      contentOffset={{ x: scrollPosition.key === scrollKey ? Math.min(scrollPosition.x, maxScrollX) : initialScrollX, y: 0 }} scrollEventThrottle={16}
-      onScroll={({ nativeEvent }) => updateScrollPosition(nativeEvent.contentOffset.x)}
-      style={[styles.compartment, { left: 0, top: verticalScrolling ? 0 : geometry.focusedTop,
+  const horizontalScene = scrollable ? (
+    <ScrollView ref={scrollRef} horizontal scrollEnabled={open} nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never" removeClippedSubviews={false}
+      accessibilityLabel={t('fridge.scrollHorizontal')} showsHorizontalScrollIndicator={open}
+      pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
+      importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+      contentOffset={horizontalOffset} scrollEventThrottle={16}
+      onContentSizeChange={() => {
+        if (laidOutHorizontalOffset.current === horizontalOffset) return;
+        laidOutHorizontalOffset.current = horizontalOffset;
+        // 네이티브가 초기 위치를 콘텐츠 너비보다 먼저 받으면 위치가 잘릴 수 있다.
+        if (horizontalOffset.x > 0) scrollRef.current?.scrollTo({ x: horizontalOffset.x, animated: false });
+      }}
+      onScroll={({ nativeEvent }) => { if (open) updateScrollPosition(nativeEvent.contentOffset.x); }}
+      style={[styles.compartment, !open && styles.unclippedScroll, { left: 0, top: verticalScrollable ? 0 : geometry.focusedTop,
         width: viewport.width, height: geometry.contentHeight }]}>
       {/* 네이티브 스크롤 표시줄이 칸 위에 겹치지 않도록 도면 아래 공간을 남긴다. */}
       <View style={{ width: geometry.contentWidth, height: geometry.contentHeight }}>
-        <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} accessible={false} disabled={!open} onPress={onClose} />
         {scene}
       </View>
     </ScrollView>
   ) : scene;
-  const scrollScene = verticalScrolling ? (
-    <ScrollView ref={verticalScrollRef} horizontal={false} scrollEnabled nestedScrollEnabled directionalLockEnabled bounces={false}
-      overScrollMode="never" removeClippedSubviews={false} showsVerticalScrollIndicator scrollEventThrottle={16}
+  const scrollScene = verticalScrollable ? (
+    <ScrollView ref={verticalScrollRef} horizontal={false} scrollEnabled={open} nestedScrollEnabled directionalLockEnabled bounces={false}
+      overScrollMode="never" removeClippedSubviews={false} showsVerticalScrollIndicator={open} scrollEventThrottle={16}
       accessibilityLabel={t('fridge.scrollVertical')}
-      onScroll={({ nativeEvent }) => updateScrollPosition(undefined, nativeEvent.contentOffset.y)}
-      style={[styles.compartment, { left: 0, top: geometry.focusedTop, width: viewport.width, height: geometry.scrollViewportHeight }]}>
+      pointerEvents={open ? 'auto' : 'none'} accessibilityElementsHidden={!open}
+      importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+      onScroll={({ nativeEvent }) => { if (open) updateScrollPosition(undefined, nativeEvent.contentOffset.y); }}
+      style={[styles.compartment, !open && styles.unclippedScroll, { left: 0, top: geometry.focusedTop, width: viewport.width, height: geometry.scrollViewportHeight }]}>
       <View style={{ width: viewport.width, height: geometry.contentHeight }}>
-        <Pressable style={StyleSheet.absoluteFill} accessible={false} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} accessible={false} disabled={!open} onPress={onClose} />
         {horizontalScene}
       </View>
     </ScrollView>
@@ -754,7 +772,7 @@ export function FridgeFocusView({ draft, target, viewport, overlayHeight, phase,
           accessibilityState={{ disabled: !open }} disabled={!open} onPress={onClose} />
       </Animated.View>
       {scrollScene}
-      {horizontalScrolling && !scrollHintBlocked ? <FridgeScrollHint enabled={scrollHintEnabled}
+      {open && scrollable && !scrollHintBlocked ? <FridgeScrollHint enabled={scrollHintEnabled}
         viewport={viewport} onSeen={onScrollHintSeen} /> : null}
     </View>
   );
@@ -824,6 +842,7 @@ const getStyles = createThemedStyles(({ colors, fridgeSurfaces }) => StyleSheet.
   compartment: {
     position: 'absolute',
   },
+  unclippedScroll: { overflow: 'visible' },
   focusOverlay: {
     ...StyleSheet.absoluteFill,
     zIndex: 20,

@@ -652,9 +652,9 @@ function assertFocusAccess(focus, phase) {
   const horizontalScroll = find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
   const verticalScroll = find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal === false);
   assert.equal(moving(focus).props.onStartShouldSetResponder(), !horizontalScroll && !verticalScroll);
-  if (phase !== 'open') {
-    assert.equal(horizontalScroll, undefined);
-    assert.equal(verticalScroll, undefined);
+  for (const scroller of [horizontalScroll, verticalScroll].filter(Boolean)) {
+    assert.equal(scroller.props.scrollEnabled, phase === 'open');
+    assert.equal(scroller.props.accessibilityElementsHidden, phase !== 'open');
   }
   const hinges = find(moving(focus), node => children(node).some(named('DoorHinges')));
   if (hinges) {
@@ -5174,9 +5174,9 @@ for (const opening of ['LEFT_DOOR', 'DRAWER']) {
     focus.render();
     assertFocusAccess(focus, 'closing');
     const style = flattenStyle(moving(focus).props.style);
-    near(style.left + dimensionAt(style.transform[0].translateX, 1), horizontal ? geometry.scrollPaddingLeft - x : geometry.focusedLeft);
-    near(style.top + dimensionAt(style.transform[1].translateY, 1), geometry.focusedTop - y);
-    near(style.top + dimensionAt(style.transform[1].translateY, 0), geometry.top);
+    near(style.left - x + dimensionAt(style.transform[0].translateX, 1), horizontal ? geometry.scrollPaddingLeft - x : geometry.focusedLeft);
+    near(frame.top + style.top - y + dimensionAt(style.transform[1].translateY, 1), geometry.focusedTop - y);
+    near(frame.top + style.top - y + dimensionAt(style.transform[1].translateY, 0), geometry.top);
     animations.at(-1).finish();
     focus.render();
     assertFocusAccess(focus, 'closed');
@@ -5237,7 +5237,7 @@ test('넘친 도면은 열린 뒤 좌우 이동·포켓 선택이 가능하고 �
       const geometry = getFridgeFocusGeometry(draft, target, focus.props.viewport);
       const scroller = () => find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
       assertFocusAccess(focus, 'opening');
-      assert.equal(scroller(), undefined);
+      assert.equal(scroller().props.scrollEnabled, false);
       animations.at(-1).finish();
       focus.render();
       assertFocusAccess(focus, 'open');
@@ -5274,8 +5274,8 @@ test('넘친 도면은 열린 뒤 좌우 이동·포켓 선택이 가능하고 �
       assertFocusAccess(focus, 'closing');
       const style = flattenStyle(moving(focus).props.style);
       const translation = style.transform[0].translateX.outputRange;
-      near(style.left + translation[1], geometry.scrollPaddingLeft - lastX);
-      near(style.left + translation[0], geometry.left);
+      near(style.left - lastX + translation[1], geometry.scrollPaddingLeft - lastX);
+      near(style.left - lastX + translation[0], geometry.left);
       animations.at(-1).finish();
       focus.render();
       assertFocusAccess(focus, 'closed');
@@ -7188,15 +7188,27 @@ test('툴바 높이 변화는 열린 도면의 좌우·상하 스크롤을 유�
   const { focus } = focusedFixture(draft, requests[0], { x: 0, y: 0, width: 375, height: 240 });
   t.after(() => focus.unmount());
   focus.props.sizeViewport = { width: 375, height: 600 };
-  animations.at(-1).finish(); focus.render();
   const horizontal = () => find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal);
   const vertical = () => find(focus.tree, node => node.type === 'ScrollView' && node.props.horizontal === false);
+  focus.render();
   assert(horizontal()); assert(vertical());
+  const openingOffset = horizontal().props.contentOffset;
+  const openingRef = horizontal().props.ref;
+  assert(openingOffset.x > 0);
+  assert.equal(horizontal().props.scrollEnabled, false);
   const resetsX = [], resetsY = [];
-  horizontal().props.ref.current = { scrollTo: value => resetsX.push(value) };
+  openingRef.current = { scrollTo: value => resetsX.push(value) };
+  horizontal().props.onContentSizeChange();
+  assert.deepEqual(resetsX.splice(0), [{ x: openingOffset.x, animated: false }]);
+  animations.at(-1).finish(); focus.render();
+  assert.equal(horizontal().props.scrollEnabled, true);
+  assert.strictEqual(horizontal().props.ref, openingRef);
+  assert.strictEqual(horizontal().props.contentOffset, openingOffset);
+  horizontal().props.onContentSizeChange();
   vertical().props.ref.current = { scrollTo: value => resetsY.push(value) };
   horizontal().props.onScroll({ nativeEvent: { contentOffset: { x: 70 } } });
   vertical().props.onScroll({ nativeEvent: { contentOffset: { y: 60 } } }); focus.render();
+  assert.equal(horizontal().props.contentOffset.x, openingOffset.x, '스크롤 이벤트를 초기 위치에 다시 반영하지 않는다');
   focus.props.viewport = { ...focus.props.viewport, height: 200 }; focus.render();
   assert.deepEqual(resetsX, []);
   assert.deepEqual(resetsY, []);
@@ -7207,7 +7219,10 @@ test('툴바 높이 변화는 열린 도면의 좌우·상하 스크롤을 유�
   assert.deepEqual(resetsX, []);
   assert.deepEqual(resetsY, [{ y: 30, animated: false }]);
   focus.props.phase = 'closing'; focus.render();
-  near(flattenStyle(moving(focus).props.style).transform[1].translateY.outputRange[1], -30);
+  const closing = flattenStyle(moving(focus).props.style);
+  const frame = flattenStyle(vertical().props.style);
+  near(closing.left - 70 + dimensionAt(closing.transform[0].translateX, 0), geometry.left);
+  near(frame.top + closing.top - 30 + dimensionAt(closing.transform[1].translateY, 0), geometry.top);
 });
 
 test('홈은 자정·앱 복귀 때 배지 날짜를 갱신하고 타이머와 구독을 정리한다', async t => {
