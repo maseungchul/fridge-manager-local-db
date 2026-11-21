@@ -13,12 +13,8 @@ import type { Translator } from '@/i18n/translations';
 
 export const INGREDIENT_BADGE_SIZE = 28;
 const BADGE_ROW_HEIGHT = 20;
-const BADGE_MAX_WIDTH = 52;
 const badgeKinds = ['normal', 'warning', 'expired', 'unknown'] as const;
 const badgeIcons = { normal: 'circle-slice-1', warning: 'circle-slice-6', expired: 'circle-slice-8', unknown: 'help-circle-outline' } as const;
-
-// 모든 상태가 99+여도 칸 크기를 바꾸지 않도록 가로 배지의 최대 폭을 공유한다.
-export const INGREDIENT_BADGES_MAX_WIDTH = badgeKinds.length * BADGE_MAX_WIDTH;
 
 /** 색을 구별하지 못하는 경우에도 실제 건수와 기한 상태를 함께 안내한다. */
 export function getIngredientCountLabel(counts: IngredientCounts, t: Translator = defaultTranslate) {
@@ -30,19 +26,19 @@ export function getIngredientCountLabel(counts: IngredientCounts, t: Translator 
   ].join(', ');
 }
 
-export function IngredientCountBadge({ count, kind, style }: {
-  count?: number; kind: typeof badgeKinds[number]; style?: StyleProp<ViewStyle>;
+export function IngredientCountBadge({ count, kind, compact = false, style }: {
+  count?: number; kind: typeof badgeKinds[number]; compact?: boolean; style?: StyleProp<ViewStyle>;
 }) {
   const { colors, ingredientBadgeColors } = useAppTheme();
   const backgroundColor = ingredientBadgeColors[kind];
   const color = colors.badgeText;
-  const iconSize = count === undefined ? 22 : 14;
+  const iconSize = count === undefined ? 22 : compact ? 9 : 14;
   return (
     <View style={[styles.badge, styles.countBadge, count === undefined && styles.legendBadge, { backgroundColor }, style]}>
       <MaterialDesignIcons name={badgeIcons[kind]} size={iconSize} color={color}
         style={[styles.icon, { width: iconSize, height: iconSize, lineHeight: iconSize }]} accessible={false} />
       {count !== undefined ? (
-        <Text style={[styles.count, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} maxFontSizeMultiplier={1.2}>{count > 99 ? '99+' : count}</Text>
+        <Text style={[styles.count, compact && styles.compactCount, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} maxFontSizeMultiplier={1.2}>{count > 99 ? '99+' : count}</Text>
       ) : null}
     </View>
   );
@@ -63,7 +59,7 @@ export function IngredientCountBadges({ counts, placement = 'center', direction 
       {/* 바깥 묶음만 둥글게 잘라 0건 상태가 빠져도 양 끝 모양을 유지한다. */}
       <View style={[styles.badges, direction === 'horizontal' && styles.horizontalBadges]}>
         {badgeKinds.filter(kind => counts[kind] > 0).map(kind => (
-          <IngredientCountBadge key={kind} count={counts[kind]} kind={kind}
+          <IngredientCountBadge key={kind} count={counts[kind]} kind={kind} compact={direction === 'horizontal'}
             style={[styles.mergedBadge, direction === 'horizontal' && styles.horizontalBadge]} />
         ))}
       </View>
@@ -77,9 +73,11 @@ const styles = StyleSheet.create({
     maxWidth: '100%', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start',
     borderRadius: BADGE_ROW_HEIGHT / 2, overflow: 'hidden', gap: 1,
   },
-  horizontalBadges: { flexDirection: 'row' },
+  // 좁은 수납칸에서는 배지를 두 줄로 배치해 본체 너비에 영향을 주지 않는다.
+  horizontalBadges: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', borderRadius: 0 },
   mergedBadge: { borderRadius: 0 },
-  horizontalBadge: { maxWidth: BADGE_MAX_WIDTH, flexShrink: 1 },
+  horizontalBadge: { width: 34, maxWidth: '48%', minHeight: 14, paddingHorizontal: 1, paddingVertical: 0, gap: 1, borderRadius: 3 },
+  compactCount: { fontSize: 10 },
   // 홈·내부 칸 모두 같은 간격으로 아이콘과 숫자의 왼쪽을 맞춘다.
   badge: { minWidth: 0, minHeight: BADGE_ROW_HEIGHT, paddingHorizontal: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 3 },
   countBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: BADGE_ROW_HEIGHT / 2 },

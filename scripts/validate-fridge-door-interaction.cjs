@@ -4068,7 +4068,7 @@ test('닫힌 홈 도면은 실측 영역에 맞춰 축소하지 않고 기존 �
   }
 });
 
-test('홈·등록·편집은 닫힌 배치를 공유하고 홈 내부의 가로 배지는 너비만 추가 확보한다', async t => {
+test('홈·등록·편집은 닫힌 배치와 열린 본체 크기를 공유한다', async t => {
   const previousGet = repository.getRefrigerator;
   const previousWindow = native.useWindowDimensions;
   t.after(() => { repository.getRefrigerator = previousGet; native.useWindowDimensions = previousWindow; });
@@ -4143,15 +4143,15 @@ test('홈·등록·편집은 닫힌 배치를 공유하고 홈 내부의 가로 
       });
       assert.deepEqual(renderedSizes[1], renderedSizes[2]);
       const geometries = focuses.map(({ props }) => getFridgeFocusGeometry(props.draft, props.target, props.viewport,
-        props.sizeViewport, props.flushVerticalEdges, !props.onSelectArea));
+        props.sizeViewport, props.flushVerticalEdges));
       geometries.forEach((geometry, index) => {
         assert.deepEqual(renderedSizes[index], { width: geometry.width, height: geometry.height });
         assert.deepEqual(geometry.source, geometries[0].source);
       });
       near(geometries[1].body.width, geometries[2].body.width);
       near(geometries[1].height, geometries[2].height);
-      assert(geometries[0].body.width >= geometries[1].body.width - 1e-8);
-      assert(geometries[0].height <= geometries[1].height + 1e-8, '가로 배지 때문에 도면 높이가 커지면 안 된다');
+      near(geometries[0].body.width, geometries[1].body.width);
+      near(geometries[0].height, geometries[1].height);
       const homeOverlay = overlays[0];
       const layout = model.getDraftLayout(saved);
       homeOverlay.props.ingredients = layout.positions.flatMap(position =>
@@ -6656,7 +6656,7 @@ test('재료 집계는 기한 미입력과 일반·D-2·당일·경과를 중복
   assert.deepEqual(ingredientModel.getIngredientCounts([], new Date(2026, 10, 4)), { total: 0, normal: 0, warning: 0, expired: 0, unknown: 0 });
 });
 
-test('0건 상태를 제외한 배지는 홈 세로·내부 가로 묶음 안에서 양 끝만 둥글게 병합한다', () => {
+test('0건 상태를 제외한 배지는 홈에서 세로로 묶고 내부 칸의 너비에 맞춰 줄바꿈한다', () => {
   for (const [dates, expected] of [
     [['2026-11-07', null], [['normal', 1], ['unknown', 1]]],
     [[null], [['unknown', 1]]],
@@ -6678,7 +6678,8 @@ test('0건 상태를 제외한 배지는 홈 세로·내부 가로 묶음 안에
       if (!tree) continue;
       const group = flattenStyle(children(tree)[0].props.style);
       assert.equal(group.flexDirection, direction === 'horizontal' ? 'row' : 'column');
-      assert.equal(group.borderRadius, 10);
+      assert.equal(group.borderRadius, direction === 'horizontal' ? 0 : 10);
+      if (direction === 'horizontal') assert.equal(group.flexWrap, 'wrap');
       assert.equal(group.overflow, 'hidden');
       assert.equal(group.gap, 1);
       assert.equal(group.backgroundColor, undefined, '배지 사이로 실제 도면 배경이 보인다');
@@ -6686,16 +6687,16 @@ test('0건 상태를 제외한 배지는 홈 세로·내부 가로 묶음 안에
       assert.equal(group.paddingVertical ?? 0, 0);
       for (const badge of badges) {
         const badgeStyle = flattenStyle(badge.type(badge.props).props.style);
-        assert.equal(badgeStyle.borderRadius, 0);
+        assert.equal(badgeStyle.borderRadius, direction === 'horizontal' ? 3 : 0);
         assert.equal(badgeStyle.borderTopWidth ?? 0, 0);
         assert.equal(badgeStyle.borderLeftWidth ?? 0, 0);
-        if (direction === 'horizontal') assert.equal(badgeStyle.flexShrink, 1);
+        if (direction === 'horizontal') assert.equal(badgeStyle.maxWidth, '48%');
       }
     }
   }
 });
 
-test('내부 가로 배지는 본체·포켓의 왼쪽 상단에 표시하고 홈 세로 배지와 같은 아이콘·글자 크기를 사용한다', () => {
+test('내부 가로 배지는 본체·포켓의 왼쪽 상단에 작은 아이콘과 글자로 표시한다', () => {
   const draft = savedRefrigerator('기한 배지');
   draft.rows[0].compartments[0].slots[0].drawerCount = 2;
   const layout = model.getDraftLayout(draft);
@@ -6739,11 +6740,10 @@ test('내부 가로 배지는 본체·포켓의 왼쪽 상단에 표시하고 �
         const rendered = item.type(item.props);
         const matchingHomeItem = homeItems.find(homeItem => homeItem.props.kind === item.props.kind);
         const homeItem = matchingHomeItem.type(matchingHomeItem.props);
-        assert.equal(flattenStyle(rendered.props.style).gap, flattenStyle(homeItem.props.style).gap);
-        assert.equal(children(rendered)[0].props.size, children(homeItem)[0].props.size);
+        assert(children(rendered)[0].props.size < children(homeItem)[0].props.size);
         const label = find(rendered, node => node.type === 'Text');
         const homeLabel = find(homeItem, node => node.type === 'Text');
-        assert.deepEqual(label.props.style, homeLabel.props.style);
+        assert(flattenStyle(label.props.style).fontSize < flattenStyle(homeLabel.props.style).fontSize);
       }
     }
     for (const badge of badges) {
@@ -6764,9 +6764,6 @@ test('내부 가로 배지는 본체·포켓의 왼쪽 상단에 표시하고 �
     assert.equal(flattenStyle(front.props.style).height, '62%');
     assert.equal(flattenStyle(front.props.style).minHeight, undefined);
     assert.deepEqual(findAll(pocketBadge, node => node.type === 'Text').map(node => node.props.children), ['99+', '99+', '99+', '99+']);
-    const maximumBadgeWidth = findAll(pocketBadge, named('IngredientCountBadge'))
-      .reduce((sum, badge) => sum + flattenStyle(badge.type(badge.props).props.style).maxWidth, 0);
-    assert.equal(maximumBadgeWidth, badgeModule.INGREDIENT_BADGES_MAX_WIDTH);
     overview.compartment.unmount();
     overview.map.unmount();
   }

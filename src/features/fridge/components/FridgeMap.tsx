@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { INGREDIENT_BADGES_MAX_WIDTH, IngredientCountBadges, getIngredientCountLabel } from '@/features/ingredient/components/IngredientCountBadges';
+import { IngredientCountBadges, getIngredientCountLabel } from '@/features/ingredient/components/IngredientCountBadges';
 import { getIngredientCounts } from '@/features/ingredient/model/ingredient';
 import { getFridgeSurfaceStyle, spacing, fridgeSurfaces as lightFridgeSurfaces, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
@@ -32,17 +32,14 @@ const INGREDIENT_BADGE_INSET = 4;
 export const DOOR_MODE_ART_INSET = 8;
 
 /** 프레임·이름·구분선과 여백을 더해 실제 수납 칸마다 최소 편집 크기를 확보한다. */
-export function getFridgeAreaEditSize(slots: readonly SlotConfiguration[], isBody: boolean, showIngredientCounts = false) {
+export function getFridgeAreaEditSize(slots: readonly SlotConfiguration[], isBody: boolean) {
   const slotCount = Math.max(1, slots.length);
   const columns = Math.max(1, ...slots.map(slot => slot.drawerCount === 2 ? 2 : 1));
   const innerMargin = lightFridgeSurfaces.bodySideWidth - lightFridgeSurfaces.frameWidth;
   const horizontalPadding = isBody ? BODY_EDGE_INSET : AREA_CONTENT_PADDING;
-  // 홈의 가로 배지는 최대 건수에 맞춘 고정 폭을 확보하고, 편집 칸의 높이는 그대로 유지한다.
-  const cellWidth = showIngredientCounts ? INGREDIENT_BADGES_MAX_WIDTH + INGREDIENT_BADGE_INSET * 2
-    + (isBody ? 0 : (POCKET_SIDE_INSET + POCKET_BORDER_WIDTH) * 2) : MIN_EDIT_CELL_SIZE;
   return {
     width: lightFridgeSurfaces.frameWidth * 2 + innerMargin * 2 + horizontalPadding * 2
-      + columns * cellWidth + (columns - 1) * (isBody ? BODY_CELL_GAP : POSITION_SEPARATOR_WIDTH),
+      + columns * MIN_EDIT_CELL_SIZE + (columns - 1) * (isBody ? BODY_CELL_GAP : POSITION_SEPARATOR_WIDTH),
     height: lightFridgeSurfaces.frameWidth * 2 + lightFridgeSurfaces.headerHeight + innerMargin
       + (isBody ? BODY_EDGE_INSET * 2 : AREA_CONTENT_PADDING) + slotCount * MIN_EDIT_CELL_SIZE
       + (isBody ? (slotCount - 1) * BODY_CELL_GAP : 0),
