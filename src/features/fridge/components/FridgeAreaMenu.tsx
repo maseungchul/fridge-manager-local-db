@@ -5,15 +5,16 @@
  */
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
-import { SelectionCheck } from '@/components/SelectionCheck';
+import { getIconChipTabStyles } from '@/components/IconChipTabs';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import { doorOpeningOptions, getSlotName, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
-import { FRIDGE_SUBMENU_HEIGHT, FRIDGE_SUBMENU_BOTTOM_SPACE } from '@/features/fridge/components/fridgeDiagramLayout';
+import { FRIDGE_SUBMENU_HEIGHT } from '@/features/fridge/components/fridgeDiagramLayout';
 import { getFridgeToolbarStyles } from '@/features/fridge/components/fridgeToolbarStyles';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
@@ -47,13 +48,14 @@ interface FridgeAreaMenuProps {
 }
 
 const openingIcons = { LEFT_DOOR: 'dock-left', RIGHT_DOOR: 'dock-right', DRAWER: 'window-open' } as const;
+const submenuFade = FadeIn.duration(120).reduceMotion(ReduceMotion.System);
 const categoryOptions = [
   { id: 'mode', label: 'fridge.storageMode', icon: 'thermometer-low' },
   { id: 'opening', label: 'fridge.opening', icon: 'door-open' },
   { id: 'slots', label: 'fridge.slots', icon: 'view-agenda-outline' },
 ] as const;
 
-/** 하위 설정과 카테고리 사이의 화살표로 관계를 표시하고, 같은 버튼을 다시 누르면 접는다. */
+/** 선택한 카테고리의 하위 설정을 툴바 위에 표시하고, 같은 버튼을 다시 누르면 접는다. */
 export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, showOpeningAction, openingDisabled = false,
   openingDoors, storageEnabled, storageMode, showSlots, slots, maxSlotCount, selectedSlotIndex, location,
   mergeDisabled = false, onOpeningChange, onStorageChange, onStorageModeChange,
@@ -78,33 +80,33 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
       {current ? (
         <View style={styles.submenuSlot}>
           <View accessibilityLabel={t('fridge.submenu', { label: current.label })} style={styles.submenu}>
-            <View style={styles.submenuContent}>
+            <Animated.View key={current.id} entering={submenuFade} style={styles.submenuContent}>
               {current.id === 'mode' ? (
                 <ScrollView horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
                   accessibilityRole="radiogroup" accessibilityLabel={t('fridge.modeLabel', { location })} style={styles.choicesViewport} contentContainerStyle={styles.choices}>
-                  {storageModeOptions.map(mode => (
+                  <View style={styles.segments}>{storageModeOptions.map(mode => (
                     <FeedbackPressable key={mode.value} accessibilityRole="radio" accessibilityLabel={`${location} ${t(mode.label)}`}
                       disabled={disabled} accessibilityState={{ checked: storageMode === mode.value, disabled }}
-                      onPress={() => onStorageModeChange(mode.value)} style={[styles.choice, storageMode === mode.value && styles.selected]}>
-                      <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'weather-windy' : 'snowflake'} size={18}
-                        color={mode.value === 'CHILLED' ? colors.chilled : colors.frozen} accessible={false} />
-                      <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{t(mode.label)}</Text><SelectionCheck selected={storageMode === mode.value} />
+                      feedback="chip" onPress={() => onStorageModeChange(mode.value)} style={[styles.choice, storageMode === mode.value && styles.selected]}>
+                      <MaterialDesignIcons name={mode.value === 'CHILLED' ? 'weather-windy' : 'snowflake'} size={16}
+                        color={storageMode === mode.value ? colors.chilled : colors.textMuted} accessible={false} />
+                      <Text numberOfLines={1} style={[styles.choiceLabel, storageMode === mode.value && styles.selectedChoiceLabel]}>{t(mode.label)}</Text>
                     </FeedbackPressable>
-                  ))}
+                  ))}</View>
                 </ScrollView>
               ) : null}
             {current.id === 'opening' ? openingDoors.map(door => (
               <ScrollView key={door.id} horizontal nestedScrollEnabled directionalLockEnabled bounces={false} overScrollMode="never"
                 accessibilityRole="radiogroup" accessibilityLabel={t('fridge.openingLabel', { label: door.label })} style={styles.choicesViewport} contentContainerStyle={styles.choices}>
-                {doorOpeningOptions.map(option => (
+                <View style={styles.segments}>{doorOpeningOptions.map(option => (
                   <FeedbackPressable key={option.value} accessibilityRole="radio" disabled={disabled}
                     accessibilityLabel={`${door.label} ${t(option.label)}`}
                     accessibilityState={{ checked: door.opening === option.value, disabled }}
-                    onPress={() => onOpeningChange(door.id, option.value)} style={[styles.choice, door.opening === option.value && styles.selected]}>
-                    <MaterialDesignIcons name={openingIcons[option.value]} size={18} color={colors.text} accessible={false} />
-                    <Text numberOfLines={1} style={[styles.label, styles.choiceLabel]}>{t(option.label)}</Text><SelectionCheck selected={door.opening === option.value} />
+                    feedback="chip" onPress={() => onOpeningChange(door.id, option.value)} style={[styles.choice, door.opening === option.value && styles.selected]}>
+                    <MaterialDesignIcons name={openingIcons[option.value]} size={16} color={door.opening === option.value ? colors.chilled : colors.textMuted} accessible={false} />
+                    <Text numberOfLines={1} style={[styles.choiceLabel, door.opening === option.value && styles.selectedChoiceLabel]}>{t(option.label)}</Text>
                   </FeedbackPressable>
-                ))}
+                ))}</View>
               </ScrollView>
             )) : null}
             {current.id === 'slots' ? (
@@ -118,7 +120,7 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
                 ) : null}
               </ScrollView>
             ) : null}
-          </View>
+          </Animated.View>
         </View>
         </View>
       ) : null}
@@ -134,7 +136,6 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
               {({ pressed }) => {
                 const color = expanded ? colors.chilled : pressed ? colors.iconPressed : colors.text;
                 return <>
-                  {expanded ? <View pointerEvents="none" style={styles.submenuArrow} /> : null}
                   <MaterialDesignIcons name={category.icon} size={24} color={color} accessible={false} />
                   <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.label, { color }]}>{category.label}</Text>
                 </>;
@@ -178,73 +179,52 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
 
 const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   ...getFridgeToolbarStyles(mode),
+  toolbar: { ...getFridgeToolbarStyles(mode).toolbar, height: 50, paddingVertical: 0 },
   // 툴바의 배치 높이를 바꾸지 않고, 도면 계산에서 별도로 제외한 공간에 하위 설정을 펼친다.
   submenuSlot: {
     position: 'absolute',
     bottom: '100%',
-    left: spacing.lg,
-    right: spacing.lg,
+    left: -spacing.md,
+    right: -spacing.md,
     height: FRIDGE_SUBMENU_HEIGHT,
-    marginBottom: FRIDGE_SUBMENU_BOTTOM_SPACE,
   },
   submenu: {
     height: '100%',
-    borderWidth: 1,
-    borderColor: colors.chilled,
-    borderRadius: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
     backgroundColor: colors.toolbar,
   },
   submenuContent: {
-    padding: spacing.sm,
-    gap: spacing.sm,
+    flex: 1,
+    justifyContent: 'center',
   },
-  action: { ...getFridgeToolbarStyles(mode).action, maxWidth: undefined, gap: 0, borderWidth: 0, backgroundColor: 'transparent' },
-  submenuArrow: {
-    position: 'absolute',
-    bottom: '100%',
-    marginBottom: 14,
-    left: '50%',
-    marginLeft: -6,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 6,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: colors.menuArrow,
-  },
+  action: { ...getFridgeToolbarStyles(mode).action, maxWidth: undefined, minHeight: 0, height: 50 - StyleSheet.hairlineWidth,
+    justifyContent: 'flex-start', paddingTop: spacing.xs, paddingBottom: 0, gap: 0, borderWidth: 0, backgroundColor: 'transparent' },
   choices: {
     flexGrow: 1,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingBottom: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
     gap: spacing.xs,
   },
   choicesViewport: {
     flexGrow: 0,
   },
-  choice: {
-    flexGrow: 0,
-    flexShrink: 0,
-    minWidth: 0,
-    minHeight: 44,
+  segments: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    flexShrink: 0,
+    gap: 8,
+  },
+  choice: {
+    ...getIconChipTabStyles(mode).chip,
+    flexShrink: 0,
+    maxWidth: undefined,
   },
   choiceLabel: {
+    ...getIconChipTabStyles(mode).label,
     flexShrink: 0,
   },
-  selected: {
-    borderColor: colors.chilled,
-    backgroundColor: colors.sageLight,
-  },
+  selected: getIconChipTabStyles(mode).selectedChip,
+  selectedChoiceLabel: getIconChipTabStyles(mode).selectedLabel,
 }));

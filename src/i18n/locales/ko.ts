@@ -184,6 +184,8 @@ export const ko = {
   'fridge.split': '분리',
   'fridge.merge': '합치기',
   'fridge.noSplit': '분할 없음',
+  'fridge.wholeSlot': '통칸',
+  'fridge.splitSlot': '좌우 분할',
   'fridge.twoColumns': '좌우 2칸',
   'fridge.splitDescription': '좌우로 나뉜 칸',
   'fridge.noStorage': '{label}, 수납 없음',

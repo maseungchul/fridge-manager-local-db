@@ -186,6 +186,8 @@ export const ja: Record<keyof typeof ko, string> = {
   'fridge.split': '分離',
   'fridge.merge': '結合',
   'fridge.noSplit': '分割なし',
+  'fridge.wholeSlot': '一体',
+  'fridge.splitSlot': '左右分割',
   'fridge.twoColumns': '左右2区画',
   'fridge.splitDescription': '左右に分割された区画',
   'fridge.noStorage': '{label}、収納なし',

@@ -207,7 +207,7 @@ function loadComponent(path, overrides = {}) {
     '@/components/Toast': { Toast: 'Toast' },
     '@/components/ToastProvider': { ToastProvider: 'ToastProvider', useToast: () => message => toastMessages.push(message) },
     '@/components/EmptyListState': { EmptyListState: 'EmptyListState' },
-    '@/components/IconChipTabs': { IconChipTabs: 'IconChipTabs' },
+    '@/components/IconChipTabs': { IconChipTabs: 'IconChipTabs', getIconChipTabStyles: mode => chipTabsModule.getIconChipTabStyles(mode) },
     '@/components/SelectionCheck': { SelectionCheck: 'SelectionCheck' },
     '@/i18n/locales/ko': { ko }, '@/i18n/locales/ja': { ja },
     '@/i18n/translations': translationModule,
@@ -235,6 +235,7 @@ function loadComponent(path, overrides = {}) {
     'react-native-gesture-handler': { GestureHandlerRootView: 'GestureHandlerRootView' },
     'react-native-reanimated': {
       __esModule: true, default: { View: 'Reanimated.View' },
+      FadeIn: { duration: () => ({ reduceMotion() {} }) }, ReduceMotion: { System: 'system' },
       useAnimatedStyle: callback => callback,
       useAnimatedReaction() {}, runOnJS: callback => callback,
     },
@@ -303,6 +304,7 @@ function loadComponent(path, overrides = {}) {
     (...args) => { const timer = setTimeout(...args); timer.unref?.(); return timer; });
   return module.exports;
 }
+const chipTabsModule = loadComponent('src/components/IconChipTabs.tsx');
 languageModule = loadComponent('src/i18n/LanguageProvider.tsx');
 shoppingRepository = loadComponent('src/db/shoppingRepository.ts', { expo: { uuid: {} } });
 delayedLoadingModule = loadComponent('src/hooks/useDelayedLoading.ts');
@@ -6001,7 +6003,7 @@ test('이름 입력 없이 본체 칸의 분할을 편집하고 포켓은 개수
   screen.unmount();
 });
 
-test('카테고리를 다시 누르면 접고 하위 영역에 툴바 배경을 적용하며 여백 안에 삼각형 화살표를 표시한다', () => {
+test('카테고리를 다시 누르면 접고 하위 영역을 툴바 위에 붙여 표시한다', () => {
   const { screen, viewport, target, row } = registrationFixture(2);
   viewport.props.ref.current = { measureInWindow: callback => callback(0, 110, 375, 520) };
   find(screen.tree, named('FridgeInteriorMap')).props.onFocus(target);
@@ -6019,26 +6021,18 @@ test('카테고리를 다시 누르면 접고 하위 영역에 툴바 배경을 
     const panel = find(tree, node => node.props.accessibilityLabel === `${label} 하위 설정`);
     const parent = categories().find(node => node.props.accessibilityLabel === label);
     const parentContent = parent.props.children({ pressed: false });
-    const arrow = find(parentContent, node => flattenStyle(node.props.style).borderTopWidth === 6);
     assert.equal(parent.props.accessibilityState.expanded, true);
     assert.equal(categories().filter(node => node.props.accessibilityState.expanded).length, 1);
     assert.notEqual(flattenStyle(panel.props.style).position, 'absolute');
     const reservedStyle = flattenStyle(children(tree)[0].props.style);
-    assert.equal(reservedStyle.height, 82);
+    assert.equal(reservedStyle.height, 56);
     const panelStyle = flattenStyle(panel.props.style);
-    const arrowStyle = flattenStyle(arrow.props.style);
     assert.equal(panelStyle.backgroundColor, flattenStyle(tree.props.style).backgroundColor);
-    assert(reservedStyle.marginBottom > 0);
-    assert.equal(arrowStyle.width, 0);
-    assert.equal(arrowStyle.height, 0);
-    assert.equal(arrowStyle.borderLeftColor, 'transparent');
-    assert.equal(arrowStyle.borderRightColor, 'transparent');
-    assert.equal(arrowStyle.borderTopColor, '#000000');
-    assert.equal(arrowStyle.bottom, '100%');
-    const parentStyle = flattenStyle(parent.props.style);
-    assert(arrowStyle.marginBottom - parentStyle.borderWidth >= 10);
+    assert.equal(reservedStyle.bottom, '100%');
+    assert.equal(reservedStyle.marginBottom, undefined);
+    assert.equal(panelStyle.borderWidth, undefined);
     const toolbarStyle = flattenStyle(tree.props.style);
-    assert.equal(toolbarStyle.paddingVertical + reservedStyle.marginBottom - arrowStyle.marginBottom - arrowStyle.borderTopWidth, 6);
+    assert(toolbarStyle.borderTopWidth > 0);
     if (label === '보관 모드') {
       assert.equal(find(parentContent, node => node.type === 'Icon').props.name, 'thermometer-low');
       const chilled = find(tree, node => node.props.accessibilityRole === 'radio' && node.props.accessibilityLabel.endsWith('냉장'));
@@ -6049,8 +6043,7 @@ test('카테고리를 다시 누르면 접고 하위 영역에 툴바 배경을 
     assert(horizontalRows.length > 0);
     for (const scroll of horizontalRows) {
       assert.equal(scroll.props.nestedScrollEnabled, true);
-      assert.equal(flattenStyle(scroll.props.contentContainerStyle).alignItems, 'flex-start');
-      assert(flattenStyle(scroll.props.contentContainerStyle).paddingBottom >= 16);
+      assert.equal(flattenStyle(scroll.props.contentContainerStyle).alignItems, 'center');
       for (const button of findAll(scroll, node => node.type === 'FeedbackPressable')) {
         assert.equal(flattenStyle(button.props.style).flexShrink, 0);
         for (const text of findAll(button, node => node.type === 'Text')) {

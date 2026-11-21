@@ -15,9 +15,9 @@ export interface FridgeDiagramSize {
 export const FRIDGE_HEADER_BUTTON_SIZE = HEADER_CONTENT_HEIGHT;
 export const FRIDGE_STEP_BADGE_SIZE = 28;
 export const FRIDGE_TOOLBAR_ACTION_HEIGHT = 56;
-export const FRIDGE_SUBMENU_HEIGHT = 82;
-export const FRIDGE_SUBMENU_BOTTOM_SPACE = 20;
-export const FRIDGE_MENU_RESERVED_SPACE = FRIDGE_SUBMENU_HEIGHT + FRIDGE_SUBMENU_BOTTOM_SPACE + spacing.sm;
+export const FRIDGE_SUBMENU_HEIGHT = 56;
+// 설정 줄이 얇아져도 도면의 기존 크기와 중앙 위치를 유지한다.
+export const FRIDGE_MENU_RESERVED_SPACE = 102 + spacing.sm;
 
 /** 화면별 남는 공간이 아니라 등록·편집의 같은 레이아웃을 기준으로 닫힘·열림 크기를 정한다. */
 export function getFridgeDiagramSizes(window: FridgeDiagramSize, insets: { top: number; bottom: number; left: number; right: number }) {

@@ -7,6 +7,7 @@
 import { MaterialDesignIcons } from '@react-native-vector-icons/material-design-icons';
 import { StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
+import { getIconChipTabStyles } from '@/components/IconChipTabs';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { spacing, createThemedStyles } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/ThemeProvider';
@@ -14,7 +15,7 @@ import type { DrawerCount } from '../model/fridgeLayout';
 import { useTranslation } from '@/i18n/LanguageProvider';
 
 const structureOptions = [
-  { value: 0, label: 'fridge.noSplit', icon: 'rectangle-outline' },
+  { value: 0, label: 'fridge.noSplit', icon: 'mirror-rectangle' },
   { value: 2, label: 'fridge.twoColumns', icon: 'view-split-vertical' },
 ] as const;
 
@@ -49,22 +50,28 @@ export function SlotStructureSelector({ label, accessibilityLabel = label, value
   const options = structureOptions.map(option => (
     <FeedbackPressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${accessibilityLabel} ${t(option.label)}`}
       accessibilityState={{ checked: selectedValue === option.value, disabled: !!disabled }} disabled={disabled}
-      onPress={() => onChange(option.value)} style={[styles.option, selectedValue === option.value && styles.selected]}>
-      <MaterialDesignIcons name={option.icon} size={18} color={colors.text} accessible={false} />
-      <Text numberOfLines={1} style={[styles.label, styles.optionLabel]}>{t(option.label)}</Text>
-      <SelectionCheck selected={selectedValue === option.value} />
+      feedback={inline ? 'chip' : undefined} onPress={() => onChange(option.value)}
+      style={inline ? [styles.segment, selectedValue === option.value && styles.selectedSegment]
+        : [styles.option, selectedValue === option.value && styles.selected]}>
+      <MaterialDesignIcons name={option.icon} size={inline ? 16 : 18}
+        color={inline ? selectedValue === option.value ? colors.chilled : colors.textMuted : colors.text} accessible={false} />
+      <Text numberOfLines={1} style={inline ? [styles.segmentLabel, selectedValue === option.value && styles.selectedSegmentLabel]
+        : [styles.label, styles.optionLabel]}>
+        {t(inline ? option.value === 0 ? 'fridge.wholeSlot' : 'fridge.splitSlot' : option.label)}
+      </Text>
+      {!inline ? <SelectionCheck selected={selectedValue === option.value} /> : null}
     </FeedbackPressable>
   ));
   return (
     <View style={[styles.container, inline && styles.inline]}>
       {!inline ? <Text style={styles.label}>{label}</Text> : null}
       {/* 칸별로 같은 선택지가 반복되므로 접근성 이름에는 부모가 전달한 칸 번호·경로를 함께 넣는다. */}
-      <View style={styles.options}>{options}</View>
+      <View style={[styles.options, inline && styles.segments]}>{options}</View>
     </View>
   );
 }
 
-const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
+const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
   container: {
     gap: spacing.xs,
   },
@@ -75,6 +82,7 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
   },
+  segments: { gap: 8 },
   option: {
     flexShrink: 0,
     minWidth: 0,
@@ -93,6 +101,10 @@ const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
     borderColor: colors.button,
     backgroundColor: colors.sageLight,
   },
+  segment: { ...getIconChipTabStyles(mode).chip, maxWidth: undefined, flexShrink: 0 },
+  selectedSegment: getIconChipTabStyles(mode).selectedChip,
+  segmentLabel: { ...getIconChipTabStyles(mode).label, flexShrink: 0 },
+  selectedSegmentLabel: getIconChipTabStyles(mode).selectedLabel,
   label: {
     color: colors.text,
     fontSize: 12,

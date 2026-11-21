@@ -21,7 +21,7 @@ interface IconChipTabsProps<TabId extends string> {
 
 export function IconChipTabs<TabId extends string>({ tabs, activeTab, onChange, interactionBlocked = false, style }: IconChipTabsProps<TabId>) {
   const { mode, colors } = useAppTheme();
-  const styles = getStyles(mode);
+  const styles = getIconChipTabStyles(mode);
 
   return (
     <View accessibilityRole="tablist" style={[styles.tabs, style]}>
@@ -41,7 +41,8 @@ export function IconChipTabs<TabId extends string>({ tabs, activeTab, onChange, 
   );
 }
 
-const getStyles = createThemedStyles(({ colors }) => StyleSheet.create({
+// 탭과 설정 선택지가 같은 캡슐 모양과 선택 색을 사용한다.
+export const getIconChipTabStyles = createThemedStyles(({ colors }) => StyleSheet.create({
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, maxWidth: '100%',
