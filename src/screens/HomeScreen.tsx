@@ -351,7 +351,7 @@ export function HomeScreen({ navigation, onTabInteractionBlockedChange, takeIngr
                       accessibilityState={{ disabled: !canUseToolbar }} disabled={false} interactionBlocked={!canUseToolbar}
                       onPress={() => { if (canUseToolbar && !toolbarChanging.current) setIsConsumedOpen(true); }}
                       style={[styles.action, styles.homeAction]} hitSlop={4}>
-                      <MaterialDesignIcons name="check-circle-outline" size={18} color={colors.chilled} accessible={false} />
+                      <MaterialDesignIcons name="sticker-check-outline" size={18} color={colors.chilled} accessible={false} />
                       <Text style={[styles.label, styles.homeLabel]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('consumed.title')}</Text>
                       {hasUnseenConsumed && isToolbarExpanded ? (
                         <View style={styles.toolbarDot} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />

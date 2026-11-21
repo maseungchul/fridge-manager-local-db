@@ -517,7 +517,7 @@ export function IngredientListSheet({ position, layout, allIngredients = [], ini
                             accessibilityState={{ disabled: selectedIngredients.length === 0 || isBusy || isChanging }}
                             feedback="none" onPress={() => requestRemoval('consume')} style={styles.selectionAction}>
                             {({ pressed }) => <>
-                              <MaterialDesignIcons name="check-circle-outline" size={24} color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
+                              <MaterialDesignIcons name="sticker-check-outline" size={24} color={pressed ? colors.iconPressed : colors.text} accessible={false} pointerEvents="none" />
                               <Text style={[styles.selectionActionLabel, pressed && styles.selectionActionPressed]}>{t('ingredient.consume')}</Text>
                             </>}
                           </FeedbackPressable>
