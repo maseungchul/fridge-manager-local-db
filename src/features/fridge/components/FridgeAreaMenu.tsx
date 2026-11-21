@@ -8,7 +8,6 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FeedbackPressable } from '@/components/FeedbackPressable';
 import { SelectionCheck } from '@/components/SelectionCheck';
 import { QuantityStepper } from '@/components/QuantityStepper';
-import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { SlotStructureSelector } from '@/features/fridge/components/SlotStructureSelector';
 import { doorOpeningOptions, getSlotName, storageModeOptions } from '@/features/fridge/model/fridgeLayout';
 import type { DoorOpening, DrawerCount, SlotConfiguration, StorageMode } from '@/features/fridge/model/fridgeLayout';
@@ -131,31 +130,45 @@ export function FridgeAreaMenu({ disabled, activeCategory, onCategoryChange, sho
             <FeedbackPressable key={category.id} accessibilityRole="button" accessibilityLabel={category.label}
               accessibilityHint={t('fridge.submenuHint')}
               accessibilityState={{ disabled: unavailable, expanded }} disabled={unavailable}
-              onPress={() => onCategoryChange(expanded ? null : category.id)}
-              style={[styles.action, expanded && styles.activeCategory]}>
-              {expanded ? <View pointerEvents="none" style={styles.submenuArrow} /> : null}
-              <MaterialDesignIcons name={category.icon} size={18} color={expanded ? colors.chilled : colors.text} accessible={false} />
-              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.label}>{category.label}</Text>
+              onPress={() => onCategoryChange(expanded ? null : category.id)} feedback="none" style={styles.action}>
+              {({ pressed }) => {
+                const color = expanded ? colors.chilled : pressed ? colors.iconPressed : colors.text;
+                return <>
+                  {expanded ? <View pointerEvents="none" style={styles.submenuArrow} /> : null}
+                  <MaterialDesignIcons name={category.icon} size={24} color={color} accessible={false} />
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.label, { color }]}>{category.label}</Text>
+                </>;
+              }}
             </FeedbackPressable>
           );
         })}
         {storageEnabled !== undefined ? (
-          <View style={[styles.action, styles.storageAction]}>
-            <View style={[styles.actionLabel, disabled && styles.disabled]}>
-              <MaterialDesignIcons name="tray-full" size={18} color={colors.text} accessible={false} />
-              <Text accessible={false} numberOfLines={1} style={styles.label}>{t('fridge.doorStorage')}</Text>
-            </View>
-            <ToggleSwitch accessibilityLabel={t('fridge.useDoorStorage')} value={storageEnabled} disabled={disabled}
-              onValueChange={onStorageChange} />
-          </View>
+          <FeedbackPressable accessibilityRole="switch" accessibilityLabel={t('fridge.useDoorStorage')}
+            accessibilityState={{ checked: storageEnabled, disabled }} disabled={disabled}
+            onPress={() => onStorageChange(!storageEnabled)} feedback="none" style={styles.action}>
+            {({ pressed }) => {
+              const color = pressed ? colors.iconPressed : storageEnabled ? colors.chilled : colors.textMuted;
+              return <>
+                <MaterialDesignIcons name={storageEnabled ? 'tray-full' : 'tray-remove'} size={24} color={color} accessible={false} />
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.label, { color }]}>
+                  {t(storageEnabled ? 'fridge.doorStorage' : 'fridge.noDoorStorage')}
+                </Text>
+              </>;
+            }}
+          </FeedbackPressable>
         ) : null}
         {onMerge || onSplit ? (
           <FeedbackPressable accessibilityRole="button" accessibilityLabel={onSplit ? t('fridge.splitBodies') : t('fridge.mergeBodies')}
             accessibilityHint={onSplit ? t('fridge.splitHint') : t('fridge.mergeHint')}
             accessibilityState={{ disabled: disabled || (!onSplit && mergeDisabled) }} disabled={disabled || (!onSplit && mergeDisabled)}
-            onPress={onSplit ?? onMerge} style={styles.action}>
-            <MaterialDesignIcons name={onSplit ? 'arrow-expand-horizontal' : 'arrow-collapse-horizontal'} size={18} color={colors.text} accessible={false} />
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.label}>{onSplit ? t('fridge.split') : t('fridge.merge')}</Text>
+            onPress={onSplit ?? onMerge} feedback="none" style={styles.action}>
+            {({ pressed }) => {
+              const color = pressed ? colors.iconPressed : colors.text;
+              return <>
+                <MaterialDesignIcons name={onSplit ? 'arrow-expand-horizontal' : 'arrow-collapse-horizontal'} size={24} color={color} accessible={false} />
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.label, { color }]}>{onSplit ? t('fridge.split') : t('fridge.merge')}</Text>
+              </>;
+            }}
           </FeedbackPressable>
         ) : null}
       </View>
@@ -185,27 +198,7 @@ const getStyles = createThemedStyles(({ colors }, mode) => StyleSheet.create({
     padding: spacing.sm,
     gap: spacing.sm,
   },
-  activeCategory: {
-    borderColor: colors.chilled,
-    backgroundColor: colors.sageLight,
-  },
-  storageAction: {
-    minWidth: 140,
-    maxWidth: 160,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  actionLabel: {
-    flexShrink: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  disabled: {
-    opacity: 0.42,
-  },
+  action: { ...getFridgeToolbarStyles(mode).action, maxWidth: undefined, gap: 0, borderWidth: 0, backgroundColor: 'transparent' },
   submenuArrow: {
     position: 'absolute',
     bottom: '100%',
